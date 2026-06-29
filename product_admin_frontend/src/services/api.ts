@@ -68,6 +68,21 @@ function getBaseUrl(): string {
   return useMocks ? "" : apiUrl;
 }
 
+/**
+ * Resolve the correct endpoint for the current mode.
+ *
+ * In mock mode, Next.js Route Handlers live under /api/ so the full path
+ * must start with /api/... In real backend mode, NEXT_PUBLIC_API_URL
+ * already includes the /api/v1 prefix, so the resource path is appended
+ * directly (e.g. "/products").
+ *
+ * @param resource — the resource path, e.g. "/products" or "/products/:id"
+ */
+function apiEndpoint(resource: string): string {
+  const useMocks = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
+  return useMocks ? `/api${resource}` : resource;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -97,7 +112,7 @@ function toPlainHeaders(...sources: (HeadersInit | undefined)[]): Record<string,
   return result;
 }
 
-class ApiClientError extends Error {
+export class ApiClientError extends Error {
   status: number;
 
   constructor(message: string, status: number) {
@@ -169,14 +184,14 @@ async function request<T>(
  * Fetch all products.
  */
 export async function fetchProducts(): Promise<Product[]> {
-  return request<Product[]>("/api/products");
+  return request<Product[]>(apiEndpoint("/products"));
 }
 
 /**
  * Fetch a single product by ID.
  */
 export async function fetchProductById(id: string): Promise<Product> {
-  return request<Product>(`/api/products/${id}`);
+  return request<Product>(apiEndpoint(`/products/${id}`));
 }
 
 /**
@@ -185,7 +200,7 @@ export async function fetchProductById(id: string): Promise<Product> {
 export async function createProduct(
   data: CreateProductDTO,
 ): Promise<Product> {
-  return request<Product>("/api/products", {
+  return request<Product>(apiEndpoint("/products"), {
     method: "POST",
     body: JSON.stringify(data),
   });
@@ -198,7 +213,7 @@ export async function updateProduct(
   id: string,
   data: UpdateProductDTO,
 ): Promise<Product> {
-  return request<Product>(`/api/products/${id}`, {
+  return request<Product>(apiEndpoint(`/products/${id}`), {
     method: "PUT",
     body: JSON.stringify(data),
   });
@@ -210,7 +225,7 @@ export async function updateProduct(
 export async function deleteProduct(
   id: string,
 ): Promise<{ message: string }> {
-  return request<{ message: string }>(`/api/products/${id}`, {
+  return request<{ message: string }>(apiEndpoint(`/products/${id}`), {
     method: "DELETE",
   });
 }

@@ -103,7 +103,7 @@ describe("fetchProducts", () => {
     await fetchProducts();
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "https://api.example.com/v1/api/products",
+      "https://api.example.com/v1/products",
       expect.anything(),
     );
   });
@@ -115,7 +115,7 @@ describe("fetchProducts", () => {
     await fetchProducts();
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:8000/api/v1/api/products",
+      "http://localhost:8000/api/v1/products",
       expect.anything(),
     );
   });
