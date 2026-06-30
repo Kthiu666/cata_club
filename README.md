@@ -1,4 +1,4 @@
-# Cata Club Admin
+# Cata Club Admin Frontend
 
 Frontend application for the **Cata Club** table tennis administration system. This repository keeps the application at the Git root so GitHub, CI, package scripts, and contributors all work from one clear entry point.
 
