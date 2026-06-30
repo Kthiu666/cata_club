@@ -1,14 +1,15 @@
 /**
- * API Client — Product Admin Frontend
+ * API Client — Cata Club Admin Frontend
  *
  * Centralised HTTP client that switches between local mock Route Handlers
  * and the real Python backend based on environment variables.
  *
  * Environment variables (NEXT_PUBLIC_*):
- *   NEXT_PUBLIC_USE_MOCKS  — "true" to use local /api/* Route Handlers
+ *   NEXT_PUBLIC_USE_MOCKS  — Defaults to true (mocked) when unset.
+ *                            Set to "false" explicitly to hit the real backend.
  *   NEXT_PUBLIC_API_URL    — Base URL of the real backend (used when mocks are off)
  *
- * ⚠️ IMPORTANT: NEXT_PUBLIC_* values are baked into the client bundle at
+ * IMPORTANT: NEXT_PUBLIC_* values are baked into the client bundle at
  *    build time. Changing them requires restarting the dev server or
  *    rebuilding for production. They are NOT read at runtime on the client.
  *
@@ -18,7 +19,7 @@
  */
 
 // ---------------------------------------------------------------------------
-// Types
+// Types — Products (legacy, hidden from nav)
 // ---------------------------------------------------------------------------
 
 export interface Product {
@@ -44,6 +45,58 @@ export interface CreateProductDTO {
 
 export interface UpdateProductDTO extends Partial<CreateProductDTO> {}
 
+// ---------------------------------------------------------------------------
+// Types — Membership Payment Validation (CU012)
+// ---------------------------------------------------------------------------
+
+export type MembershipStatus =
+  | "pending_payment"
+  | "pending_validation"
+  | "active"
+  | "expired";
+
+export type ValidationStatus = "pending" | "approved" | "rejected";
+
+export type ProofFileType = "image" | "pdf";
+
+/**
+ * PaymentValidationRequest — Represents a membership payment proof
+ * submitted by a student or representative, awaiting admin validation.
+ *
+ * Maps to CU012: "Validar o rechazar comprobante de pago".
+ */
+export interface PaymentValidationRequest {
+  id: string;
+  studentName: string;
+  representativeName?: string;
+  membershipPeriod: string;
+  membershipType: string;
+  expectedAmount: number;
+  paymentMethod: string;
+  uploadedAt: string;
+  currentMembershipStatus: MembershipStatus;
+  proofFileName: string;
+  proofFileType: ProofFileType;
+  proofPreviewUrl?: string;
+  validationStatus: ValidationStatus;
+  rejectionReason?: string;
+  validatedAt?: string;
+  validatedBy?: string;
+}
+
+/** DTO for approving a payment validation request. */
+export interface ApprovePaymentDTO {
+  action: "approved";
+}
+
+/** DTO for rejecting a payment validation request. */
+export interface RejectPaymentDTO {
+  action: "rejected";
+  rejectionReason: string;
+}
+
+export type UpdatePaymentValidationDTO = ApprovePaymentDTO | RejectPaymentDTO;
+
 export interface ApiError {
   message: string;
   status: number;
@@ -61,9 +114,13 @@ export interface ApiError {
  *
  * NEXT_PUBLIC_* values are replaced at build time by Next.js. Changing
  * .env.local requires restarting `pnpm dev` or rebuilding for production.
+ *
+ * Mock default: when NEXT_PUBLIC_USE_MOCKS is unset, local dev defaults to
+ * mocked Route Handlers. Only set it to "false" explicitly for real backend.
+ * Any other value (including "true", undefined, "1", etc.) resolves to mocks.
  */
 function getBaseUrl(): string {
-  const useMocks = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
+  const useMocks = process.env.NEXT_PUBLIC_USE_MOCKS !== "false";
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
   return useMocks ? "" : apiUrl;
 }
@@ -76,10 +133,13 @@ function getBaseUrl(): string {
  * already includes the /api/v1 prefix, so the resource path is appended
  * directly (e.g. "/products").
  *
+ * Mock default: when NEXT_PUBLIC_USE_MOCKS is unset, local dev defaults to
+ * mocked Route Handlers. Only set it to "false" explicitly for real backend.
+ *
  * @param resource — the resource path, e.g. "/products" or "/products/:id"
  */
 function apiEndpoint(resource: string): string {
-  const useMocks = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
+  const useMocks = process.env.NEXT_PUBLIC_USE_MOCKS !== "false";
   return useMocks ? `/api${resource}` : resource;
 }
 
@@ -177,7 +237,7 @@ async function request<T>(
 }
 
 // ---------------------------------------------------------------------------
-// API Methods
+// Product API Methods (legacy — kept for existing tests)
 // ---------------------------------------------------------------------------
 
 /**
@@ -227,5 +287,32 @@ export async function deleteProduct(
 ): Promise<{ message: string }> {
   return request<{ message: string }>(apiEndpoint(`/products/${id}`), {
     method: "DELETE",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Membership Payment Validation API Methods
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch all payment validation requests.
+ */
+export async function fetchPaymentValidations(): Promise<PaymentValidationRequest[]> {
+  return request<PaymentValidationRequest[]>(apiEndpoint("/payments"));
+}
+
+/**
+ * Update a payment validation request (approve or reject).
+ *
+ * - Approve: `{ action: "approved" }`
+ * - Reject:  `{ action: "rejected", rejectionReason: "..." }`
+ */
+export async function updatePaymentValidation(
+  id: string,
+  data: UpdatePaymentValidationDTO,
+): Promise<PaymentValidationRequest> {
+  return request<PaymentValidationRequest>(apiEndpoint(`/payments/${id}`), {
+    method: "PUT",
+    body: JSON.stringify(data),
   });
 }

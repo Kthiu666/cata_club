@@ -7,8 +7,8 @@ Next.js 14 App Router directory. Each subdirectory represents a route segment.
 | `/` | `page.tsx` | Home / landing page |
 | `/login` | `login/page.tsx` | Login placeholder |
 | `/dashboard` | `dashboard/page.tsx` | Dashboard overview |
-| `/products` | `products/page.tsx` | Product list (server wrapper + `ProductList` client component) |
-| `/api/products` | `api/products/route.ts` | Mock API handler |
+| `/payments` | `payments/page.tsx` | Membership payment validation (CU012) |
+| `/api/payments` | `api/payments/route.ts` | Mock API handler for payment validation |
 
 ### Route Handlers (`src/app/api/`)
 

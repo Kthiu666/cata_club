@@ -5,6 +5,7 @@ Centralised layer for all external communication.
 | File | Purpose |
 |------|---------|
 | `api.ts` | HTTP client with mock/real backend switching |
+| `mockStore.ts` | In-memory mock data store for local development |
 
 ### Rules
 
@@ -19,9 +20,16 @@ Centralised layer for all external communication.
 The client uses `apiEndpoint(resource)` to resolve paths based on mode:
 
 | Mode | `NEXT_PUBLIC_USE_MOCKS` | Prefix | Example full URL |
-|------|------------------------|--------|------------------|
-| Mock Route Handlers | `"true"` | `/api` + resource | `/api/products` (Next.js local handler) |
-| Real backend | `"false"` | `NEXT_PUBLIC_API_URL` + resource | `http://localhost:8000/api/v1/products` |
+|------|-------------------------|--------|------------------|
+| Mock Route Handlers | unset or not `"false"` | `/api` + resource | `/api/payments` (Next.js local handler) |
+| Real backend | `"false"` | `NEXT_PUBLIC_API_URL` + resource | `http://localhost:8000/api/v1/payments` |
 
 Resource paths are always written without the `/api` prefix in source
-(e.g. `"/products"`). The helper prepends `/api` only in mock mode.
+(e.g. `"/payments"`). The helper prepends `/api` only in mock mode.
+
+> **Default behavior:** when `.env.local` is missing or `NEXT_PUBLIC_USE_MOCKS` is not set, the client defaults to local mock Route Handlers. This keeps `pnpm dev` immediately functional for new contributors without configuration.
+
+### Key Types
+
+- `PaymentValidationRequest` — membership payment proof awaiting admin validation
+- `UpdatePaymentValidationDTO` — approve or reject with optional rejection reason

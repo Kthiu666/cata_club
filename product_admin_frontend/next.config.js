@@ -1,10 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* Placeholder for future configuration:
-   * - API rewrites for Python backend
-   * - Image domains for Cloudinary
-   * - i18n if needed
-   */
+  /* Image configuration — allows local public/ assets */
+  images: {
+    // unoptimized: true, // uncomment if deploying to a host without image optimization
+  },
 };
 
 module.exports = nextConfig;

@@ -9,6 +9,8 @@
  *  - Error paths: non-2xx status codes produce typed errors.
  *  - Header merging: caller headers coexist with Content-Type.
  *  - Timeout/abort: default timeout fires and rejects the request.
+ *  - Mock default: USE_MOCKS defaults to true when env var is unset.
+ *  - Payment validation: approve and reject flows, rejection reason validation.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -18,8 +20,10 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  fetchPaymentValidations,
+  updatePaymentValidation,
 } from "../api";
-import type { Product } from "../api";
+import type { Product, PaymentValidationRequest } from "../api";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -47,6 +51,26 @@ function okResponse(body: unknown, init?: ResponseInit): Response {
     headers: { "Content-Type": "application/json" },
     ...init,
   });
+}
+
+/** A minimal payment-validation-shaped response body. */
+function makePaymentValidation(
+  overrides: Partial<PaymentValidationRequest> = {},
+): PaymentValidationRequest {
+  return {
+    id: "pv-001",
+    studentName: "Sofia Martinez",
+    membershipPeriod: "July 2026",
+    membershipType: "Monthly",
+    expectedAmount: 85.0,
+    paymentMethod: "Bank Transfer",
+    uploadedAt: "2026-06-28T10:30:00Z",
+    currentMembershipStatus: "pending_validation",
+    proofFileName: "comprobante.pdf",
+    proofFileType: "pdf",
+    validationStatus: "pending",
+    ...overrides,
+  };
 }
 
 /** Factory for an error fetch Response. */
@@ -116,6 +140,18 @@ describe("fetchProducts", () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       "http://localhost:8000/api/v1/products",
+      expect.anything(),
+    );
+  });
+
+  it("defaults to local mocks when NEXT_PUBLIC_USE_MOCKS is unset", async () => {
+    delete process.env.NEXT_PUBLIC_USE_MOCKS;
+    vi.mocked(global.fetch).mockResolvedValue(okResponse([]));
+
+    await fetchProducts();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/products",
       expect.anything(),
     );
   });
@@ -228,6 +264,141 @@ describe("timeout / abort", () => {
     expect(capturedSignal!.aborted).toBe(true);
 
     vi.useRealTimers();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Payment Validation API methods – contract tests
+// ---------------------------------------------------------------------------
+
+describe("fetchPaymentValidations", () => {
+  it("calls /api/payments when NEXT_PUBLIC_USE_MOCKS=true", async () => {
+    const items = [makePaymentValidation({ id: "pv-001" })];
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(items));
+
+    const result = await fetchPaymentValidations();
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledWith("/api/payments", expect.anything());
+    expect(result).toEqual(items);
+  });
+
+  it("calls the real backend URL when USE_MOCKS is off", async () => {
+    process.env.NEXT_PUBLIC_USE_MOCKS = "false";
+    process.env.NEXT_PUBLIC_API_URL = "https://api.example.com/v1";
+
+    vi.mocked(global.fetch).mockResolvedValue(okResponse([]));
+
+    await fetchPaymentValidations();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://api.example.com/v1/payments",
+      expect.anything(),
+    );
+  });
+
+  it("throws a typed error on a non-2xx response", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      errorResponse(500, { message: "Server error" }),
+    );
+
+    await expect(fetchPaymentValidations()).rejects.toThrow("Server error");
+  });
+});
+
+describe("updatePaymentValidation — approve", () => {
+  it("sends PUT with action approved to /api/payments/:id in mock mode", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      okResponse(makePaymentValidation({ id: "pv-001", validationStatus: "approved" })),
+    );
+
+    const result = await updatePaymentValidation("pv-001", { action: "approved" });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/payments/pv-001",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ action: "approved" }),
+      }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({ id: "pv-001", validationStatus: "approved" }),
+    );
+  });
+
+  it("calls the real backend URL with no doubled /api prefix", async () => {
+    process.env.NEXT_PUBLIC_USE_MOCKS = "false";
+    process.env.NEXT_PUBLIC_API_URL = "https://api.example.com/v1";
+
+    vi.mocked(global.fetch).mockResolvedValue(
+      okResponse(makePaymentValidation({ validationStatus: "approved" })),
+    );
+
+    await updatePaymentValidation("pv-42", { action: "approved" });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://api.example.com/v1/payments/pv-42",
+      expect.objectContaining({ method: "PUT" }),
+    );
+  });
+
+  it("throws a typed error on a 404 response", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      errorResponse(404, { message: "Payment validation request not found" }),
+    );
+
+    await expect(
+      updatePaymentValidation("invalid-id", { action: "approved" }),
+    ).rejects.toThrow("Payment validation request not found");
+  });
+});
+
+describe("updatePaymentValidation — reject", () => {
+  it("sends PUT with action rejected and rejectionReason", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      okResponse(
+        makePaymentValidation({
+          id: "pv-001",
+          validationStatus: "rejected",
+          rejectionReason: "Invalid amount",
+        }),
+      ),
+    );
+
+    const result = await updatePaymentValidation("pv-001", {
+      action: "rejected",
+      rejectionReason: "Invalid amount",
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/payments/pv-001",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ action: "rejected", rejectionReason: "Invalid amount" }),
+      }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: "pv-001",
+        validationStatus: "rejected",
+        rejectionReason: "Invalid amount",
+      }),
+    );
+  });
+
+  it("rejects with an empty rejection reason at the mock API level", async () => {
+    // The mock handler validates rejectionReason is non-empty.
+    // The client should pass through whatever the server returns.
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ message: "Rejection reason is required and must not be empty" }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    await expect(
+      updatePaymentValidation("pv-001", { action: "rejected", rejectionReason: "" }),
+    ).rejects.toThrow("Rejection reason is required and must not be empty");
   });
 });
 

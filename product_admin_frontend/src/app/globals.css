@@ -2,29 +2,85 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global base styles — Product Admin Frontend */
+/* Global base styles — Cata Club Admin */
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  img {
+    max-width: 100%;
+    display: block;
+  }
 }
 
-body {
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@layer components {
+  .card {
+    @apply rounded-2xl border border-cata-stone/60 bg-white shadow-card;
+  }
+
+  .card-hover {
+    @apply card transition-all duration-300 hover:shadow-elevated hover:border-cata-stone;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-cata-red px-5 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-cata-red-light focus:outline-none focus:ring-2 focus:ring-cata-red/30 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-cata-stone/70 bg-white px-5 py-2.5 text-sm font-medium text-cata-charcoal transition-all duration-200 hover:bg-cata-warm hover:border-cata-stone focus:outline-none focus:ring-2 focus:ring-cata-stone/30 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-cata-gray transition-colors duration-200 hover:bg-cata-warm hover:text-cata-charcoal focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .input-field {
+    @apply w-full rounded-xl border border-cata-stone/70 bg-white px-4 py-2.5 text-sm text-cata-charcoal placeholder:text-cata-gray/50 transition-all duration-200 focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/15 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium tracking-wide;
+  }
+
+  .badge-success {
+    @apply badge bg-emerald-50 text-emerald-700;
+  }
+
+  .badge-warning {
+    @apply badge bg-amber-50 text-amber-700;
+  }
+
+  .badge-error {
+    @apply badge bg-red-50 text-cata-red;
+  }
+
+  .badge-neutral {
+    @apply badge bg-cata-warm text-cata-gray;
+  }
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+/* Subtle background texture — premium spa/Swiss aesthetic */
+@layer utilities {
+  .bg-subtle-dot {
+    background-image: radial-gradient(circle, rgba(139, 26, 26, 0.03) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
 
-img {
-  max-width: 100%;
-  display: block;
+  .bg-logo-glow {
+    background: radial-gradient(ellipse 50% 60% at 50% 40%, rgba(139, 26, 26, 0.04) 0%, transparent 70%);
+  }
 }

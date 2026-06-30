@@ -5,7 +5,11 @@
  * Data resets on server restart — never used in production.
  */
 
-import type { Product } from "./api";
+import type { Product, PaymentValidationRequest } from "./api";
+
+// ---------------------------------------------------------------------------
+// Product Mock Data (legacy — hidden from nav, kept for existing tests)
+// ---------------------------------------------------------------------------
 
 const initialProducts: Product[] = [
   {
@@ -61,7 +65,7 @@ const initialProducts: Product[] = [
 ];
 
 let products: Product[] = [...initialProducts];
-let nextId = 6;
+let nextProductId = 6;
 
 export function getProducts(): Product[] {
   return products;
@@ -90,6 +94,165 @@ export function removeProduct(id: string): boolean {
   return true;
 }
 
-export function getNextId(): string {
-  return String(nextId++);
+export function getNextProductId(): string {
+  return String(nextProductId++);
+}
+
+// ---------------------------------------------------------------------------
+// Payment Validation Mock Data (CU012)
+// ---------------------------------------------------------------------------
+
+const initialPayments: PaymentValidationRequest[] = [
+  {
+    id: "pv-001",
+    studentName: "Sofia Martinez",
+    representativeName: "Carlos Martinez",
+    membershipPeriod: "July 2026",
+    membershipType: "Monthly",
+    expectedAmount: 85.0,
+    paymentMethod: "Bank Transfer",
+    uploadedAt: "2026-06-28T10:30:00Z",
+    currentMembershipStatus: "pending_validation",
+    proofFileName: "comprobante_pago_sofia_julio.pdf",
+    proofFileType: "pdf",
+    validationStatus: "pending",
+  },
+  {
+    id: "pv-002",
+    studentName: "Mateo Rodriguez",
+    membershipPeriod: "July 2026",
+    membershipType: "Monthly",
+    expectedAmount: 85.0,
+    paymentMethod: "Cash",
+    uploadedAt: "2026-06-27T14:15:00Z",
+    currentMembershipStatus: "pending_validation",
+    proofFileName: "pago_mateo_julio.jpeg",
+    proofFileType: "image",
+    proofPreviewUrl: "/brand/cata-club-logo.jpeg",
+    validationStatus: "pending",
+  },
+  {
+    id: "pv-003",
+    studentName: "Valentina Lopez",
+    representativeName: "Ana Lopez",
+    membershipPeriod: "July 2026",
+    membershipType: "Quarterly",
+    expectedAmount: 240.0,
+    paymentMethod: "Bank Transfer",
+    uploadedAt: "2026-06-26T09:00:00Z",
+    currentMembershipStatus: "active",
+    proofFileName: "comprobante_valentina_q3.pdf",
+    proofFileType: "pdf",
+    validationStatus: "approved",
+    validatedAt: "2026-06-26T11:20:00Z",
+    validatedBy: "admin@cataclub.com",
+  },
+  {
+    id: "pv-004",
+    studentName: "Benjamin Torres",
+    membershipPeriod: "June 2026",
+    membershipType: "Monthly",
+    expectedAmount: 85.0,
+    paymentMethod: "Card",
+    uploadedAt: "2026-06-25T16:45:00Z",
+    currentMembershipStatus: "pending_payment",
+    proofFileName: "pago_benjamin_junio.png",
+    proofFileType: "image",
+    validationStatus: "rejected",
+    rejectionReason: "El comprobante no corresponde al monto de la membresía mensual. El monto esperado es $85.00, el comprobante muestra $50.00.",
+    validatedAt: "2026-06-25T17:30:00Z",
+    validatedBy: "admin@cataclub.com",
+  },
+  {
+    id: "pv-005",
+    studentName: "Camila Flores",
+    representativeName: "Diego Flores",
+    membershipPeriod: "July 2026",
+    membershipType: "Monthly",
+    expectedAmount: 85.0,
+    paymentMethod: "Bank Transfer",
+    uploadedAt: "2026-06-29T08:00:00Z",
+    currentMembershipStatus: "pending_validation",
+    proofFileName: "pago_camila_julio.pdf",
+    proofFileType: "pdf",
+    validationStatus: "pending",
+  },
+  {
+    id: "pv-006",
+    studentName: "Nicolas Acosta",
+    membershipPeriod: "July 2026",
+    membershipType: "Annual",
+    expectedAmount: 720.0,
+    paymentMethod: "Bank Transfer",
+    uploadedAt: "2026-06-24T13:20:00Z",
+    currentMembershipStatus: "active",
+    proofFileName: "comprobante_nicolas_anual.pdf",
+    proofFileType: "pdf",
+    validationStatus: "approved",
+    validatedAt: "2026-06-24T15:00:00Z",
+    validatedBy: "admin@cataclub.com",
+  },
+];
+
+let payments: PaymentValidationRequest[] = [...initialPayments];
+
+export function getPaymentValidations(): PaymentValidationRequest[] {
+  return payments;
+}
+
+export function getPaymentValidationById(id: string): PaymentValidationRequest | undefined {
+  return payments.find((p) => p.id === id);
+}
+
+export function updatePaymentValidation(
+  id: string,
+  updates: Partial<PaymentValidationRequest>,
+): PaymentValidationRequest | undefined {
+  const index = payments.findIndex((p) => p.id === id);
+  if (index === -1) return undefined;
+  payments[index] = { ...payments[index], ...updates, id };
+  return payments[index];
+}
+
+// ---------------------------------------------------------------------------
+// Determinism helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Reset the entire mock store to its initial seeded state.
+ *
+ * Call this in a `beforeEach` hook in every test suite that mutates the store
+ * to guarantee test isolation and eliminate order-dependent failures.
+ */
+export function resetMockStore(): void {
+  products = initialProducts.map((p) => ({ ...p }));
+  payments = initialPayments.map((p) => ({ ...p }));
+  nextProductId = 6;
+}
+
+export interface TransitionVerdict {
+  valid: boolean;
+  message?: string;
+}
+
+/**
+ * Validate whether a payment validation request may transition to the given
+ * action (approved / rejected).  Only requests whose current validationStatus
+ * is "pending" may be acted upon.
+ *
+ * This is a pure domain guard used by the PUT /api/payments/:id route handler.
+ */
+export function validatePaymentValidationTransition(
+  current: Pick<PaymentValidationRequest, "validationStatus" | "id">,
+  action: "approved" | "rejected",
+): TransitionVerdict {
+  if (current.validationStatus !== "pending") {
+    return {
+      valid: false,
+      message:
+        `Cannot ${action} request "${current.id}": current status is ` +
+        `"${current.validationStatus}". Only pending requests can be validated.`,
+    };
+  }
+  return { valid: true };
 }

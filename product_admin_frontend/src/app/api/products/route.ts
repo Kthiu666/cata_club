@@ -12,7 +12,7 @@ import type { Product } from "@/services/api";
 import {
   getProducts,
   addProduct,
-  getNextId,
+  getNextProductId,
 } from "@/services/mockStore";
 
 // ---------------------------------------------------------------------------
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
 
     const newProduct: Product = {
-      id: getNextId(),
+      id: getNextProductId(),
       name: body.name || "Untitled Product",
       description: body.description || "",
       price: Number(body.price) || 0,

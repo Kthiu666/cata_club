@@ -5,8 +5,6 @@ Presentational and container components shared across pages.
 | Component | Purpose |
 |-----------|---------|
 | `Header` | Top navigation bar with links |
-| `ProductCard` | Single product display card |
-| `ProductList` | Client component that fetches and renders product cards |
 
 ### Conventions
 

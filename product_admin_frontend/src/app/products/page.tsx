@@ -1,15 +1,11 @@
-import type { Metadata } from "next";
-import ProductList from "@/components/ProductList";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Products",
-};
-
+/**
+ * Products (legacy) — Redirects to the Memberships & Payments page.
+ *
+ * This route is kept to avoid breaking legacy imports and tests.
+ * Inventory is not part of the Cata Club domain.
+ */
 export default function ProductsPage() {
-  return (
-    <div>
-      <h1 className="mb-6 text-2xl font-bold text-slate-800">Products</h1>
-      <ProductList />
-    </div>
-  );
+  redirect("/payments");
 }

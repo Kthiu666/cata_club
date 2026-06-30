@@ -1,14 +1,15 @@
-# Product Admin Frontend
+# Cata Club Admin Frontend
 
-Frontend application for the product administration system. Developed by **Pair 3** for the university software engineering project.
+Frontend application for the **Cata Club** table tennis (Tenis de Mesa) club administration system. Developed by **Pair 3** for the university software engineering project.
 
 ## Tech Stack
 
 - **Framework:** Next.js 14 (App Router) + TypeScript
 - **Styling:** Tailwind CSS 3
+- **Icons:** lucide-react
 - **Package Manager:** pnpm
+- **Testing:** Vitest
 - **Linting:** ESLint (next/core-web-vitals)
-- **Deployment:** Not yet configured — `next build` produces a static export or Node server bundle
 
 ## Architecture Overview
 
@@ -16,13 +17,24 @@ Frontend application for the product administration system. Developed by **Pair 
 src/
 ├── app/            # Next.js App Router pages and API routes
 │   ├── api/        # Local mock Route Handlers (dev only)
+│   │   └── payments/
 │   ├── login/
 │   ├── dashboard/
-│   └── products/
+│   └── payments/   # Membership payment validation (CU012)
 ├── components/     # Reusable UI components
-├── controllers/    # Page-level orchestration (placeholder — not yet in use)
 └── services/       # API client, external service integrations
 ```
+
+## Domain Overview
+
+Cata Club manages:
+
+| Area | Description |
+|------|-------------|
+| **Access & Users** | Login/logout, user accounts, student and legal representative registration, credential generation |
+| **Memberships & Payments** | Membership types, proof of payment upload (image/PDF), admin validation (CU012), physical payment recording; membership states: pending payment, pending validation, active, expired |
+| **Operation & Attendance** | Training schedule management, student assignment by technical level, attendance states: present, absent, late, justified |
+| **Consultation** | Students/representatives consult schedule and membership state; admin consults attendance by schedule, period, or student |
 
 ## API-First Workflow
 
@@ -33,37 +45,30 @@ This frontend is **decoupled from the backend** via an API contract. The strateg
 3. **Configure `NEXT_PUBLIC_API_URL`** to point to the real backend.
 4. The API client (`src/services/api.ts`) automatically switches between mocks and real API.
 
-### Products API Contract (Agreed)
+### API Contracts
 
-| Endpoint | Method | Description | Request Body | Response |
-|----------|--------|-------------|-------------|----------|
-| `/api/products` | GET | List all products | — | `Product[]` |
-| `/api/products/:id` | GET | Get product by ID | — | `Product` |
-| `/api/products` | POST | Create product | `CreateProductDTO` | `Product` |
-| `/api/products/:id` | PUT | Update product | `UpdateProductDTO` | `Product` |
-| `/api/products/:id` | DELETE | Delete product | — | `{ message: string }` |
+#### Memberships & Payments (CU012 — Payment Validation)
 
-### Product Type
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/payments` | GET | List all membership payment validation requests |
+| `/api/payments/:id` | PUT | Approve or reject a payment validation request |
 
-```ts
-interface Product {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  stock: number;
-  imageUrl?: string;
-  category: string;
-  createdAt: string;
-  updatedAt: string;
-}
+**Approve request body:**
+```json
+{ "action": "approved" }
+```
+
+**Reject request body:**
+```json
+{ "action": "rejected", "rejectionReason": "Reason for rejection" }
 ```
 
 ## Getting Started
 
 ```bash
-pnpm install    # installs all dependencies including Tailwind CSS
-pnpm dev        # starts the dev server (Tailwind generates styles on the fly)
+pnpm install    # installs all dependencies
+pnpm dev        # starts the dev server
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -79,14 +84,3 @@ Open [http://localhost:3000](http://localhost:3000).
 | `pnpm type-check` | Run TypeScript type checking |
 | `pnpm test` | Run tests (Vitest) |
 | `pnpm test:watch` | Run tests in watch mode |
-
-## Cloudinary Configuration
-
-Product images use Cloudinary unsigned uploads. Configure in `.env.local`:
-
-```
-NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your_cloud_name
-NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=product_admin_unsigned
-```
-
-> The cloud name is public-safe. The upload preset must be set to **unsigned** in your Cloudinary dashboard. No secrets are committed.
