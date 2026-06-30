@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: [main]
 
-defaults:
-  run:
-    working-directory: product_admin_frontend
-
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -25,7 +21,7 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: product_admin_frontend/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
       - run: pnpm install --frozen-lockfile
 

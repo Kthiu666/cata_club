@@ -1,6 +1,31 @@
-# Cata Club Admin Frontend
+# Cata Club Admin
 
-Frontend application for the **Cata Club** table tennis (Tenis de Mesa) club administration system. Developed by **Pair 3** for the university software engineering project.
+Frontend application for the **Cata Club** table tennis administration system. This repository keeps the application at the Git root so GitHub, CI, package scripts, and contributors all work from one clear entry point.
+
+## Quick Start
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Repository Layout
+
+```text
+.
+├── .github/workflows/ci.yml   # CI checks for pushes and pull requests
+├── public/                    # Static assets and Cata Club brand files
+├── src/
+│   ├── app/                   # Next.js App Router pages and local API routes
+│   ├── components/            # Reusable UI components
+│   ├── controllers/           # Controller-facing documentation/contracts
+│   └── services/              # API client, mocks, and service tests
+├── package.json               # Scripts, dependencies, and package metadata
+├── pnpm-lock.yaml             # Locked dependency graph
+└── README.md                  # Project overview and operating guide
+```
 
 ## Tech Stack
 
@@ -11,18 +36,19 @@ Frontend application for the **Cata Club** table tennis (Tenis de Mesa) club adm
 - **Testing:** Vitest
 - **Linting:** ESLint (next/core-web-vitals)
 
-## Architecture Overview
+## Application Structure
 
 ```
 src/
-├── app/            # Next.js App Router pages and API routes
-│   ├── api/        # Local mock Route Handlers (dev only)
-│   │   └── payments/
-│   ├── login/
-│   ├── dashboard/
-│   └── payments/   # Membership payment validation (CU012)
+├── app/            # Next.js App Router pages and Route Handlers
+│   ├── api/        # Local mock Route Handlers for development
+│   ├── dashboard/  # Admin dashboard
+│   ├── login/      # Login screen
+│   ├── payments/   # Membership payment validation (CU012)
+│   └── products/   # Product administration screens
 ├── components/     # Reusable UI components
-└── services/       # API client, external service integrations
+├── controllers/    # Controller-facing documentation/contracts
+└── services/       # API client, local mock store, and service tests
 ```
 
 ## Domain Overview
@@ -63,15 +89,6 @@ This frontend is **decoupled from the backend** via an API contract. The strateg
 ```json
 { "action": "rejected", "rejectionReason": "Reason for rejection" }
 ```
-
-## Getting Started
-
-```bash
-pnpm install    # installs all dependencies
-pnpm dev        # starts the dev server
-```
-
-Open [http://localhost:3000](http://localhost:3000).
 
 ## Available Scripts
 
