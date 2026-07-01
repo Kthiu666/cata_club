@@ -25,7 +25,7 @@ export async function PUT(
 
   if (!existing) {
     return NextResponse.json(
-      { message: "Payment validation request not found" },
+      { message: "Solicitud de validación de pago no encontrada" },
       { status: 404 },
     );
   }
@@ -47,8 +47,8 @@ export async function PUT(
 
     if (body.action === "approved") {
       const updated = updatePaymentValidation(params.id, {
-        validationStatus: "approved",
-        currentMembershipStatus: "active",
+        validationStatus: "validado",
+        currentMembershipStatus: "activa",
         validatedAt: now,
         validatedBy: "admin@cataclub.com",
         rejectionReason: undefined,
@@ -63,14 +63,17 @@ export async function PUT(
         body.rejectionReason.trim().length === 0
       ) {
         return NextResponse.json(
-          { message: "Rejection reason is required and must not be empty" },
+          { message: "El motivo de rechazo es obligatorio y no debe estar vacío" },
           { status: 400 },
         );
       }
 
       const updated = updatePaymentValidation(params.id, {
-        validationStatus: "rejected",
-        currentMembershipStatus: "pending_payment",
+        validationStatus: "rechazado",
+        // Preserve current membership status — rejection of a renewal proof
+        // on an active membership should not force the membership to "vencida".
+        // Payment validation and membership lifecycle are separate concerns.
+        currentMembershipStatus: existing.currentMembershipStatus,
         validatedAt: now,
         validatedBy: "admin@cataclub.com",
         rejectionReason: body.rejectionReason.trim(),
@@ -79,12 +82,12 @@ export async function PUT(
     }
 
     return NextResponse.json(
-      { message: "Invalid action. Use 'approved' or 'rejected'." },
+      { message: "Acción inválida. Use 'approved' o 'rejected'." },
       { status: 400 },
     );
   } catch {
     return NextResponse.json(
-      { message: "Invalid request body" },
+      { message: "Cuerpo de solicitud inválido" },
       { status: 400 },
     );
   }

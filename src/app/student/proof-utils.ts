@@ -6,30 +6,35 @@
 
 export type ProofStatus = "not_uploaded" | "pending_validation" | "approved" | "rejected";
 
-/** Union of valid membership statuses — single source of truth. */
+/**
+ * Membership lifecycle status — aligns with `EstadoMembresia` in domain.ts.
+ *
+ * Membership is created/activated only after payment/comprobante is approved.
+ * The old "pending_payment" / "pending_validation" membership states are no
+ * longer valid — those are Pago states.
+ */
 export type MembershipStatus =
-  | "active"
-  | "pending_validation"
-  | "pending_payment"
-  | "expired";
+  | "activa"
+  | "vencida"
+  | "suspendida";
 
 /**
  * Derives the proof status from membership + payment state.
  *
- * Business rules:
- *  - `pending_payment` with no proof uploaded → "not_uploaded"
+ * Business rules (domain model 2026-07):
+ *  - No proof uploaded → "not_uploaded" (pending payment)
  *  - Proof uploaded but not yet validated → "pending_validation"
- *  - Validated and membership active → "approved"
- *  - Everything else (expired, rejected proof, etc.) → "rejected"
+ *  - Proof validated AND membership active → "approved"
+ *  - Everything else (expired membership, suspended, rejected proof) → "rejected"
  */
 export function getProofStatus(
   membershipStatus: MembershipStatus,
   proofUploaded: boolean,
   validated: boolean,
 ): ProofStatus {
-  if (membershipStatus === "pending_payment" && !proofUploaded) return "not_uploaded";
+  if (!proofUploaded) return "not_uploaded";
   if (proofUploaded && !validated) return "pending_validation";
-  if (validated && membershipStatus === "active") return "approved";
+  if (validated && membershipStatus === "activa") return "approved";
   return "rejected";
 }
 

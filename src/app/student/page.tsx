@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -17,6 +18,8 @@ import {
   ChevronDown,
   GraduationCap,
   Building2,
+  UserPlus,
+  ArrowRight,
 } from "lucide-react";
 import { getProofStatus, formatFileSize } from "./proof-utils";
 import type { ProofStatus, MembershipStatus } from "./proof-utils";
@@ -26,6 +29,16 @@ import type { ProofStatus, MembershipStatus } from "./proof-utils";
 // ---------------------------------------------------------------------------
 
 type PaymentStatus = "paid" | "pending" | "overdue";
+
+/**
+ * Demo scenario keys — internal to the UI, NOT domain MembershipStatus.
+ *
+ * These represent combined membership+payment states for demo purposes:
+ *   - active:       membership activa, payment aprobado
+ *   - pending_validation: payment submitted, awaiting admin approval
+ *   - pending_payment:    no payment recorded yet
+ *   - expired:      membership vencida or not renewed
+ */
 type DemoScenario = "active" | "pending_validation" | "pending_payment" | "expired";
 
 interface UpcomingSession {
@@ -66,7 +79,7 @@ interface DemoStudentInfo {
 const scenarioData: Record<DemoScenario, ScenarioData> = {
   active: {
     membership: {
-      status: "active",
+      status: "activa",
       type: "Mensual",
       period: "Julio 2026",
       startDate: "2026-07-01",
@@ -83,7 +96,7 @@ const scenarioData: Record<DemoScenario, ScenarioData> = {
   },
   pending_validation: {
     membership: {
-      status: "pending_validation",
+      status: "activa",
       type: "Mensual",
       period: "Julio 2026",
       startDate: "2026-07-01",
@@ -100,7 +113,7 @@ const scenarioData: Record<DemoScenario, ScenarioData> = {
   },
   pending_payment: {
     membership: {
-      status: "pending_payment",
+      status: "vencida",
       type: "Mensual",
       period: "Julio 2026",
       startDate: "—",
@@ -117,7 +130,7 @@ const scenarioData: Record<DemoScenario, ScenarioData> = {
   },
   expired: {
     membership: {
-      status: "expired",
+      status: "vencida",
       type: "Mensual",
       period: "Junio 2026",
       startDate: "2026-06-01",
@@ -135,10 +148,10 @@ const scenarioData: Record<DemoScenario, ScenarioData> = {
 };
 
 const scenarioLabels: Record<DemoScenario, string> = {
-  active: "Activo",
-  pending_validation: "Pendiente de Validación",
-  pending_payment: "Pendiente de Pago",
-  expired: "Vencido",
+  active: "Activa",
+  pending_validation: "Pago en Validación",
+  pending_payment: "Sin Pago",
+  expired: "Vencida",
 };
 
 /** Sessions for each demo student. */
@@ -214,10 +227,9 @@ const demoStudentsByAccount: Record<string, DemoStudentInfo[]> = {
 // ---------------------------------------------------------------------------
 
 const membershipConfig: Record<MembershipStatus, { label: string; badge: string }> = {
-  active: { label: "Activo", badge: "badge-success" },
-  pending_validation: { label: "Pendiente de Validación", badge: "badge-warning" },
-  pending_payment: { label: "Pendiente de Pago", badge: "badge-warning" },
-  expired: { label: "Vencido", badge: "badge-error" },
+  activa: { label: "Activa", badge: "badge-success" },
+  vencida: { label: "Vencida", badge: "badge-error" },
+  suspendida: { label: "Suspendida", badge: "badge-error" },
 };
 
 const paymentStatusConfig: Record<PaymentStatus, { label: string; badge: string }> = {
@@ -451,6 +463,20 @@ export default function StudentPage() {
           {selectedStudent?.nombre ?? ""} — membresía, pagos y horario
         </p>
       </div>
+
+      {/* ── Student Enrollment CTA ── */}
+      {isRepresentative && (
+        <div className="mb-6">
+          <Link
+            href="/student/enroll"
+            className="inline-flex items-center gap-2 rounded-xl bg-cata-red/8 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/15"
+          >
+            <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
+            Inscribirse
+            <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+          </Link>
+        </div>
+      )}
 
       {/* ── Demo Scenario Selector ── */}
       <div className="mb-8">

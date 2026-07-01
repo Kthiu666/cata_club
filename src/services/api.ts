@@ -49,13 +49,19 @@ export interface UpdateProductDTO extends Partial<CreateProductDTO> {}
 // Types — Membership Payment Validation (CU012)
 // ---------------------------------------------------------------------------
 
+/**
+ * Membership lifecycle status — aligns with `EstadoMembresia` in domain.ts.
+ * Membership is created/activated only after payment is approved.
+ */
 export type MembershipStatus =
-  | "pending_payment"
-  | "pending_validation"
-  | "active"
-  | "expired";
+  | "activa"
+  | "vencida"
+  | "suspendida";
 
-export type ValidationStatus = "pending" | "approved" | "rejected";
+/**
+ * Payment proof validation status — aligns with `EstadoValidacion` in domain.ts.
+ */
+export type ValidationStatus = "pendiente" | "validado" | "rechazado";
 
 export type ProofFileType = "image" | "pdf";
 

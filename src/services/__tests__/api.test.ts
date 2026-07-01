@@ -66,10 +66,10 @@ function makePaymentValidation(
     expectedAmount: 85.0,
     paymentMethod: "Bank Transfer",
     uploadedAt: "2026-06-28T10:30:00Z",
-    currentMembershipStatus: "pending_validation",
+    currentMembershipStatus: "vencida",
     proofFileName: "comprobante.pdf",
     proofFileType: "pdf",
-    validationStatus: "pending",
+    validationStatus: "pendiente",
     ...overrides,
   };
 }
@@ -310,7 +310,7 @@ describe("fetchPaymentValidations", () => {
 describe("updatePaymentValidation — approve", () => {
   it("sends PUT with action approved to /api/payments/:id in mock mode", async () => {
     vi.mocked(global.fetch).mockResolvedValue(
-      okResponse(makePaymentValidation({ id: "pv-001", validationStatus: "approved" })),
+      okResponse(makePaymentValidation({ id: "pv-001", validationStatus: "validado" })),
     );
 
     const result = await updatePaymentValidation("pv-001", { action: "approved" });
@@ -323,7 +323,7 @@ describe("updatePaymentValidation — approve", () => {
       }),
     );
     expect(result).toEqual(
-      expect.objectContaining({ id: "pv-001", validationStatus: "approved" }),
+      expect.objectContaining({ id: "pv-001", validationStatus: "validado" }),
     );
   });
 
@@ -332,7 +332,7 @@ describe("updatePaymentValidation — approve", () => {
     process.env.NEXT_PUBLIC_API_URL = "https://api.example.com/v1";
 
     vi.mocked(global.fetch).mockResolvedValue(
-      okResponse(makePaymentValidation({ validationStatus: "approved" })),
+      okResponse(makePaymentValidation({ validationStatus: "validado" })),
     );
 
     await updatePaymentValidation("pv-42", { action: "approved" });
@@ -360,7 +360,7 @@ describe("updatePaymentValidation — reject", () => {
       okResponse(
         makePaymentValidation({
           id: "pv-001",
-          validationStatus: "rejected",
+          validationStatus: "rechazado",
           rejectionReason: "Invalid amount",
         }),
       ),
@@ -381,7 +381,7 @@ describe("updatePaymentValidation — reject", () => {
     expect(result).toEqual(
       expect.objectContaining({
         id: "pv-001",
-        validationStatus: "rejected",
+        validationStatus: "rechazado",
         rejectionReason: "Invalid amount",
       }),
     );
@@ -392,14 +392,14 @@ describe("updatePaymentValidation — reject", () => {
     // The client should pass through whatever the server returns.
     vi.mocked(global.fetch).mockResolvedValue(
       new Response(
-        JSON.stringify({ message: "Rejection reason is required and must not be empty" }),
+        JSON.stringify({ message: "El motivo de rechazo es obligatorio y no puede estar vacío." }),
         { status: 400, headers: { "Content-Type": "application/json" } },
       ),
     );
 
     await expect(
       updatePaymentValidation("pv-001", { action: "rejected", rejectionReason: "" }),
-    ).rejects.toThrow("Rejection reason is required and must not be empty");
+    ).rejects.toThrow("El motivo de rechazo es obligatorio y no puede estar vacío.");
   });
 });
 

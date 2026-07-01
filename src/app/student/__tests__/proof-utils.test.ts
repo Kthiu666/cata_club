@@ -14,43 +14,38 @@ import type { ProofStatus } from "../proof-utils";
 // ---------------------------------------------------------------------------
 
 describe("getProofStatus", () => {
-  it('returns "not_uploaded" when membership is pending_payment and no proof', () => {
-    const result = getProofStatus("pending_payment", false, false);
-    expect(result).toBe("not_uploaded");
+  it('returns "not_uploaded" when no proof is uploaded', () => {
+    expect(getProofStatus("activa", false, false)).toBe("not_uploaded");
+    expect(getProofStatus("vencida", false, false)).toBe("not_uploaded");
+    expect(getProofStatus("suspendida", false, false)).toBe("not_uploaded");
   });
 
   it('returns "pending_validation" when proof is uploaded but not validated', () => {
-    const result = getProofStatus("active", true, false);
-    expect(result).toBe("pending_validation");
-  });
-
-  it('returns "pending_validation" for expired membership with uploaded proof', () => {
-    const result = getProofStatus("expired", true, false);
-    expect(result).toBe("pending_validation");
+    expect(getProofStatus("activa", true, false)).toBe("pending_validation");
+    expect(getProofStatus("vencida", true, false)).toBe("pending_validation");
+    expect(getProofStatus("suspendida", true, false)).toBe("pending_validation");
   });
 
   it('returns "approved" when validated and membership is active', () => {
-    const result = getProofStatus("active", true, true);
-    expect(result).toBe("approved");
+    expect(getProofStatus("activa", true, true)).toBe("approved");
   });
 
-  it('returns "rejected" when validated but membership is not active (expired)', () => {
-    const result = getProofStatus("expired", true, true);
-    expect(result).toBe("rejected");
+  it('returns "rejected" when validated but membership is not active (vencida)', () => {
+    expect(getProofStatus("vencida", true, true)).toBe("rejected");
   });
 
-  it('returns "rejected" when no proof and membership is not pending_payment', () => {
-    const result = getProofStatus("active", false, false);
-    expect(result).toBe("rejected");
+  it('returns "rejected" when validated but membership is suspendida', () => {
+    expect(getProofStatus("suspendida", true, true)).toBe("rejected");
   });
 
-  it('returns "rejected" for expired membership with no proof and not validated', () => {
-    const result = getProofStatus("expired", false, false);
-    expect(result).toBe("rejected");
+  it('returns "rejected" for any membership state with no proof and not validated', () => {
+    expect(getProofStatus("activa", false, false)).toBe("not_uploaded");
+    expect(getProofStatus("vencida", false, false)).toBe("not_uploaded");
+    expect(getProofStatus("suspendida", false, false)).toBe("not_uploaded");
   });
 
   it("returns a valid ProofStatus for every membership status", () => {
-    const statuses = ["active", "pending_validation", "pending_payment", "expired"] as const;
+    const statuses = ["activa", "vencida", "suspendida"] as const;
     const proofUploadedOptions = [true, false];
     const validatedOptions = [true, false];
     const validStatuses: ProofStatus[] = [

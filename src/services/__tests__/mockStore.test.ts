@@ -58,10 +58,10 @@ function makePaymentValidation(
     expectedAmount: 85.0,
     paymentMethod: "Bank Transfer",
     uploadedAt: new Date().toISOString(),
-    currentMembershipStatus: "pending_validation",
+    currentMembershipStatus: "vencida",
     proofFileName: "test-proof.pdf",
     proofFileType: "pdf",
-    validationStatus: "pending",
+    validationStatus: "pendiente",
     ...overrides,
   };
 }
@@ -154,9 +154,9 @@ describe("payment validation mockStore", () => {
     it("includes requests with different validation statuses", () => {
       const requests = getPaymentValidations();
       const statuses = requests.map((r) => r.validationStatus);
-      expect(statuses).toContain("pending");
-      expect(statuses).toContain("approved");
-      expect(statuses).toContain("rejected");
+      expect(statuses).toContain("pendiente");
+      expect(statuses).toContain("validado");
+      expect(statuses).toContain("rechazado");
     });
   });
 
@@ -176,37 +176,37 @@ describe("payment validation mockStore", () => {
     it("updates validation status and membership status on approval", () => {
       const now = new Date().toISOString();
       const updated = updatePaymentValidation("pv-001", {
-        validationStatus: "approved",
-        currentMembershipStatus: "active",
+        validationStatus: "validado",
+        currentMembershipStatus: "activa",
         validatedAt: now,
         validatedBy: "admin@test.com",
       });
 
       expect(updated).toBeDefined();
-      expect(updated!.validationStatus).toBe("approved");
-      expect(updated!.currentMembershipStatus).toBe("active");
+      expect(updated!.validationStatus).toBe("validado");
+      expect(updated!.currentMembershipStatus).toBe("activa");
       expect(updated!.validatedBy).toBe("admin@test.com");
     });
 
     it("updates on rejection with rejectionReason", () => {
       const now = new Date().toISOString();
       const updated = updatePaymentValidation("pv-002", {
-        validationStatus: "rejected",
-        currentMembershipStatus: "pending_payment",
+        validationStatus: "rechazado",
+        currentMembershipStatus: "vencida",
         validatedAt: now,
         validatedBy: "admin@test.com",
         rejectionReason: "Amount does not match",
       });
 
       expect(updated).toBeDefined();
-      expect(updated!.validationStatus).toBe("rejected");
-      expect(updated!.currentMembershipStatus).toBe("pending_payment");
+      expect(updated!.validationStatus).toBe("rechazado");
+      expect(updated!.currentMembershipStatus).toBe("vencida");
       expect(updated!.rejectionReason).toBe("Amount does not match");
     });
 
     it("returns undefined for a non-existent id", () => {
       expect(
-        updatePaymentValidation("non-existent", { validationStatus: "approved" }),
+        updatePaymentValidation("non-existent", { validationStatus: "validado" }),
       ).toBeUndefined();
     });
 
@@ -234,7 +234,7 @@ describe("payment validation mockStore", () => {
 
     it("contains seeded request with rejectionReason", () => {
       const request = getPaymentValidationById("pv-004");
-      expect(request!.validationStatus).toBe("rejected");
+      expect(request!.validationStatus).toBe("rechazado");
       expect(request!.rejectionReason).toBeDefined();
       expect(request!.rejectionReason!.length).toBeGreaterThan(0);
     });
@@ -260,11 +260,11 @@ describe("resetMockStore", () => {
   });
 
   it("restores payments to the initial set after mutations", () => {
-    updatePaymentValidation("pv-001", { validationStatus: "approved" });
+    updatePaymentValidation("pv-001", { validationStatus: "validado" });
     resetMockStore();
 
     const restored = getPaymentValidationById("pv-001");
-    expect(restored!.validationStatus).toBe("pending");
+    expect(restored!.validationStatus).toBe("pendiente");
     expect(restored!.validatedBy).toBeUndefined();
   });
 
@@ -285,7 +285,7 @@ describe("resetMockStore", () => {
 describe("validatePaymentValidationTransition", () => {
   it("allows approve on a pending request", () => {
     const result = validatePaymentValidationTransition(
-      { id: "pv-001", validationStatus: "pending" },
+      { id: "pv-001", validationStatus: "pendiente" },
       "approved",
     );
     expect(result.valid).toBe(true);
@@ -294,7 +294,7 @@ describe("validatePaymentValidationTransition", () => {
 
   it("allows reject on a pending request", () => {
     const result = validatePaymentValidationTransition(
-      { id: "pv-001", validationStatus: "pending" },
+      { id: "pv-001", validationStatus: "pendiente" },
       "rejected",
     );
     expect(result.valid).toBe(true);
@@ -302,7 +302,7 @@ describe("validatePaymentValidationTransition", () => {
 
   it("rejects approve on an already approved request", () => {
     const result = validatePaymentValidationTransition(
-      { id: "pv-003", validationStatus: "approved" },
+      { id: "pv-003", validationStatus: "validado" },
       "approved",
     );
     expect(result.valid).toBe(false);
@@ -312,27 +312,27 @@ describe("validatePaymentValidationTransition", () => {
 
   it("rejects approve on an already rejected request", () => {
     const result = validatePaymentValidationTransition(
-      { id: "pv-004", validationStatus: "rejected" },
+      { id: "pv-004", validationStatus: "rechazado" },
       "approved",
     );
     expect(result.valid).toBe(false);
     expect(result.message).toContain("approved");
-    expect(result.message).toContain("rejected");
+    expect(result.message).toContain("rechazado");
   });
 
   it("rejects reject on an already resolved request", () => {
     const result = validatePaymentValidationTransition(
-      { id: "pv-003", validationStatus: "approved" },
+      { id: "pv-003", validationStatus: "validado" },
       "rejected",
     );
     expect(result.valid).toBe(false);
     expect(result.message).toContain("rejected");
-    expect(result.message).toContain("approved");
+    expect(result.message).toContain("validado");
   });
 
   it("returns a clear error message with the request id", () => {
     const result = validatePaymentValidationTransition(
-      { id: "pv-099", validationStatus: "approved" },
+      { id: "pv-099", validationStatus: "validado" },
       "approved",
     );
     expect(result.valid).toBe(false);

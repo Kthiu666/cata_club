@@ -11,33 +11,15 @@ import {
   User,
   Phone,
   Calendar,
-  Heart,
-  Building2,
   Hash,
-  ChevronDown,
   CheckCircle,
+  ArrowRight,
 } from "lucide-react";
-
-// Domain values from Cata Club class diagram
-const ROLES = [
-  { value: "ALUMNO", label: "Alumno" },
-  { value: "ENTRENADOR", label: "Entrenador" },
-  { value: "ADMINISTRADOR", label: "Administrador" },
-] as const;
-
-const INSTITUTION_TYPES = [
-  { value: "", label: "Seleccione el tipo de institución..." },
-  { value: "PARTICULAR", label: "Particular" },
-  { value: "FISCAL", label: "Fiscal" },
-  { value: "FISCOMISIONAL", label: "Fiscomisional" },
-  { value: "MUNICIPAL", label: "Municipal" },
-] as const;
 
 export default function RegisterPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [role, setRole] = useState("ALUMNO");
   const [formError, setFormError] = useState<string | null>(null);
   const [demoSuccess, setDemoSuccess] = useState(false);
 
@@ -106,16 +88,20 @@ export default function RegisterPage() {
                 backend esté conectado, se crearía su cuenta.
               </p>
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+                <Link href="/student/enroll" className="btn-primary">
+                  Inscribirse
+                  <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                </Link>
                 <button
                   onClick={() => {
                     setDemoSuccess(false);
                     setFormError(null);
                   }}
-                  className="btn-primary"
+                  className="btn-secondary"
                 >
                   Editar información
                 </button>
-                <Link href="/login" className="btn-secondary text-center">
+                <Link href="/login" className="btn-ghost text-center">
                   Ir a Iniciar Sesión
                 </Link>
               </div>
@@ -127,38 +113,6 @@ export default function RegisterPage() {
                 <legend className="mb-4 text-xs font-semibold uppercase tracking-widest text-cata-gray-light">
                   Cuenta
                 </legend>
-
-                {/* Role */}
-                <div className="mb-4">
-                  <label
-                    htmlFor="role"
-                    className="mb-1.5 block text-sm font-medium text-cata-charcoal"
-                  >
-                    Tipo de Perfil
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="role"
-                      name="role"
-                      value={role}
-                      onChange={(e) => setRole(e.target.value)}
-                      disabled={submitting}
-                      className="input-field appearance-none pr-10"
-                    >
-                      {ROLES.map((r) => (
-                        <option key={r.value} value={r.value}>
-                          {r.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={16}
-                      strokeWidth={1.5}
-                      className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-cata-gray"
-                      aria-hidden="true"
-                    />
-                  </div>
-                </div>
 
                 {/* Email */}
                 <div className="mb-4">
@@ -444,126 +398,9 @@ export default function RegisterPage() {
                 </div>
               </fieldset>
 
-              {/* -- Club Context -- */}
-
-              {/*
-                NOTE — Technical Level (Beginner / Intermediate / Advanced) is
-                intentionally NOT collected during registration. Technical level
-                is assigned later by a trainer or admin after evaluating the
-                student, following the Cata Club domain model. Do NOT re-add
-                this field to the registration form.
-              */}
-
-              <hr className="border-cata-stone/50" />
-              <fieldset>
-                <legend className="mb-4 text-xs font-semibold uppercase tracking-widest text-cata-gray-light">
-                  Contexto del Club
-                </legend>
-
-                {/* Institution Name */}
-                <div className="mb-4">
-                  <label
-                    htmlFor="institution"
-                    className="mb-1.5 block text-sm font-medium text-cata-charcoal"
-                  >
-                    Institución Educativa
-                  </label>
-                  <div className="relative">
-                    <Building2
-                      size={16}
-                      strokeWidth={1.5}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-gray"
-                      aria-hidden="true"
-                    />
-                    <input
-                      type="text"
-                      id="institution"
-                      name="institution"
-                      placeholder="p. ej. Colegio Nacional"
-                      required
-                      disabled={submitting}
-                      className="input-field pl-10"
-                    />
-                  </div>
-                </div>
-
-                {/* Institution Type */}
-                <div>
-                  <label
-                    htmlFor="institutionType"
-                    className="mb-1.5 block text-sm font-medium text-cata-charcoal"
-                  >
-                    Tipo de Institución
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="institutionType"
-                      name="institutionType"
-                      defaultValue=""
-                      disabled={submitting}
-                      className="input-field appearance-none pr-10"
-                    >
-                      {INSTITUTION_TYPES.map((t) => (
-                        <option key={t.value} value={t.value}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={16}
-                      strokeWidth={1.5}
-                      className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-cata-gray"
-                      aria-hidden="true"
-                    />
-                  </div>
-                </div>
-
-                {/* Demo note: Technical Level is intentionally absent */}
-                <p className="mt-4 rounded-xl bg-cata-warm p-3 text-xs leading-relaxed text-cata-gray/60">
-                  <strong>Nota:</strong> El nivel técnico (Principiante / Intermedio /
-                  Avanzado) no se recoge durante el registro. Será asignado
-                  posteriormente por un entrenador o administrador tras evaluar al estudiante.
-                </p>
-              </fieldset>
-
-              {/* -- Medical Information -- */}
-              <hr className="border-cata-stone/50" />
-              <fieldset>
-                <legend className="mb-4 text-xs font-semibold uppercase tracking-widest text-cata-gray-light">
-                  Información Médica
-                </legend>
-
-                <div>
-                  <label
-                    htmlFor="medicalNotes"
-                    className="mb-1.5 block text-sm font-medium text-cata-charcoal"
-                  >
-                    Condiciones de Salud{" "}
-                    <span className="text-cata-gray-light">(opcional)</span>
-                  </label>
-                  <div className="relative">
-                    <Heart
-                      size={16}
-                      strokeWidth={1.5}
-                      className="pointer-events-none absolute left-3.5 top-3 text-cata-gray"
-                      aria-hidden="true"
-                    />
-                    <textarea
-                      id="medicalNotes"
-                      name="medicalNotes"
-                      rows={3}
-                      placeholder="p. ej. Asma, alergias, lesiones u otra información relevante sobre su salud..."
-                      disabled={submitting}
-                      className="input-field pl-10 resize-none"
-                    />
-                  </div>
-                  <p className="mt-1.5 text-xs leading-relaxed text-cata-gray/50">
-                    Esto es una demostración — no se recoge ni almacena información médica real. En un
-                    despliegue de producción, la información de salud se manejaría de forma segura
-                    de acuerdo con la normativa aplicable de protección de datos.
-                  </p>
-                </div>
-              </fieldset>
+              {/* Note: Club context (technical level, health/medical info) is intentionally
+                  absent from registration. Those details are captured during the student
+                  enrollment flow — see /student/enroll. */}
 
               {/* Validation error */}
               {formError && (

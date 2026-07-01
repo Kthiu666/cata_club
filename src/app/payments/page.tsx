@@ -45,33 +45,31 @@ import type {
 } from "@/services/api";
 import { fetchPaymentValidations, updatePaymentValidation } from "@/services/api";
 
-type FilterKey = "all" | "pending" | "approved" | "rejected";
+type FilterKey = "all" | "pendiente" | "validado" | "rechazado";
 
 const filters: { key: FilterKey; label: string }[] = [
   { key: "all", label: "Todas" },
-  { key: "pending", label: "Pendientes" },
-  { key: "approved", label: "Aprobadas" },
-  { key: "rejected", label: "Rechazadas" },
+  { key: "pendiente", label: "Pendientes" },
+  { key: "validado", label: "Validados" },
+  { key: "rechazado", label: "Rechazados" },
 ];
 
 const membershipStatusLabels: Record<MembershipStatus, string> = {
-  pending_payment: "Pendiente de Pago",
-  pending_validation: "Pendiente de Validación",
-  active: "Activo",
-  expired: "Vencido",
+  activa: "Activa",
+  vencida: "Vencida",
+  suspendida: "Suspendida",
 };
 
 const membershipStatusStyles: Record<MembershipStatus, string> = {
-  pending_payment: "badge-warning",
-  pending_validation: "badge-warning",
-  active: "badge-success",
-  expired: "badge-error",
+  activa: "badge-success",
+  vencida: "badge-error",
+  suspendida: "badge-error",
 };
 
 const validationStatusStyles: Record<ValidationStatus, string> = {
-  pending: "badge-warning",
-  approved: "badge-success",
-  rejected: "badge-error",
+  pendiente: "badge-warning",
+  validado: "badge-success",
+  rechazado: "badge-error",
 };
 
 function formatCurrency(amount: number): string {
@@ -130,9 +128,9 @@ export default function PaymentsPage() {
 
   const counts = {
     total: requests.length,
-    pending: requests.filter((r) => r.validationStatus === "pending").length,
-    approved: requests.filter((r) => r.validationStatus === "approved").length,
-    rejected: requests.filter((r) => r.validationStatus === "rejected").length,
+    pending: requests.filter((r) => r.validationStatus === "pendiente").length,
+    approved: requests.filter((r) => r.validationStatus === "validado").length,
+    rejected: requests.filter((r) => r.validationStatus === "rechazado").length,
   };
 
   function handleSelect(request: PaymentValidationRequest) {
@@ -211,7 +209,7 @@ export default function PaymentsPage() {
       );
       setSelectedRequest(updated);
       setShowRejectForm(false);
-      setSuccessMessage("Demo — Pago rechazado. El estado de la membresía se ha establecido como pendiente de pago.");
+      setSuccessMessage("Demo — Pago rechazado. El estado de la membresía se mantiene sin cambios.");
     } catch (err) {
       setActionError(
         err instanceof Error ? err.message : "Error al rechazar el pago",
@@ -265,7 +263,7 @@ export default function PaymentsPage() {
         </span>
         <span className="flex items-center gap-1 text-emerald-700">
           <CheckCircle2 size={14} strokeWidth={1.5} aria-hidden="true" />
-          <span className="font-medium">{counts.approved}</span> aprobadas
+          <span className="font-medium">{counts.approved}</span> validadas
         </span>
         <span className="flex items-center gap-1 text-cata-red">
           <XCircle size={14} strokeWidth={1.5} aria-hidden="true" />
@@ -328,7 +326,7 @@ export default function PaymentsPage() {
               <p className="text-sm text-cata-gray">
                 {activeFilter === "all"
                   ? "Aún no hay solicitudes de validación de pago."
-                  : `No hay solicitudes ${activeFilter === "pending" ? "pendientes" : activeFilter === "approved" ? "aprobadas" : "rechazadas"}.`}
+                  : `No hay solicitudes ${activeFilter === "pendiente" ? "pendientes" : activeFilter === "validado" ? "validadas" : "rechazadas"}.`}
               </p>
             </div>
           )}
@@ -377,19 +375,19 @@ export default function PaymentsPage() {
                         </td>
                         <td className="px-4 py-3">
                           <span className={validationStatusStyles[req.validationStatus]}>
-                            {req.validationStatus === "pending" && (
+                            {req.validationStatus === "pendiente" && (
                               <Clock size={12} strokeWidth={2} aria-hidden="true" />
                             )}
-                            {req.validationStatus === "approved" && (
+                            {req.validationStatus === "validado" && (
                               <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
                             )}
-                            {req.validationStatus === "rejected" && (
+                            {req.validationStatus === "rechazado" && (
                               <XCircle size={12} strokeWidth={2} aria-hidden="true" />
                             )}
-                            {req.validationStatus === "pending"
+                            {req.validationStatus === "pendiente"
                               ? "Pendiente"
-                              : req.validationStatus === "approved"
-                                ? "Aprobado"
+                              : req.validationStatus === "validado"
+                                ? "Validado"
                                 : "Rechazado"}
                           </span>
                         </td>
@@ -435,14 +433,11 @@ export default function PaymentsPage() {
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Estado Actual</p>
                     <span className={`mt-1 inline-flex items-center gap-1.5 ${membershipStatusStyles[selectedRequest.currentMembershipStatus]}`}>
-                      {selectedRequest.currentMembershipStatus === "active" && (
+                      {selectedRequest.currentMembershipStatus === "activa" && (
                         <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
                       )}
-                      {selectedRequest.currentMembershipStatus === "expired" && (
+                      {(selectedRequest.currentMembershipStatus === "vencida" || selectedRequest.currentMembershipStatus === "suspendida") && (
                         <XCircle size={12} strokeWidth={2} aria-hidden="true" />
-                      )}
-                      {(selectedRequest.currentMembershipStatus === "pending_payment" || selectedRequest.currentMembershipStatus === "pending_validation") && (
-                        <Clock size={12} strokeWidth={2} aria-hidden="true" />
                       )}
                       {membershipStatusLabels[selectedRequest.currentMembershipStatus]}
                     </span>
@@ -509,7 +504,7 @@ export default function PaymentsPage() {
               </div>
 
               {/* Validation criteria */}
-              {selectedRequest.validationStatus === "pending" && (
+              {selectedRequest.validationStatus === "pendiente" && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5">
                   <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-800">
                     <AlertTriangle size={14} strokeWidth={1.5} aria-hidden="true" />
@@ -537,7 +532,7 @@ export default function PaymentsPage() {
               )}
 
               {/* Rejection reason (displayed when already rejected) */}
-              {selectedRequest.validationStatus === "rejected" && selectedRequest.rejectionReason && (
+              {selectedRequest.validationStatus === "rechazado" && selectedRequest.rejectionReason && (
                 <div className="card border-red-200 bg-red-50 p-5">
                   <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-cata-red">
                     <XCircle size={14} strokeWidth={1.5} aria-hidden="true" />
@@ -553,7 +548,7 @@ export default function PaymentsPage() {
               )}
 
               {/* Validation metadata */}
-              {(selectedRequest.validationStatus === "approved" || selectedRequest.validationStatus === "rejected") && (
+              {(selectedRequest.validationStatus === "validado" || selectedRequest.validationStatus === "rechazado") && (
                 <div className="text-xs text-cata-gray/60">
                   {selectedRequest.validatedBy && (
                     <p>Validado por: {selectedRequest.validatedBy}</p>
@@ -621,7 +616,7 @@ export default function PaymentsPage() {
               </div>
 
               {/* Actions (only for pending requests) */}
-              {selectedRequest.validationStatus === "pending" && (
+              {selectedRequest.validationStatus === "pendiente" && (
                 <div className="card p-6">
                   <h2 className="mb-4 text-base font-semibold text-cata-charcoal">
                     Acción de Validación
@@ -712,20 +707,20 @@ export default function PaymentsPage() {
                 </div>
               )}
 
-              {/* Already resolved — show approved/rejected badge */}
-              {selectedRequest.validationStatus !== "pending" && (
+              {/* Already resolved — show validado/rechazado badge */}
+              {selectedRequest.validationStatus !== "pendiente" && (
                 <div className="card p-6 text-center">
                   <div className={`mb-3 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium ${
-                    selectedRequest.validationStatus === "approved"
+                    selectedRequest.validationStatus === "validado"
                       ? "bg-emerald-50 text-emerald-700"
                       : "bg-red-50 text-cata-red"
                   }`}>
-                    {selectedRequest.validationStatus === "approved" ? (
+                    {selectedRequest.validationStatus === "validado" ? (
                       <CheckCircle2 size={16} strokeWidth={2} aria-hidden="true" />
                     ) : (
                       <XCircle size={16} strokeWidth={2} aria-hidden="true" />
                     )}
-                    {selectedRequest.validationStatus === "approved" ? "Aprobado" : "Rechazado"}
+                    {selectedRequest.validationStatus === "validado" ? "Validado" : "Rechazado"}
                   </div>
                   <p className="text-xs text-cata-gray">
                     Esta solicitud ya ha sido procesada.

@@ -113,10 +113,10 @@ const initialPayments: PaymentValidationRequest[] = [
     expectedAmount: 85.0,
     paymentMethod: "Transferencia Bancaria",
     uploadedAt: "2026-06-28T10:30:00Z",
-    currentMembershipStatus: "pending_validation",
+    currentMembershipStatus: "vencida",
     proofFileName: "comprobante_pago_sofia_julio.pdf",
     proofFileType: "pdf",
-    validationStatus: "pending",
+    validationStatus: "pendiente",
   },
   {
     id: "pv-002",
@@ -126,11 +126,11 @@ const initialPayments: PaymentValidationRequest[] = [
     expectedAmount: 85.0,
     paymentMethod: "Efectivo",
     uploadedAt: "2026-06-27T14:15:00Z",
-    currentMembershipStatus: "pending_validation",
+    currentMembershipStatus: "vencida",
     proofFileName: "pago_mateo_julio.jpeg",
     proofFileType: "image",
     proofPreviewUrl: "/brand/cata-club-logo.jpeg",
-    validationStatus: "pending",
+    validationStatus: "pendiente",
   },
   {
     id: "pv-003",
@@ -142,10 +142,10 @@ const initialPayments: PaymentValidationRequest[] = [
     expectedAmount: 240.0,
     paymentMethod: "Transferencia Bancaria",
     uploadedAt: "2026-06-26T09:00:00Z",
-    currentMembershipStatus: "active",
+    currentMembershipStatus: "activa",
     proofFileName: "comprobante_valentina_q3.pdf",
     proofFileType: "pdf",
-    validationStatus: "approved",
+    validationStatus: "validado",
     validatedAt: "2026-06-26T11:20:00Z",
     validatedBy: "admin@cataclub.com",
   },
@@ -157,10 +157,10 @@ const initialPayments: PaymentValidationRequest[] = [
     expectedAmount: 85.0,
     paymentMethod: "Tarjeta",
     uploadedAt: "2026-06-25T16:45:00Z",
-    currentMembershipStatus: "pending_payment",
+    currentMembershipStatus: "vencida",
     proofFileName: "pago_benjamin_junio.png",
     proofFileType: "image",
-    validationStatus: "rejected",
+    validationStatus: "rechazado",
     rejectionReason: "El comprobante no corresponde al monto de la membresía mensual. El monto esperado es $85.00, el comprobante muestra $50.00.",
     validatedAt: "2026-06-25T17:30:00Z",
     validatedBy: "admin@cataclub.com",
@@ -175,10 +175,10 @@ const initialPayments: PaymentValidationRequest[] = [
     expectedAmount: 85.0,
     paymentMethod: "Transferencia Bancaria",
     uploadedAt: "2026-06-29T08:00:00Z",
-    currentMembershipStatus: "pending_validation",
+    currentMembershipStatus: "vencida",
     proofFileName: "pago_camila_julio.pdf",
     proofFileType: "pdf",
-    validationStatus: "pending",
+    validationStatus: "pendiente",
   },
   {
     id: "pv-006",
@@ -188,10 +188,10 @@ const initialPayments: PaymentValidationRequest[] = [
     expectedAmount: 720.0,
     paymentMethod: "Transferencia Bancaria",
     uploadedAt: "2026-06-24T13:20:00Z",
-    currentMembershipStatus: "active",
+    currentMembershipStatus: "activa",
     proofFileName: "comprobante_nicolas_anual.pdf",
     proofFileType: "pdf",
-    validationStatus: "approved",
+    validationStatus: "validado",
     validatedAt: "2026-06-24T15:00:00Z",
     validatedBy: "admin@cataclub.com",
   },
@@ -205,10 +205,10 @@ const initialPayments: PaymentValidationRequest[] = [
     expectedAmount: 85.0,
     paymentMethod: "Transferencia Bancaria",
     uploadedAt: "2026-06-29T16:00:00Z",
-    currentMembershipStatus: "pending_validation",
+    currentMembershipStatus: "vencida",
     proofFileName: "comprobante_emilia_agosto.pdf",
     proofFileType: "pdf",
-    validationStatus: "pending",
+    validationStatus: "pendiente",
   },
   {
     id: "pv-008",
@@ -218,10 +218,10 @@ const initialPayments: PaymentValidationRequest[] = [
     expectedAmount: 85.0,
     paymentMethod: "Efectivo",
     uploadedAt: "2026-06-26T12:00:00Z",
-    currentMembershipStatus: "pending_validation",
+    currentMembershipStatus: "vencida",
     proofFileName: "pago_santiago_julio.jpeg",
     proofFileType: "image",
-    validationStatus: "pending",
+    validationStatus: "pendiente",
   },
 ];
 
@@ -269,7 +269,7 @@ export interface TransitionVerdict {
 /**
  * Validate whether a payment validation request may transition to the given
  * action (approved / rejected).  Only requests whose current validationStatus
- * is "pending" may be acted upon.
+ * is "pendiente" may be acted upon.
  *
  * This is a pure domain guard used by the PUT /api/payments/:id route handler.
  */
@@ -277,7 +277,7 @@ export function validatePaymentValidationTransition(
   current: Pick<PaymentValidationRequest, "validationStatus" | "id">,
   action: "approved" | "rejected",
 ): TransitionVerdict {
-  if (current.validationStatus !== "pending") {
+  if (current.validationStatus !== "pendiente") {
     return {
       valid: false,
       message:

@@ -139,12 +139,21 @@ export interface Entrenador {
 /** Membership plan types. */
 export type TipoMembresia = "mensual" | "trimestral" | "anual";
 
-/** Lifecycle state of a membership. */
+/**
+ * Lifecycle state of a membership.
+ *
+ * Membership is created/activated only after payment/comprobante is approved.
+ * - `"activa"`: payment approved, membership is current.
+ * - `"vencida"`: membership period has expired.
+ * - `"suspendida"`: membership suspended by admin action.
+ *
+ * The old `"pending_payment"` / `"pending_validation"` states are no longer
+ * membership states — those are Pago states. See `Pago.estado`.
+ */
 export type EstadoMembresia =
-  | "pending_payment"
-  | "pending_validation"
-  | "active"
-  | "expired";
+  | "activa"
+  | "vencida"
+  | "suspendida";
 
 /** A membership (Membresía) held by a student. */
 export interface Membresia {
@@ -181,7 +190,7 @@ export interface Pago {
   monto: number;
   metodoPago: MetodoPago;
   fechaPago: string;
-  estado: "completado" | "pendiente" | "rechazado";
+  estado: "pendiente_validacion" | "aprobado" | "rechazado";
   comprobanteId?: string;
   createdAt: string;
   updatedAt: string;
@@ -190,8 +199,8 @@ export interface Pago {
 /** File type for uploaded payment proofs. */
 export type TipoComprobante = "image" | "pdf";
 
-/** Validation status for a payment proof. */
-export type EstadoValidacion = "pending" | "approved" | "rejected";
+/** Validation status for a payment proof (ComprobantePago). */
+export type EstadoValidacion = "pendiente" | "validado" | "rechazado";
 
 /** A payment proof document (Comprobante de Pago). */
 export interface ComprobantePago {
@@ -217,7 +226,12 @@ export interface ComprobantePago {
 /** Day of week for training schedules. */
 export type DiaSemana = "lun" | "mar" | "mie" | "jue" | "vie" | "sab";
 
-/** A training session slot (Horario). */
+/**
+ * A training session slot (Horario).
+ *
+ * Note: Horario does NOT own a trainer. Any trainer may register attendance
+ * in any available session. See `Asistencia.entrenadorId`.
+ */
 export interface Horario {
   id: string;
   diaSemana: DiaSemana;
@@ -225,11 +239,34 @@ export interface Horario {
   horaFin: string;    // "HH:mm"
   nivel: NivelTecnico;
   cancha: string;
-  entrenadorId: string;
   cupoMaximo: number;
   activo: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Health / Medical (Ficha Médica)
+// ---------------------------------------------------------------------------
+
+/**
+ * Medical & emergency contact information for a student (Ficha Médica).
+ *
+ * Collected during enrollment and linked to an Alumno. This represents the
+ * health-related data the club needs for student safety — separate from
+ * account registration data (which is minimal by design).
+ */
+export interface FichaMedica {
+  /** Free-text health conditions (e.g. asthma, diabetes, injuries). */
+  condicionesSalud: string;
+  /** Free-text allergy information. */
+  alergias: string;
+  /** Emergency contact name. */
+  contactoEmergencia: string;
+  /** Emergency contact phone number. */
+  telefonoEmergencia: string;
+  /** Additional observations or notes. */
+  observaciones?: string;
 }
 
 /** Attendance state for a single student in a session. */
@@ -239,11 +276,11 @@ export type EstadoAsistencia = "present" | "absent" | "late" | "justified";
 export interface Asistencia {
   id: string;
   horarioId: string;
+  entrenadorId: string;
   alumnoId: string;
   fecha: string;  // ISO date
   estado: EstadoAsistencia;
   observacion?: string;
-  registradoPor?: string;
   createdAt: string;
 }
 

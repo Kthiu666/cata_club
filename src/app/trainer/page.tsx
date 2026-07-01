@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import {
   Calendar,
@@ -12,6 +13,8 @@ import {
   Clock,
   GraduationCap,
   ChevronRight,
+  ClipboardList,
+  ArrowRight,
   type LucideIcon,
 } from "lucide-react";
 
@@ -181,8 +184,29 @@ export default function TrainerPage() {
           </span>
         </div>
         <p className="mt-1 text-sm text-cata-gray">
-          Resumen de entrenamiento de hoy — lunes, 30 de junio de 2026
+          Sesiones disponibles del día — registre la asistencia en cualquier sesión disponible
         </p>
+      </div>
+
+      {/* ── Current trainer context ── */}
+      <div className="mb-8 flex items-center gap-2 rounded-xl border border-cata-stone/40 bg-white p-3 text-sm shadow-sm">
+        <UserCheck size={16} strokeWidth={1.5} className="text-cata-red" />
+        <span className="font-medium text-cata-charcoal">Entrenador: Demo</span>
+        <span className="ml-auto text-xs text-cata-gray">
+          Registrando asistencia en las sesiones de hoy
+        </span>
+      </div>
+
+      {/* ── Interactive Attendance CTA ── */}
+      <div className="mb-6">
+        <Link
+          href="/trainer/attendance"
+          className="inline-flex items-center gap-2 rounded-xl bg-cata-red/8 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/15"
+        >
+          <ClipboardList size={16} strokeWidth={1.5} aria-hidden="true" />
+          Registrar Asistencia Interactiva
+          <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+        </Link>
       </div>
 
       {/* ── Summary stats ── */}
@@ -200,7 +224,7 @@ export default function TrainerPage() {
           <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-cata-red/8">
             <Users size={18} strokeWidth={1.5} className="text-cata-red" />
           </div>
-          <p className="text-sm font-medium text-cata-gray">Estudiantes Asignados</p>
+          <p className="text-sm font-medium text-cata-gray">Estudiantes en Sesiones</p>
           <p className="mt-0.5 text-3xl font-bold tracking-tight text-cata-charcoal">
             {totalStudents}
           </p>
@@ -329,6 +353,10 @@ export default function TrainerPage() {
         <h2 className="mb-4 text-lg font-semibold text-cata-charcoal">
           Horario Semanal
         </h2>
+        <p className="mb-4 text-sm leading-relaxed text-cata-gray">
+          Cualquier entrenador puede registrar asistencia en las sesiones disponibles.
+          Las sesiones no están asignadas a un entrenador específico.
+        </p>
         <div className="grid gap-3 sm:grid-cols-5">
           {weekDays.map((day) => (
             <div
@@ -356,8 +384,8 @@ export default function TrainerPage() {
 
       {/* ── Demo honesty footer ── */}
       <p className="mt-10 text-center text-xs text-cata-gray/40">
-        El panel del entrenador muestra solo datos de demostración. No se almacenan registros
-        reales de asistencia u horarios. Listo para la integración con la API del backend.
+        Datos de demostración. No se almacenan registros reales. El sistema registra qué
+        entrenador tomó la asistencia en cada sesión. Listo para la integración con la API del backend.
       </p>
     </div>
     </ProtectedRoute>
