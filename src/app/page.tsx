@@ -16,7 +16,7 @@ const features = [
     icon: Users,
     title: "Gestión de Membresías",
     description:
-      "Administre estudiantes, representantes y perfiles de membresía con operaciones CRUD completas y búsqueda.",
+      "Administre estudiantes, responsables de pago y perfiles de membresía con operaciones CRUD completas y búsqueda.",
   },
   {
     icon: ShieldCheck,
@@ -150,14 +150,14 @@ export default function HomePage() {
             </div>
             <div className="min-w-0 flex-1">
               <h3 className="mb-1 text-base font-semibold text-cata-charcoal">
-                Portal del Estudiante
+                Portal de Cuenta
               </h3>
               <p className="text-sm leading-relaxed text-cata-gray">
-                Estado de membresía y pagos, horario de entrenamiento y
-                carga de comprobantes.
+                Gestión de membresía, pagos y horarios. Para responsables
+                de pago (representantes o alumnos autogestionados).
               </p>
               <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-cata-red">
-                Ver Demo de Estudiante
+                Ver Demo de Cuenta
                 <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
               </span>
             </div>

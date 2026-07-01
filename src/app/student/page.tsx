@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   CreditCard,
   Calendar,
@@ -11,12 +13,16 @@ import {
   Clock,
   XCircle,
   AlertTriangle,
+  User,
+  ChevronDown,
+  GraduationCap,
+  Building2,
 } from "lucide-react";
 import { getProofStatus, formatFileSize } from "./proof-utils";
 import type { ProofStatus, MembershipStatus } from "./proof-utils";
 
 // ---------------------------------------------------------------------------
-// Demo data — Student portal (frontend-only, no backend)
+// Demo data — Account portal (frontend-only, no backend)
 // ---------------------------------------------------------------------------
 
 type PaymentStatus = "paid" | "pending" | "overdue";
@@ -45,6 +51,15 @@ interface ScenarioData {
     proofUploaded: boolean;
     validated: boolean;
   };
+}
+
+/** Demo student profile shown in the portal. */
+interface DemoStudentInfo {
+  id: string;
+  nombre: string;
+  nivel: string;
+  scenarioData: ScenarioData;
+  upcomingSessions: UpcomingSession[];
 }
 
 // All demo states in one place — drives membership & payment cards
@@ -126,12 +141,73 @@ const scenarioLabels: Record<DemoScenario, string> = {
   expired: "Vencido",
 };
 
-const upcomingSessions: UpcomingSession[] = [
-  { date: "Lun, 30 Jun", time: "15:00 — 16:30", court: "Cancha 1", group: "Principiantes" },
-  { date: "Mié, 2 Jul", time: "15:00 — 16:30", court: "Cancha 1", group: "Principiantes" },
-  { date: "Lun, 7 Jul", time: "15:00 — 16:30", court: "Cancha 1", group: "Principiantes" },
-  { date: "Mié, 9 Jul", time: "15:00 — 16:30", court: "Cancha 1", group: "Principiantes" },
-];
+/** Sessions for each demo student. */
+const sessionsByStudent: Record<string, UpcomingSession[]> = {
+  "student-sofia": [
+    { date: "Lun, 30 Jun", time: "15:00 — 16:30", court: "Cancha 1", group: "Principiantes" },
+    { date: "Mié, 2 Jul", time: "15:00 — 16:30", court: "Cancha 1", group: "Principiantes" },
+    { date: "Lun, 7 Jul", time: "15:00 — 16:30", court: "Cancha 1", group: "Principiantes" },
+    { date: "Mié, 9 Jul", time: "15:00 — 16:30", court: "Cancha 1", group: "Principiantes" },
+  ],
+  "student-mateo": [
+    { date: "Lun, 30 Jun", time: "16:45 — 18:15", court: "Cancha 2", group: "Intermedios" },
+    { date: "Mié, 2 Jul", time: "16:45 — 18:15", court: "Cancha 2", group: "Intermedios" },
+    { date: "Lun, 7 Jul", time: "16:45 — 18:15", court: "Cancha 2", group: "Intermedios" },
+    { date: "Mié, 9 Jul", time: "16:45 — 18:15", court: "Cancha 2", group: "Intermedios" },
+  ],
+  "student-valentina": [
+    { date: "Lun, 30 Jun", time: "18:30 — 20:00", court: "Cancha 3", group: "Avanzados" },
+    { date: "Mié, 2 Jul", time: "18:30 — 20:00", court: "Cancha 3", group: "Avanzados" },
+  ],
+  // Self-managed adult student (distinct from the children managed by representative)
+  "student-self-1": [
+    { date: "Lun, 30 Jun", time: "18:30 — 20:00", court: "Cancha 2", group: "Intermedios" },
+    { date: "Mié, 2 Jul", time: "18:30 — 20:00", court: "Cancha 2", group: "Intermedios" },
+    { date: "Lun, 7 Jul", time: "18:30 — 20:00", court: "Cancha 2", group: "Intermedios" },
+    { date: "Mié, 9 Jul", time: "18:30 — 20:00", court: "Cancha 2", group: "Intermedios" },
+  ],
+};
+
+/**
+ * Demo students managed by the representative persona.
+ * The self-managed persona only manages themselves.
+ */
+const demoStudentsByAccount: Record<string, DemoStudentInfo[]> = {
+  // Representative managing multiple students
+  "user-rep-1": [
+    {
+      id: "student-sofia",
+      nombre: "Sofía Martínez",
+      nivel: "Principiante",
+      scenarioData: { ...scenarioData.active },
+      upcomingSessions: [...sessionsByStudent["student-sofia"]],
+    },
+    {
+      id: "student-mateo",
+      nombre: "Mateo Rodríguez",
+      nivel: "Intermedio",
+      scenarioData: { ...scenarioData.pending_validation },
+      upcomingSessions: [...sessionsByStudent["student-mateo"]],
+    },
+    {
+      id: "student-valentina",
+      nombre: "Valentina López",
+      nivel: "Avanzado",
+      scenarioData: { ...scenarioData.expired },
+      upcomingSessions: [...sessionsByStudent["student-valentina"]],
+    },
+  ],
+  // Self-managed adult student (manages only themself — distinct identity from minors)
+  "user-self-1": [
+    {
+      id: "student-self-1",
+      nombre: "Martín Rodríguez",
+      nivel: "Intermedio",
+      scenarioData: { ...scenarioData.active },
+      upcomingSessions: [...sessionsByStudent["student-self-1"]],
+    },
+  ],
+};
 
 // ---------------------------------------------------------------------------
 // UI helpers
@@ -174,6 +250,27 @@ const proofStatusLabels: Record<ProofStatus, { label: string; icon: React.ReactN
 // ---------------------------------------------------------------------------
 
 export default function StudentPage() {
+  const { session } = useAuth();
+  const userId = session?.user?.id;
+
+  /**
+   * Determine portal mode based on which demo user is logged in.
+   * - user-rep-1 (representante@cataclub.com): external representative managing multiple students.
+   * - user-self-1 (autogestionado@cataclub.com): self-managed adult student.
+   */
+  const isRepresentative = userId === "user-rep-1";
+  const isSelfManaged = userId === "user-self-1";
+  const accountLabel = isRepresentative
+    ? "Representante / Responsable de pago"
+    : isSelfManaged
+      ? "Alumno autogestionado"
+      : "Portal de Cuenta";
+
+  const students = userId
+    ? demoStudentsByAccount[userId] ?? demoStudentsByAccount["user-rep-1"]
+    : demoStudentsByAccount["user-rep-1"];
+
+  const [selectedStudentId, setSelectedStudentId] = useState<string>(students[0]?.id ?? "");
   const [demoScenario, setDemoScenario] = useState<DemoScenario>("active");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [demoSubmitted, setDemoSubmitted] = useState(false);
@@ -199,6 +296,14 @@ export default function StudentPage() {
   ];
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
+  const selectedStudent = students.find((s) => s.id === selectedStudentId) ?? students[0];
+
+  // Apply the demo scenario on top of the student's base data (clone to avoid mutation)
+  const displayScenario = {
+    ...selectedStudent.scenarioData,
+    ...scenarioData[demoScenario],
+  };
+  // Override with whatever state the scenario selector chose
   const scenario = scenarioData[demoScenario];
   const membershipInfo = membershipConfig[scenario.membership.status];
   const paymentInfo = paymentStatusConfig[scenario.payment.status];
@@ -210,9 +315,24 @@ export default function StudentPage() {
   );
   const proofInfo = proofStatusLabels[proofStatus];
 
+  const activeSessions = selectedStudent?.upcomingSessions ?? [];
+
+  function handleStudentChange(studentId: string) {
+    if (uploadTimeoutRef.current) {
+      clearTimeout(uploadTimeoutRef.current);
+      uploadTimeoutRef.current = null;
+    }
+    setSelectedStudentId(studentId);
+    setSelectedFile(null);
+    setDemoSubmitted(false);
+    setDemoSubmitting(false);
+    setFileError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
   function handleScenarioChange(scenario: DemoScenario) {
-    // Clear any pending simulated-upload timeout so stale setDemoSubmitted
-    // doesn't fire after switching scenarios.
     if (uploadTimeoutRef.current) {
       clearTimeout(uploadTimeoutRef.current);
       uploadTimeoutRef.current = null;
@@ -257,7 +377,6 @@ export default function StudentPage() {
 
   function handleDemoSubmit() {
     setDemoSubmitting(true);
-    // Simulated upload delay — no file is actually stored (demo mode)
     uploadTimeoutRef.current = setTimeout(() => {
       setDemoSubmitting(false);
       setDemoSubmitted(true);
@@ -266,19 +385,70 @@ export default function StudentPage() {
   }
 
   return (
+    <ProtectedRoute allowedRoles={["responsable_pago"]}>
     <div>
       {/* ── Header ── */}
       <div className="mb-8">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight text-cata-charcoal sm:text-3xl">
-            Portal del Estudiante
+            Portal de Cuenta
           </h1>
           <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-700">
             Demo
           </span>
         </div>
-        <p className="mt-1 text-sm text-cata-gray">
-          Sofía Martínez — membresía, pagos y horario
+
+        {/* Account type badge */}
+        <div className="mt-2 flex items-center gap-2">
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+            isRepresentative
+              ? "bg-blue-50 text-blue-700"
+              : "bg-emerald-50 text-emerald-700"
+          }`}>
+            {isRepresentative ? (
+              <Building2 size={12} strokeWidth={1.5} />
+            ) : (
+              <GraduationCap size={12} strokeWidth={1.5} />
+            )}
+            {accountLabel}
+          </span>
+          {isRepresentative && (
+            <span className="text-xs text-cata-gray">
+              Gestiona {students.length} alumnos
+            </span>
+          )}
+        </div>
+
+        {isRepresentative && students.length > 1 && (
+          <div className="mt-3">
+            <label htmlFor="student-select" className="text-xs font-medium text-cata-gray-light">
+              Seleccionar alumno
+            </label>
+            <div className="relative mt-1 inline-block">
+              <select
+                id="student-select"
+                value={selectedStudentId}
+                onChange={(e) => handleStudentChange(e.target.value)}
+                className="appearance-none rounded-xl border border-cata-stone/60 bg-white px-4 py-2 pr-10 text-sm font-medium text-cata-charcoal shadow-sm transition-colors hover:border-cata-stone focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/10"
+              >
+                {students.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombre} ({s.nivel})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={14}
+                strokeWidth={1.5}
+                className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-cata-gray"
+                aria-hidden="true"
+              />
+            </div>
+          </div>
+        )}
+
+        <p className="mt-2 text-sm text-cata-gray">
+          {selectedStudent?.nombre ?? ""} — membresía, pagos y horario
         </p>
       </div>
 
@@ -488,10 +658,10 @@ export default function StudentPage() {
       {/* ── Próximas Sesiones (compact) ── */}
       <section className="mb-8">
         <h2 className="mb-4 text-lg font-semibold text-cata-charcoal">
-          Próximas Sesiones
+          Próximas Sesiones {selectedStudent && `— ${selectedStudent.nombre}`}
         </h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {upcomingSessions.map((session) => (
+          {activeSessions.map((session) => (
             <div
               key={`${session.date}-${session.time}`}
               className="card-hover p-4 sm:p-5"
@@ -513,11 +683,35 @@ export default function StudentPage() {
         </div>
       </section>
 
+      {/* ── Domain model info card (educational / transparent) ── */}
+      <div className="mb-8 rounded-xl border border-cata-stone/50 bg-white p-5">
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-cata-gray-light">
+          Modelo de dominio (Demo)
+        </h3>
+        <p className="text-xs leading-relaxed text-cata-gray">
+          {isRepresentative ? (
+            <>
+              Este portal corresponde a un <strong>responsable de pago tipo representante</strong>.
+              Una misma persona (ej. un padre/madre) puede gestionar las membresías y pagos
+              de <strong>varios alumnos</strong>. Cada alumno tiene su membresía, sesiones y
+              comprobantes asociados.
+            </>
+          ) : (
+            <>
+              Este portal corresponde a un <strong>alumno autogestionado</strong> (mayor de edad).
+              La misma persona es el titular de la cuenta y el alumno que entrena.
+              Gestiona su propia membresía y pagos.
+            </>
+          )}
+        </p>
+      </div>
+
       {/* ── Demo honesty footer ── */}
       <p className="mt-10 text-center text-xs text-cata-gray/40">
-        El portal del estudiante muestra solo datos de demostración. No se almacenan registros
+        El portal de cuenta muestra solo datos de demostración. No se almacenan registros
         reales de membresía, pagos, horarios o salud. Listo para la integración con la API del backend.
       </p>
     </div>
+    </ProtectedRoute>
   );
 }

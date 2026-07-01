@@ -106,6 +106,7 @@ const initialPayments: PaymentValidationRequest[] = [
   {
     id: "pv-001",
     studentName: "Sofia Martinez",
+    responsablePagoName: "Carlos Martinez",
     representativeName: "Carlos Martinez",
     membershipPeriod: "Julio 2026",
     membershipType: "Mensual",
@@ -134,6 +135,7 @@ const initialPayments: PaymentValidationRequest[] = [
   {
     id: "pv-003",
     studentName: "Valentina Lopez",
+    responsablePagoName: "Ana Lopez",
     representativeName: "Ana Lopez",
     membershipPeriod: "Julio 2026",
     membershipType: "Trimestral",
@@ -166,6 +168,7 @@ const initialPayments: PaymentValidationRequest[] = [
   {
     id: "pv-005",
     studentName: "Camila Flores",
+    responsablePagoName: "Diego Flores",
     representativeName: "Diego Flores",
     membershipPeriod: "Julio 2026",
     membershipType: "Mensual",
@@ -195,6 +198,7 @@ const initialPayments: PaymentValidationRequest[] = [
   {
     id: "pv-007",
     studentName: "Emilia Castillo",
+    responsablePagoName: "Carlos Martinez",
     representativeName: "Carlos Martinez",
     membershipPeriod: "Agosto 2026",
     membershipType: "Mensual",

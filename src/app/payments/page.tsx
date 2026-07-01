@@ -15,6 +15,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import {
   ShieldCheck,
   Clock,
@@ -221,6 +222,7 @@ export default function PaymentsPage() {
   }
 
   return (
+    <ProtectedRoute allowedRoles={["admin"]}>
     <div>
       {/* Header */}
       <div className="mb-6">
@@ -339,7 +341,7 @@ export default function PaymentsPage() {
                   <thead>
                     <tr className="border-b border-cata-stone/60 bg-cata-warm text-xs font-medium uppercase tracking-wider text-cata-gray">
                       <th className="px-4 py-3 font-medium">Estudiante</th>
-                      <th className="px-4 py-3 font-medium">Representante</th>
+                      <th className="px-4 py-3 font-medium">Responsable de pago</th>
                       <th className="px-4 py-3 font-medium">Período</th>
                       <th className="px-4 py-3 font-medium text-right">Monto</th>
                       <th className="px-4 py-3 font-medium">Método</th>
@@ -361,7 +363,7 @@ export default function PaymentsPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-cata-gray">
-                          {req.representativeName || (
+                          {req.responsablePagoName || req.representativeName || (
                             <span className="text-cata-gray/40">&mdash;</span>
                           )}
                         </td>
@@ -466,12 +468,12 @@ export default function PaymentsPage() {
                       {selectedRequest.studentName}
                     </div>
                   </div>
-                  {selectedRequest.representativeName && (
+                  {(selectedRequest.responsablePagoName || selectedRequest.representativeName) && (
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Representante</p>
+                      <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Responsable de pago</p>
                       <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-charcoal">
                         <Building2 size={14} strokeWidth={1.5} className="shrink-0 text-cata-gray" aria-hidden="true" />
-                        {selectedRequest.representativeName}
+                        {selectedRequest.responsablePagoName || selectedRequest.representativeName}
                       </div>
                     </div>
                   )}
@@ -735,5 +737,6 @@ export default function PaymentsPage() {
         </div>
       )}
     </div>
+    </ProtectedRoute>
   );
 }

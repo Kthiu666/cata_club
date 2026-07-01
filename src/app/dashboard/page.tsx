@@ -9,6 +9,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import Link from "next/link";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 export const metadata: Metadata = {
   title: "Panel de Control",
@@ -74,6 +75,7 @@ const quickActions = [
 
 export default function DashboardPage() {
   return (
+    <ProtectedRoute allowedRoles={["admin"]}>
     <div>
       {/* Header */}
       <div className="mb-10">
@@ -196,5 +198,6 @@ export default function DashboardPage() {
         estos una vez que la API del backend esté conectada.
       </p>
     </div>
+    </ProtectedRoute>
   );
 }

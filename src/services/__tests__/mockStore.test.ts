@@ -52,6 +52,7 @@ function makePaymentValidation(
   return {
     id: "pv-test-1",
     studentName: "Test Student",
+    responsablePagoName: "Test Responsible",
     membershipPeriod: "July 2026",
     membershipType: "Monthly",
     expectedAmount: 85.0,
@@ -223,8 +224,11 @@ describe("payment validation mockStore", () => {
       expect(updated!.validatedBy).toBe("new-admin@test.com");
     });
 
-    it("contains seeded request with representativeName", () => {
+    it("contains seeded request with responsablePagoName and deprecated representativeName", () => {
       const request = getPaymentValidationById("pv-001");
+      // Primary field — responsablePagoName is the canonical field
+      expect(request!.responsablePagoName).toBe("Carlos Martinez");
+      // Backward compatibility — deprecated but still populated
       expect(request!.representativeName).toBe("Carlos Martinez");
     });
 

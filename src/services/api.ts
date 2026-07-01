@@ -61,13 +61,18 @@ export type ProofFileType = "image" | "pdf";
 
 /**
  * PaymentValidationRequest — Represents a membership payment proof
- * submitted by a student or representative, awaiting admin validation.
+ * submitted by a responsible payer (representative or self-managed student),
+ * awaiting admin validation.
  *
  * Maps to CU012: "Validar o rechazar comprobante de pago".
  */
 export interface PaymentValidationRequest {
   id: string;
   studentName: string;
+  /** Name of the account owner / responsible payer who submitted this proof.
+   *  Replaces the old `representativeName` concept. */
+  responsablePagoName?: string;
+  /** @deprecated Use `responsablePagoName` instead. */
   representativeName?: string;
   membershipPeriod: string;
   membershipType: string;

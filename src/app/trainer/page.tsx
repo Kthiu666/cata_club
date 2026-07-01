@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import {
   Calendar,
   Users,
@@ -167,6 +168,7 @@ export default function TrainerPage() {
   );
 
   return (
+    <ProtectedRoute allowedRoles={["trainer"]}>
     <div>
       {/* ── Header ── */}
       <div className="mb-10">
@@ -358,5 +360,6 @@ export default function TrainerPage() {
         reales de asistencia u horarios. Listo para la integración con la API del backend.
       </p>
     </div>
+    </ProtectedRoute>
   );
 }

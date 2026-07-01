@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Header from "@/components/Header";
+import { AuthProvider } from "@/contexts/AuthContext";
 import "./globals.css";
 
 const inter = Inter({
@@ -31,10 +32,12 @@ export default function RootLayout({
   return (
     <html lang="es" className={inter.variable}>
       <body className="min-h-screen bg-cata-cream bg-subtle-dot font-sans text-cata-charcoal antialiased">
-        <Header />
-        <main className="mx-auto max-w-8xl px-4 py-10 sm:px-8 lg:px-12">
-          {children}
-        </main>
+        <AuthProvider>
+          <Header />
+          <main className="mx-auto max-w-8xl px-4 py-10 sm:px-8 lg:px-12">
+            {children}
+          </main>
+        </AuthProvider>
       </body>
     </html>
   );

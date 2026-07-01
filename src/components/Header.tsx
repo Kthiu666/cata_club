@@ -1,10 +1,16 @@
 /**
  * Header — Top navigation bar for Cata Club Admin
+ *
+ * Navigation links adapt to the current auth session and role:
+ *  - Unauthenticated: only Inicio and Iniciar Sesión.
+ *  - Admin: Administration + Payments.
+ *  - Trainer: Trainer panel.
+  *  - Responsible payer / account owner: Account portal.
  */
 
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -13,12 +19,15 @@ import {
   LayoutDashboard,
   ShieldCheck,
   LogIn,
+  LogOut,
   Menu,
   X,
   House,
   GraduationCap,
-  UserCircle,
+  User,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import type { UserRole } from "@/types/domain";
 
 interface NavLink {
   href: string;
@@ -29,21 +38,73 @@ interface NavLink {
 }
 
 /**
- * Nav note: "/dashboard" is the admin overview. The label reads "Admin"
- * so role-demo navigation is unambiguous alongside Trainer / Student.
+ * Build the navigation links based on current auth state.
  */
-const navLinks: NavLink[] = [
-  { href: "/", label: "Inicio", icon: House },
-  { href: "/dashboard", label: "Administración", icon: LayoutDashboard },
-  { href: "/trainer", label: "Entrenador", icon: GraduationCap },
-  { href: "/student", label: "Estudiante", icon: UserCircle },
-  { href: "/payments", label: "Membresías y Pagos", icon: ShieldCheck },
-  { href: "/login", label: "Iniciar Sesión", icon: LogIn },
-];
+function useNavLinks(): NavLink[] {
+  const { isAuthenticated, session } = useAuth();
+
+  const links = useMemo<NavLink[]>(() => {
+    if (!isAuthenticated || !session) {
+      return [
+        { href: "/", label: "Inicio", icon: House },
+        { href: "/login", label: "Iniciar Sesión", icon: LogIn },
+      ];
+    }
+
+    const role = session.user.role;
+    const roleLinks: NavLink[] = [{ href: "/", label: "Inicio", icon: House }];
+
+    switch (role) {
+      case "admin":
+        roleLinks.push(
+          { href: "/dashboard", label: "Administración", icon: LayoutDashboard },
+          { href: "/payments", label: "Membresías y Pagos", icon: ShieldCheck },
+        );
+        break;
+      case "trainer":
+        roleLinks.push(
+          { href: "/trainer", label: "Entrenador", icon: GraduationCap },
+        );
+        break;
+      case "responsable_pago":
+        roleLinks.push(
+          {
+            href: "/student",
+            label: "Mi Cuenta",
+            icon: GraduationCap,
+          },
+        );
+        break;
+    }
+
+    return roleLinks;
+  }, [isAuthenticated, session]);
+
+  return links;
+}
 
 export default function Header() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { isAuthenticated, session, logout, isLoading } = useAuth();
+  const links = useNavLinks();
+
+  // FOUC prevention: show minimal skeleton during session hydration
+  if (isLoading) {
+    return (
+      <header className="sticky top-0 z-50 border-b border-cata-stone/60 bg-white/95 backdrop-blur-md">
+        <nav className="mx-auto flex max-w-8xl items-center justify-between px-4 py-3 sm:px-8 lg:px-12">
+          <div className="flex items-center gap-3 text-lg font-semibold tracking-tight text-cata-charcoal">
+            <div className="h-8 w-8 animate-pulse rounded-lg bg-cata-stone/30" />
+            <span className="hidden sm:inline">Cata Club</span>
+            <span className="ml-1.5 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-700">
+              Demo
+            </span>
+          </div>
+        </nav>
+      </header>
+    );
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-cata-stone/60 bg-white/95 backdrop-blur-md">
@@ -71,7 +132,7 @@ export default function Header() {
 
         {/* Desktop nav */}
         <ul className="hidden items-center gap-0.5 md:flex">
-          {navLinks.map((link) => {
+          {links.map((link) => {
             const isActive = pathname === link.href;
             return (
               <li key={link.href}>
@@ -89,6 +150,25 @@ export default function Header() {
               </li>
             );
           })}
+
+          {/* User menu — shown when authenticated */}
+          {isAuthenticated && session && (
+            <li className="ml-2 flex items-center gap-2 border-l border-cata-stone/50 pl-3">
+              <span className="flex items-center gap-1.5 text-xs text-cata-gray">
+                <User size={13} strokeWidth={1.5} aria-hidden="true" />
+                <span className="max-w-[120px] truncate">{session.user.name}</span>
+              </span>
+              <button
+                type="button"
+                onClick={logout}
+                className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-cata-gray transition-colors hover:bg-cata-warm hover:text-cata-red"
+                aria-label="Cerrar Sesión"
+              >
+                <LogOut size={13} strokeWidth={1.5} aria-hidden="true" />
+                <span className="hidden lg:inline">Salir</span>
+              </button>
+            </li>
+          )}
         </ul>
 
         {/* Mobile menu button */}
@@ -106,7 +186,7 @@ export default function Header() {
       {menuOpen && (
         <div className="border-t border-cata-stone/60 bg-white md:hidden shadow-soft">
           <ul className="space-y-0.5 px-4 py-4">
-            {navLinks.map((link) => {
+            {links.map((link) => {
               const isActive = pathname === link.href;
               return (
                 <li key={link.href}>
@@ -125,6 +205,27 @@ export default function Header() {
                 </li>
               );
             })}
+
+            {/* User section in mobile menu */}
+            {isAuthenticated && session && (
+              <li className="border-t border-cata-stone/30 pt-3 mt-3">
+                <div className="flex items-center gap-2 px-3.5 py-2 text-xs text-cata-gray">
+                  <User size={14} strokeWidth={1.5} aria-hidden="true" />
+                  <span className="truncate">{session.user.name}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    logout();
+                    setMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-cata-gray transition-colors hover:bg-cata-warm hover:text-cata-red"
+                >
+                  <LogOut size={17} strokeWidth={1.5} aria-hidden="true" />
+                  Cerrar Sesión
+                </button>
+              </li>
+            )}
           </ul>
         </div>
       )}

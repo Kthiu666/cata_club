@@ -2,7 +2,7 @@
 
 **Frontend admin shell** para la gestión del club de tenis de mesa — seguimiento de membresías, validación de pagos (CU012), horarios y asistencia.
 
-> **Estado actual:** Demo frontend con datos mock locales. Incluye pantallas complementarias de autenticación (Inicio de Sesión, Registro, Recuperación de Contraseña) como demostraciones de IU. Listo para la integración con la API del backend.
+> **Estado actual:** Demo frontend con datos mock locales, autenticación simulada y control de acceso basado en roles (RBAC) del lado del cliente. Incluye pantallas complementarias (Registro, Recuperación de Contraseña) como demostraciones de IU. Listo para la integración con la API del backend.
 
 ## Inicio Rápido
 
@@ -15,10 +15,12 @@ Abra [http://localhost:3000](http://localhost:3000). La aplicación funciona en 
 
 ## Modo Demo
 
-Por defecto, la aplicación sirve todos los datos desde mocks locales en memoria:
+Por defecto, la aplicación funciona completamente en modo demo — no requiere backend:
 
-- Las llamadas a la API utilizan Route Handlers en `src/app/api/`
-- Los datos compartidos se siembran en `src/services/mockStore.ts` y se reinician al reiniciar el servidor; los datos embebidos en componentes cliente (entrenador, estudiante) se reinician al recargar la página
+- **API mock**: Las llamadas a la API utilizan Route Handlers en `src/app/api/`
+- **Mock store**: Los datos compartidos se siembran en `src/services/mockStore.ts` y se reinician al reiniciar el servidor; los datos embebidos en componentes cliente (entrenador, cuenta) se reinician al recargar la página
+- **Autenticación mock**: El inicio de sesión utiliza cuentas de demostración predefinidas (`src/services/auth.ts`). La sesión se persiste en `localStorage`
+- **RBAC cliente**: Las páginas protegidas redirigen al login si el usuario no está autenticado o no tiene el rol adecuado
 - Una insignia **Demo** aparece en el encabezado
 - No se necesita archivo `.env.local`
 
@@ -29,6 +31,61 @@ cp .env.local.example .env.local
 ```
 
 Luego establezca `NEXT_PUBLIC_USE_MOCKS=false` y apunte `NEXT_PUBLIC_API_URL` a su backend.
+
+## Autenticación Mock y RBAC
+
+La aplicación incluye un sistema de autenticación simulado del lado del cliente (sin backend):
+
+### Cuentas de Demostración
+
+| Rol | Email | Contraseña |
+|-----|-------|------------|
+| Administrador | `admin@cataclub.com` | `admin123` |
+| Entrenador | `entrenador@cataclub.com` | `trainer123` |
+| Responsable de pago (representante) | `representante@cataclub.com` | `rep123` |
+| Responsable de pago (autogestionado) | `autogestionado@cataclub.com` | `self123` |
+
+### Páginas Protegidas por Rol
+
+| Ruta | Rol Requerido | Descripción |
+|------|---------------|-------------|
+| `/dashboard` | admin | Panel de administración |
+| `/payments` | admin | Validación de pagos (CU012) |
+| `/trainer` | trainer | Panel del entrenador |
+| `/student` | responsable_pago | Portal de cuenta |
+
+Las páginas públicas (`/`, `/login`, `/register`, `/forgot-password`) son accesibles sin autenticación.
+
+### Navegación Adaptativa
+
+El menú de navegación (`Header`) se adapta al rol activo:
+- **Sin sesión**: solo muestra Inicio e Iniciar Sesión
+- **Administrador**: Administración y Membresías y Pagos
+- **Entrenador**: Panel del Entrenador
+- **Responsable de pago**: Mi Cuenta
+
+### ⚠️ Limitaciones del RBAC Cliente
+
+El control de acceso se implementa del lado del cliente (`ProtectedRoute`). Esto previene el acceso casual pero no es seguro contra manipulaciones intencionales. Para producción, debe reemplazarse con:
+
+1. **Next.js Middleware** — validación de sesión en el servidor antes de servir la página
+2. **Backend session validation** — verificación de token JWT en cada llamada API
+
+### Cómo Funciona
+
+1. El usuario ingresa credenciales en `/login`
+2. `MockAuthService` busca la cuenta en `DEMO_PERSONAS` (hardcoded)
+3. Si coincide, crea un `AuthSession` y lo persiste en `localStorage`
+4. `AuthContext` hidrata la sesión desde `localStorage` al cargar la página
+5. `ProtectedRoute` verifica el rol antes de renderizar contenido protegido
+6. `Header` muestra navegación según el rol activo
+
+Archivos clave:
+- `src/types/domain.ts` — tipos del dominio (Usuario, Rol, ResponsablePago, etc.)
+- `src/services/auth.ts` — servicio de autenticación mock + personas demo
+- `src/contexts/AuthContext.tsx` — contexto React para el estado de sesión
+- `src/components/ProtectedRoute.tsx` — guardia de ruta por rol
+- `src/lib/auth-utils.ts` — funciones puras de autorización
 
 ## Stack Tecnológico
 
@@ -50,20 +107,62 @@ Luego establezca `NEXT_PUBLIC_USE_MOCKS=false` y apunte `NEXT_PUBLIC_API_URL` a 
 │   ├── app/                 # Páginas de Next.js App Router + rutas API mock
 │   │   ├── api/payments/    # Endpoints mock de validación de pagos (CU012)
 │   │   ├── api/products/    # Endpoints mock legacy de productos
-│   │   ├── dashboard/       # Panel de administración general
+│   │   ├── dashboard/       # Panel de administración general (protegido: admin)
 │   │   ├── forgot-password/ # IU de recuperación de contraseña (placeholder demo)
-│   │   ├── login/           # IU de autenticación (placeholder demo)
+│   │   ├── login/           # Autenticación mock con cuentas demo
 │   │   ├── register/        # IU de registro (placeholder demo)
-│   │   ├── payments/        # Cola de validación de pagos y detalle (CU012)
+│   │   ├── payments/        # Cola de validación de pagos y detalle (CU012, protegido: admin)
 │   │   ├── products/        # Redirige a /payments (legacy)
-│   │   ├── trainer/         # Panel del entrenador — sesiones, lista, asistencia, alertas de salud (demo)
-│   │   └── student/         # Portal del estudiante — membresía, pagos, horario (demo)
-│   ├── components/          # Componentes reutilizables (Header)
+│   │   ├── trainer/         # Panel del entrenador (protegido: trainer)
+│   │   └── student/         # Portal de cuenta (protegido: responsable_pago)
+│   ├── components/          # Componentes reutilizables
+│   │   ├── Header.tsx       # Navegación adaptativa por rol
+│   │   └── ProtectedRoute.tsx # Guardia de ruta RBAC cliente
+│   ├── contexts/            # Contextos React
+│   │   └── AuthContext.tsx  # Estado de sesión y autenticación
 │   ├── controllers/         # Documentación/contratos para controllers
-│   └── services/            # Cliente API, store mock y tests
+│   ├── lib/                 # Utilidades puras
+│   │   ├── auth-utils.ts    # Funciones de autorización (canAccess, getDefaultRoute)
+│   │   └── __tests__/       # Tests de utilidades de auth
+│   ├── services/            # Cliente API, autenticación mock y store mock
+│   │   ├── auth.ts          # MockAuthService + personas demo
+│   │   ├── api.ts           # Cliente HTTP
+│   │   ├── mockStore.ts     # Store mock en memoria
+│   │   └── __tests__/       # Tests de servicios
+│   └── types/               # Tipos compartidos
+│       └── domain.ts        # Tipos del dominio Cata Club
 ├── .env.local.example       # Plantilla de configuración de entorno
 └── package.json
 ```
+
+## Modelo de Dominio: Corrección de Conceptos
+
+### Cuenta / Titular / Responsable de Pago vs. Alumno
+
+A partir de julio 2026, el modelo de dominio separa explícitamente al **titular de la cuenta** (quien paga y gestiona) del **alumno** (quien entrena). Esta corrección responde a casos reales del club:
+
+#### Motivación
+
+- **Caso 1 — Representante con múltiples hijos:** Un padre/madre (representante) puede pagar y gestionar las membresías de varios hijos que entrenan en el club. Cada hijo es un `Alumno` distinto asociado al mismo `ResponsablePago`.
+- **Caso 2 — Alumno adulto autogestionado:** Un estudiante mayor de edad puede ser su propio responsable de pago. No necesita un representante externo. La misma persona es el `ResponsablePago` (tipo `autogestionado`) y el `Alumno`.
+
+#### Cambios en el modelo
+
+| Concepto anterior (incorrecto) | Concepto actual (correcto) |
+|-------------------------------|---------------------------|
+| `UserRole: "student"` | `UserRole: "responsable_pago"` — el login identifica a un titular de cuenta |
+| `UserRole: "representative"` | (eliminado — fusionado en `responsable_pago`) |
+| `Alumno.representanteId` | `Alumno.responsablePagoId` — el responsable de pago asociado |
+| `Representante` como único tipo de cuenta | `ResponsablePago.tipo: "representante" \| "autogestionado"` |
+
+El tipo `Representante` se mantiene como interfaz para compatibilidad con datos mock existentes, pero el tipo principal es `ResponsablePago` con su campo `tipo`.
+
+#### Implicaciones en la UI
+
+- El antiguo "Portal del Estudiante" ahora es el **Portal de Cuenta** (`/student`).
+- Un responsable de pago tipo **representante** ve un selector de alumnos y puede gestionar las membresías de todos sus hijos.
+- Un responsable de pago tipo **autogestionado** ve solo su propia información (comportamiento de un solo alumno).
+- Payments (`/payments`) ahora referencia a `responsablePagoName` — el nombre del responsable de pago que realizó el pago.
 
 ## CU012 — Flujo de Validación de Pagos
 
@@ -87,10 +186,11 @@ Vista demo para el rol de Entrenador. Todos los datos son locales y se reinician
 - **Alertas de salud y seguridad** — notas médicas de alto nivel (demo, respetando privacidad)
 - **Barra de horario semanal** — vistazo rápido a la semana de entrenamiento
 
-### Portal del Estudiante (`/student`)
+### Portal de Cuenta (`/student`)
 
-Vista demo para el rol de Alumno:
+Vista demo para el rol de Responsable de Pago:
 
+- **Selector de alumno** (solo para representantes multi-alumno): permite elegir qué alumno gestionar
 - **Tarjeta de membresía** — tipo, período, fechas, cuota y estado actual
 - **Tarjeta de pago** — método, fecha, estado del comprobante y carga de comprobante (demo)
 - **Próximas sesiones** — próximas fechas de entrenamiento con grupo y cancha
@@ -127,11 +227,15 @@ El cliente API (`src/services/api.ts`) cambia automáticamente entre los manejad
 
 - [x] Demo frontend con datos mock
 - [x] Cola de validación de pagos y detalle (CU012)
-- [x] Panel del entrenador — sesiones, lista, asistencia, alertas de salud (demo)
-- [x] Portal del estudiante — membresía, pagos, horario (demo)
+- [x] Panel del entrenador — sesiones, lista, asistencia (demo)
+- [x] Portal de cuenta — membresía, pagos, horario (demo)
 - [x] Diseño responsivo con navegación móvil
+- [x] Tipos de dominio compartidos (Usuario, Rol, ResponsablePago, Membresía, Pago, Horario, Asistencia)
+- [x] Autenticación mock con personas demo y sesión en localStorage
+- [x] RBAC cliente — páginas protegidas por rol, navegación adaptativa
+- [x] Corrección de dominio: separación Cuenta/Titular/ResponsablePago vs. Alumno
 - [ ] Servicio backend API (Python / FastAPI)
-- [ ] Autenticación y sesiones de usuario
+- [ ] Autenticación real con JWT y Next.js Middleware
 - [ ] CRUD real de gestión de membresías
 - [ ] Horario de entrenamiento y registro de asistencia
 - [ ] Despliegue full-stack en Hetzner VPS

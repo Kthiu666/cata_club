@@ -60,6 +60,7 @@ function makePaymentValidation(
   return {
     id: "pv-001",
     studentName: "Sofia Martinez",
+    responsablePagoName: "Carlos Martinez",
     membershipPeriod: "July 2026",
     membershipType: "Monthly",
     expectedAmount: 85.0,
