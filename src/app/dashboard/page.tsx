@@ -11,63 +11,63 @@ import {
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Dashboard",
+  title: "Panel de Control",
 };
 
 const stats = [
   {
     icon: Users,
-    label: "Active Members",
+    label: "Miembros Activos",
     value: "48",
-    sub: "12 new this month",
+    sub: "12 nuevos este mes",
   },
   {
     icon: ShieldCheck,
-    label: "Pending Validations",
+    label: "Pendientes de Validar",
     value: "3",
-    sub: "Awaiting review",
+    sub: "Esperando revisión",
     highlight: true,
   },
   {
     icon: Calendar,
-    label: "Today's Classes",
+    label: "Clases de Hoy",
     value: "6",
-    sub: "4 courts in use",
+    sub: "4 canchas en uso",
   },
   {
     icon: Clock,
-    label: "Pending Payments",
+    label: "Pagos Pendientes",
     value: "2",
-    sub: "Require follow-up",
+    sub: "Requieren seguimiento",
   },
 ];
 
 const quickActions = [
   {
     icon: ShieldCheck,
-    label: "Validate Payments",
+    label: "Validar Pagos",
     href: "/payments",
-    description: "Review and approve or reject membership payment proofs",
+    description: "Revisar y aprobar o rechazar comprobantes de pago de membresías",
   },
   {
     icon: Users,
-    label: "Manage Members",
+    label: "Gestionar Miembros",
     href: "#",
-    description: "Students, representatives, and membership profiles",
+    description: "Estudiantes, representantes y perfiles de membresía",
     disabled: true,
   },
   {
     icon: Calendar,
-    label: "Schedules & Attendance",
+    label: "Horarios y Asistencia",
     href: "#",
-    description: "Training schedules and attendance records",
+    description: "Horarios de entrenamiento y registros de asistencia",
     disabled: true,
   },
   {
     icon: ClipboardList,
-    label: "Attendance Reports",
+    label: "Reportes de Asistencia",
     href: "#",
-    description: "Consult attendance by schedule, period, or student",
+    description: "Consulte la asistencia por horario, período o estudiante",
     disabled: true,
   },
 ];
@@ -78,10 +78,10 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="mb-10">
         <h1 className="text-2xl font-bold tracking-tight text-cata-charcoal sm:text-3xl">
-          Dashboard
+          Panel de Control
         </h1>
         <p className="mt-1 text-sm text-cata-gray">
-          Cata Club — overview and quick access
+          Cata Club — resumen y acceso rápido
         </p>
       </div>
 
@@ -119,7 +119,7 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <div className="mb-10">
         <h2 className="mb-5 text-lg font-semibold text-cata-charcoal">
-          Quick Actions
+          Acciones Rápidas
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
           {quickActions.map((action) => {
@@ -168,32 +168,32 @@ export default function DashboardPage() {
       {/* Modules reference */}
       <div className="rounded-2xl border border-cata-stone/50 bg-white p-6">
         <h3 className="mb-3 text-sm font-semibold text-cata-charcoal">
-          System Modules
+          Módulos del Sistema
         </h3>
         <div className="grid gap-3 text-sm text-cata-gray sm:grid-cols-2 lg:grid-cols-4">
           <div className="flex items-center gap-2">
             <UserCheck size={14} strokeWidth={1.5} className="shrink-0 text-cata-red" aria-hidden="true" />
-            <span>Access &amp; Users — login, accounts, credentials</span>
+            <span>Acceso y Usuarios — inicio de sesión, cuentas, credenciales</span>
           </div>
           <div className="flex items-center gap-2">
             <Calendar size={14} strokeWidth={1.5} className="shrink-0 text-cata-red" aria-hidden="true" />
-            <span>Operations — schedules, attendance tracking</span>
+            <span>Operaciones — horarios, registro de asistencia</span>
           </div>
           <div className="flex items-center gap-2">
             <ShieldCheck size={14} strokeWidth={1.5} className="shrink-0 text-cata-red" aria-hidden="true" />
-            <span>Finance — memberships, payment validation</span>
+            <span>Finanzas — membresías, validación de pagos</span>
           </div>
           <div className="flex items-center gap-2">
             <ClipboardList size={14} strokeWidth={1.5} className="shrink-0 text-cata-red" aria-hidden="true" />
-            <span>Consultation — schedule and membership status</span>
+            <span>Consultas — estado de horarios y membresías</span>
           </div>
         </div>
       </div>
 
-      {/* Placeholder note */}
-      <p className="mt-8 text-center text-xs text-cata-gray/50">
-        Dashboard metrics are static placeholders. Wire API calls to show live
-        data when the backend is connected.
+      {/* Demo data note */}
+      <p className="mt-8 text-center text-xs text-cata-gray/40">
+        Las métricas del dashboard son datos de demostración. Los datos reales reemplazarán
+        estos una vez que la API del backend esté conectada.
       </p>
     </div>
   );

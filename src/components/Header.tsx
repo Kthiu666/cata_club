@@ -16,6 +16,8 @@ import {
   Menu,
   X,
   House,
+  GraduationCap,
+  UserCircle,
 } from "lucide-react";
 
 interface NavLink {
@@ -26,11 +28,17 @@ interface NavLink {
   >;
 }
 
+/**
+ * Nav note: "/dashboard" is the admin overview. The label reads "Admin"
+ * so role-demo navigation is unambiguous alongside Trainer / Student.
+ */
 const navLinks: NavLink[] = [
-  { href: "/", label: "Home", icon: House },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/payments", label: "Memberships & Payments", icon: ShieldCheck },
-  { href: "/login", label: "Sign In", icon: LogIn },
+  { href: "/", label: "Inicio", icon: House },
+  { href: "/dashboard", label: "Administración", icon: LayoutDashboard },
+  { href: "/trainer", label: "Entrenador", icon: GraduationCap },
+  { href: "/student", label: "Estudiante", icon: UserCircle },
+  { href: "/payments", label: "Membresías y Pagos", icon: ShieldCheck },
+  { href: "/login", label: "Iniciar Sesión", icon: LogIn },
 ];
 
 export default function Header() {
@@ -56,6 +64,9 @@ export default function Header() {
             />
           </div>
           <span className="hidden sm:inline">Cata Club</span>
+          <span className="ml-1.5 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-700">
+            Demo
+          </span>
         </Link>
 
         {/* Desktop nav */}
@@ -85,7 +96,7 @@ export default function Header() {
           type="button"
           onClick={() => setMenuOpen(!menuOpen)}
           className="rounded-xl p-2.5 text-cata-gray hover:bg-cata-warm hover:text-cata-charcoal md:hidden"
-          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
         >
           {menuOpen ? <X size={20} strokeWidth={1.5} /> : <Menu size={20} strokeWidth={1.5} />}
         </button>

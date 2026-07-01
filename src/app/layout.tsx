@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     template: `%s | ${APP_NAME}`,
   },
   description:
-    "Cata Club — Table tennis (Tenis de Mesa) club administration system. Manage memberships, payments, schedules, and court reservations.",
+    "Cata Club — Sistema de administración del club de Tenis de Mesa. Gestión de membresías, pagos, horarios y reservas de canchas.",
   icons: {
     icon: "/brand/cata-club-logo.jpeg",
   },
@@ -29,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="es" className={inter.variable}>
       <body className="min-h-screen bg-cata-cream bg-subtle-dot font-sans text-cata-charcoal antialiased">
         <Header />
         <main className="mx-auto max-w-8xl px-4 py-10 sm:px-8 lg:px-12">

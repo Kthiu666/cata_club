@@ -1,103 +1,137 @@
-# Cata Club Admin Frontend
+# Cata Club Admin
 
-Frontend application for the **Cata Club** table tennis administration system. This repository keeps the application at the Git root so GitHub, CI, package scripts, and contributors all work from one clear entry point.
+**Frontend admin shell** para la gestión del club de tenis de mesa — seguimiento de membresías, validación de pagos (CU012), horarios y asistencia.
 
-## Quick Start
+> **Estado actual:** Demo frontend con datos mock locales. Incluye pantallas complementarias de autenticación (Inicio de Sesión, Registro, Recuperación de Contraseña) como demostraciones de IU. Listo para la integración con la API del backend.
+
+## Inicio Rápido
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Abra [http://localhost:3000](http://localhost:3000). La aplicación funciona en **modo demo** — no requiere backend.
 
-## Repository Layout
+## Modo Demo
 
-```text
+Por defecto, la aplicación sirve todos los datos desde mocks locales en memoria:
+
+- Las llamadas a la API utilizan Route Handlers en `src/app/api/`
+- Los datos compartidos se siembran en `src/services/mockStore.ts` y se reinician al reiniciar el servidor; los datos embebidos en componentes cliente (entrenador, estudiante) se reinician al recargar la página
+- Una insignia **Demo** aparece en el encabezado
+- No se necesita archivo `.env.local`
+
+Para conectar un backend real, cree `.env.local` a partir de la plantilla:
+
+```bash
+cp .env.local.example .env.local
+```
+
+Luego establezca `NEXT_PUBLIC_USE_MOCKS=false` y apunte `NEXT_PUBLIC_API_URL` a su backend.
+
+## Stack Tecnológico
+
+| Capa | Elección |
+|------|----------|
+| Framework | Next.js 14 (App Router) + TypeScript |
+| Estilos | Tailwind CSS 3 |
+| Iconos | lucide-react |
+| Testing | Vitest |
+| Linting | ESLint (next/core-web-vitals) |
+| Gestor de paquetes | pnpm |
+
+## Estructura del Repositorio
+
+```
 .
-├── .github/workflows/ci.yml   # CI checks for pushes and pull requests
-├── public/                    # Static assets and Cata Club brand files
+├── public/                  # Archivos estáticos y recursos de marca de Cata Club
 ├── src/
-│   ├── app/                   # Next.js App Router pages and local API routes
-│   ├── components/            # Reusable UI components
-│   ├── controllers/           # Controller-facing documentation/contracts
-│   └── services/              # API client, mocks, and service tests
-├── package.json               # Scripts, dependencies, and package metadata
-├── pnpm-lock.yaml             # Locked dependency graph
-└── README.md                  # Project overview and operating guide
+│   ├── app/                 # Páginas de Next.js App Router + rutas API mock
+│   │   ├── api/payments/    # Endpoints mock de validación de pagos (CU012)
+│   │   ├── api/products/    # Endpoints mock legacy de productos
+│   │   ├── dashboard/       # Panel de administración general
+│   │   ├── forgot-password/ # IU de recuperación de contraseña (placeholder demo)
+│   │   ├── login/           # IU de autenticación (placeholder demo)
+│   │   ├── register/        # IU de registro (placeholder demo)
+│   │   ├── payments/        # Cola de validación de pagos y detalle (CU012)
+│   │   ├── products/        # Redirige a /payments (legacy)
+│   │   ├── trainer/         # Panel del entrenador — sesiones, lista, asistencia, alertas de salud (demo)
+│   │   └── student/         # Portal del estudiante — membresía, pagos, horario (demo)
+│   ├── components/          # Componentes reutilizables (Header)
+│   ├── controllers/         # Documentación/contratos para controllers
+│   └── services/            # Cliente API, store mock y tests
+├── .env.local.example       # Plantilla de configuración de entorno
+└── package.json
 ```
 
-## Tech Stack
+## CU012 — Flujo de Validación de Pagos
 
-- **Framework:** Next.js 14 (App Router) + TypeScript
-- **Styling:** Tailwind CSS 3
-- **Icons:** lucide-react
-- **Package Manager:** pnpm
-- **Testing:** Vitest
-- **Linting:** ESLint (next/core-web-vitals)
+El módulo **Membresías y Pagos** implementa el caso de uso CU012 ("Validar o rechazar comprobante de pago"):
 
-## Application Structure
+1. **Vista de cola** — lista todas las solicitudes de comprobantes de pago con filtros (Todas / Pendientes / Aprobadas / Rechazadas)
+2. **Panel de detalle** — muestra el estado de la membresía, información del pago y vista previa del comprobante
+3. **Aprobar** — marca el pago como válido; la membresía pasa a activa
+4. **Rechazar** — requiere un motivo; la membresía vuelve a estado pendiente de pago
 
-```
-src/
-├── app/            # Next.js App Router pages and Route Handlers
-│   ├── api/        # Local mock Route Handlers for development
-│   ├── dashboard/  # Admin dashboard
-│   ├── login/      # Login screen
-│   ├── payments/   # Membership payment validation (CU012)
-│   └── products/   # Product administration screens
-├── components/     # Reusable UI components
-├── controllers/    # Controller-facing documentation/contracts
-└── services/       # API client, local mock store, and service tests
-```
+El flujo es completamente funcional en modo demo. El store mock valida las transiciones: solo las solicitudes pendientes pueden ser aprobadas o rechazadas.
 
-## Domain Overview
+## Pantallas de Demostración por Rol
 
-Cata Club manages:
+### Panel del Entrenador (`/trainer`)
 
-| Area | Description |
-|------|-------------|
-| **Access & Users** | Login/logout, user accounts, student and legal representative registration, credential generation |
-| **Memberships & Payments** | Membership types, proof of payment upload (image/PDF), admin validation (CU012), physical payment recording; membership states: pending payment, pending validation, active, expired |
-| **Operation & Attendance** | Training schedule management, student assignment by technical level, attendance states: present, absent, late, justified |
-| **Consultation** | Students/representatives consult schedule and membership state; admin consults attendance by schedule, period, or student |
+Vista demo para el rol de Entrenador. Todos los datos son locales y se reinician al reiniciar el servidor:
 
-## API-First Workflow
+- **Sesiones del día** — tarjetas expandibles que muestran grupo, horario, cancha y nivel
+- **Lista con estados de asistencia** — cada estudiante marcado como Presente / Ausente / Tardanza / Justificado
+- **Alertas de salud y seguridad** — notas médicas de alto nivel (demo, respetando privacidad)
+- **Barra de horario semanal** — vistazo rápido a la semana de entrenamiento
 
-This frontend is **decoupled from the backend** via an API contract. The strategy:
+### Portal del Estudiante (`/student`)
 
-1. **Develop UI using local mocks** — Route Handlers under `src/app/api/` return realistic data.
-2. **Set `NEXT_PUBLIC_USE_MOCKS=false`** when the Python backend is ready.
-3. **Configure `NEXT_PUBLIC_API_URL`** to point to the real backend.
-4. The API client (`src/services/api.ts`) automatically switches between mocks and real API.
+Vista demo para el rol de Alumno:
 
-### API Contracts
+- **Tarjeta de membresía** — tipo, período, fechas, cuota y estado actual
+- **Tarjeta de pago** — método, fecha, estado del comprobante y carga de comprobante (demo)
+- **Próximas sesiones** — próximas fechas de entrenamiento con grupo y cancha
 
-#### Memberships & Payments (CU012 — Payment Validation)
+Ambas pantallas muestran una insignia "Demo" y un pie de página de transparencia indicando que no se almacenan datos reales.
 
-| Endpoint | Method | Description |
+## Contratos de API
+
+### Pagos de Membresía (CU012)
+
+| Endpoint | Método | Descripción |
 |----------|--------|-------------|
-| `/api/payments` | GET | List all membership payment validation requests |
-| `/api/payments/:id` | PUT | Approve or reject a payment validation request |
+| `/api/payments` | GET | Listar todas las solicitudes de validación de pago |
+| `/api/payments/:id` | PUT | Aprobar o rechazar una solicitud |
 
-**Approve request body:**
-```json
-{ "action": "approved" }
-```
+**Aprobar:** `{ "action": "approved" }`
+**Rechazar:** `{ "action": "rejected", "rejectionReason": "..." }`
 
-**Reject request body:**
-```json
-{ "action": "rejected", "rejectionReason": "Reason for rejection" }
-```
+El cliente API (`src/services/api.ts`) cambia automáticamente entre los manejadores mock y el backend real según `NEXT_PUBLIC_USE_MOCKS`.
 
-## Available Scripts
+## Scripts
 
-| Command | Description |
+| Comando | Descripción |
 |---------|-------------|
-| `pnpm dev` | Start development server |
-| `pnpm build` | Build for production |
-| `pnpm start` | Start production server |
-| `pnpm lint` | Run ESLint |
-| `pnpm type-check` | Run TypeScript type checking |
-| `pnpm test` | Run tests (Vitest) |
-| `pnpm test:watch` | Run tests in watch mode |
+| `pnpm dev` | Iniciar servidor de desarrollo |
+| `pnpm build` | Compilar para producción |
+| `pnpm start` | Iniciar servidor de producción |
+| `pnpm lint` | Ejecutar ESLint |
+| `pnpm type-check` | Verificación de tipos TypeScript |
+| `pnpm test` | Ejecutar pruebas Vitest |
+| `pnpm test:watch` | Pruebas en modo watch |
+
+## Hoja de Ruta
+
+- [x] Demo frontend con datos mock
+- [x] Cola de validación de pagos y detalle (CU012)
+- [x] Panel del entrenador — sesiones, lista, asistencia, alertas de salud (demo)
+- [x] Portal del estudiante — membresía, pagos, horario (demo)
+- [x] Diseño responsivo con navegación móvil
+- [ ] Servicio backend API (Python / FastAPI)
+- [ ] Autenticación y sesiones de usuario
+- [ ] CRUD real de gestión de membresías
+- [ ] Horario de entrenamiento y registro de asistencia
+- [ ] Despliegue full-stack en Hetzner VPS

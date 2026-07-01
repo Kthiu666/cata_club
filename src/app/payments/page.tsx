@@ -37,47 +37,51 @@ import {
   Building2,
   Hash,
 } from "lucide-react";
-import type { PaymentValidationRequest } from "@/services/api";
+import type {
+  PaymentValidationRequest,
+  MembershipStatus,
+  ValidationStatus,
+} from "@/services/api";
 import { fetchPaymentValidations, updatePaymentValidation } from "@/services/api";
 
 type FilterKey = "all" | "pending" | "approved" | "rejected";
 
 const filters: { key: FilterKey; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "pending", label: "Pending" },
-  { key: "approved", label: "Approved" },
-  { key: "rejected", label: "Rejected" },
+  { key: "all", label: "Todas" },
+  { key: "pending", label: "Pendientes" },
+  { key: "approved", label: "Aprobadas" },
+  { key: "rejected", label: "Rechazadas" },
 ];
 
-const membershipStatusLabels: Record<string, string> = {
-  pending_payment: "Pending Payment",
-  pending_validation: "Pending Validation",
-  active: "Active",
-  expired: "Expired",
+const membershipStatusLabels: Record<MembershipStatus, string> = {
+  pending_payment: "Pendiente de Pago",
+  pending_validation: "Pendiente de Validación",
+  active: "Activo",
+  expired: "Vencido",
 };
 
-const membershipStatusStyles: Record<string, string> = {
+const membershipStatusStyles: Record<MembershipStatus, string> = {
   pending_payment: "badge-warning",
   pending_validation: "badge-warning",
   active: "badge-success",
   expired: "badge-error",
 };
 
-const validationStatusStyles: Record<string, string> = {
+const validationStatusStyles: Record<ValidationStatus, string> = {
   pending: "badge-warning",
   approved: "badge-success",
   rejected: "badge-error",
 };
 
 function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("es-EC", {
     style: "currency",
     currency: "USD",
   }).format(amount);
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-US", {
+  return new Date(dateStr).toLocaleDateString("es-EC", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -107,7 +111,7 @@ export default function PaymentsPage() {
       setRequests(data);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to load payment validation requests",
+        err instanceof Error ? err.message : "Error al cargar las solicitudes de validación de pago",
       );
     } finally {
       setLoading(false);
@@ -161,10 +165,10 @@ export default function PaymentsPage() {
         prev.map((r) => (r.id === updated.id ? updated : r)),
       );
       setSelectedRequest(updated);
-      setSuccessMessage("Payment approved. Membership is now active.");
+      setSuccessMessage("Demo — Pago aprobado. La membresía ahora está activa.");
     } catch (err) {
       setActionError(
-        err instanceof Error ? err.message : "Failed to approve payment",
+        err instanceof Error ? err.message : "Error al aprobar el pago",
       );
     } finally {
       setActionLoading(null);
@@ -188,7 +192,7 @@ export default function PaymentsPage() {
 
     // Client-side validation: rejection reason must not be empty
     if (!rejectionReason.trim()) {
-      setRejectionValidationError("A rejection reason is required.");
+      setRejectionValidationError("El motivo de rechazo es obligatorio.");
       return;
     }
 
@@ -206,10 +210,10 @@ export default function PaymentsPage() {
       );
       setSelectedRequest(updated);
       setShowRejectForm(false);
-      setSuccessMessage("Payment rejected. Membership status set to pending payment.");
+      setSuccessMessage("Demo — Pago rechazado. El estado de la membresía se ha establecido como pendiente de pago.");
     } catch (err) {
       setActionError(
-        err instanceof Error ? err.message : "Failed to reject payment",
+        err instanceof Error ? err.message : "Error al rechazar el pago",
       );
     } finally {
       setActionLoading(null);
@@ -231,13 +235,20 @@ export default function PaymentsPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-cata-charcoal">
-              Memberships & Payments
+              Membresías y Pagos
             </h1>
             <p className="text-sm text-cata-gray">
-              Validate membership payment proofs and manage member status
+              Valide comprobantes de pago de membresías y administre el estado de los miembros
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Demo indicator */}
+      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
+        <span className="font-medium">Demo</span> &mdash; Los datos de pagos son simulados
+        con información local en memoria. No hay integración con un backend real.
+        Los datos se reinician al recargar la página o reiniciar el servidor.
       </div>
 
       {/* Summary bar */}
@@ -248,15 +259,15 @@ export default function PaymentsPage() {
         </span>
         <span className="flex items-center gap-1 text-amber-700">
           <Clock size={14} strokeWidth={1.5} aria-hidden="true" />
-          <span className="font-medium">{counts.pending}</span> pending
+          <span className="font-medium">{counts.pending}</span> pendientes
         </span>
         <span className="flex items-center gap-1 text-emerald-700">
           <CheckCircle2 size={14} strokeWidth={1.5} aria-hidden="true" />
-          <span className="font-medium">{counts.approved}</span> approved
+          <span className="font-medium">{counts.approved}</span> aprobadas
         </span>
         <span className="flex items-center gap-1 text-cata-red">
           <XCircle size={14} strokeWidth={1.5} aria-hidden="true" />
-          <span className="font-medium">{counts.rejected}</span> rejected
+          <span className="font-medium">{counts.rejected}</span> rechazadas
         </span>
       </div>
 
@@ -285,7 +296,7 @@ export default function PaymentsPage() {
           {/* Loading state */}
           {loading && (
             <div className="flex items-center justify-center py-16">
-              <p className="text-sm text-cata-gray">Loading requests...</p>
+              <p className="text-sm text-cata-gray">Cargando solicitudes...</p>
             </div>
           )}
 
@@ -298,7 +309,7 @@ export default function PaymentsPage() {
                 onClick={() => loadRequests()}
                 className="btn-ghost mt-3 text-xs text-cata-red"
               >
-                Retry
+                Reintentar
               </button>
             </div>
           )}
@@ -314,8 +325,8 @@ export default function PaymentsPage() {
               />
               <p className="text-sm text-cata-gray">
                 {activeFilter === "all"
-                  ? "No payment validation requests yet."
-                  : `No ${activeFilter} requests.`}
+                  ? "Aún no hay solicitudes de validación de pago."
+                  : `No hay solicitudes ${activeFilter === "pending" ? "pendientes" : activeFilter === "approved" ? "aprobadas" : "rechazadas"}.`}
               </p>
             </div>
           )}
@@ -327,13 +338,13 @@ export default function PaymentsPage() {
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-cata-stone/60 bg-cata-warm text-xs font-medium uppercase tracking-wider text-cata-gray">
-                      <th className="px-4 py-3 font-medium">Student</th>
-                      <th className="px-4 py-3 font-medium">Representative</th>
-                      <th className="px-4 py-3 font-medium">Period</th>
-                      <th className="px-4 py-3 font-medium text-right">Amount</th>
-                      <th className="px-4 py-3 font-medium">Method</th>
-                      <th className="px-4 py-3 font-medium">Uploaded</th>
-                      <th className="px-4 py-3 font-medium">Status</th>
+                      <th className="px-4 py-3 font-medium">Estudiante</th>
+                      <th className="px-4 py-3 font-medium">Representante</th>
+                      <th className="px-4 py-3 font-medium">Período</th>
+                      <th className="px-4 py-3 font-medium text-right">Monto</th>
+                      <th className="px-4 py-3 font-medium">Método</th>
+                      <th className="px-4 py-3 font-medium">Subido</th>
+                      <th className="px-4 py-3 font-medium">Estado</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-cata-stone/40">
@@ -374,8 +385,10 @@ export default function PaymentsPage() {
                               <XCircle size={12} strokeWidth={2} aria-hidden="true" />
                             )}
                             {req.validationStatus === "pending"
-                              ? "Pending"
-                              : req.validationStatus.charAt(0).toUpperCase() + req.validationStatus.slice(1)}
+                              ? "Pendiente"
+                              : req.validationStatus === "approved"
+                                ? "Aprobado"
+                                : "Rechazado"}
                           </span>
                         </td>
                       </tr>
@@ -396,7 +409,7 @@ export default function PaymentsPage() {
             className="btn-ghost mb-6 -ml-2 gap-1 text-xs text-cata-gray"
           >
             <ArrowLeft size={14} strokeWidth={1.5} aria-hidden="true" />
-            Back to list
+            Volver a la lista
           </button>
 
           {/* Success feedback */}
@@ -414,11 +427,11 @@ export default function PaymentsPage() {
               <div className="card p-6">
                 <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-cata-charcoal">
                   <BadgeCheck size={16} strokeWidth={1.5} aria-hidden="true" />
-                  Membership Status
+                  Estado de la Membresía
                 </h2>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Current Status</p>
+                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Estado Actual</p>
                     <span className={`mt-1 inline-flex items-center gap-1.5 ${membershipStatusStyles[selectedRequest.currentMembershipStatus]}`}>
                       {selectedRequest.currentMembershipStatus === "active" && (
                         <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
@@ -433,7 +446,7 @@ export default function PaymentsPage() {
                     </span>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Membership Type</p>
+                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Tipo de Membresía</p>
                     <p className="mt-1 text-sm font-medium text-cata-charcoal">{selectedRequest.membershipType}</p>
                   </div>
                 </div>
@@ -443,11 +456,11 @@ export default function PaymentsPage() {
               <div className="card p-6">
                 <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-cata-charcoal">
                   <DollarSign size={16} strokeWidth={1.5} aria-hidden="true" />
-                  Payment Request Detail
+                  Detalle de Solicitud de Pago
                 </h2>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Student</p>
+                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Estudiante</p>
                     <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-charcoal">
                       <User size={14} strokeWidth={1.5} className="shrink-0 text-cata-gray" aria-hidden="true" />
                       {selectedRequest.studentName}
@@ -455,7 +468,7 @@ export default function PaymentsPage() {
                   </div>
                   {selectedRequest.representativeName && (
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Representative</p>
+                      <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Representante</p>
                       <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-charcoal">
                         <Building2 size={14} strokeWidth={1.5} className="shrink-0 text-cata-gray" aria-hidden="true" />
                         {selectedRequest.representativeName}
@@ -463,28 +476,28 @@ export default function PaymentsPage() {
                     </div>
                   )}
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Period</p>
+                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Período</p>
                     <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-charcoal">
                       <Calendar size={14} strokeWidth={1.5} className="shrink-0 text-cata-gray" aria-hidden="true" />
                       {selectedRequest.membershipPeriod}
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Expected Amount</p>
+                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Monto Esperado</p>
                     <div className="mt-1 flex items-center gap-1.5 text-lg font-bold text-cata-charcoal">
                       <DollarSign size={16} strokeWidth={2} className="shrink-0 text-cata-gray" aria-hidden="true" />
                       {formatCurrency(selectedRequest.expectedAmount)}
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Payment Method</p>
+                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Método de Pago</p>
                     <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-charcoal">
                       <CreditCard size={14} strokeWidth={1.5} className="shrink-0 text-cata-gray" aria-hidden="true" />
                       {selectedRequest.paymentMethod}
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Uploaded</p>
+                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Subido el</p>
                     <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-gray">
                       <Clock size={14} strokeWidth={1.5} className="shrink-0" aria-hidden="true" />
                       {formatDate(selectedRequest.uploadedAt)}
@@ -498,24 +511,24 @@ export default function PaymentsPage() {
                 <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5">
                   <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-800">
                     <AlertTriangle size={14} strokeWidth={1.5} aria-hidden="true" />
-                    Validation Checklist
+                    Lista de Verificación
                   </h3>
                   <ul className="space-y-1 text-sm text-amber-700">
                     <li className="flex items-center gap-2">
                       <div className="h-1 w-1 rounded-full bg-amber-500" />
-                      Verify the student name matches a registered member
+                      Verifique que el nombre del estudiante corresponda a un miembro registrado
                     </li>
                     <li className="flex items-center gap-2">
                       <div className="h-1 w-1 rounded-full bg-amber-500" />
-                      Confirm the period corresponds to the current membership cycle
+                      Confirme que el período corresponda al ciclo de membresía actual
                     </li>
                     <li className="flex items-center gap-2">
                       <div className="h-1 w-1 rounded-full bg-amber-500" />
-                      Check the amount matches the expected membership fee
+                      Compruebe que el monto coincida con la cuota de membresía esperada
                     </li>
                     <li className="flex items-center gap-2">
                       <div className="h-1 w-1 rounded-full bg-amber-500" />
-                      Verify the payment method is correct
+                      Verifique que el método de pago sea correcto
                     </li>
                   </ul>
                 </div>
@@ -526,12 +539,12 @@ export default function PaymentsPage() {
                 <div className="card border-red-200 bg-red-50 p-5">
                   <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-cata-red">
                     <XCircle size={14} strokeWidth={1.5} aria-hidden="true" />
-                    Rejection Reason
+                    Motivo de Rechazo
                   </h3>
                   <p className="text-sm text-cata-red/80">{selectedRequest.rejectionReason}</p>
-                  {selectedRequest.validatedBy && (
+                  {selectedRequest.validatedBy && selectedRequest.validatedAt && (
                     <p className="mt-2 text-xs text-cata-gray">
-                      Rejected by {selectedRequest.validatedBy} on {formatDate(selectedRequest.validatedAt!)}
+                      Rechazado por {selectedRequest.validatedBy} el {formatDate(selectedRequest.validatedAt)}
                     </p>
                   )}
                 </div>
@@ -541,10 +554,10 @@ export default function PaymentsPage() {
               {(selectedRequest.validationStatus === "approved" || selectedRequest.validationStatus === "rejected") && (
                 <div className="text-xs text-cata-gray/60">
                   {selectedRequest.validatedBy && (
-                    <p>Validated by: {selectedRequest.validatedBy}</p>
+                    <p>Validado por: {selectedRequest.validatedBy}</p>
                   )}
                   {selectedRequest.validatedAt && (
-                    <p>Validation date: {formatDate(selectedRequest.validatedAt)}</p>
+                    <p>Fecha de validación: {formatDate(selectedRequest.validatedAt)}</p>
                   )}
                 </div>
               )}
@@ -556,7 +569,7 @@ export default function PaymentsPage() {
               <div className="card p-6">
                 <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-cata-charcoal">
                   <Paperclip size={16} strokeWidth={1.5} aria-hidden="true" />
-                  Proof of Payment
+                  Comprobante de Pago
                 </h2>
 
                 <div className="mb-4 rounded-xl border-2 border-dashed border-cata-stone/70 bg-cata-warm/50 p-6 text-center">
@@ -565,7 +578,7 @@ export default function PaymentsPage() {
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={selectedRequest.proofPreviewUrl}
-                        alt="Payment proof preview"
+                        alt="Vista previa del comprobante de pago"
                         className="h-full w-full object-contain"
                       />
                     </div>
@@ -595,17 +608,13 @@ export default function PaymentsPage() {
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-cata-gray">
-                    {selectedRequest.proofFileType === "pdf" ? "PDF document" : "Image file"}
+                    {selectedRequest.proofFileType === "pdf" ? "Documento PDF" : "Archivo de imagen"}
                   </p>
 
-                  <button
-                    type="button"
-                    className="btn-ghost mt-4 gap-1.5 text-xs text-cata-red"
-                    disabled
-                  >
-                    <Eye size={12} strokeWidth={1.5} aria-hidden="true" />
-                    View full proof (backend integration pending)
-                  </button>
+                  <p className="mt-4 text-xs text-cata-gray/60">
+                    <Eye size={12} strokeWidth={1.5} className="inline-block -mt-0.5 mr-1" aria-hidden="true" />
+                    Vista previa del comprobante completo no disponible en modo demo.
+                  </p>
                 </div>
               </div>
 
@@ -613,7 +622,7 @@ export default function PaymentsPage() {
               {selectedRequest.validationStatus === "pending" && (
                 <div className="card p-6">
                   <h2 className="mb-4 text-base font-semibold text-cata-charcoal">
-                    Validation Action
+                    Acción de Validación
                   </h2>
 
                   {actionError && (
@@ -631,11 +640,11 @@ export default function PaymentsPage() {
                         className="btn-primary w-full shadow-soft"
                       >
                         {actionLoading === "approve" ? (
-                          "Processing..."
+                          "Procesando..."
                         ) : (
                           <>
                             <ThumbsUp size={15} strokeWidth={2} aria-hidden="true" />
-                            Approve Payment
+                            Aprobar Pago
                           </>
                         )}
                       </button>
@@ -646,7 +655,7 @@ export default function PaymentsPage() {
                         className="btn-secondary w-full border-red-200 text-cata-red hover:bg-red-50 hover:border-red-300"
                       >
                         <ThumbsDown size={15} strokeWidth={2} aria-hidden="true" />
-                        Reject Payment
+                        Rechazar Pago
                       </button>
                     </div>
                   ) : (
@@ -656,7 +665,7 @@ export default function PaymentsPage() {
                           htmlFor="rejection-reason"
                           className="mb-1.5 block text-xs font-medium text-cata-charcoal"
                         >
-                          Rejection Reason <span className="text-cata-red">*</span>
+                          Motivo de Rechazo <span className="text-cata-red">*</span>
                         </label>
                         <textarea
                           id="rejection-reason"
@@ -666,7 +675,7 @@ export default function PaymentsPage() {
                             setRejectionReason(e.target.value);
                             setRejectionValidationError(null);
                           }}
-                          placeholder="Explain why the payment proof is being rejected..."
+                          placeholder="Explique por qué se rechaza el comprobante de pago..."
                           className="input-field resize-y"
                           disabled={actionLoading !== null}
                         />
@@ -682,9 +691,9 @@ export default function PaymentsPage() {
                           className="btn-primary flex-1 shadow-soft"
                         >
                           {actionLoading === "reject" ? (
-                            "Processing..."
+                            "Procesando..."
                           ) : (
-                            "Confirm Rejection"
+                            "Confirmar Rechazo"
                           )}
                         </button>
                         <button
@@ -693,7 +702,7 @@ export default function PaymentsPage() {
                           disabled={actionLoading !== null}
                           className="btn-secondary"
                         >
-                          Cancel
+                          Cancelar
                         </button>
                       </div>
                     </div>
@@ -714,10 +723,10 @@ export default function PaymentsPage() {
                     ) : (
                       <XCircle size={16} strokeWidth={2} aria-hidden="true" />
                     )}
-                    {selectedRequest.validationStatus === "approved" ? "Approved" : "Rejected"}
+                    {selectedRequest.validationStatus === "approved" ? "Aprobado" : "Rechazado"}
                   </div>
                   <p className="text-xs text-cata-gray">
-                    This request has already been processed.
+                    Esta solicitud ya ha sido procesada.
                   </p>
                 </div>
               )}
