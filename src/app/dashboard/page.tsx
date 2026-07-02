@@ -53,16 +53,14 @@ const quickActions = [
   {
     icon: Users,
     label: "Gestionar Miembros",
-    href: "#",
+    href: "/members",
     description: "Estudiantes, representantes y perfiles de membresía",
-    disabled: true,
   },
   {
     icon: Calendar,
     label: "Horarios y Asistencia",
-    href: "#",
+    href: "/attendance",
     description: "Horarios de entrenamiento y registros de asistencia",
-    disabled: true,
   },
   {
     icon: ClipboardList,

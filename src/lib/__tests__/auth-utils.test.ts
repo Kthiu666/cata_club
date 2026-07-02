@@ -135,12 +135,14 @@ describe("getNavLinksForRole", () => {
     expect(links[1]).toEqual({ href: "/login", label: "Iniciar Sesión" });
   });
 
-  it("returns admin links with dashboard and payments", () => {
+  it("returns admin links including /members and /attendance", () => {
     const links = getNavLinksForRole("admin");
-    expect(links).toHaveLength(3);
+    expect(links).toHaveLength(5);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
     expect(links[1]).toEqual({ href: "/dashboard", label: "Administración" });
-    expect(links[2]).toEqual({ href: "/payments", label: "Membresías y Pagos" });
+    expect(links[2]).toEqual({ href: "/members", label: "Miembros" });
+    expect(links[3]).toEqual({ href: "/payments", label: "Membresías y Pagos" });
+    expect(links[4]).toEqual({ href: "/attendance", label: "Horarios y Asistencia" });
   });
 
   it("returns trainer link", () => {

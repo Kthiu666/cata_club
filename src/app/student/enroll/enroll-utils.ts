@@ -5,9 +5,7 @@
  * export conflicts — no React dependencies.
  */
 
-import type { FichaMedica, NivelTecnico } from "@/types/domain";
-
-export type { NivelTecnico };
+import type { FichaMedica } from "@/types/domain";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -26,7 +24,6 @@ export interface EnrollFormData {
   apellidos: string;
   fechaNacimiento: string;
   cedula: string;
-  nivel: NivelTecnico;
   fechaInicio: string;
   activo: boolean;
   condicionesSalud: string;
@@ -54,13 +51,6 @@ export const STEP_LABELS: Record<WizardStep, string> = {
   summary: "Resumen y Confirmación",
 };
 
-/** Technical level options for club enrollment. */
-export const NIVELES: { value: NivelTecnico; label: string }[] = [
-  { value: "principiante", label: "Principiante" },
-  { value: "intermedio", label: "Intermedio" },
-  { value: "avanzado", label: "Avanzado" },
-];
-
 /** Default empty form data. */
 export const initialFormData: EnrollFormData = {
   enrollmentType: "self",
@@ -68,7 +58,6 @@ export const initialFormData: EnrollFormData = {
   apellidos: "",
   fechaNacimiento: "",
   cedula: "",
-  nivel: "principiante",
   fechaInicio: new Date().toISOString().slice(0, 10),
   activo: true,
   condicionesSalud: "",
@@ -159,14 +148,59 @@ export function buildFichaMedica(data: EnrollFormData): FichaMedica {
 
 /**
  * Calculate age from an ISO date string (YYYY-MM-DD).
- * Returns the age in whole years as of today.
+ *
+ * Parses the date-string component-wise (year, month, day) to avoid the
+ * UTC-midnight interpretation of `new Date("YYYY-MM-DD")`, which shifts
+ * the date backward in negative-UTC-offset timezones such as Ecuador
+ * (UTC-5). Using calendar-component parsing keeps the comparison in local
+ * time, ensuring boundary cases like "birthday is tomorrow" are correct.
+ *
+ * Accepts an optional `today` parameter (defaults to `new Date()`) so that
+ * tests can pass a fixed reference date for deterministic results.
+ *
+ * @param birthDate — ISO date string "YYYY-MM-DD".
+ * @param today — Reference date (default `new Date()`).
+ * @returns Age in whole years, or `NaN` for invalid/empty/unparseable input.
  */
-export function calculateAge(birthDate: string): number {
-  const birth = new Date(birthDate);
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const monthDiff = today.getMonth() - birth.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+export function calculateAge(
+  birthDate: string,
+  today: Date = new Date(),
+): number {
+  if (!birthDate) return NaN;
+
+  const parts = birthDate.split("-");
+  if (parts.length !== 3) return NaN;
+
+  const [birthYear, birthMonth, birthDay] = parts.map(Number);
+
+  if (
+    !Number.isInteger(birthYear) ||
+    !Number.isInteger(birthMonth) ||
+    !Number.isInteger(birthDay) ||
+    birthYear < 1900 ||
+    birthYear > 2200 ||
+    birthMonth < 1 ||
+    birthMonth > 12 ||
+    birthDay < 1 ||
+    birthDay > 31
+  ) {
+    return NaN;
+  }
+
+  // Calendar validation: reject dates like Feb 31 or Apr 31 that JS
+  // silently "overflows" into the next valid calendar date.
+  const parsed = new Date(birthYear, birthMonth - 1, birthDay);
+  if (
+    parsed.getFullYear() !== birthYear ||
+    parsed.getMonth() !== birthMonth - 1 ||
+    parsed.getDate() !== birthDay
+  ) {
+    return NaN;
+  }
+
+  let age = today.getFullYear() - birthYear;
+  const monthDiff = today.getMonth() - (birthMonth - 1);
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDay)) {
     age--;
   }
   return age;

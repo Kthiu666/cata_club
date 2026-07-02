@@ -175,6 +175,18 @@ describe("validateEnrollStep — club step", () => {
     const errors = validateEnrollStep("club", validForm({ fechaInicio: "" }));
     expect(errors).toContain("La fecha de inicio es obligatoria.");
   });
+
+  it("does NOT validate nivel — trainer assigns level after enrollment", () => {
+    // The form data no longer carries a nivel field. Even if an unknown
+    // extra field were present, the club step only checks fechaInicio.
+    const errors = validateEnrollStep("club", validForm());
+    expect(errors).toEqual([]);
+    // No error related to technical level should appear
+    const hasNivelError = errors.some((e) =>
+      /nivel|nivel t(e|é)cnico|nivel/i.test(e),
+    );
+    expect(hasNivelError).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

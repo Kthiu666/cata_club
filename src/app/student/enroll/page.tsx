@@ -6,7 +6,7 @@
  *   - Enrollment type (self vs. child/dependent)
  *   - Student personal data
  *   - Birth date / age-relevant data
- *   - Technical level & start date
+ *   - Club start date
  *   - Health/medical notes & emergency contact
  *   - Summary & confirmation
  *
@@ -25,7 +25,6 @@ import {
   Calendar,
   Heart,
   Phone,
-  Target,
   ChevronLeft,
   ChevronRight,
   CheckCircle,
@@ -41,9 +40,7 @@ import {
   buildFichaMedica,
   STEP_ORDER,
   STEP_LABELS,
-  NIVELES,
   initialFormData,
-  type NivelTecnico,
   type EnrollFormData,
   type EnrollmentType,
   type WizardStep,
@@ -373,35 +370,16 @@ export default function EnrollPage() {
     return (
       <div className="space-y-1">
         <p className="mb-4 text-sm leading-relaxed text-cata-gray">
-          Información deportiva del alumno en Cata Club:
+          Información administrativa del alumno en Cata Club:
         </p>
 
-        {/* Technical Level */}
-        <div className="mb-4">
-          <label className="mb-1.5 block text-sm font-medium text-cata-charcoal">
-            Nivel Técnico <span className="ml-0.5 text-cata-red">*</span>
-          </label>
-          <div className="relative">
-            <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-gray">
-              <Target size={16} strokeWidth={1.5} />
-            </span>
-            <select
-              value={formData.nivel}
-              onChange={(e) =>
-                updateField("nivel", e.target.value as NivelTecnico)
-              }
-              disabled={submitting}
-              className="input-field appearance-none pl-10"
-            >
-              {NIVELES.map((n) => (
-                <option key={n.value} value={n.value}>
-                  {n.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <p className="mt-1.5 text-xs text-cata-gray/50">
-            El nivel puede ser ajustado posteriormente por un entrenador.
+        <div className="mb-4 rounded-xl border border-cata-stone/50 bg-cata-warm p-4 text-sm text-cata-gray">
+          <p className="font-medium text-cata-charcoal">
+            Nivel técnico pendiente de evaluación
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-cata-gray/70">
+            El estudiante no selecciona su nivel. Un entrenador lo asignará
+            después de observarlo en el club.
           </p>
         </div>
 
@@ -571,9 +549,9 @@ export default function EnrollPage() {
             Información del Club
           </h3>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <dt className="text-cata-gray">Nivel Técnico</dt>
+            <dt className="text-cata-gray">Evaluación Técnica</dt>
             <dd className="font-medium text-cata-charcoal">
-              {NIVELES.find((n) => n.value === formData.nivel)?.label}
+              La asignará un entrenador después de observar al alumno
             </dd>
             <dt className="text-cata-gray">Fecha de Inicio</dt>
             <dd className="font-medium text-cata-charcoal">{formData.fechaInicio}</dd>
@@ -791,5 +769,3 @@ export default function EnrollPage() {
     </ProtectedRoute>
   );
 }
-
-

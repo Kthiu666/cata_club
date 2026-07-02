@@ -1,11 +1,13 @@
 /**
  * Header — Top navigation bar for Cata Club Admin
  *
- * Navigation links adapt to the current auth session and role:
+ * Navigation links use the canonical getNavLinksForRole() helper
+ * so the nav contract is always consistent across the app.
+ *
  *  - Unauthenticated: only Inicio and Iniciar Sesión.
- *  - Admin: Administration + Payments.
+ *  - Admin: Admin + Members + Payments.
  *  - Trainer: Trainer panel.
-  *  - Responsible payer / account owner: Account portal.
+ *  - Responsible payer / account owner: Account portal.
  */
 
 "use client";
@@ -25,9 +27,11 @@ import {
   House,
   GraduationCap,
   User,
+  Users,
+  Calendar,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import type { UserRole } from "@/types/domain";
+import { getNavLinksForRole, type NavLinkDef } from "@/lib/auth-utils";
 
 interface NavLink {
   href: string;
@@ -38,49 +42,38 @@ interface NavLink {
 }
 
 /**
- * Build the navigation links based on current auth state.
+ * Map canonical href → lucide icon component.
+ * Single source of truth for icon assignment — maps what getNavLinksForRole
+ * returns to the UI layer.
+ */
+const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
+  Omit<LucideProps, "ref"> & React.RefAttributes<SVGSVGElement>
+>> = {
+  "/": House,
+  "/login": LogIn,
+  "/dashboard": LayoutDashboard,
+  "/members": Users,
+  "/payments": ShieldCheck,
+  "/attendance": Calendar,
+  "/trainer": GraduationCap,
+  "/student": GraduationCap,
+};
+
+/**
+ * Build the navigation links from the canonical helper + icon map.
  */
 function useNavLinks(): NavLink[] {
   const { isAuthenticated, session } = useAuth();
 
-  const links = useMemo<NavLink[]>(() => {
-    if (!isAuthenticated || !session) {
-      return [
-        { href: "/", label: "Inicio", icon: House },
-        { href: "/login", label: "Iniciar Sesión", icon: LogIn },
-      ];
-    }
-
-    const role = session.user.role;
-    const roleLinks: NavLink[] = [{ href: "/", label: "Inicio", icon: House }];
-
-    switch (role) {
-      case "admin":
-        roleLinks.push(
-          { href: "/dashboard", label: "Administración", icon: LayoutDashboard },
-          { href: "/payments", label: "Membresías y Pagos", icon: ShieldCheck },
-        );
-        break;
-      case "trainer":
-        roleLinks.push(
-          { href: "/trainer", label: "Entrenador", icon: GraduationCap },
-        );
-        break;
-      case "responsable_pago":
-        roleLinks.push(
-          {
-            href: "/student",
-            label: "Mi Cuenta",
-            icon: GraduationCap,
-          },
-        );
-        break;
-    }
-
-    return roleLinks;
+  return useMemo<NavLink[]>(() => {
+    const role = isAuthenticated && session ? session.user.role : null;
+    const defs: NavLinkDef[] = getNavLinksForRole(role);
+    return defs.map((def) => ({
+      href: def.href,
+      label: def.label,
+      icon: NAV_ICON_MAP[def.href] ?? House,
+    }));
   }, [isAuthenticated, session]);
-
-  return links;
 }
 
 export default function Header() {
