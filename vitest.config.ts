@@ -7,10 +7,15 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  esbuild: {
+    jsx: "automatic",
+    jsxImportSource: "react",
+  },
   test: {
     globals: true,
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     allowOnly: false,
+    setupFiles: ["./src/test-setup.ts"],
   },
 });
