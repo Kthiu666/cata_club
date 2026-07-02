@@ -15,8 +15,11 @@ import {
   countActiveStudents,
   filterAccounts,
   getAccountStatusBadge,
+  getGrupoById,
+  getNivelLabelFromGrupo,
   normalizeText,
   MOCK_MEMBER_ACCOUNTS,
+  MOCK_GRUPOS,
   type MemberAccount,
 } from "../members-utils";
 
@@ -37,7 +40,7 @@ describe("buildMemberStats", () => {
 
   it("computes correct stats from mock data", () => {
     const stats = buildMemberStats(MOCK_MEMBER_ACCOUNTS);
-    expect(stats.totalAccounts).toBe(5);
+    expect(stats.totalAccounts).toBe(6);
     expect(stats.totalStudents).toBeGreaterThan(0);
     // Validate counts are consistent: every student is counted once
     const expectedStudents = MOCK_MEMBER_ACCOUNTS.reduce(
@@ -76,8 +79,8 @@ describe("buildMemberStats", () => {
       ...MOCK_MEMBER_ACCOUNTS,
     ];
     const stats = buildMemberStats(accounts);
-    expect(stats.totalAccounts).toBe(6);
-    expect(stats.totalStudents).toBe(8); // original 8 students
+    expect(stats.totalAccounts).toBe(7);
+    expect(stats.totalStudents).toBe(9); // original 9 students
     expect(stats.activeMemberships).toBe(4);
   });
 });
@@ -333,7 +336,7 @@ describe("normalizeText", () => {
 
 describe("filterAccounts", () => {
   it("returns all accounts when search term is empty", () => {
-    expect(filterAccounts(MOCK_MEMBER_ACCOUNTS, "")).toHaveLength(5);
+    expect(filterAccounts(MOCK_MEMBER_ACCOUNTS, "")).toHaveLength(6);
   });
 
   it("returns a new array reference on empty search (immutable)", () => {
@@ -342,7 +345,7 @@ describe("filterAccounts", () => {
   });
 
   it("returns all accounts when search term is only whitespace", () => {
-    expect(filterAccounts(MOCK_MEMBER_ACCOUNTS, "   ")).toHaveLength(5);
+    expect(filterAccounts(MOCK_MEMBER_ACCOUNTS, "   ")).toHaveLength(6);
   });
 
   it("filters by account name (case-insensitive)", () => {
@@ -421,9 +424,12 @@ describe("MOCK_MEMBER_ACCOUNTS", () => {
         expect(alumno.id).toBeTruthy();
         expect(alumno.nombres).toBeTruthy();
         expect(alumno.apellidos).toBeTruthy();
-        expect(["principiante", "intermedio", "avanzado"] as const).toContain(
-          alumno.nivel,
-        );
+        // grupoId is either a valid group reference or null (unassigned)
+        expect(alumno.grupoId).toBeDefined();
+        if (alumno.grupoId !== null) {
+          expect(typeof alumno.grupoId).toBe("string");
+          expect(alumno.grupoId.length).toBeGreaterThan(0);
+        }
       }
     }
   });
@@ -432,5 +438,125 @@ describe("MOCK_MEMBER_ACCOUNTS", () => {
     for (const account of MOCK_MEMBER_ACCOUNTS) {
       expect(account.alumnos.length).toBeGreaterThan(0);
     }
+  });
+
+  it("students do not own nivel directly — nivel comes from group context", () => {
+    for (const account of MOCK_MEMBER_ACCOUNTS) {
+      for (const alumno of account.alumnos) {
+        // The MemberStudentSummary type uses grupoId, not nivel
+        expect("nivel" in alumno).toBe(false);
+      }
+    }
+  });
+
+  it("every grupoId references a known group", () => {
+    const knownIds = new Set(MOCK_GRUPOS.map((g) => g.id));
+    for (const account of MOCK_MEMBER_ACCOUNTS) {
+      for (const alumno of account.alumnos) {
+        if (alumno.grupoId !== null) {
+          expect(knownIds.has(alumno.grupoId)).toBe(true);
+        }
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MOCK_GRUPOS
+// ---------------------------------------------------------------------------
+
+describe("MOCK_GRUPOS", () => {
+  it("has at least one group", () => {
+    expect(MOCK_GRUPOS.length).toBeGreaterThan(0);
+  });
+
+  it("each group has required fields", () => {
+    for (const grupo of MOCK_GRUPOS) {
+      expect(grupo.id).toBeTruthy();
+      expect(grupo.nombre).toBeTruthy();
+      expect(["principiante", "intermedio", "avanzado"] as const).toContain(
+        grupo.nivel,
+      );
+      expect(grupo.alumnosIds.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getGrupoById
+// ---------------------------------------------------------------------------
+
+describe("getGrupoById", () => {
+  it("returns the grupo for a valid grupoId", () => {
+    const grupo = getGrupoById("grupo-001", MOCK_GRUPOS);
+    expect(grupo).toBeDefined();
+    expect(grupo?.nombre).toBe("Principiantes");
+  });
+
+  it("returns undefined for null input", () => {
+    expect(getGrupoById(null, MOCK_GRUPOS)).toBeUndefined();
+  });
+
+  it("returns undefined for unknown grupoId", () => {
+    expect(getGrupoById("grupo-unknown", MOCK_GRUPOS)).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getNivelLabelFromGrupo
+// ---------------------------------------------------------------------------
+
+describe("getNivelLabelFromGrupo", () => {
+  it("returns capitalized nivel for known groups", () => {
+    expect(getNivelLabelFromGrupo("grupo-001", MOCK_GRUPOS)).toBe("Principiante");
+    expect(getNivelLabelFromGrupo("grupo-002", MOCK_GRUPOS)).toBe("Intermedio");
+    expect(getNivelLabelFromGrupo("grupo-003", MOCK_GRUPOS)).toBe("Avanzado");
+  });
+
+  it("returns null for null grupoId", () => {
+    expect(getNivelLabelFromGrupo(null, MOCK_GRUPOS)).toBeNull();
+  });
+
+  it("returns null for unknown grupoId", () => {
+    expect(getNivelLabelFromGrupo("grupo-unknown", MOCK_GRUPOS)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unassigned student (no group)
+// ---------------------------------------------------------------------------
+
+describe("unassigned student (grupoId: null)", () => {
+  const NULL_GRUPO_STUDENT = {
+    id: "stu-null-grupo",
+    nombres: "Nueva",
+    apellidos: "Alumna",
+    grupoId: null,
+    activo: true,
+    membresia: null,
+    ultimoPago: null,
+  };
+
+  it("fixture has null grupoId", () => {
+    expect(NULL_GRUPO_STUDENT.grupoId).toBeNull();
+  });
+
+  it("getNivelLabelFromGrupo returns null for null grupoId", () => {
+    const nivelDisplay = getNivelLabelFromGrupo(
+      NULL_GRUPO_STUDENT.grupoId,
+      MOCK_GRUPOS,
+    );
+    expect(nivelDisplay).toBeNull();
+  });
+
+  it("null nivelDisplay triggers 'Sin grupo asignado' rendering (mimics StudentRow)", () => {
+    const nivelDisplay = getNivelLabelFromGrupo(
+      NULL_GRUPO_STUDENT.grupoId,
+      MOCK_GRUPOS,
+    );
+    // This mirrors the ternary in StudentRow (page.tsx line 133):
+    //   {nivelDisplay ? <span>{nivelDisplay}</span> : <span>Sin grupo asignado</span>}
+    const rendered = nivelDisplay ?? "Sin grupo asignado";
+    expect(rendered).toBe("Sin grupo asignado");
   });
 });

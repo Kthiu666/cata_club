@@ -53,6 +53,7 @@ const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
   "/login": LogIn,
   "/dashboard": LayoutDashboard,
   "/members": Users,
+  "/groups": Users,
   "/payments": ShieldCheck,
   "/attendance": Calendar,
   "/trainer": GraduationCap,

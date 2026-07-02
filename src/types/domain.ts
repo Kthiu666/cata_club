@@ -84,6 +84,10 @@ export interface ResponsablePago {
  * - For adult self-managed students: the responsible party is the student
  *   themself (reflected by `responsablePagoId` pointing to a
  *   ResponsablePago with `tipo: "autogestionado"`).
+ *
+ * Domain correction (2026-07): Students do NOT carry technical level (nivel)
+ * directly. Technical level belongs to the group (Grupo) the student is
+ * assigned to. See `Grupo.nivel`.
  */
 export interface Alumno {
   id: string;
@@ -91,10 +95,11 @@ export interface Alumno {
   nombres: string;
   apellidos: string;
   fechaNacimiento?: string;
-  nivel: NivelTecnico;
   telefono?: string;
   /** The account owner responsible for this student's membership payments. */
   responsablePagoId: string;
+  /** The group this student is assigned to (if any). Technical level is carried by the group, not the student. */
+  grupoId: string | null;
   activo: boolean;
   createdAt: string;
   updatedAt: string;
@@ -217,6 +222,31 @@ export interface ComprobantePago {
   motivoRechazo?: string;
   validadoPor?: string;
   validadoEn?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Groups (Grupos)
+// ---------------------------------------------------------------------------
+
+/**
+ * A training group (Grupo) — the set of students assigned together.
+ *
+ * Technical level (NivelTecnico) belongs to the group, NOT to the student.
+ * A student's technical level is determined by which group they belong to.
+ * Students with no group assignment have no technical level yet — their
+ * level is pending trainer evaluation.
+ *
+ * The group assignment screen (/admin/groups) will be built in a future slice.
+ */
+export interface Grupo {
+  id: string;
+  nombre: string;
+  nivel: NivelTecnico;
+  alumnosIds: string[];
+  horariosIds?: string[];
+  activo: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ---------------------------------------------------------------------------

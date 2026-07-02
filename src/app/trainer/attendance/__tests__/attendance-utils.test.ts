@@ -100,8 +100,12 @@ describe("buildAttendanceSummary", () => {
 });
 
 describe("AVAILABLE_SESSIONS", () => {
-  it("provides at least one session", () => {
-    expect(AVAILABLE_SESSIONS.length).toBeGreaterThan(0);
+  it("provides exactly 7 active sessions (inactive schedules excluded)", () => {
+    // Derivation: grupo-001 (hor-001, hor-004, hor-007 → 3 active),
+    // grupo-002 (hor-002 active, hor-005 inactive → 1 active),
+    // grupo-003 (hor-003, hor-006, hor-008 → 3 active) = 7 total.
+    // If an inactive schedule leaks, this count breaks.
+    expect(AVAILABLE_SESSIONS.length).toBe(7);
   });
 
   it("each session has students initialized to absent", () => {

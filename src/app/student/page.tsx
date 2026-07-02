@@ -70,7 +70,8 @@ interface ScenarioData {
 interface DemoStudentInfo {
   id: string;
   nombre: string;
-  nivel: string;
+  /** The group name the student belongs to (e.g. "Principiantes"). Technical level is carried by the group, not the student. */
+  grupo: string;
   scenarioData: ScenarioData;
   upcomingSessions: UpcomingSession[];
 }
@@ -191,21 +192,21 @@ const demoStudentsByAccount: Record<string, DemoStudentInfo[]> = {
     {
       id: "student-sofia",
       nombre: "Sofía Martínez",
-      nivel: "Principiante",
+      grupo: "Principiantes",
       scenarioData: { ...scenarioData.active },
       upcomingSessions: [...sessionsByStudent["student-sofia"]],
     },
     {
       id: "student-mateo",
       nombre: "Mateo Rodríguez",
-      nivel: "Intermedio",
+      grupo: "Intermedios",
       scenarioData: { ...scenarioData.pending_validation },
       upcomingSessions: [...sessionsByStudent["student-mateo"]],
     },
     {
       id: "student-valentina",
       nombre: "Valentina López",
-      nivel: "Avanzado",
+      grupo: "Avanzados",
       scenarioData: { ...scenarioData.expired },
       upcomingSessions: [...sessionsByStudent["student-valentina"]],
     },
@@ -215,7 +216,7 @@ const demoStudentsByAccount: Record<string, DemoStudentInfo[]> = {
     {
       id: "student-self-1",
       nombre: "Martín Rodríguez",
-      nivel: "Intermedio",
+      grupo: "Intermedios",
       scenarioData: { ...scenarioData.active },
       upcomingSessions: [...sessionsByStudent["student-self-1"]],
     },
@@ -445,7 +446,7 @@ export default function StudentPage() {
               >
                 {students.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.nombre} ({s.nivel})
+                    {s.nombre} — {s.grupo}
                   </option>
                 ))}
               </select>

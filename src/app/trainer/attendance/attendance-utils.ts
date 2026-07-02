@@ -2,12 +2,25 @@
  * Pure utility functions and mock data for the Trainer Attendance flow.
  *
  * Extracted from page.tsx for testability — no React dependencies.
+ *
+ * Domain (2026-07): Session rosters are now DERIVED from Grupo.alumnosIds
+ * via the shared buildTrainingSessions() helper in groups-utils.ts. The old
+ * hardcoded AVAILABLE_SESSIONS is replaced by DERIVED_SESSIONS, which
+ * reconciles mock data from members-utils (MOCK_GRUPOS, MOCK_MEMBER_ACCOUNTS)
+ * and attendance-utils (MOCK_SCHEDULES) so the Grupo → schedule → student
+ * relationship is explicit and tested.
  */
 
 import type { EstadoAsistencia } from "@/types/domain";
+import {
+  MOCK_MEMBER_ACCOUNTS,
+  MOCK_GRUPOS,
+} from "@/app/members/members-utils";
+import { MOCK_SCHEDULES } from "@/app/attendance/attendance-utils";
+import { buildTrainingSessions } from "@/lib/groups-utils";
 
 // ---------------------------------------------------------------------------
-// Types (duplicated from trainer/page.tsx to keep this module self-contained)
+// Types
 // ---------------------------------------------------------------------------
 
 export interface SessionStudent {
@@ -27,61 +40,37 @@ export interface TrainingSession {
 }
 
 // ---------------------------------------------------------------------------
-// Mock data — training sessions available today for attendance registration.
+// Derive training sessions from canonical mock data
+//
 // Domain rule: sessions are NOT owned by one trainer. Any trainer may register
-// attendance in any available session.
+// attendance in any available session. The roster comes from Grupo.alumnosIds
+// so it stays consistent with group membership changes.
 // ---------------------------------------------------------------------------
 
-export const AVAILABLE_SESSIONS: TrainingSession[] = [
-  {
-    id: "s1",
-    groupName: "Principiantes — Lun/Mié",
-    time: "15:00 — 16:30",
-    court: "Cancha 1",
-    level: "Principiante",
-    studentCount: 8,
-    students: [
-      { id: "alumno-s1-001", name: "Sofia Martinez", attendance: "absent" },
-      { id: "alumno-s1-002", name: "Mateo Rodriguez", attendance: "absent" },
-      { id: "alumno-s1-003", name: "Valentina Lopez", attendance: "absent" },
-      { id: "alumno-s1-004", name: "Benjamin Torres", attendance: "absent" },
-      { id: "alumno-s1-005", name: "Camila Flores", attendance: "absent" },
-      { id: "alumno-s1-006", name: "Emilia Castillo", attendance: "absent" },
-      { id: "alumno-s1-007", name: "Santiago Ramirez", attendance: "absent" },
-      { id: "alumno-s1-008", name: "Isabella Morales", attendance: "absent" },
-    ],
-  },
-  {
-    id: "s2",
-    groupName: "Intermedios — Lun/Mié",
-    time: "16:45 — 18:15",
-    court: "Cancha 2",
-    level: "Intermedio",
-    studentCount: 6,
-    students: [
-      { id: "alumno-s2-001", name: "Nicolas Acosta", attendance: "absent" },
-      { id: "alumno-s2-002", name: "Valeria Gomez", attendance: "absent" },
-      { id: "alumno-s2-003", name: "Diego Herrera", attendance: "absent" },
-      { id: "alumno-s2-004", name: "Luciana Paz", attendance: "absent" },
-      { id: "alumno-s2-005", name: "Tomas Rivas", attendance: "absent" },
-      { id: "alumno-s2-006", name: "Gabriela Silva", attendance: "absent" },
-    ],
-  },
-  {
-    id: "s3",
-    groupName: "Avanzados — Lun/Mié",
-    time: "18:30 — 20:00",
-    court: "Cancha 1 y 3",
-    level: "Avanzado",
-    studentCount: 4,
-    students: [
-      { id: "alumno-s3-001", name: "Alejandro Padilla", attendance: "absent" },
-      { id: "alumno-s3-002", name: "Carolina Mendez", attendance: "absent" },
-      { id: "alumno-s3-003", name: "Felipe Ortega", attendance: "absent" },
-      { id: "alumno-s3-004", name: "Mariana Rios", attendance: "absent" },
-    ],
-  },
-];
+/**
+ * Build a map of studentId → "Nombres Apellidos" from MOCK_MEMBER_ACCOUNTS.
+ */
+function buildStudentNameMap(): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const account of MOCK_MEMBER_ACCOUNTS) {
+    for (const alumno of account.alumnos) {
+      map[alumno.id] = `${alumno.nombres} ${alumno.apellidos}`;
+    }
+  }
+  return map;
+}
+
+const DERIVED_STUDENT_NAME_MAP = buildStudentNameMap();
+
+/**
+ * Training sessions derived from Grupo + Horario data.
+ * This replaces the old hardcoded AVAILABLE_SESSIONS.
+ */
+export const AVAILABLE_SESSIONS: TrainingSession[] = buildTrainingSessions(
+  MOCK_GRUPOS,
+  MOCK_SCHEDULES,
+  DERIVED_STUDENT_NAME_MAP,
+);
 
 // ---------------------------------------------------------------------------
 // Attendance helpers

@@ -6,8 +6,8 @@
  */
 
 import type {
+  Grupo,
   TipoResponsable,
-  NivelTecnico,
   TipoMembresia,
   EstadoMembresia,
 } from "@/types/domain";
@@ -27,7 +27,8 @@ export interface MemberStudentSummary {
   id: string;
   nombres: string;
   apellidos: string;
-  nivel: NivelTecnico;
+  /** The group this student belongs to (if assigned). Technical level is carried by the group, not the student. */
+  grupoId: string | null;
   fechaNacimiento?: string;
   activo: boolean;
   membresia: {
@@ -81,7 +82,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
         id: "stu-001",
         nombres: "Sofía",
         apellidos: "Martínez",
-        nivel: "principiante",
+        grupoId: "grupo-001",
         fechaNacimiento: "2014-03-15",
         activo: true,
         membresia: {
@@ -102,7 +103,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
         id: "stu-002",
         nombres: "Mateo",
         apellidos: "Martínez",
-        nivel: "intermedio",
+        grupoId: "grupo-002",
         fechaNacimiento: "2012-08-22",
         activo: true,
         membresia: {
@@ -123,7 +124,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
         id: "stu-003",
         nombres: "Emilia",
         apellidos: "Martínez",
-        nivel: "principiante",
+        grupoId: "grupo-001",
         fechaNacimiento: "2016-11-05",
         activo: true,
         membresia: {
@@ -154,7 +155,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
         id: "stu-004",
         nombres: "Valentina",
         apellidos: "López",
-        nivel: "avanzado",
+        grupoId: "grupo-003",
         fechaNacimiento: "2010-02-10",
         activo: true,
         membresia: {
@@ -185,7 +186,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
         id: "stu-005",
         nombres: "Camila",
         apellidos: "Flores",
-        nivel: "principiante",
+        grupoId: "grupo-001",
         fechaNacimiento: "2015-06-18",
         activo: true,
         membresia: {
@@ -211,7 +212,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
         id: "stu-006",
         nombres: "Nicolás",
         apellidos: "Acosta",
-        nivel: "intermedio",
+        grupoId: "grupo-002",
         activo: true,
         membresia: {
           tipo: "anual",
@@ -241,7 +242,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
         id: "stu-007",
         nombres: "Santiago",
         apellidos: "Ramírez",
-        nivel: "principiante",
+        grupoId: "grupo-001",
         fechaNacimiento: "2013-09-30",
         activo: true,
         membresia: {
@@ -262,7 +263,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
         id: "stu-008",
         nombres: "Isabella",
         apellidos: "Morales",
-        nivel: "principiante",
+        grupoId: "grupo-001",
         fechaNacimiento: "2014-12-12",
         activo: true,
         membresia: {
@@ -275,6 +276,63 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
         ultimoPago: null,
       },
     ],
+  },
+  {
+    id: "rp-006",
+    tipo: "representante",
+    nombres: "Lucía",
+    apellidos: "Mendoza",
+    email: "lucia.mendoza@email.com",
+    telefono: "+593 94 321 0987",
+    alumnos: [
+      {
+        id: "stu-009",
+        nombres: "Joaquín",
+        apellidos: "Mendoza",
+        grupoId: null,
+        fechaNacimiento: "2017-04-20",
+        activo: true,
+        membresia: null,
+        ultimoPago: null,
+      },
+    ],
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Mock Groups — technical level is carried by the group, not the student.
+// ---------------------------------------------------------------------------
+
+export const MOCK_GRUPOS: Grupo[] = [
+  {
+    id: "grupo-001",
+    nombre: "Principiantes",
+    nivel: "principiante",
+    alumnosIds: ["stu-001", "stu-003", "stu-005", "stu-007", "stu-008"],
+    horariosIds: ["hor-001", "hor-004", "hor-007"],
+    activo: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "grupo-002",
+    nombre: "Intermedios",
+    nivel: "intermedio",
+    alumnosIds: ["stu-002", "stu-006"],
+    horariosIds: ["hor-002", "hor-005"],
+    activo: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "grupo-003",
+    nombre: "Avanzados",
+    nivel: "avanzado",
+    alumnosIds: ["stu-004"],
+    horariosIds: ["hor-003", "hor-006", "hor-008"],
+    activo: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
   },
 ];
 
@@ -310,6 +368,40 @@ export const PAYER_TYPE_LABELS: Record<TipoResponsable, string> = {
   representante: "Representante",
   autogestionado: "Alumno autogestionado",
 };
+
+// ---------------------------------------------------------------------------
+// Group helpers — technical level is carried by the group, not the student.
+// ---------------------------------------------------------------------------
+
+/**
+ * Look up a mock group by ID.
+ */
+export function getGrupoById(
+  grupoId: string | null,
+  grupos: Grupo[],
+): Grupo | undefined {
+  if (!grupoId) return undefined;
+  return grupos.find((g) => g.id === grupoId);
+}
+
+/**
+ * Get the human-readable technical-level label for a student based on their
+ * group assignment. Returns `null` when the student has no group (level
+ * pending evaluation).
+ */
+export function getNivelLabelFromGrupo(
+  grupoId: string | null,
+  grupos: Grupo[],
+): string | null {
+  const grupo = getGrupoById(grupoId, grupos);
+  if (!grupo) return null;
+  return capitalize(grupo.nivel);
+}
+
+function capitalize(s: string): string {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 // ---------------------------------------------------------------------------
 // Helpers

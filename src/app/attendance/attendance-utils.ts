@@ -8,7 +8,7 @@
  * No React dependencies — pure functions for testability.
  */
 
-import type { DiaSemana, NivelTecnico, EstadoAsistencia } from "@/types/domain";
+import type { DiaSemana, NivelTecnico, EstadoAsistencia, Grupo } from "@/types/domain";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -20,6 +20,11 @@ export interface ScheduleSlot {
   diaSemana: DiaSemana;
   horaInicio: string;
   horaFin: string;
+  /**
+   * @deprecated — Technical level belongs to Grupo, not ScheduleSlot.
+   * Kept for backward compatibility with mock data; do NOT use for domain
+   * decisions. Derive display level from the linked Grupo.nivel instead.
+   */
   nivel: NivelTecnico;
   cancha: string;
   cupoMaximo: number;
@@ -286,4 +291,54 @@ export function formatNivel(nivel: NivelTecnico): string {
  */
 export function countActiveSchedules(schedules: ScheduleSlot[]): number {
   return schedules.filter((s) => s.activo).length;
+}
+
+// ---------------------------------------------------------------------------
+// Schedule ↔ Group reconciliation helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a map of scheduleId → linked group names.
+ *
+ * Used by the admin Horarios y Asistencia page to show which groups link
+ * to each schedule slot.
+ */
+export function buildScheduleGroupMap(
+  grupos: Grupo[],
+): Record<string, string[]> {
+  const map: Record<string, string[]> = {};
+  for (const grupo of grupos) {
+    if (!grupo.horariosIds) continue;
+    for (const horarioId of grupo.horariosIds) {
+      if (!map[horarioId]) map[horarioId] = [];
+      map[horarioId].push(grupo.nombre);
+    }
+  }
+  return map;
+}
+
+/**
+ * Derive the display level label for a schedule slot.
+ *
+ * Prefers the linked group's technical level (Grupo.nivel) over the
+ * deprecated ScheduleSlot.nivel. Falls back to formatNivel(slot.nivel)
+ * only when no group links to this schedule.
+ *
+ * Tie-breaking: when multiple groups share a schedule WITH MISMATCHED
+ * levels, the first group found wins. This is a known limitation —
+ * groups sharing a schedule should have the same level in practice.
+ * See tests for the documented behavior.
+ */
+export function getScheduleLevelLabel(
+  slot: ScheduleSlot,
+  grupos: Grupo[],
+): string {
+  const linkedGrupos = grupos.filter(
+    (g) => g.horariosIds?.includes(slot.id),
+  );
+  if (linkedGrupos.length > 0) {
+    const level = linkedGrupos[0].nivel;
+    return NIVEL_LABELS[level] ?? formatNivel(level);
+  }
+  return formatNivel(slot.nivel);
 }

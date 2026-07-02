@@ -33,13 +33,15 @@ import {
   MOCK_ATTENDANCE_RECORDS,
   buildAttendanceStats,
   formatDay,
-  formatNivel,
   countActiveSchedules,
+  buildScheduleGroupMap,
+  getScheduleLevelLabel,
   DIA_SEMANA_LABELS,
   ATTENDANCE_LABELS,
   type ScheduleSlot,
   type AttendanceRecord,
 } from "./attendance-utils";
+import { MOCK_GRUPOS } from "@/app/members/members-utils";
 
 // ---------------------------------------------------------------------------
 // Attendance state icon
@@ -81,6 +83,8 @@ function AttendanceBadge({ estado }: { estado: string }) {
 // ---------------------------------------------------------------------------
 // Day filter buttons
 // ---------------------------------------------------------------------------
+
+const SCHEDULE_GROUP_MAP = buildScheduleGroupMap(MOCK_GRUPOS);
 
 const DAY_OPTIONS = [
   { value: "all", label: "Todos los días" },
@@ -249,12 +253,18 @@ export default function AttendancePage() {
                     </p>
                     <p className="flex items-center gap-1.5">
                       <GraduationCap size={12} strokeWidth={1.5} aria-hidden="true" />
-                      {formatNivel(slot.nivel)}
+                      {getScheduleLevelLabel(slot, MOCK_GRUPOS)}
                     </p>
                     <p className="flex items-center gap-1.5">
                       <Users size={12} strokeWidth={1.5} aria-hidden="true" />
                       Cupo: {slot.cupoMaximo} estudiantes
                     </p>
+                    {SCHEDULE_GROUP_MAP[slot.id] && (
+                      <p className="flex items-center gap-1.5 text-cata-red/70">
+                        <Users size={12} strokeWidth={1.5} aria-hidden="true" />
+                        Grupo: {SCHEDULE_GROUP_MAP[slot.id].join(", ")}
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}

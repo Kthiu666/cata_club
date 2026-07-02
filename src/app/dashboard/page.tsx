@@ -7,6 +7,7 @@ import {
   ArrowRight,
   Clock,
   UserCheck,
+  UserPlus,
 } from "lucide-react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -55,6 +56,12 @@ const quickActions = [
     label: "Gestionar Miembros",
     href: "/members",
     description: "Estudiantes, representantes y perfiles de membresía",
+  },
+  {
+    icon: UserPlus,
+    label: "Gestionar Grupos",
+    href: "/groups",
+    description: "Grupos de entrenamiento, niveles técnicos y asignación de alumnos",
   },
   {
     icon: Calendar,

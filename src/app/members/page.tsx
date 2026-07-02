@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import {
   MOCK_MEMBER_ACCOUNTS,
+  MOCK_GRUPOS,
   buildMemberStats,
   formatCurrency,
   formatDate,
@@ -38,6 +39,7 @@ import {
   countActiveStudents,
   filterAccounts,
   getAccountStatusBadge,
+  getNivelLabelFromGrupo,
   MEMBERSHIP_STATUS_LABELS,
   MEMBERSHIP_STATUS_BADGE,
   PAYMENT_STATUS_LABELS,
@@ -115,6 +117,8 @@ function StudentRow({ student }: { student: MemberStudentSummary }) {
     ? PAYMENT_STATUS_BADGE[student.ultimoPago.estado]
     : "badge-neutral";
 
+  const nivelDisplay = getNivelLabelFromGrupo(student.grupoId, MOCK_GRUPOS);
+
   return (
     <tr id={`student-detail-${student.id}`} className="border-t border-cata-stone/30 bg-cata-warm/30">
       <td colSpan={7} className="px-4 py-4">
@@ -126,10 +130,16 @@ function StudentRow({ student }: { student: MemberStudentSummary }) {
               {student.nombres} {student.apellidos}
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-cata-gray">
-              <span className="inline-flex items-center gap-1 rounded-full bg-cata-warm px-2 py-0.5">
-                <GraduationCap size={10} strokeWidth={1.5} aria-hidden="true" />
-                {student.nivel.charAt(0).toUpperCase() + student.nivel.slice(1)}
-              </span>
+              {nivelDisplay ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-cata-warm px-2 py-0.5">
+                  <GraduationCap size={10} strokeWidth={1.5} aria-hidden="true" />
+                  {nivelDisplay}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">
+                  Sin grupo asignado
+                </span>
+              )}
               {student.fechaNacimiento && (
                 <span>
                   Nac.: {formatDate(student.fechaNacimiento)}
@@ -449,7 +459,8 @@ export default function MembersPage() {
             Cada <strong>responsable de pago</strong> (titular de cuenta) gestiona
             uno o más alumnos. Un representante (ej. padre/madre) puede gestionar
             varios alumnos. Un alumno autogestionado es su propio responsable de pago.
-            Los datos de membresía y pagos son simulados.
+            El <strong>nivel técnico</strong> lo lleva el grupo asignado, no el alumno.
+            Los datos de membresía, grupos y pagos son simulados.
           </p>
         </div>
 
