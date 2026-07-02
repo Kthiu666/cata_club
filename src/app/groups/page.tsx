@@ -47,57 +47,16 @@ import {
 } from "@/lib/groups-utils";
 import type { Grupo } from "@/types/domain";
 import type { ScheduleSlot } from "@/app/attendance/attendance-utils";
-
-// ---------------------------------------------------------------------------
-// Build flattened student list from member accounts
-// ---------------------------------------------------------------------------
-
-function buildStudentRefs(grupos: Grupo[]): StudentRef[] {
-  const refs: StudentRef[] = [];
-  for (const account of MOCK_MEMBER_ACCOUNTS) {
-    for (const alumno of account.alumnos) {
-      // Derive grupoId from current grupos state, NOT from static alumno.grupoId.
-      // This keeps the unassigned list in sync with actual group assignments.
-      const grupoId = findStudentGroupId(alumno.id, grupos);
-      refs.push({
-        id: alumno.id,
-        nombres: alumno.nombres,
-        apellidos: alumno.apellidos,
-        grupoId,
-        activo: alumno.activo,
-      });
-    }
-  }
-  return refs;
-}
-
-/** Find which group a student belongs to, based on current grupos state. */
-function findStudentGroupId(
-  studentId: string,
-  grupos: Grupo[],
-): string | null {
-  for (const g of grupos) {
-    if (g.alumnosIds.includes(studentId)) return g.id;
-  }
-  return null;
-}
-
-// ---------------------------------------------------------------------------
-// Level badge colors
-// ---------------------------------------------------------------------------
-
-const LEVEL_BADGE: Record<string, string> = {
-  principiante: "bg-green-50 text-green-700 ring-1 ring-green-200",
-  intermedio: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
-  avanzado: "bg-red-50 text-red-700 ring-1 ring-red-200",
-};
+import {
+  buildStudentRefs,
+  getLevelBadgeClass,
+  getCapacityBarColor,
+} from "./groups-page-utils";
 
 function LevelBadge({ level }: { level: string }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-        LEVEL_BADGE[level] ?? "bg-cata-warm text-cata-gray"
-      }`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getLevelBadgeClass(level)}`}
     >
       <GraduationCap size={10} strokeWidth={2} className="mr-1" aria-hidden="true" />
       {getLevelLabel(level as GroupCardData["level"])}
@@ -110,13 +69,6 @@ function LevelBadge({ level }: { level: string }) {
 // ---------------------------------------------------------------------------
 
 function CapacityBar({ percent, total }: { percent: number; total: number }) {
-  const color =
-    percent >= 90
-      ? "bg-red-500"
-      : percent >= 70
-        ? "bg-amber-500"
-        : "bg-emerald-500";
-
   return (
     <div
       className="flex items-center gap-2"
@@ -128,7 +80,7 @@ function CapacityBar({ percent, total }: { percent: number; total: number }) {
     >
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-cata-stone/30">
         <div
-          className={`h-full rounded-full transition-all ${color}`}
+          className={`h-full rounded-full transition-all ${getCapacityBarColor(percent)}`}
           style={{ width: `${Math.min(percent, 100)}%` }}
         />
       </div>
@@ -153,7 +105,7 @@ export default function GroupsPage() {
     message: string;
   } | null>(null);
 
-  const allStudents = buildStudentRefs(grupos);
+  const allStudents = buildStudentRefs(grupos, MOCK_MEMBER_ACCOUNTS);
   const unassigned = getUnassignedStudents(allStudents);
   const cardData = buildGroupCards(grupos, MOCK_SCHEDULES);
   const selectedGrupo = selectedGroupId
