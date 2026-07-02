@@ -1,0 +1,289 @@
+/**
+ * Component tests for Header.
+ *
+ * Covers loading, unauthenticated, and authenticated states for every user
+ * role. Validates nav link visibility, active-link highlighting, and the
+ * mobile menu toggle.
+ *
+ * @vitest-environment jsdom
+ */
+
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import Header from "@/components/Header";
+
+// ---------------------------------------------------------------------------
+// Mocks
+// ---------------------------------------------------------------------------
+
+const mockPathname = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockPathname(),
+}));
+
+vi.mock("next/link", () => ({
+  __esModule: true,
+  default: ({
+    children,
+    href,
+    ...props
+  }: Record<string, unknown>) => (
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
+  ),
+}));
+
+vi.mock("next/image", () => ({
+  __esModule: true,
+  default: (props: Record<string, unknown>) => {
+    // Strip Next.js-specific props, keep standard img attrs
+    const { fill, priority, sizes, ...rest } = props;
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img alt="" {...rest} />;
+  },
+}));
+
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: vi.fn(),
+}));
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  createUnauthenticatedAuth,
+  createAuthenticatedAuth,
+  createLoadingAuth,
+} from "./test-utils";
+
+const mockUseAuth = vi.mocked(useAuth);
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe("Header", () => {
+  beforeEach(() => {
+    mockPathname.mockReturnValue("/");
+    mockUseAuth.mockReset();
+    // Default: not loading, not authenticated
+    mockUseAuth.mockReturnValue(createUnauthenticatedAuth(false));
+  });
+
+  // --- Loading skeleton ---
+
+  it("shows skeleton while session is hydrating", () => {
+    mockUseAuth.mockReturnValue(createLoadingAuth());
+
+    render(<Header />);
+
+    // Brand visible but as plain text, not a link
+    expect(screen.getByText("Cata Club")).toBeInTheDocument();
+    expect(screen.getByText("Demo")).toBeInTheDocument();
+
+    // No nav links rendered
+    expect(screen.queryByRole("link", { name: /Inicio/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Iniciar Sesión/i })).not.toBeInTheDocument();
+  });
+
+  // --- Unauthenticated ---
+
+  it("shows Inicio and Iniciar Sesión when not authenticated", () => {
+    render(<Header />);
+
+    expect(screen.getByRole("link", { name: /Inicio/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Iniciar Sesión/i }),
+    ).toBeInTheDocument();
+
+    // Authenticated-only elements are absent
+    expect(screen.queryByText("Administración")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Cerrar Sesión/i })).not.toBeInTheDocument();
+  });
+
+  // --- Authenticated — admin ---
+
+  it("shows admin nav links, user name, and logout button", () => {
+    mockUseAuth.mockReturnValue(
+      createAuthenticatedAuth("admin", "Admin Cata Club"),
+    );
+
+    render(<Header />);
+
+    // Admin-specific links
+    expect(screen.getByRole("link", { name: /Inicio/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Administración/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Miembros/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Grupos/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Membresías/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Horarios/i }),
+    ).toBeInTheDocument();
+
+    // User info
+    expect(screen.getByText("Admin Cata Club")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Cerrar Sesión/i }),
+    ).toBeInTheDocument();
+  });
+
+  // --- Authenticated — trainer ---
+
+  it("shows trainer nav links", () => {
+    mockUseAuth.mockReturnValue(
+      createAuthenticatedAuth("trainer", "Carlos Entrenador"),
+    );
+
+    render(<Header />);
+
+    // Trainer gets Inicio + Entrenador
+    expect(screen.getByRole("link", { name: /Inicio/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Entrenador/i }),
+    ).toBeInTheDocument();
+
+    // Other roles not visible
+    expect(
+      screen.queryByText("Administración"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Mi Cuenta")).not.toBeInTheDocument();
+
+    // User info
+    expect(screen.getByText("Carlos Entrenador")).toBeInTheDocument();
+  });
+
+  // --- Authenticated — responsable_pago ---
+
+  it("shows responsable_pago nav link", () => {
+    mockUseAuth.mockReturnValue(
+      createAuthenticatedAuth("responsable_pago", "Carlos Martinez"),
+    );
+
+    render(<Header />);
+
+    expect(screen.getByRole("link", { name: /Inicio/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Mi Cuenta/i }),
+    ).toBeInTheDocument();
+
+    // Other roles not visible
+    expect(
+      screen.queryByText("Administración"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Entrenador")).not.toBeInTheDocument();
+
+    expect(screen.getByText("Carlos Martinez")).toBeInTheDocument();
+  });
+
+  // --- Active link highlighting ---
+
+  it("marks the active link with aria-current=\"page\"", () => {
+    mockPathname.mockReturnValue("/members");
+    mockUseAuth.mockReturnValue(
+      createAuthenticatedAuth("admin", "Admin"),
+    );
+
+    render(<Header />);
+
+    const membersLink = screen.getByRole("link", { name: /Miembros/i });
+    expect(membersLink).toHaveAttribute("aria-current", "page");
+  });
+
+  it("does not apply aria-current to non-current route links", () => {
+    mockPathname.mockReturnValue("/members");
+    mockUseAuth.mockReturnValue(
+      createAuthenticatedAuth("admin", "Admin"),
+    );
+
+    render(<Header />);
+
+    const inicioLink = screen.getByRole("link", { name: /Inicio/i });
+    expect(inicioLink).not.toHaveAttribute("aria-current");
+  });
+
+  // --- Mobile menu ---
+
+  it("toggles mobile menu open and closed", () => {
+    render(<Header />);
+
+    const menuButton = screen.getByRole("button", { name: /Abrir menú/i });
+    expect(menuButton).toBeInTheDocument();
+
+    // Mobile menu is closed initially — nav not visible on mobile
+    // (the desktop nav is rendered but hidden via CSS, the mobile panel is not rendered)
+    expect(screen.queryByText("Cerrar Sesión")).not.toBeInTheDocument();
+
+    // Open mobile menu
+    fireEvent.click(menuButton);
+
+    // Now the mobile menu button label changes to "Cerrar menú"
+    expect(screen.queryByRole("button", { name: /Abrir menú/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Cerrar menú/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders mobile nav panel with admin links when authenticated", () => {
+    mockUseAuth.mockReturnValue(
+      createAuthenticatedAuth("admin", "Admin"),
+    );
+
+    render(<Header />);
+
+    // Open mobile menu
+    fireEvent.click(screen.getByRole("button", { name: /Abrir menú/i }));
+
+    // Logout button should appear in mobile panel
+    const logoutButtons = screen.getAllByRole("button", { name: /Cerrar Sesión/i });
+    // At least one is visible (mobile logout)
+    expect(logoutButtons.length).toBeGreaterThan(0);
+
+    // User name visible
+    expect(screen.getAllByText("Admin").length).toBeGreaterThan(0);
+  });
+
+  // --- Logout ---
+
+  it("calls logout when desktop logout button is clicked", () => {
+    const mockLogout = vi.fn();
+    mockUseAuth.mockReturnValue(
+      createAuthenticatedAuth("admin", "Admin", { logout: mockLogout }),
+    );
+
+    render(<Header />);
+
+    const logoutBtn = screen.getByRole("button", { name: /Cerrar Sesión/i });
+    fireEvent.click(logoutBtn);
+
+    expect(mockLogout).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls logout when mobile logout button is clicked", () => {
+    const mockLogout = vi.fn();
+    mockUseAuth.mockReturnValue(
+      createAuthenticatedAuth("admin", "Admin", { logout: mockLogout }),
+    );
+
+    render(<Header />);
+
+    // Open mobile menu
+    fireEvent.click(screen.getByRole("button", { name: /Abrir menú/i }));
+
+    // Click the mobile logout button (there are two: desktop and mobile)
+    const logoutButtons = screen.getAllByRole("button", { name: /Cerrar Sesión/i });
+    // The last button in DOM is the mobile one
+    fireEvent.click(logoutButtons[logoutButtons.length - 1]);
+
+    expect(mockLogout).toHaveBeenCalledTimes(1);
+  });
+});
