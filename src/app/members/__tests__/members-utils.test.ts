@@ -7,6 +7,10 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  MOCK_MEMBER_ACCOUNTS,
+  MOCK_GRUPOS,
+} from "@/mocks/members";
+import {
   buildMemberStats,
   formatCurrency,
   formatDate,
@@ -18,8 +22,6 @@ import {
   getGrupoById,
   getNivelLabelFromGrupo,
   normalizeText,
-  MOCK_MEMBER_ACCOUNTS,
-  MOCK_GRUPOS,
   type MemberAccount,
 } from "../members-utils";
 

@@ -6,8 +6,8 @@
  * Domain (2026-07): Session rosters are now DERIVED from Grupo.alumnosIds
  * via the shared buildTrainingSessions() helper in groups-utils.ts. The old
  * hardcoded AVAILABLE_SESSIONS is replaced by DERIVED_SESSIONS, which
- * reconciles mock data from members-utils (MOCK_GRUPOS, MOCK_MEMBER_ACCOUNTS)
- * and attendance-utils (MOCK_SCHEDULES) so the Grupo → schedule → student
+ * reconciles mock data from src/mocks/members (MOCK_GRUPOS, MOCK_MEMBER_ACCOUNTS)
+ * and src/mocks/attendance (MOCK_SCHEDULES) so the Grupo → schedule → student
  * relationship is explicit and tested.
  */
 
@@ -15,8 +15,8 @@ import type { EstadoAsistencia } from "@/types/domain";
 import {
   MOCK_MEMBER_ACCOUNTS,
   MOCK_GRUPOS,
-} from "@/app/members/members-utils";
-import { MOCK_SCHEDULES } from "@/app/attendance/attendance-utils";
+} from "@/mocks/members";
+import { MOCK_SCHEDULES } from "@/mocks/attendance";
 import { buildTrainingSessions } from "@/lib/groups-utils";
 
 // ---------------------------------------------------------------------------

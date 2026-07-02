@@ -32,8 +32,8 @@ import {
 import {
   MOCK_MEMBER_ACCOUNTS,
   MOCK_GRUPOS,
-} from "@/app/members/members-utils";
-import { MOCK_SCHEDULES } from "@/app/attendance/attendance-utils";
+} from "@/mocks/members";
+import { MOCK_SCHEDULES } from "@/mocks/attendance";
 import {
   assignStudentToGroup,
   removeStudentFromAllGroups,

@@ -31,6 +31,9 @@ import {
 import {
   MOCK_SCHEDULES,
   MOCK_ATTENDANCE_RECORDS,
+} from "@/mocks/attendance";
+import { MOCK_GRUPOS } from "@/mocks/members";
+import {
   buildAttendanceStats,
   formatDay,
   countActiveSchedules,
@@ -41,7 +44,6 @@ import {
   type ScheduleSlot,
   type AttendanceRecord,
 } from "./attendance-utils";
-import { MOCK_GRUPOS } from "@/app/members/members-utils";
 
 // ---------------------------------------------------------------------------
 // Attendance state icon

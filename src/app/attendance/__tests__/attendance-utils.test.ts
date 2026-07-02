@@ -6,14 +6,16 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  MOCK_ATTENDANCE_RECORDS,
+  MOCK_SCHEDULES,
+} from "@/mocks/attendance";
+import {
   buildAttendanceStats,
   formatDay,
   formatNivel,
   countActiveSchedules,
   buildScheduleGroupMap,
   getScheduleLevelLabel,
-  MOCK_ATTENDANCE_RECORDS,
-  MOCK_SCHEDULES,
   type AttendanceRecord,
 } from "../attendance-utils";
 import type { EstadoAsistencia, Grupo, NivelTecnico } from "@/types/domain";
