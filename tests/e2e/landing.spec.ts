@@ -16,8 +16,8 @@ test.describe("Landing page", () => {
       page.getByRole("heading", { name: /cata club/i, level: 1 })
     ).toBeVisible();
 
-    // Assert at least one CTA link is present (hero and final section both have one)
-    const cta = page.getByRole("link", { name: /ingresar al sistema/i }).first();
+    // Assert at least one CTA link is present (hero has "Iniciar Sesión")
+    const cta = page.getByRole("link", { name: /iniciar sesión/i }).first();
     await expect(cta).toBeVisible();
 
     // Navigate to login via CTA

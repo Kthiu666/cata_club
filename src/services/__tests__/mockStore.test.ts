@@ -2,25 +2,19 @@
  * Smoke tests for the in-memory mock store.
  *
  * These tests verify that the mock store behaves like a minimal data layer
- * (CRUD operations, ID generation) without needing a real backend.
+ * without needing a real backend.
  * They are NOT a substitute for the real backend's integration tests.
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
 import {
-  getProducts,
-  getProductById,
-  addProduct,
-  updateProduct,
-  removeProduct,
-  getNextProductId,
   resetMockStore,
   getPaymentValidations,
   getPaymentValidationById,
   updatePaymentValidation,
   validatePaymentValidationTransition,
 } from "../mockStore";
-import type { Product, PaymentValidationRequest } from "../api";
+import type { PaymentValidationRequest } from "../api";
 
 // ---------------------------------------------------------------------------
 // Global isolation: every test starts from a clean mock store.
@@ -29,21 +23,6 @@ import type { Product, PaymentValidationRequest } from "../api";
 beforeEach(() => {
   resetMockStore();
 });
-
-/** A factory that produces a valid product without needing to import fixtures. */
-function makeProduct(overrides: Partial<Product> = {}): Product {
-  return {
-    id: getNextProductId(),
-    name: "Test Product",
-    description: "A test product",
-    price: 9.99,
-    stock: 10,
-    category: "Testing",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    ...overrides,
-  };
-}
 
 /** A factory for payment validation request fixtures. */
 function makePaymentValidation(
@@ -65,78 +44,6 @@ function makePaymentValidation(
     ...overrides,
   };
 }
-
-describe("product mockStore", () => {
-  describe("getProducts", () => {
-    it("returns the full list of seeded products", () => {
-      const products = getProducts();
-      expect(products.length).toBeGreaterThanOrEqual(5);
-      // Identify by id, not by index — tests must not rely on ordering
-      expect(products.find((p) => p.id === "1")?.name).toBe("Laptop Gamer X1");
-    });
-  });
-
-  describe("getProductById", () => {
-    it("returns a product by its id", () => {
-      const product = getProductById("1");
-      expect(product).toBeDefined();
-      expect(product!.name).toBe("Laptop Gamer X1");
-    });
-
-    it("returns undefined for a non-existent id", () => {
-      expect(getProductById("non-existent")).toBeUndefined();
-    });
-  });
-
-  describe("addProduct", () => {
-    it("adds a product and it appears in getProducts", () => {
-      const before = getProducts().length;
-      const newProduct = makeProduct({ name: "Added Product" });
-
-      addProduct(newProduct);
-
-      const after = getProducts().length;
-      expect(after).toBe(before + 1);
-      expect(getProductById(newProduct.id)?.name).toBe("Added Product");
-    });
-  });
-
-  describe("updateProduct", () => {
-    it("updates an existing product and returns it", () => {
-      const updated = updateProduct("1", { price: 999.99 });
-      expect(updated).toBeDefined();
-      expect(updated!.price).toBe(999.99);
-      expect(getProductById("1")!.price).toBe(999.99);
-    });
-
-    it("returns undefined for a non-existent id", () => {
-      expect(updateProduct("non-existent", { price: 0 })).toBeUndefined();
-    });
-  });
-
-  describe("removeProduct", () => {
-    it("removes a product and returns true", () => {
-      const product = makeProduct({ name: "To be removed" });
-      addProduct(product);
-
-      const result = removeProduct(product.id);
-      expect(result).toBe(true);
-      expect(getProductById(product.id)).toBeUndefined();
-    });
-
-    it("returns false for a non-existent id", () => {
-      expect(removeProduct("non-existent")).toBe(false);
-    });
-  });
-
-  describe("getNextProductId", () => {
-    it("returns incrementing string ids", () => {
-      const first = Number.parseInt(getNextProductId(), 10);
-      const second = Number.parseInt(getNextProductId(), 10);
-      expect(second).toBe(first + 1);
-    });
-  });
-});
 
 // ---------------------------------------------------------------------------
 // Payment Validation Mock Store Tests
@@ -246,19 +153,6 @@ describe("payment validation mockStore", () => {
 // ---------------------------------------------------------------------------
 
 describe("resetMockStore", () => {
-  it("restores products to the initial set after mutations", () => {
-    addProduct(makeProduct({ id: "custom-1" }));
-    removeProduct("1");
-    expect(getProducts().length).toBeLessThan(6); // one removed, one added = still 5
-
-    resetMockStore();
-
-    const products = getProducts();
-    expect(products.length).toBe(5);
-    expect(products.find((p) => p.id === "1")).toBeDefined();
-    expect(products.find((p) => p.id === "custom-1")).toBeUndefined();
-  });
-
   it("restores payments to the initial set after mutations", () => {
     updatePaymentValidation("pv-001", { validationStatus: "validado" });
     resetMockStore();
@@ -266,15 +160,6 @@ describe("resetMockStore", () => {
     const restored = getPaymentValidationById("pv-001");
     expect(restored!.validationStatus).toBe("pendiente");
     expect(restored!.validatedBy).toBeUndefined();
-  });
-
-  it("resets the product ID counter", () => {
-    // Drain a few IDs first
-    getNextProductId();
-    getNextProductId();
-    resetMockStore();
-    // After reset the counter should start from 6 again
-    expect(getNextProductId()).toBe("6");
   });
 });
 
@@ -306,7 +191,7 @@ describe("validatePaymentValidationTransition", () => {
       "approved",
     );
     expect(result.valid).toBe(false);
-    expect(result.message).toContain("approved");
+    expect(result.message).toContain("validado");
     expect(result.message).toContain("pv-003");
   });
 

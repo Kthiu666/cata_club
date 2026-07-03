@@ -15,9 +15,16 @@ import { type FormEvent, useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Lock, Mail, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, AlertCircle, ShieldCheck, GraduationCap, UserCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getDefaultRoute } from "@/lib/auth-utils";
+
+const demoAccounts = [
+  { email: "admin@cataclub.com", password: "admin123", role: "admin" as const, label: "Administrador", icon: ShieldCheck, color: "bg-cata-red/8 text-cata-red" },
+  { email: "entrenador@cataclub.com", password: "trainer123", role: "trainer" as const, label: "Entrenador", icon: GraduationCap, color: "bg-blue-50 text-blue-700" },
+  { email: "representante@cataclub.com", password: "rep123", role: "responsable_pago" as const, label: "Representante", icon: UserCircle, color: "bg-emerald-50 text-emerald-700" },
+  { email: "autogestionado@cataclub.com", password: "self123", role: "responsable_pago" as const, label: "Autogestionado", icon: UserCircle, color: "bg-amber-50 text-amber-700" },
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -71,6 +78,15 @@ export default function LoginPage() {
     }, 800);
   }
 
+  function handleDemoLogin(email: string, password: string) {
+    setError(null);
+    const result = login(email, password);
+    if (result) {
+      const route = getDefaultRoute(result.user.role);
+      router.replace(route);
+    }
+  }
+
   // Show loading during session hydration
   if (isLoading) {
     return (
@@ -101,6 +117,35 @@ export default function LoginPage() {
           <p className="mt-1.5 text-sm text-cata-gray">
             Inicie sesión en Cata Club Admin
           </p>
+        </div>
+
+        {/* Demo quick login */}
+        <div className="mb-6">
+          <p className="mb-3 text-center text-xs font-semibold uppercase tracking-wider text-cata-gray-light">
+            Acceso rápido (Demo)
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {demoAccounts.map((acc) => (
+              <button
+                key={acc.email}
+                onClick={() => handleDemoLogin(acc.email, acc.password)}
+                className={`flex items-center gap-2 rounded-xl border border-cata-stone/40 p-3 text-center transition-all hover:shadow-soft hover:border-cata-stone ${acc.color}`}
+              >
+                <acc.icon size={18} strokeWidth={1.5} aria-hidden="true" />
+                <span className="text-xs font-semibold">{acc.label}</span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-center text-[10px] text-cata-gray/50">
+            Clic en cualquier botón para iniciar sesión automáticamente con datos de demo.
+          </p>
+        </div>
+
+        {/* Divider */}
+        <div className="mb-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-cata-stone/40" />
+          <span className="text-xs text-cata-gray-light">o use credenciales</span>
+          <div className="h-px flex-1 bg-cata-stone/40" />
         </div>
 
         {/* Form card */}

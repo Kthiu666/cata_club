@@ -68,7 +68,7 @@ let products: Product[] = [...initialProducts];
 let nextProductId = 6;
 
 export function getProducts(): Product[] {
-  return products;
+  return [...products];
 }
 
 export function getProductById(id: string): Product | undefined {
@@ -228,7 +228,7 @@ const initialPayments: PaymentValidationRequest[] = [
 let payments: PaymentValidationRequest[] = [...initialPayments];
 
 export function getPaymentValidations(): PaymentValidationRequest[] {
-  return payments;
+  return [...payments];
 }
 
 export function getPaymentValidationById(id: string): PaymentValidationRequest | undefined {

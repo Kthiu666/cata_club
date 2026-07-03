@@ -21,6 +21,14 @@ export async function PUT(
   request: Request,
   { params }: { params: { id: string } },
 ) {
+  const mockRole = request.headers.get("x-mock-role");
+  if (mockRole !== "admin") {
+    return NextResponse.json(
+      { message: "Solo administradores pueden validar pagos" },
+      { status: 403 },
+    );
+  }
+
   const existing = getPaymentValidationById(params.id);
 
   if (!existing) {
@@ -85,10 +93,17 @@ export async function PUT(
       { message: "Acción inválida. Use 'approved' o 'rejected'." },
       { status: 400 },
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { message: "JSON inválido en el cuerpo de la solicitud" },
+        { status: 400 },
+      );
+    }
+    console.error("Error interno en PUT /api/payments/[id]:", error);
     return NextResponse.json(
-      { message: "Cuerpo de solicitud inválido" },
-      { status: 400 },
+      { message: "Error interno del servidor" },
+      { status: 500 },
     );
   }
 }

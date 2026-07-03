@@ -4,7 +4,7 @@
  * Extracted from page.tsx for testability — no React dependencies.
  */
 
-export type ProofStatus = "not_uploaded" | "pending_validation" | "approved" | "rejected";
+export type ProofStatus = "not_uploaded" | "pending_validation" | "validado" | "rechazado";
 
 /**
  * Membership lifecycle status — aligns with `EstadoMembresia` in domain.ts.
@@ -24,8 +24,8 @@ export type MembershipStatus =
  * Business rules (domain model 2026-07):
  *  - No proof uploaded → "not_uploaded" (pending payment)
  *  - Proof uploaded but not yet validated → "pending_validation"
- *  - Proof validated AND membership active → "approved"
- *  - Everything else (expired membership, suspended, rejected proof) → "rejected"
+ *  - Proof validated AND membership active → "validado"
+ *  - Everything else (expired membership, suspended, rejected proof) → "rechazado"
  */
 export function getProofStatus(
   membershipStatus: MembershipStatus,
@@ -34,8 +34,8 @@ export function getProofStatus(
 ): ProofStatus {
   if (!proofUploaded) return "not_uploaded";
   if (proofUploaded && !validated) return "pending_validation";
-  if (validated && membershipStatus === "activa") return "approved";
-  return "rejected";
+  if (validated && membershipStatus === "activa") return "validado";
+  return "rechazado";
 }
 
 /** Human-readable file size string (B / KB / MB). */

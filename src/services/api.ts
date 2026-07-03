@@ -72,6 +72,13 @@ export type ProofFileType = "image" | "pdf";
  *
  * Maps to CU012: "Validar o rechazar comprobante de pago".
  */
+/**
+ * PaymentValidationRequest — Represents a membership payment proof
+ * submitted by a responsible payer (representative or self-managed student),
+ * awaiting admin validation.
+ *
+ * Maps to CU012: "Validar o rechazar comprobante de pago".
+ */
 export interface PaymentValidationRequest {
   id: string;
   studentName: string;
@@ -142,12 +149,12 @@ function getBaseUrl(): string {
  * In mock mode, Next.js Route Handlers live under /api/ so the full path
  * must start with /api/... In real backend mode, NEXT_PUBLIC_API_URL
  * already includes the /api/v1 prefix, so the resource path is appended
- * directly (e.g. "/products").
+ * directly (e.g. "/payments").
  *
  * Mock default: when NEXT_PUBLIC_USE_MOCKS is unset, local dev defaults to
  * mocked Route Handlers. Only set it to "false" explicitly for real backend.
  *
- * @param resource — the resource path, e.g. "/products" or "/products/:id"
+ * @param resource — the resource path, e.g. "/payments" or "/payments/:id"
  */
 function apiEndpoint(resource: string): string {
   const useMocks = process.env.NEXT_PUBLIC_USE_MOCKS !== "false";
@@ -191,6 +198,24 @@ export class ApiClientError extends Error {
     this.name = "ApiClientError";
     this.status = status;
   }
+}
+
+function getMockRoleHeader(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem("cata-club-auth-session");
+    if (!raw) return {};
+    const session = JSON.parse(raw);
+    const role = session?.user?.role;
+    if (role) return { "x-mock-role": role };
+  } catch (e) {
+    console.error("Failed to read mock role from localStorage:", e);
+    return {};
+  }
+  return {};
+}
+
+function isMockMode(): boolean {
+  return process.env.NEXT_PUBLIC_USE_MOCKS !== "false";
 }
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -309,7 +334,10 @@ export async function deleteProduct(
  * Fetch all payment validation requests.
  */
 export async function fetchPaymentValidations(): Promise<PaymentValidationRequest[]> {
-  return request<PaymentValidationRequest[]>(apiEndpoint("/payments"));
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<PaymentValidationRequest[]>(apiEndpoint("/payments"), {
+    headers: mockHeaders,
+  });
 }
 
 /**
@@ -322,8 +350,10 @@ export async function updatePaymentValidation(
   id: string,
   data: UpdatePaymentValidationDTO,
 ): Promise<PaymentValidationRequest> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
   return request<PaymentValidationRequest>(apiEndpoint(`/payments/${id}`), {
     method: "PUT",
     body: JSON.stringify(data),
+    headers: mockHeaders,
   });
 }

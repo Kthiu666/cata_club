@@ -19,7 +19,7 @@ import {
 function makeRequest(body: unknown): Request {
   return new Request("http://localhost/api/payments/pv-001", {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-mock-role": "admin" },
     body: JSON.stringify(body),
   });
 }
@@ -27,7 +27,7 @@ function makeRequest(body: unknown): Request {
 function makeInvalidJsonRequest(): Request {
   return new Request("http://localhost/api/payments/pv-001", {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-mock-role": "admin" },
     body: "this is not valid json {",
   });
 }
@@ -38,6 +38,36 @@ function makeInvalidJsonRequest(): Request {
 
 beforeEach(() => {
   resetMockStore();
+});
+
+// ---------------------------------------------------------------------------
+// Authorization
+// ---------------------------------------------------------------------------
+
+describe("PUT /api/payments/[id] — authorization", () => {
+  it("returns 403 when x-mock-role header is missing", async () => {
+    const request = new Request("http://localhost/api/payments/pv-001", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "approved" }),
+    });
+    const response = await PUT(request, { params: { id: "pv-001" } });
+    expect(response.status).toBe(403);
+    const body = await response.json();
+    expect(body.message).toContain("administradores");
+  });
+
+  it("returns 403 when x-mock-role is not admin", async () => {
+    const request = new Request("http://localhost/api/payments/pv-001", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "x-mock-role": "responsable_pago" },
+      body: JSON.stringify({ action: "approved" }),
+    });
+    const response = await PUT(request, { params: { id: "pv-001" } });
+    expect(response.status).toBe(403);
+    const body = await response.json();
+    expect(body.message).toContain("administradores");
+  });
 });
 
 // ---------------------------------------------------------------------------

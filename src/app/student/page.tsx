@@ -14,6 +14,7 @@ import {
   Clock,
   XCircle,
   AlertTriangle,
+  UserCircle,
   User,
   ChevronDown,
   GraduationCap,
@@ -248,11 +249,11 @@ const proofStatusLabels: Record<ProofStatus, { label: string; icon: React.ReactN
     label: "Pendiente de Validación",
     icon: <AlertTriangle size={14} strokeWidth={2} />,
   },
-  approved: {
+  validado: {
     label: "Aprobado",
     icon: <CheckCircle2 size={14} strokeWidth={2} />,
   },
-  rejected: {
+  rechazado: {
     label: "Rechazado / Vencido",
     icon: <XCircle size={14} strokeWidth={2} />,
   },
@@ -400,70 +401,76 @@ export default function StudentPage() {
   return (
     <ProtectedRoute allowedRoles={["responsable_pago"]}>
     <div>
-      {/* ── Header ── */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight text-cata-charcoal sm:text-3xl">
-            Portal de Cuenta
-          </h1>
-          <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-700">
+      {/* ── Header banner ── */}
+      <div className="relative mb-8 overflow-hidden rounded-3xl bg-cata-navy px-6 py-8 sm:px-10 sm:py-10">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.15),transparent_50%)]" />
+        <div className="relative z-10 flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
+              <UserCircle size={14} strokeWidth={2} aria-hidden="true" />
+              Área de Estudiantes
+            </div>
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+              Portal de Cuenta
+            </h1>
+            <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
+              {selectedStudent?.nombre ?? ""} — membresía, pagos y horario
+            </p>
+          </div>
+          <span className="hidden rounded-full bg-amber-100/20 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-300 backdrop-blur-sm sm:inline-block">
             Demo
           </span>
         </div>
-
-        {/* Account type badge */}
-        <div className="mt-2 flex items-center gap-2">
-          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
-            isRepresentative
-              ? "bg-blue-50 text-blue-700"
-              : "bg-emerald-50 text-emerald-700"
-          }`}>
-            {isRepresentative ? (
-              <Building2 size={12} strokeWidth={1.5} />
-            ) : (
-              <GraduationCap size={12} strokeWidth={1.5} />
-            )}
-            {accountLabel}
-          </span>
-          {isRepresentative && (
-            <span className="text-xs text-cata-gray">
-              Gestiona {students.length} alumnos
-            </span>
-          )}
-        </div>
-
-        {isRepresentative && students.length > 1 && (
-          <div className="mt-3">
-            <label htmlFor="student-select" className="text-xs font-medium text-cata-gray-light">
-              Seleccionar alumno
-            </label>
-            <div className="relative mt-1 inline-block">
-              <select
-                id="student-select"
-                value={selectedStudentId}
-                onChange={(e) => handleStudentChange(e.target.value)}
-                className="appearance-none rounded-xl border border-cata-stone/60 bg-white px-4 py-2 pr-10 text-sm font-medium text-cata-charcoal shadow-sm transition-colors hover:border-cata-stone focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/10"
-              >
-                {students.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nombre} — {s.grupo}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={14}
-                strokeWidth={1.5}
-                className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-cata-gray"
-                aria-hidden="true"
-              />
-            </div>
-          </div>
-        )}
-
-        <p className="mt-2 text-sm text-cata-gray">
-          {selectedStudent?.nombre ?? ""} — membresía, pagos y horario
-        </p>
       </div>
+
+      {/* Account type badge */}
+      <div className="mb-4 flex items-center gap-2">
+        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+          isRepresentative
+            ? "bg-blue-50 text-blue-700"
+            : "bg-emerald-50 text-emerald-700"
+        }`}>
+          {isRepresentative ? (
+            <Building2 size={12} strokeWidth={1.5} />
+          ) : (
+            <GraduationCap size={12} strokeWidth={1.5} />
+          )}
+          {accountLabel}
+        </span>
+        {isRepresentative && (
+          <span className="text-xs text-cata-gray">
+            Gestiona {students.length} alumnos
+          </span>
+        )}
+      </div>
+
+      {isRepresentative && students.length > 1 && (
+        <div className="mb-4">
+          <label htmlFor="student-select" className="text-xs font-medium text-cata-gray-light">
+            Seleccionar alumno
+          </label>
+          <div className="relative mt-1 inline-block">
+            <select
+              id="student-select"
+              value={selectedStudentId}
+              onChange={(e) => handleStudentChange(e.target.value)}
+              className="appearance-none rounded-xl border border-cata-stone/60 bg-white px-4 py-2 pr-10 text-sm font-medium text-cata-charcoal shadow-sm transition-colors hover:border-cata-stone focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/10"
+            >
+              {students.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre} — {s.grupo}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={14}
+              strokeWidth={1.5}
+              className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-cata-gray"
+              aria-hidden="true"
+            />
+          </div>
+        </div>
+      )}
 
       {/* ── Student Enrollment CTA ── */}
       {isRepresentative && (
@@ -568,7 +575,7 @@ export default function StudentPage() {
               <span className={`inline-flex items-center gap-1 text-xs font-medium ${
                 proofStatus === "not_uploaded" ? "text-amber-600" :
                 proofStatus === "pending_validation" ? "text-amber-600" :
-                proofStatus === "approved" ? "text-emerald-600" :
+                proofStatus === "validado" ? "text-emerald-600" :
                 "text-cata-red"
               }`}>
                 {proofInfo.icon}

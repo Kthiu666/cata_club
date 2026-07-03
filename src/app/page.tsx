@@ -4,427 +4,367 @@ import {
   Users,
   ShieldCheck,
   CalendarDays,
+  LayoutDashboard,
   LogIn,
-  BarChart3,
-  Medal,
+  GraduationCap,
+  UserCircle,
+  ArrowRight,
+  MapPin,
+  Target,
+  Eye,
+  Trophy,
+  Heart,
+  Award,
   Clock,
-  CheckCircle,
+  CheckCircle2,
+  Zap,
 } from "lucide-react";
-
-// ── Data ────────────────────────────────────────────────────────────────
 
 const features = [
   {
     icon: Users,
     title: "Gestión de Membresías",
     description:
-      "Administre estudiantes, responsables de pago y perfiles de membresía con operaciones CRUD completas y búsqueda avanzada.",
+      "Administre estudiantes, representantes y perfiles de membresía con operaciones CRUD completas y búsqueda avanzada.",
   },
   {
     icon: ShieldCheck,
     title: "Validación de Pagos",
     description:
-      "Valide comprobantes de pago, active membresías y mantenga una traza de auditoría clara para cada transacción del club.",
+      "Valide comprobantes de pago de membresías, realice seguimiento del estado de los miembros y mantenga una traza de auditoría clara.",
   },
   {
     icon: CalendarDays,
     title: "Horarios y Asistencia",
     description:
-      "Organice sesiones de entrenamiento, agrupe estudiantes por nivel técnico y registre la asistencia en todas las sesiones.",
+      "Organice sesiones de entrenamiento de tenis de mesa, asigne estudiantes por nivel técnico y registre la asistencia.",
   },
 ];
 
-const stats = [
-  { value: "100+", label: "Miembros activos", icon: Users },
-  { value: "15+", label: "Entrenadores", icon: Medal },
-  { value: "98%", label: "Asistencia promedio", icon: BarChart3 },
-  { value: "24/7", label: "Disponible en línea", icon: Clock },
+const valores = [
+  {
+    icon: Trophy,
+    titulo: "Excelencia",
+    descripcion:
+      "Buscamos la mejora continua en cada entrenamiento, potenciando el talento de cada deportista.",
+  },
+  {
+    icon: Heart,
+    titulo: "Compromiso",
+    descripcion:
+      "Dedicación total a la formación integral de nuestros estudiantes, dentro y fuera de la cancha.",
+  },
+  {
+    icon: Award,
+    titulo: "Disciplina",
+    descripcion:
+      "Base fundamental para alcanzar objetivos deportivos y personales a largo plazo.",
+  },
+  {
+    icon: Zap,
+    titulo: "Pasión",
+    descripcion:
+      "Amor por el tenis de mesa y el deseo de compartirlo con nuevas generaciones de lojanos.",
+  },
 ];
-
-const steps = [
-  {
-    number: "01",
-    title: "Registre miembros",
-    description:
-      "Dé de alta estudiantes y responsables de pago con perfiles completos. Cada miembro queda vinculado a su plan de membresía.",
-  },
-  {
-    number: "02",
-    title: "Gestione pagos",
-    description:
-      "Revise comprobantes, valide pagos y active membresías al instante. Todo el historial financiero del club en un panel.",
-  },
-  {
-    number: "03",
-    title: "Controle asistencia",
-    description:
-      "Tome asistencia por sesión, visualice el historial por miembro y mantenga el control de participación del club.",
-  },
-];
-
-// ── Hero Visual — Logo + abstract court geometry + status chips ─────────
-
-function HeroVisualCard() {
-  return (
-    <div className="relative w-full max-w-md lg:max-w-none mx-auto">
-      {/* Card backdrop glow */}
-      <div
-        className="absolute -inset-4 rounded-3xl bg-gradient-to-b from-cata-red/10 via-transparent to-transparent blur-2xl -z-10"
-        aria-hidden="true"
-      />
-
-      <div className="relative rounded-2xl border border-white/10 bg-white/[0.04] p-6 sm:p-8 shadow-elevated backdrop-blur-sm pointer-events-none">
-        {/* Logo */}
-        <div className="relative mx-auto mb-6 h-24 w-24 overflow-hidden rounded-2xl ring-2 ring-white/10 shadow-elevated">
-          <Image
-            src="/brand/cata-club-logo.jpeg"
-            alt=""
-            role="presentation"
-            fill
-            className="object-cover"
-            sizes="96px"
-            priority
-          />
-        </div>
-
-        {/* Abstract court geometry — minimal, elegant */}
-        <svg
-          viewBox="0 0 240 110"
-          className="w-full"
-          aria-hidden="true"
-        >
-          {/* Outer court */}
-          <rect
-            x="18"
-            y="8"
-            width="204"
-            height="94"
-            rx="6"
-            fill="none"
-            stroke="rgba(255,255,255,0.06)"
-            strokeWidth="1"
-          />
-          {/* Center line (dashed) */}
-          <line
-            x1="120"
-            y1="8"
-            x2="120"
-            y2="102"
-            stroke="rgba(255,255,255,0.05)"
-            strokeWidth="1"
-            strokeDasharray="3 3"
-          />
-          {/* Cross line */}
-          <line
-            x1="18"
-            y1="55"
-            x2="222"
-            y2="55"
-            stroke="rgba(255,255,255,0.05)"
-            strokeWidth="1"
-            strokeDasharray="3 3"
-          />
-          {/* Ball trajectory arc (decorative) */}
-          <path
-            d="M 40 75 Q 120 20 200 75"
-            fill="none"
-            stroke="rgba(139,26,26,0.35)"
-            strokeWidth="1"
-          />
-          {/* Ball position */}
-          <circle
-            cx="120"
-            cy="44"
-            r="2.5"
-            fill="rgba(139,26,26,0.45)"
-          />
-          {/* Decorative dots */}
-          <circle cx="40" cy="25" r="1.5" fill="rgba(255,255,255,0.06)" />
-          <circle cx="200" cy="88" r="1.5" fill="rgba(255,255,255,0.06)" />
-          <circle cx="60" cy="92" r="1" fill="rgba(255,255,255,0.04)" />
-        </svg>
-
-        {/* Status chips */}
-        <div className="mt-5 flex flex-wrap justify-center gap-2.5">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium tracking-wide text-white/45">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/70" />
-            Demo activo
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium tracking-wide text-white/40">
-            Gestión integral
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium tracking-wide text-white/40">
-            v1.0
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Page ────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
   return (
-    <>
-      {/* ═══════════════════════════════════════════════════════════════════
-          HERO — Full-width brand splash
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative -mx-4 sm:-mx-8 lg:-mx-12 overflow-hidden bg-gradient-to-b from-cata-navy via-cata-navy to-[#16162a]">
-        {/* Ambient glow layers */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_55%_at_50%_40%,rgba(139,26,26,0.15)_0%,transparent_65%)]" />
-        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] rounded-full bg-cata-red/5 blur-[120px]" />
-        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full bg-cata-red/5 blur-[100px]" />
-        {/* Subtle dot pattern */}
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle, white 1px, transparent 1px)",
-            backgroundSize: "32px 32px",
-          }}
-        />
+    <div className="flex flex-col items-center">
+      {/* Hero */}
+      <section className="relative flex w-full flex-col items-center overflow-hidden py-24 text-center sm:py-32">
+        {/* Background subtle pattern */}
+        <div className="absolute inset-0 bg-logo-glow" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(139,26,26,0.04),transparent_70%)]" />
 
-        <div className="relative mx-auto max-w-8xl px-4 sm:px-8 lg:px-12 py-16 sm:py-24 lg:py-28">
-          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
-            {/* ── Text block ── */}
-            <div className="flex-1 text-center lg:text-left">
-              <p className="mb-3 text-sm font-medium uppercase tracking-[0.2em] text-cata-red/60">
-                Tenis de Mesa
-              </p>
-              <h1 className="mb-4 text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white">
-                Cata Club
-              </h1>
-              <p className="mb-8 max-w-xl text-base sm:text-lg leading-relaxed text-white/55 mx-auto lg:mx-0">
-                El sistema integral para la gestión de tu club de tenis de mesa.
-                Membresías, pagos y control de asistencia, todo en un solo
-                lugar, accesible desde cualquier dispositivo.
-              </p>
-
-              {/* CTAs */}
-              <div className="flex flex-wrap justify-center lg:justify-start gap-4">
-                <Link
-                  href="/login"
-                  className="inline-flex items-center gap-2.5 rounded-xl bg-cata-red px-6 py-3 text-sm font-medium text-white transition-all duration-200 hover:bg-cata-red-light hover:shadow-lg hover:shadow-cata-red/25 focus:outline-none focus:ring-2 focus:ring-cata-red/50 active:scale-[0.98]"
-                >
-                  <LogIn size={16} strokeWidth={2} aria-hidden="true" />
-                  Ingresar al sistema
-                </Link>
-                <Link
-                  href="#funciones"
-                  className="inline-flex items-center gap-2.5 rounded-xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-medium text-white/70 transition-all duration-200 hover:bg-white/10 hover:border-white/25 hover:text-white/90 focus:outline-none focus:ring-2 focus:ring-white/30 active:scale-[0.98]"
-                >
-                  Conocer más
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M5 3l5 5-5 5" />
-                  </svg>
-                </Link>
-              </div>
-
-              {/* Trait chips */}
-              <div className="mt-10 flex flex-wrap justify-center lg:justify-start gap-3">
-                {["Gestión de miembros", "Pagos en línea", "Asistencia digital"].map(
-                  (trait) => (
-                    <span
-                      key={trait}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-medium tracking-wide text-white/40"
-                    >
-                      <span className="h-1 w-1 rounded-full bg-cata-red/50" />
-                      {trait}
-                    </span>
-                  ),
-                )}
-              </div>
-            </div>
-
-            {/* ── Premium visual card ── */}
-            <div className="flex-1 w-full">
-              <HeroVisualCard />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          STATS BAR
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section className="py-14 -mx-4 sm:-mx-8 lg:-mx-12 bg-cata-warm/50 border-y border-cata-stone/40">
-        <div className="mx-auto max-w-8xl px-4 sm:px-8 lg:px-12">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-8">
-            {stats.map((stat) => {
-              const Icon = stat.icon;
-              return (
-                <div
-                  key={stat.label}
-                  className="flex flex-col items-center gap-2 text-center"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cata-red/8">
-                    <Icon
-                      size={18}
-                      strokeWidth={1.5}
-                      className="text-cata-red"
-                      aria-hidden="true"
-                    />
-                  </div>
-                  <span className="text-2xl sm:text-3xl font-bold tracking-tight text-cata-charcoal">
-                    {stat.value}
-                  </span>
-                  <span className="text-xs text-cata-gray">{stat.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <p className="mt-4 text-center text-xs tracking-wide text-cata-gray">
-          * Valores ilustrativos — demo con datos mock locales.
-        </p>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          CAPABILITIES
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section id="funciones" className="scroll-mt-20 py-20">
-        <div className="text-center mb-12">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-cata-red/60">
-            Funcionalidades
-          </p>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-cata-charcoal">
-            Todo lo que tu club necesita
-          </h2>
-          <p className="mt-3 max-w-lg mx-auto text-sm leading-relaxed text-cata-gray">
-            Una plataforma moderna para centralizar la administración de tu club
-            de tenis de mesa, desde el registro hasta el control de asistencia.
-          </p>
-        </div>
-
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => {
-            const Icon = feature.icon;
-            return (
-              <div
-                key={feature.title}
-                className="card-hover flex flex-col items-start p-6 sm:p-7"
-              >
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-cata-red/8">
-                  <Icon
-                    size={20}
-                    strokeWidth={1.5}
-                    className="text-cata-red"
-                    aria-hidden="true"
-                  />
-                </div>
-                <h3 className="mb-2 text-base font-semibold text-cata-charcoal">
-                  {feature.title}
-                </h3>
-                <p className="text-sm leading-relaxed text-cata-gray">
-                  {feature.description}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          HOW IT WORKS
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section className="py-20 -mx-4 sm:-mx-8 lg:-mx-12 bg-white border-y border-cata-stone/40">
-        <div className="mx-auto max-w-8xl px-4 sm:px-8 lg:px-12">
-          <div className="text-center mb-14">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-cata-red/60">
-              Cómo funciona
-            </p>
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-cata-charcoal">
-              Tres pasos para gestionar tu club
-            </h2>
-          </div>
-
-          <div className="relative grid gap-8 sm:grid-cols-3">
-            {/* Connector line (desktop only) */}
-            <div
-              className="hidden sm:block absolute top-12 left-[calc(16.66%+1.5rem)] right-[calc(16.66%+1.5rem)] h-px bg-gradient-to-r from-cata-stone/60 via-cata-red/30 to-cata-stone/60"
-              aria-hidden="true"
+        <div className="relative z-10">
+          {/* Real logo as central brand asset */}
+          <div className="relative mx-auto mb-8 h-32 w-32 overflow-hidden rounded-2xl shadow-elevated sm:h-40 sm:w-40">
+            <Image
+              src="/brand/cata-club-logo.jpeg"
+              alt="Cata Club"
+              fill
+              className="object-cover"
+              sizes="(max-width: 640px) 128px, 160px"
+              priority
             />
-
-            {steps.map((step) => (
-              <div
-                key={step.number}
-                className="relative flex flex-col items-center text-center"
-              >
-                {/* Number circle */}
-                <div className="relative mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-cata-red text-sm font-bold text-white shadow-md">
-                  {step.number}
-                  <div className="absolute inset-0 rounded-full border border-white/20" />
-                </div>
-
-                {/* Step card */}
-                <div className="w-full rounded-2xl border border-cata-stone/50 bg-cata-cream/60 p-6 shadow-soft">
-                  <h3 className="mb-2.5 text-base font-semibold text-cata-charcoal">
-                    {step.title}
-                  </h3>
-                  <p className="text-sm leading-relaxed text-cata-gray">
-                    {step.description}
-                  </p>
-                </div>
-              </div>
-            ))}
           </div>
-        </div>
-      </section>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          FINAL CTA
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section className="py-20 sm:py-24">
-        <div className="relative mx-auto max-w-2xl text-center">
-          {/* Decorative glow */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full bg-cata-red/5 blur-[80px] pointer-events-none" />
+          <p className="mb-3 text-xs font-bold uppercase tracking-[0.3em] text-cata-red/80">
+            Desde 2013 &mdash; Loja, Ecuador
+          </p>
+          <h1 className="mb-4 text-5xl font-extrabold tracking-tight text-cata-charcoal sm:text-6xl lg:text-7xl">
+            Cata Club
+          </h1>
+          <p className="mb-6 text-lg font-medium uppercase tracking-widest text-cata-red/90">
+            Tenis de Mesa
+          </p>
 
-          <div className="relative">
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-cata-charcoal mb-4">
-              ¿Listo para digitalizar tu club?
-            </h2>
-            <p className="text-sm leading-relaxed text-cata-gray mb-8 max-w-md mx-auto">
-              Accede al sistema de administración de Cata Club y lleva el
-              control de membresías, pagos y asistencia a un nuevo nivel.
-            </p>
-            <Link
-              href="/login"
-              className="btn-primary shadow-soft inline-flex items-center gap-2.5 px-7 py-3 text-sm"
-            >
+          {/* Lema institucional */}
+          <div className="mb-8 inline-flex items-center gap-3 rounded-full border border-cata-red/20 bg-cata-red/[0.03] px-6 py-2.5">
+            <Trophy size={16} strokeWidth={2} className="text-cata-red" aria-hidden="true" />
+            <span className="text-sm font-semibold italic tracking-wide text-cata-red">
+              &ldquo;Formando campeones para la vida&rdquo;
+            </span>
+          </div>
+
+          <p className="mx-auto mb-10 max-w-2xl text-base leading-relaxed text-cata-gray sm:text-lg">
+            Más de una década formando deportistas de excelencia en la ciudad de Loja.
+            Somos un club deportivo especializado formativo donde la disciplina, el compañerismo
+            y la pasión por el tenis de mesa construyen campeones dentro y fuera de la cancha.
+          </p>
+
+          <div className="flex flex-wrap justify-center gap-4">
+            <Link href="/dashboard" className="btn-primary shadow-soft">
+              <LayoutDashboard size={16} strokeWidth={2} aria-hidden="true" />
+              Panel de Control
+            </Link>
+            <Link href="/login" className="btn-secondary shadow-soft">
               <LogIn size={16} strokeWidth={2} aria-hidden="true" />
-              Ingresar al sistema
+              Iniciar Sesión
             </Link>
           </div>
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          STATUS NOTE
-          ═══════════════════════════════════════════════════════════════════ */}
+      {/* Datos Institucionales */}
+      <section className="mb-20 w-full">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="card flex flex-col items-center p-6 text-center">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-cata-red/8">
+              <Clock size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            </div>
+            <p className="text-2xl font-bold text-cata-charcoal">2013</p>
+            <p className="text-sm text-cata-gray">Fundado el 10 de octubre</p>
+          </div>
+          <div className="card flex flex-col items-center p-6 text-center">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-cata-red/8">
+              <MapPin size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            </div>
+            <p className="text-2xl font-bold text-cata-charcoal">Loja</p>
+            <p className="text-sm text-cata-gray">Al lado del Coliseo Ciudad de Loja</p>
+          </div>
+          <div className="card flex flex-col items-center p-6 text-center">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-cata-red/8">
+              <Users size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            </div>
+            <p className="text-2xl font-bold text-cata-charcoal">Formativo</p>
+            <p className="text-sm text-cata-gray">Club deportivo especializado</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Misión y Visión */}
+      <section className="mb-20 w-full">
+        <div className="mb-10 text-center">
+          <span className="mb-2 inline-block text-xs font-bold uppercase tracking-[0.25em] text-cata-red/70">
+            Propósito Institucional
+          </span>
+          <h2 className="text-3xl font-bold tracking-tight text-cata-charcoal sm:text-4xl">
+            Misión y Visión
+          </h2>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Misión */}
+          <div className="card-hover relative overflow-hidden p-8">
+            <div className="absolute right-0 top-0 h-32 w-32 -translate-y-1/2 translate-x-1/2 rounded-full bg-cata-red/[0.03]" />
+            <div className="relative">
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-cata-red/8">
+                <Target size={26} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+              </div>
+              <h3 className="mb-3 text-xl font-bold text-cata-charcoal">Nuestra Misión</h3>
+              <p className="leading-relaxed text-cata-gray">
+                Promover y desarrollar la práctica del tenis de mesa mediante procesos de formación
+                deportiva de calidad, fomentando el desarrollo integral de niños, adolescentes,
+                jóvenes y adultos, fortaleciendo valores, disciplina y excelencia competitiva,
+                para contribuir al crecimiento del deporte en el ámbito local, provincial y nacional.
+              </p>
+            </div>
+          </div>
+
+          {/* Visión */}
+          <div className="card-hover relative overflow-hidden p-8">
+            <div className="absolute right-0 top-0 h-32 w-32 -translate-y-1/2 translate-x-1/2 rounded-full bg-cata-red/[0.03]" />
+            <div className="relative">
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-cata-red/8">
+                <Eye size={26} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+              </div>
+              <h3 className="mb-3 text-xl font-bold text-cata-charcoal">Nuestra Visión</h3>
+              <p className="leading-relaxed text-cata-gray">
+                Ser un club de tenis de mesa líder, reconocido por su excelencia deportiva,
+                formación integral y desarrollo sostenible, consolidándose como un referente
+                provincial y nacional mediante la preparación de deportistas altamente competitivos
+                que integren de manera permanente las selecciones provinciales y nacionales.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Valores */}
+      <section className="mb-20 w-full">
+        <div className="mb-10 text-center">
+          <span className="mb-2 inline-block text-xs font-bold uppercase tracking-[0.25em] text-cata-red/70">
+            Lo que nos define
+          </span>
+          <h2 className="text-3xl font-bold tracking-tight text-cata-charcoal sm:text-4xl">
+            Nuestros Valores
+          </h2>
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {valores.map((v) => (
+            <div key={v.titulo} className="card-hover flex flex-col items-start p-6">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cata-red/8">
+                <v.icon size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+              </div>
+              <h3 className="mb-2 text-base font-bold text-cata-charcoal">{v.titulo}</h3>
+              <p className="text-sm leading-relaxed text-cata-gray">{v.descripcion}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Lema destacado */}
+      <section className="mb-20 w-full">
+        <div className="relative overflow-hidden rounded-3xl bg-cata-navy px-8 py-16 text-center sm:px-16 sm:py-20">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(139,26,26,0.15),transparent_60%)]" />
+          <div className="relative z-10">
+            <Trophy size={40} strokeWidth={1} className="mx-auto mb-6 text-cata-red-light" aria-hidden="true" />
+            <blockquote className="mx-auto max-w-3xl text-2xl font-bold italic leading-snug text-white sm:text-3xl lg:text-4xl">
+              &ldquo;Formando campeones para la vida&rdquo;
+            </blockquote>
+            <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-white/60">
+              Nuestro lema resume lo que hacemos: no solo entrenamos deportistas de alto rendimiento,
+              sino personas íntegas que llevan los valores del deporte a cada aspecto de sus vidas.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Features del sistema */}
+      <section className="mb-20 w-full">
+        <div className="mb-10 text-center">
+          <span className="mb-2 inline-block text-xs font-bold uppercase tracking-[0.25em] text-cata-red/70">
+            Plataforma Administrativa
+          </span>
+          <h2 className="text-3xl font-bold tracking-tight text-cata-charcoal sm:text-4xl">
+            Gestión Integral del Club
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm text-cata-gray">
+            Herramientas diseñadas para simplificar la administración de Cata Club
+            y enfocarse en lo que realmente importa: formar campeones.
+          </p>
+        </div>
+
+        <div className="grid gap-6 sm:grid-cols-3">
+          {features.map((feature) => (
+            <div
+              key={feature.title}
+              className="card-hover flex flex-col items-start p-6 sm:p-7"
+            >
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cata-red/8">
+                <feature.icon
+                  size={22}
+                  strokeWidth={1.5}
+                  className="text-cata-red"
+                  aria-hidden="true"
+                />
+              </div>
+              <h3 className="mb-2 text-base font-bold text-cata-charcoal">
+                {feature.title}
+              </h3>
+              <p className="text-sm leading-relaxed text-cata-gray">
+                {feature.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Portales de demostración por rol */}
+      <section className="mb-20 w-full">
+        <div className="mb-10 text-center">
+          <span className="mb-2 inline-block text-xs font-bold uppercase tracking-[0.25em] text-cata-red/70">
+            Acceso Rápido
+          </span>
+          <h2 className="text-3xl font-bold tracking-tight text-cata-charcoal sm:text-4xl">
+            Portales de Demostración
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm text-cata-gray">
+            Explore la experiencia Cata Club desde diferentes perspectivas.
+          </p>
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Link
+            href="/trainer"
+            className="card-hover group flex items-start gap-5 p-6 sm:p-8"
+          >
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-cata-red/8">
+              <GraduationCap
+                size={26}
+                strokeWidth={1.5}
+                className="text-cata-red"
+                aria-hidden="true"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="mb-1 text-base font-bold text-cata-charcoal">
+                Panel del Entrenador
+              </h3>
+              <p className="text-sm leading-relaxed text-cata-gray">
+                Sesiones del día, lista de estudiantes con registro de asistencia
+                y alertas de salud y seguridad.
+              </p>
+              <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-cata-red">
+                Ver Demo de Entrenador
+                <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+              </span>
+            </div>
+          </Link>
+          <Link
+            href="/student"
+            className="card-hover group flex items-start gap-5 p-6 sm:p-8"
+          >
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-cata-red/8">
+              <UserCircle
+                size={26}
+                strokeWidth={1.5}
+                className="text-cata-red"
+                aria-hidden="true"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="mb-1 text-base font-bold text-cata-charcoal">
+                Portal del Estudiante
+              </h3>
+              <p className="text-sm leading-relaxed text-cata-gray">
+                Estado de membresía y pagos, horario de entrenamiento y
+                carga de comprobantes.
+              </p>
+              <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-cata-red">
+                Ver Demo de Estudiante
+                <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+              </span>
+            </div>
+          </Link>
+        </div>
+      </section>
+
+      {/* Estado del proyecto */}
       <div className="mb-20 w-full rounded-2xl border border-cata-stone/50 bg-white p-6">
         <p className="text-center text-xs leading-relaxed text-cata-gray">
-          <span className="font-medium text-cata-charcoal">
-            Demo — Cata Club
-          </span>
-          &nbsp;&mdash; frontend de demostración con datos mock locales.
-          Listo para integración con backend mediante{" "}
+          <span className="font-bold text-cata-charcoal">Demo Frontend</span>
+          &nbsp;&mdash; actualmente funcionando con datos mock locales. Listo para
+          integración con backend mediante{" "}
           <code className="rounded bg-cata-warm px-1.5 py-0.5 font-mono text-xs">
             NEXT_PUBLIC_USE_MOCKS=false
           </code>
           .
         </p>
       </div>
-    </>
+    </div>
   );
 }

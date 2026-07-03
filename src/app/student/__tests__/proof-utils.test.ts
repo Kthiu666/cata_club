@@ -26,19 +26,19 @@ describe("getProofStatus", () => {
     expect(getProofStatus("suspendida", true, false)).toBe("pending_validation");
   });
 
-  it('returns "approved" when validated and membership is active', () => {
-    expect(getProofStatus("activa", true, true)).toBe("approved");
+  it('returns "validado" when validated and membership is active', () => {
+    expect(getProofStatus("activa", true, true)).toBe("validado");
   });
 
-  it('returns "rejected" when validated but membership is not active (vencida)', () => {
-    expect(getProofStatus("vencida", true, true)).toBe("rejected");
+  it('returns "rechazado" when validated but membership is not active (vencida)', () => {
+    expect(getProofStatus("vencida", true, true)).toBe("rechazado");
   });
 
-  it('returns "rejected" when validated but membership is suspendida', () => {
-    expect(getProofStatus("suspendida", true, true)).toBe("rejected");
+  it('returns "rechazado" when validated but membership is suspendida', () => {
+    expect(getProofStatus("suspendida", true, true)).toBe("rechazado");
   });
 
-  it('returns "rejected" for any membership state with no proof and not validated', () => {
+  it('returns "rechazado" for any membership state with no proof and not validated', () => {
     expect(getProofStatus("activa", false, false)).toBe("not_uploaded");
     expect(getProofStatus("vencida", false, false)).toBe("not_uploaded");
     expect(getProofStatus("suspendida", false, false)).toBe("not_uploaded");
@@ -51,8 +51,8 @@ describe("getProofStatus", () => {
     const validStatuses: ProofStatus[] = [
       "not_uploaded",
       "pending_validation",
-      "approved",
-      "rejected",
+      "validado",
+      "rechazado",
     ];
 
     for (const ms of statuses) {

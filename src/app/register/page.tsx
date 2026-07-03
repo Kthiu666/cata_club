@@ -51,21 +51,24 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         {/* Brand header */}
         <div className="mb-10 text-center">
-          <div className="relative mx-auto mb-5 h-20 w-20 overflow-hidden rounded-2xl shadow-soft">
+          <div className="relative mx-auto mb-5 h-24 w-24 overflow-hidden rounded-2xl shadow-elevated">
             <Image
               src="/brand/cata-club-logo.jpeg"
               alt="Cata Club"
               fill
               className="object-cover"
-              sizes="80px"
+              sizes="96px"
               priority
             />
           </div>
+          <p className="mb-1 text-xs font-bold uppercase tracking-[0.2em] text-cata-red/80">
+            Cata Club — Tenis de Mesa
+          </p>
           <h1 className="text-2xl font-bold tracking-tight text-cata-charcoal">
             Crear su cuenta
           </h1>
           <p className="mt-1.5 text-sm text-cata-gray">
-            Regístrese en Cata Club Admin
+            Regístrese en el sistema administrativo
           </p>
         </div>
 

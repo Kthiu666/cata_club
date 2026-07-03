@@ -25,16 +25,19 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-sm">
         {/* Brand header */}
         <div className="mb-10 text-center">
-          <div className="relative mx-auto mb-5 h-20 w-20 overflow-hidden rounded-2xl shadow-soft">
+          <div className="relative mx-auto mb-5 h-24 w-24 overflow-hidden rounded-2xl shadow-elevated">
             <Image
               src="/brand/cata-club-logo.jpeg"
               alt="Cata Club"
               fill
               className="object-cover"
-              sizes="80px"
+              sizes="96px"
               priority
             />
           </div>
+          <p className="mb-1 text-xs font-bold uppercase tracking-[0.2em] text-cata-red/80">
+            Cata Club — Tenis de Mesa
+          </p>
           <h1 className="text-2xl font-bold tracking-tight text-cata-charcoal">
             Recuperar Contraseña
           </h1>

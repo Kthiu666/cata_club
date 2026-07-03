@@ -26,3 +26,6 @@ Thumbs.db
 # Playwright
 test-results/
 playwright-report/
+
+# AI orchestrator artifacts
+.atl/
