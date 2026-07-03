@@ -157,8 +157,17 @@ describe("formatDate", () => {
   });
 
   it("renders first-of-month date-only strings correctly", () => {
-    expect(formatDate("2026-01-01")).toContain("1");
-    expect(formatDate("2026-06-01")).toContain("1");
+    const januaryFirst = formatDate("2026-01-01");
+    expect(januaryFirst).toContain("1");
+    expect(januaryFirst).toMatch(/ene/i);
+
+    const juneFirst = formatDate("2026-06-01");
+    expect(juneFirst).toContain("1");
+    expect(juneFirst).toMatch(/jun/i);
+  });
+
+  it("accepts valid leap-day date-only strings", () => {
+    expect(formatDate("2020-02-29")).toContain("29");
   });
 
   it("returns empty string for an empty date string", () => {
@@ -168,6 +177,7 @@ describe("formatDate", () => {
   it("returns empty string for an invalid date string", () => {
     expect(formatDate("not-a-date")).toBe("");
     expect(formatDate("2026-13-01")).toBe("");
+    expect(formatDate("2021-02-29")).toBe("");
   });
 });
 

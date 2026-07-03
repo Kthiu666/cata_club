@@ -140,12 +140,13 @@ function capitalize(s: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Parse a date string, handling date-only values ("YYYY-MM-DD") as local
+ * Parse a date string, handling date-only values ("YYYY-MM-DD") as stable
  * calendar dates instead of UTC midnight.
  *
  * Date-only strings like "2014-03-15" passed to `new Date("2014-03-15")`
  * are interpreted as UTC midnight, which becomes the previous day at
- * 19:00 in America/Guayaquil (UTC-5). Parsing components avoids this.
+ * 19:00 in America/Guayaquil (UTC-5). Anchoring at noon UTC preserves the
+ * intended calendar date across local machines and CI runners.
  *
  * Returns `null` for invalid or empty inputs.
  */
@@ -156,9 +157,9 @@ function parseDateStringLocal(dateStr: string): Date | null {
     const year = Number(match[1]);
     const month = Number(match[2]) - 1; // 0-indexed
     const day = Number(match[3]);
-    const d = new Date(year, month, day);
+    const d = new Date(Date.UTC(year, month, day, 12, 0, 0));
     // Reject overflow (month 13 → Jan, day 32 → Feb 1, etc.)
-    if (d.getMonth() !== month || d.getDate() !== day) return null;
+    if (d.getUTCMonth() !== month || d.getUTCDate() !== day) return null;
     return d;
   }
   const d = new Date(dateStr);
