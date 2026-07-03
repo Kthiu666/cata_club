@@ -2,7 +2,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Configuración centralizada de la aplicación."""
 
     database_host: str
     database_port: int
@@ -11,6 +10,11 @@ class Settings(BaseSettings):
     database_password: str
 
     secret_key: str
+
+    @property
+    def database_url(self) -> str:
+        # Construye la URL exacta que SQLAlchemy necesita
+        return f"postgresql+psycopg://{self.database_user}:{self.database_password}@{self.database_host}:{self.database_port}/{self.database_name}"
 
     model_config = SettingsConfigDict(
         env_file=".env",
