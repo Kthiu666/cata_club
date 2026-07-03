@@ -1,51 +1,42 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, status
 from typing import List
 
-from app.infraestructura.db import obtener_sesion
-from app.dominio.modelos import Asistencia, HorarioEntrenamiento, Persona
+from app.presentacion.dependencias import obtener_asistencia_service
 from app.presentacion.schemas.asistencia_schemas import (
     AsistenciaCreateDTO, AsistenciaResponseDTO, HorarioCreateDTO, HorarioResponseDTO,
 )
 from app.servicios_negocio.gestor_permisos import GestorPermisos
+from app.servicios_negocio.asistencia_service import AsistenciaService
 
 router = APIRouter(prefix="/asistencias", tags=["Asistencias"])
 
 
 @router.post("/horarios", response_model=HorarioResponseDTO, status_code=201,
              dependencies=[Depends(GestorPermisos(["ADMINISTRADOR", "ENTRENADOR"]))])
-async def crear_horario(datos: HorarioCreateDTO, db: Session = Depends(obtener_sesion)):
-    if datos.hora_inicio >= datos.hora_fin:
-        raise HTTPException(status_code=400, detail="La hora de inicio debe ser anterior a la hora de fin")
-    horario = HorarioEntrenamiento(**datos.model_dump())
-    db.add(horario)
-    db.commit()
-    db.refresh(horario)
-    return horario
+async def crear_horario(
+    datos: HorarioCreateDTO,
+    service: AsistenciaService = Depends(obtener_asistencia_service),
+):
+    return service.crear_horario(datos)
 
 
 @router.get("/horarios", response_model=List[HorarioResponseDTO])
-async def listar_horarios(db: Session = Depends(obtener_sesion)):
-    return db.query(HorarioEntrenamiento).all()
+async def listar_horarios(service: AsistenciaService = Depends(obtener_asistencia_service)):
+    return service.listar_horarios()
 
 
 @router.post("/", response_model=AsistenciaResponseDTO, status_code=201,
              dependencies=[Depends(GestorPermisos(["ADMINISTRADOR", "ENTRENADOR"]))])
-async def registrar_asistencia(datos: AsistenciaCreateDTO, db: Session = Depends(obtener_sesion)):
-    if not db.get(Persona, datos.persona_id):
-        raise HTTPException(status_code=404, detail="Persona no encontrada")
-    if not db.get(HorarioEntrenamiento, datos.horario_id):
-        raise HTTPException(status_code=404, detail="Horario no encontrado")
-    asistencia = Asistencia(**datos.model_dump())
-    db.add(asistencia)
-    db.commit()
-    db.refresh(asistencia)
-    return asistencia
+async def registrar_asistencia(
+    datos: AsistenciaCreateDTO,
+    service: AsistenciaService = Depends(obtener_asistencia_service),
+):
+    return service.registrar_asistencia(datos)
 
 
 @router.get("/persona/{persona_id}", response_model=List[AsistenciaResponseDTO])
-async def historial_asistencia_persona(persona_id: int, db: Session = Depends(obtener_sesion)):
-    persona = db.get(Persona, persona_id)
-    if not persona:
-        raise HTTPException(status_code=404, detail="Persona no encontrada")
-    return persona.asistencias
+async def historial_asistencia_persona(
+    persona_id: int,
+    service: AsistenciaService = Depends(obtener_asistencia_service),
+):
+    return service.historial_asistencia_persona(persona_id)
