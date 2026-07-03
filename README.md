@@ -5,7 +5,7 @@ Backend del **Sistema Integral de Administración para Cata Club**, desarrollado
 ## Tecnologías utilizadas
 
 - Python 3.13
-- Pyramid 2
+- FastAPI
 - SQLAlchemy 2
 - PostgreSQL
 - Alembic
@@ -128,6 +128,7 @@ product-admin-backend/
 │       └── logger.py
 │
 ├── .env.example
+├── main.py
 ├── alembic.ini
 ├── pyproject.toml
 ├── uv.lock
