@@ -409,6 +409,27 @@ describe("updatePaymentValidation — mock role header", () => {
     expect(headers["content-type"]).toBe("application/json");
   });
 
+  it("does not log console.error when localStorage is unavailable and omits x-mock-role", async () => {
+    // Delete any stubbed localStorage (Node has none by default) so
+    // getMockRoleHeader hits the typeof-guard path.
+    vi.stubGlobal("localStorage", undefined);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    vi.mocked(global.fetch).mockResolvedValue(
+      okResponse(makePaymentValidation({ id: "pv-001", validationStatus: "validado" })),
+    );
+
+    await updatePaymentValidation("pv-001", { action: "approved" });
+
+    expect(errorSpy).not.toHaveBeenCalled();
+
+    const [, options] = vi.mocked(global.fetch).mock.calls[0];
+    const headers = options!.headers as Record<string, string>;
+    expect(headers["x-mock-role"]).toBeUndefined();
+
+    errorSpy.mockRestore();
+  });
+
   it("does not send x-mock-role when USE_MOCKS is false", async () => {
     process.env.NEXT_PUBLIC_USE_MOCKS = "false";
     process.env.NEXT_PUBLIC_API_URL = "https://api.example.com/v1";

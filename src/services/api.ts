@@ -201,6 +201,7 @@ export class ApiClientError extends Error {
 }
 
 function getMockRoleHeader(): Record<string, string> {
+  if (typeof localStorage === "undefined") return {};
   try {
     const raw = localStorage.getItem("cata-club-auth-session");
     if (!raw) return {};
