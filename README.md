@@ -1,8 +1,8 @@
 # Product Admin Backend
 
-Backend del **Sistema Integral de Administración para Cata Club**, desarrollado en Python utilizando Pyramid y SQLAlchemy.
+Backend del **Sistema Integral de Administración para Cata Club**, desarrollado en Python utilizando una arquitectura por capas.
 
-## Tecnologías
+## Tecnologías utilizadas
 
 - Python 3.13
 - Pyramid 2
@@ -16,50 +16,49 @@ Backend del **Sistema Integral de Administración para Cata Club**, desarrollado
 
 # Requisitos
 
-Antes de comenzar asegúrate de tener instalado:
+Antes de comenzar, verificar la instalación de:
 
 - Python 3.13 o superior
 - Git
 - uv
-- PostgreSQL (próximamente)
 
-Verificar instalación:
+Comprobar versiones:
 
 ```bash
 python3 --version
-uv --version
 git --version
+uv --version
 ```
 
 ---
 
 # Instalación
 
-Clonar el repositorio
+Clonar el repositorio:
 
 ```bash
 git clone git@github.com:Kthiu666/product-admin-backend.git
 ```
 
-Entrar al proyecto
+Ingresar al proyecto:
 
 ```bash
 cd product-admin-backend
 ```
 
-Instalar todas las dependencias
+Instalar las dependencias:
 
 ```bash
 uv sync
 ```
 
-Esto creará automáticamente el entorno virtual (`.venv`) e instalará todas las dependencias definidas en `pyproject.toml`.
+Este comando crea automáticamente el entorno virtual (`.venv`) e instala todas las dependencias definidas en `pyproject.toml`.
 
 ---
 
 # Variables de entorno
 
-Crear un archivo `.env` utilizando como referencia el archivo `.env.example`.
+Crear un archivo `.env` tomando como referencia el archivo `.env.example`.
 
 Ejemplo:
 
@@ -72,7 +71,7 @@ DATABASE_PASSWORD=postgres
 SECRET_KEY=cataclub_secret_key
 ```
 
-> **Importante:** El archivo `.env` contiene información sensible y **no debe subirse al repositorio**.
+> El archivo `.env` contiene información sensible y **no debe subirse al repositorio**.
 
 ---
 
@@ -80,15 +79,22 @@ SECRET_KEY=cataclub_secret_key
 
 Este proyecto utiliza **uv** como gestor de dependencias.
 
-Para agregar una nueva dependencia:
+Instalar todas las dependencias:
+
+```bash
+uv sync
+```
+
+Agregar una nueva dependencia:
 
 ```bash
 uv add nombre_paquete
 ```
 
-Para sincronizar dependencias:
+Actualizar dependencias:
 
 ```bash
+uv lock
 uv sync
 ```
 
@@ -118,10 +124,13 @@ product-admin-backend/
 │   ├── seguridad/
 │   ├── servicios_negocio/
 │   └── soporte_transversal/
+│       ├── config.py
+│       └── logger.py
 │
+├── .env.example
+├── alembic.ini
 ├── pyproject.toml
 ├── uv.lock
-├── .env.example
 └── README.md
 ```
 
@@ -129,17 +138,18 @@ product-admin-backend/
 
 # Estado actual del proyecto
 
-Actualmente se encuentra implementado:
+## Implementado
 
-- Configuración del proyecto mediante **uv**.
-- Configuración centralizada utilizando **Pydantic Settings**.
-- Gestión de variables de entorno mediante archivos `.env`.
-- Estructura inicial del backend.
+- Configuración inicial del proyecto.
+- Gestión de dependencias mediante **uv**.
+- Configuración centralizada mediante **Pydantic Settings**.
+- Sistema de logging centralizado.
+- Variables de entorno mediante archivos `.env`.
 
-Pendiente de implementación:
+## Pendiente
 
-- Sistema de Logging.
 - Configuración de PostgreSQL.
+- SQLAlchemy.
 - Alembic.
 - Modelos ORM.
 - API REST.
@@ -148,8 +158,8 @@ Pendiente de implementación:
 
 # Convenciones del equipo
 
-- Utilizar **uv** para administrar dependencias.
+- Utilizar **uv** para administrar las dependencias.
 - No subir el archivo `.env`.
 - No subir la carpeta `.venv`.
-- Mantener actualizado este README cuando se agreguen nuevas funcionalidades.
-- Realizar commits utilizando Conventional Commits (`feat`, `fix`, `docs`, `refactor`, etc.).
+- Mantener actualizado este README.
+- Utilizar mensajes de commit siguiendo Conventional Commits (`feat`, `fix`, `docs`, `refactor`, etc.).
