@@ -81,10 +81,17 @@ product-admin-backend/
 │
 ├── app/
 │   ├── dominio/
-│   │   ├── modelos.py
-│   │   └── enums.py
+│   │   ├── __init__.py
+│   │   ├── entrenamiento.py
+│   │   ├── enums.py
+│   │   ├── membresia.py
+│   │   ├── persona.py
+│   │   ├── salud.py
+│   │   ├── ubicacion.py
+│   │   └── usuario.py
 │   │
 │   ├── infraestructura/
+│   │   ├── alembic/
 │   │   ├── db.py
 │   │   └── repositorios/
 │   │       ├── persona_repositorio.py
@@ -174,12 +181,13 @@ La documentación interactiva (Swagger) se genera automáticamente por FastAPI e
 - Sistema de logging centralizado.
 - Variables de entorno mediante archivos `.env`.
 - Capa de **Servicios de Negocio** con las reglas de validación de cada entidad (Persona, Asistencia, Membresía/Pago, Ficha Médica).
+- Capa de Dominio completamente modularizada (app/dominio/), incluyendo modelos ORM para Ubicación, Usuario/Roles, Persona/Institución, Membresías/Pagos, Entrenamiento/Asistencia y Salud.
+- Configuración de Infraestructura de Base de Datos (app/infraestructura/db.py) y motor de migraciones con Alembic.
 - API REST completa (capa de Presentación): routers, DTOs y documentación Swagger automática.
 - Autenticación mediante JWT y hashing de contraseñas con Passlib.
 - Sistema de permisos por rol (`GestorPermisos`).
 - Refactorización de los routers para eliminar el acceso directo a la base de datos, respetando la Arquitectura Limpia.
 ## Pendiente
-- Migraciones con **Alembic** .
 - Pruebas unitarias y de integración.
 - Documentación de despliegue.
 - Integración final con el frontend (Next.js).
