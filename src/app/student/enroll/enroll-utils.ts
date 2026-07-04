@@ -11,7 +11,11 @@ import type { FichaMedica } from "@/types/domain";
 // Types
 // ---------------------------------------------------------------------------
 
-/** Enrollment type: self (adult student) or child/dependent. */
+/**
+ * Enrollment type:
+ * - "self"    → Jugador: the user enrolls themselves as a student.
+ * - "child"   → Representante: the user enrolls a child/dependent only.
+ */
 export type EnrollmentType = "self" | "child";
 
 /** Wizard step identifiers. */
@@ -24,6 +28,11 @@ export interface EnrollFormData {
   apellidos: string;
   fechaNacimiento: string;
   cedula: string;
+  // Representante fields — used when enrollmentType is "child".
+  // nombreRepresentante/cedulaRepresentante identify the _existing_ adult
+  // responsible for the child.
+  nombreRepresentante: string;
+  cedulaRepresentante: string;
   fechaInicio: string;
   activo: boolean;
   condicionesSalud: string;
@@ -58,6 +67,8 @@ export const initialFormData: EnrollFormData = {
   apellidos: "",
   fechaNacimiento: "",
   cedula: "",
+  nombreRepresentante: "",
+  cedulaRepresentante: "",
   fechaInicio: new Date().toISOString().slice(0, 10),
   activo: true,
   condicionesSalud: "",
@@ -87,7 +98,7 @@ export function validateEnrollStep(
   const errors: string[] = [];
   switch (step) {
     case "type":
-      // Always valid — both options are acceptable
+      // Always valid — player and representative options are acceptable.
       break;
     case "personal":
       if (!data.nombres.trim()) errors.push("Los nombres son obligatorios.");
@@ -98,6 +109,11 @@ export function validateEnrollStep(
       } else if (!/^\d{10}$/.test(data.cedula)) {
         errors.push("La cédula debe tener 10 dígitos.");
       }
+      // Invalid birth date — unparseable even if non-empty
+      if (data.fechaNacimiento && isNaN(calculateAge(data.fechaNacimiento))) {
+        errors.push("La fecha de nacimiento ingresada no es válida.");
+      }
+
       // Domain rule: minors cannot self-enroll
       if (data.enrollmentType === "self" && data.fechaNacimiento) {
         const age = calculateAge(data.fechaNacimiento);
@@ -108,6 +124,27 @@ export function validateEnrollStep(
             "representante debe completar la inscripción.",
           );
         }
+      }
+
+      // Representante name is required when someone else is the student
+      if (
+        data.enrollmentType === "child" &&
+        !data.nombreRepresentante.trim()
+      ) {
+        errors.push("El nombre del representante es obligatorio.");
+      }
+
+      // Representante ID is required for child enrollment
+      if (
+        data.enrollmentType === "child" &&
+        !data.cedulaRepresentante.trim()
+      ) {
+        errors.push("La cédula del representante es obligatoria.");
+      } else if (
+        data.enrollmentType === "child" &&
+        !/^\d{10}$/.test(data.cedulaRepresentante)
+      ) {
+        errors.push("La cédula del representante debe tener 10 dígitos.");
       }
       break;
     case "club":

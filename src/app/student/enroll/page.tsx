@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import {
@@ -61,14 +61,47 @@ export default function EnrollPage() {
   const [formData, setFormData] = useState<EnrollFormData>(initialFormData);
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [summaryReviewed, setSummaryReviewed] = useState(false);
   const [formErrors, setFormErrors] = useState<string[]>([]);
+  const confirmInFlightRef = useRef(false);
+  const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queryAppliedRef = useRef(false);
 
   const currentIndex = STEP_ORDER.indexOf(step);
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === STEP_ORDER.length - 1;
   const progress = ((currentIndex + 1) / STEP_ORDER.length) * 100;
 
+  useEffect(() => {
+    return () => {
+      if (confirmTimeoutRef.current) {
+        clearTimeout(confirmTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Support ?type=self/?type=player or ?type=child/?type=representative
+  // to preselect the enrollment flow from external CTAs.
+  useEffect(() => {
+    if (queryAppliedRef.current) return;
+    queryAppliedRef.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const type = params.get("type");
+    if (type === "self" || type === "player") {
+      setFormData((prev) => ({ ...prev, enrollmentType: "self" }));
+    } else if (type === "child" || type === "representative") {
+      setFormData((prev) => ({ ...prev, enrollmentType: "child" }));
+    }
+  }, []);
+
   // ---- Helpers ----
+
+  function clearConfirmTimeout() {
+    if (confirmTimeoutRef.current) {
+      clearTimeout(confirmTimeoutRef.current);
+      confirmTimeoutRef.current = null;
+    }
+  }
 
   function updateField<K extends keyof EnrollFormData>(
     key: K,
@@ -87,7 +120,9 @@ export default function EnrollPage() {
     setFormErrors([]);
     const nextIdx = currentIndex + 1;
     if (nextIdx < STEP_ORDER.length) {
-      setStep(STEP_ORDER[nextIdx]);
+      const nextStep = STEP_ORDER[nextIdx];
+      if (nextStep === "summary") setSummaryReviewed(false);
+      setStep(nextStep);
     }
   }
 
@@ -101,25 +136,84 @@ export default function EnrollPage() {
 
   function handleConfirm(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (confirmInFlightRef.current || submitting || confirmed) return;
+    if (step !== "summary") {
+      handleNext();
+      return;
+    }
+    if (!summaryReviewed) {
+      setFormErrors(["Revise y confirme el resumen antes de finalizar la inscripción."]);
+      return;
+    }
     const errors = validateEnrollStep(step, formData);
     if (errors.length > 0) {
       setFormErrors(errors);
       return;
     }
+    confirmInFlightRef.current = true;
     setSubmitting(true);
     // Simulate submission
-    setTimeout(() => {
+    clearConfirmTimeout();
+    confirmTimeoutRef.current = setTimeout(() => {
+      confirmTimeoutRef.current = null;
+      confirmInFlightRef.current = false;
       setSubmitting(false);
       setConfirmed(true);
     }, 1200);
   }
 
   function handleReset() {
+    clearConfirmTimeout();
     setFormData(initialFormData);
     setStep("type");
     setConfirmed(false);
     setSubmitting(false);
+    confirmInFlightRef.current = false;
+    setSummaryReviewed(false);
     setFormErrors([]);
+  }
+
+  // ---- Demo helper — quick-fill for testing convenience ----
+
+  function fillDemoData(type: EnrollmentType) {
+    clearConfirmTimeout();
+    const base: Partial<EnrollFormData> = {
+      contactoEmergencia: "Carlos Martinez",
+      telefonoEmergencia: "0998765432",
+    };
+
+    switch (type) {
+      case "self":
+        setFormData({
+          ...initialFormData,
+          enrollmentType: "self",
+          nombres: "Sofia",
+          apellidos: "Martinez",
+          fechaNacimiento: "1990-05-20",
+          cedula: "1712345678",
+          ...base,
+        });
+        break;
+      case "child":
+        setFormData({
+          ...initialFormData,
+          enrollmentType: "child",
+          nombres: "Lucas",
+          apellidos: "Martinez",
+          fechaNacimiento: "2015-06-15",
+          cedula: "1723456789",
+          nombreRepresentante: "Sofia Martinez",
+          cedulaRepresentante: "1712345678",
+          ...base,
+        });
+        break;
+    }
+    setStep("type");
+    setFormErrors([]);
+    setConfirmed(false);
+    setSummaryReviewed(false);
+    setSubmitting(false);
+    confirmInFlightRef.current = false;
   }
 
   // ---- Render helpers ----
@@ -214,7 +308,7 @@ export default function EnrollPage() {
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {/* Self enrollment */}
+          {/* Self enrollment — Jugador */}
           <button
             type="button"
             onClick={() => updateField("enrollmentType", "self")}
@@ -228,10 +322,11 @@ export default function EnrollPage() {
               <GraduationCap size={20} strokeWidth={1.5} className="text-cata-red" />
             </div>
             <h3 className="mb-1 font-semibold text-cata-charcoal">
-              Soy el alumno
+              Jugador
             </h3>
             <p className="text-xs leading-relaxed text-cata-gray">
-              Me inscribo a mí mismo. Soy mayor de edad y gestiono mi propia cuenta.
+              Quiero inscribirme yo al club. Soy mayor de edad y gestiono mi
+              propia cuenta como alumno.
             </p>
             {formData.enrollmentType === "self" && (
               <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-cata-red">
@@ -255,11 +350,11 @@ export default function EnrollPage() {
               <Baby size={20} strokeWidth={1.5} className="text-blue-600" />
             </div>
             <h3 className="mb-1 font-semibold text-cata-charcoal">
-              Inscribo a un hijo / dependiente
+              Representante
             </h3>
             <p className="text-xs leading-relaxed text-cata-gray">
-              Soy representante y deseo inscribir a un menor de edad o dependiente
-              a mi cargo.
+              Quiero gestionar la inscripción de un hijo/dependiente.
+              El alumno es distinto de mi cuenta.
             </p>
             {formData.enrollmentType === "child" && (
               <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-cata-red">
@@ -268,6 +363,7 @@ export default function EnrollPage() {
               </span>
             )}
           </button>
+
         </div>
 
         {formData.enrollmentType === "child" && (
@@ -279,6 +375,8 @@ export default function EnrollPage() {
             <p className="mt-1 text-amber-600/80">
               Como representante, usted será el responsable de pago de este alumno.
               Los datos del alumno se registrarán por separado de su cuenta.
+              Complete los datos del representante para identificar al adulto
+              responsable.
             </p>
           </div>
         )}
@@ -287,11 +385,11 @@ export default function EnrollPage() {
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
             <p className="flex items-center gap-1.5 font-medium">
               <CheckCircle size={12} strokeWidth={2} />
-              Autoinscripción
+              Inscripción como jugador
             </p>
             <p className="mt-1 text-emerald-600/80">
-              Usted será tanto el alumno como el responsable de pago
-              (tipo autogestionado).
+              Usted será el alumno titular de la cuenta. No se requieren datos
+              de representante.
             </p>
           </div>
         )}
@@ -303,8 +401,10 @@ export default function EnrollPage() {
     return (
       <div className="space-y-1">
         <p className="mb-4 text-sm leading-relaxed text-cata-gray">
-          Ingrese los datos personales del{" "}
-          {formData.enrollmentType === "child" ? "alumno a inscribir" : "alumno"}:
+          {formData.enrollmentType === "self" &&
+            "Ingrese sus datos personales:"}
+          {formData.enrollmentType === "child" &&
+            "Ingrese los datos personales del alumno a inscribir:"}
         </p>
 
         {renderInput({
@@ -348,19 +448,73 @@ export default function EnrollPage() {
           })}
         </div>
 
-        {formData.fechaNacimiento && (
-          <div className="rounded-xl bg-cata-warm p-3 text-xs text-cata-gray">
-            Edad calculada:{" "}
-            <span className="font-medium text-cata-charcoal">
-              {calculateAge(formData.fechaNacimiento)} años
-            </span>
-            {calculateAge(formData.fechaNacimiento) < 18 &&
-              formData.enrollmentType === "self" && (
-                <span className="ml-1 text-amber-600">
-                  — Los menores de edad requieren un representante.
-                </span>
-              )}
-          </div>
+        {formData.fechaNacimiento && (() => {
+          const age = calculateAge(formData.fechaNacimiento);
+          const ageValid = !isNaN(age);
+          return (
+            <div className="rounded-xl bg-cata-warm p-3 text-xs text-cata-gray">
+              Edad calculada:{" "}
+              <span className="font-medium text-cata-charcoal">
+                {ageValid ? `${age} años` : "—"}
+              </span>
+              {ageValid && age < 18 &&
+                formData.enrollmentType === "self" && (
+                  <span className="ml-1 text-amber-600">
+                    — Los menores de edad requieren un representante.
+                  </span>
+                )}
+            </div>
+          );
+        })()}
+
+        {/* Representante fields — shown for child enrollment */}
+        {formData.enrollmentType === "child" && (
+          <>
+            <hr className="my-6 border-cata-stone/50" />
+
+            <div>
+              <h3 className="mb-1 text-sm font-semibold text-cata-charcoal">
+                Datos del Representante
+              </h3>
+              <p className="mb-4 text-xs leading-relaxed text-cata-gray">
+                Identifique al adulto responsable de pago y representante legal
+                del alumno:
+              </p>
+
+              {renderInput({
+                label: "Nombres del Representante",
+                value: formData.nombreRepresentante,
+                onChange: (v) => updateField("nombreRepresentante", v),
+                placeholder: "p. ej. María Fernanda",
+                required: true,
+                icon: <UserPlus size={16} strokeWidth={1.5} />,
+              })}
+
+              {renderInput({
+                label: "Cédula del Representante",
+                value: formData.cedulaRepresentante,
+                onChange: (v) => updateField("cedulaRepresentante", v),
+                placeholder: "p. ej. 1712345678",
+                required: true,
+                icon: <Hash size={16} strokeWidth={1.5} />,
+                pattern: "[0-9]{10}",
+                maxLength: 10,
+                inputMode: "numeric",
+              })}
+
+              <div className="rounded-xl border border-purple-100 bg-purple-50 p-3 text-xs text-purple-700">
+                <p className="flex items-center gap-1.5 font-medium">
+                  <AlertTriangle size={12} strokeWidth={2} />
+                  Representante mayor de edad
+                </p>
+                <p className="mt-1 text-purple-600/80">
+                  El representante debe ser mayor de edad (18+). Al inscribir a
+                  un dependiente, usted confirma que es legalmente responsable
+                  del menor.
+                </p>
+              </div>
+            </div>
+          </>
         )}
       </div>
     );
@@ -507,15 +661,16 @@ export default function EnrollPage() {
             Tipo de Inscripción
           </h3>
           <div className="flex items-center gap-2 text-sm">
-            {formData.enrollmentType === "self" ? (
+            {formData.enrollmentType === "self" && (
               <>
                 <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" />
-                <span>Autoinscripción — El alumno es el titular de la cuenta</span>
+                <span>Jugador — El alumno es el titular de la cuenta</span>
               </>
-            ) : (
+            )}
+            {formData.enrollmentType === "child" && (
               <>
                 <Baby size={16} strokeWidth={1.5} className="text-blue-600" />
-                <span>Inscripción de dependiente — El representante gestiona la cuenta</span>
+                <span>Representante — Inscripción de dependiente gestionada por un adulto</span>
               </>
             )}
           </div>
@@ -542,6 +697,29 @@ export default function EnrollPage() {
             <dd className="font-medium text-cata-charcoal">{formData.cedula}</dd>
           </dl>
         </div>
+
+        {/* Representante data — for child enrollment */}
+        {formData.enrollmentType === "child" && (
+          <div className="rounded-xl border border-cata-stone/50 bg-white p-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-cata-gray-light">
+              Datos del Representante
+            </h3>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <dt className="text-cata-gray">Nombres</dt>
+              <dd className="font-medium text-cata-charcoal">
+                {formData.nombreRepresentante || (
+                  <span className="text-cata-gray-light">—</span>
+                )}
+              </dd>
+              <dt className="text-cata-gray">Cédula</dt>
+              <dd className="font-medium text-cata-charcoal">
+                {formData.cedulaRepresentante || (
+                  <span className="text-cata-gray-light">—</span>
+                )}
+              </dd>
+            </dl>
+          </div>
+        )}
 
         {/* Club info */}
         <div className="rounded-xl border border-cata-stone/50 bg-white p-4">
@@ -598,6 +776,24 @@ export default function EnrollPage() {
             )}
           </dl>
         </div>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+          <input
+            type="checkbox"
+            checked={summaryReviewed}
+            onChange={(e) => {
+              setSummaryReviewed(e.target.checked);
+              setFormErrors([]);
+            }}
+            className="mt-0.5 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+          />
+          <span>
+            Revisé el resumen y confirmo que la información está correcta.
+            <span className="mt-1 block text-xs text-emerald-700/75">
+              Esto evita finalizar la inscripción por accidente al llegar al último paso.
+            </span>
+          </span>
+        </label>
       </div>
     );
   }
@@ -622,9 +818,10 @@ export default function EnrollPage() {
             ha sido registrado como alumno de Cata Club.
           </p>
           <p className="mb-8 text-xs leading-relaxed text-cata-gray/60">
-            {formData.enrollmentType === "self"
-              ? "Usted es el titular de la cuenta y el alumno."
-              : "Usted es el representante / responsable de pago de este alumno."}{" "}
+            {formData.enrollmentType === "self" &&
+              "Usted es el titular de la cuenta y el alumno."}
+            {formData.enrollmentType === "child" &&
+              "Usted es el representante / responsable de pago de este alumno."}{" "}
             No se almacenó ningún dato real — esto es una demostración de IU.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
@@ -652,9 +849,8 @@ export default function EnrollPage() {
         </div>
         <p className="mt-1.5 text-sm text-cata-gray">
           Complete los pasos para inscribir a un alumno en Cata Club.
-          {formData.enrollmentType === "child"
-            ? " Usted actúa como representante."
-            : " Autoinscripción como alumno autogestionado."}
+          {formData.enrollmentType === "self" && " Inscripción como jugador."}
+          {formData.enrollmentType === "child" && " Usted actúa como representante."}
         </p>
       </div>
 
@@ -671,6 +867,32 @@ export default function EnrollPage() {
             className="h-full rounded-full bg-cata-red transition-all duration-400 ease-out"
             style={{ width: `${progress}%` }}
           />
+        </div>
+      </div>
+
+      {/* Demo helper — quick-fill for testing convenience (not part of production flow) */}
+      <div className="mb-6 rounded-xl border border-dashed border-cata-stone/30 bg-amber-50/40 p-3">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-cata-gray-light">
+          Rellenar datos de prueba (solo desarrollo)
+        </p>
+        <p className="mb-2 text-[10px] leading-relaxed text-cata-gray/60">
+          Llena los campos automáticamente pero no salta la validación — los pasos deben completarse uno por uno.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => fillDemoData("self")}
+            className="rounded-lg border border-cata-stone/30 bg-white px-3 py-1.5 text-xs font-medium text-cata-charcoal transition-all hover:border-cata-stone hover:shadow-soft"
+          >
+            Jugador
+          </button>
+          <button
+            type="button"
+            onClick={() => fillDemoData("child")}
+            className="rounded-lg border border-cata-stone/30 bg-white px-3 py-1.5 text-xs font-medium text-cata-charcoal transition-all hover:border-cata-stone hover:shadow-soft"
+          >
+            Representante
+          </button>
         </div>
       </div>
 
@@ -731,8 +953,8 @@ export default function EnrollPage() {
               ) : (
                 <button
                   type="submit"
-                  disabled={submitting}
-                  className="btn-primary shadow-soft"
+                  disabled={submitting || !summaryReviewed}
+                  className="btn-primary shadow-soft disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? (
                     "Inscribiendo..."

@@ -3,6 +3,8 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Eye,
   EyeOff,
@@ -17,7 +19,10 @@ import {
 } from "lucide-react";
 
 export default function RegisterPage() {
+  const router = useRouter();
+  const { login } = useAuth();
   const [submitting, setSubmitting] = useState(false);
+  const [navigating, setNavigating] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -44,6 +49,25 @@ export default function RegisterPage() {
       setSubmitting(false);
       setDemoSuccess(true);
     }, 1500);
+  }
+
+  function handleContinueToEnrollment() {
+    // Guard: prevent double-click / repeated activation while navigating.
+    if (navigating) return;
+
+    // Demo mode: the register form does not persist a real account yet.
+    // Start the pre-enrollment demo session so the protected enrollment route
+    // behaves like a newly created user continuing their registration.
+    setNavigating(true);
+
+    const result = login("natural@cataclub.com", "natural123");
+    if (result) {
+      router.push("/student/enroll");
+      return;
+    }
+
+    setFormError("No se pudo iniciar la sesión de demostración. Intente iniciar sesión manualmente.");
+    setNavigating(false);
   }
 
   return (
@@ -88,13 +112,24 @@ export default function RegisterPage() {
               </h2>
               <p className="mb-6 text-sm leading-relaxed text-cata-gray">
                 No se almacenó ningún dato. Esto es una demostración de IU — cuando el
-                backend esté conectado, se crearía su cuenta.
+                backend esté conectado, se crearía su cuenta. Para continuar el
+                recorrido, se abrirá la sesión de preinscripción automáticamente.
               </p>
+              {formError && (
+                <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-cata-red">
+                  {formError}
+                </p>
+              )}
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-                <Link href="/student/enroll" className="btn-primary">
-                  Inscribirse
-                  <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
-                </Link>
+                <button
+                  type="button"
+                  onClick={handleContinueToEnrollment}
+                  disabled={navigating}
+                  className="btn-primary"
+                >
+                  {navigating ? "Redirigiendo..." : "Inscribirse"}
+                  {!navigating && <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />}
+                </button>
                 <button
                   onClick={() => {
                     setDemoSuccess(false);

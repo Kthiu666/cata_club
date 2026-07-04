@@ -15,7 +15,7 @@ import { type FormEvent, useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Lock, Mail, AlertCircle, ShieldCheck, GraduationCap, UserCircle } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, AlertCircle, ShieldCheck, GraduationCap, UserCircle, UserPlus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getDefaultRoute } from "@/lib/auth-utils";
 
@@ -24,6 +24,7 @@ const demoAccounts = [
   { email: "entrenador@cataclub.com", password: "trainer123", role: "trainer" as const, label: "Entrenador", icon: GraduationCap, color: "bg-blue-50 text-blue-700" },
   { email: "representante@cataclub.com", password: "rep123", role: "responsable_pago" as const, label: "Representante", icon: UserCircle, color: "bg-emerald-50 text-emerald-700" },
   { email: "autogestionado@cataclub.com", password: "self123", role: "responsable_pago" as const, label: "Autogestionado", icon: UserCircle, color: "bg-amber-50 text-amber-700" },
+  { email: "natural@cataclub.com", password: "natural123", role: "responsable_pago" as const, label: "Natural (Pre-inscripción)", icon: UserPlus, color: "bg-violet-50 text-violet-700" },
 ];
 
 export default function LoginPage() {
@@ -124,7 +125,7 @@ export default function LoginPage() {
           <p className="mb-3 text-center text-xs font-semibold uppercase tracking-wider text-cata-gray-light">
             Acceso rápido (Demo)
           </p>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {demoAccounts.map((acc) => (
               <button
                 key={acc.email}
@@ -268,10 +269,18 @@ export default function LoginPage() {
               <span className="font-mono text-cata-charcoal">representante@cataclub.com / rep123</span>
             </li>
             <li className="flex justify-between">
-              <span>Responsable de pago (autogestionado)</span>
+              <span>Alumno autogestionado (inscrito)</span>
               <span className="font-mono text-cata-charcoal">autogestionado@cataclub.com / self123</span>
             </li>
+            <li className="flex justify-between">
+              <span>Pre‑inscripción</span>
+              <span className="font-mono text-cata-charcoal">natural@cataclub.com / natural123</span>
+            </li>
           </ul>
+          <p className="mt-2 text-[10px] leading-relaxed text-cata-gray/50">
+            <strong>Autogestionado</strong> representa a un alumno ya inscrito que gestiona su propia membresía, pagos y sesiones desde el portal.
+            La nueva cuenta <strong>Pre‑inscripción</strong> permite probar el flujo de registro antes de estar inscrito.
+          </p>
         </div>
 
         {/* Auth companion links */}

@@ -125,6 +125,8 @@ describe("validateEnrollStep — personal step", () => {
       validForm({
         enrollmentType: "child",
         fechaNacimiento: "2015-06-15", // minor, but child enrollment
+        nombreRepresentante: "María Rodríguez",
+        cedulaRepresentante: "0998765432",
       }),
     );
     expect(errors).toEqual([]);
@@ -158,6 +160,94 @@ describe("validateEnrollStep — personal step", () => {
       }),
     );
     expect(errors).toEqual([]);
+  });
+
+  // ---- Representante validation for "child" enrollment ----
+
+  it("requires nombre representante for child enrollment", () => {
+    const errors = validateEnrollStep(
+      "personal",
+      validForm({
+        enrollmentType: "child",
+        nombreRepresentante: "",
+      }),
+    );
+    expect(errors).toContain("El nombre del representante es obligatorio.");
+  });
+
+  it("requires cedula representante for child enrollment", () => {
+    const errors = validateEnrollStep(
+      "personal",
+      validForm({
+        enrollmentType: "child",
+        nombreRepresentante: "María Rodríguez",
+        cedulaRepresentante: "",
+      }),
+    );
+    expect(errors).toContain("La cédula del representante es obligatoria.");
+  });
+
+  it("validates cedula representante has 10 digits for child enrollment", () => {
+    const errors = validateEnrollStep(
+      "personal",
+      validForm({
+        enrollmentType: "child",
+        nombreRepresentante: "María Rodríguez",
+        cedulaRepresentante: "12345",
+      }),
+    );
+    expect(errors).toContain("La cédula del representante debe tener 10 dígitos.");
+  });
+
+  it("passes validation with valid representante data for child enrollment", () => {
+    const errors = validateEnrollStep(
+      "personal",
+      validForm({
+        enrollmentType: "child",
+        nombreRepresentante: "María Rodríguez",
+        cedulaRepresentante: "0998765432",
+      }),
+    );
+    expect(errors).toEqual([]);
+  });
+
+  it("does NOT require representante fields for self enrollment", () => {
+    const errors = validateEnrollStep(
+      "personal",
+      validForm({
+        enrollmentType: "self",
+        nombreRepresentante: "",
+        cedulaRepresentante: "",
+      }),
+    );
+    // Self enrollment does not require representante data
+    expect(errors).not.toContain("El nombre del representante es obligatorio.");
+    expect(errors).not.toContain("La cédula del representante es obligatoria.");
+  });
+
+  it("ignores malformed cedulaRepresentante for self enrollment", () => {
+    const errors = validateEnrollStep(
+      "personal",
+      validForm({
+        enrollmentType: "self",
+        cedulaRepresentante: "12345",
+      }),
+    );
+    expect(errors).not.toContain("La cédula del representante es obligatoria.");
+    expect(errors).not.toContain("La cédula del representante debe tener 10 dígitos.");
+  });
+
+  it("represents absent representante with whitespace correctly", () => {
+    const errors = validateEnrollStep(
+      "personal",
+      validForm({
+        enrollmentType: "child",
+        nombreRepresentante: "   ",
+        cedulaRepresentante: "   ",
+      }),
+    );
+    expect(errors).toContain("El nombre del representante es obligatorio.");
+    expect(errors).toContain("La cédula del representante es obligatoria.");
   });
 });
 

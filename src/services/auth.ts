@@ -174,6 +174,17 @@ export const DEMO_PERSONAS: DemoPersona[] = [
       createdAt: "2026-02-01T00:00:00Z",
     },
   },
+  {
+    email: "natural@cataclub.com",
+    password: "natural123",
+    user: {
+      id: "user-natural-1",
+      name: "Usuario Natural",
+      email: "natural@cataclub.com",
+      role: "responsable_pago",
+      createdAt: "2026-02-01T00:00:00Z",
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
