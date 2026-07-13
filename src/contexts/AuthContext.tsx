@@ -16,7 +16,7 @@ import {
   type ReactNode,
 } from "react";
 import type { AuthSession } from "@/services/auth";
-import { authService } from "@/services/auth";
+import { authService, isValidAuthSession } from "@/services/auth";
 import { hydrateState } from "@/lib/auth-state";
 
 // ---------------------------------------------------------------------------
@@ -59,6 +59,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { session: hydratedSession, isLoading: done } = hydrateState(saved);
     if (hydratedSession) setSession(hydratedSession);
     setIsLoading(done);
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "cata-club-auth-session") {
+        if (e.newValue === null) {
+          // Another tab logged out — the key was removed.
+          setSession(null);
+          return;
+        }
+
+        // Another tab logged in — validate the payload before trusting it.
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (isValidAuthSession(parsed)) {
+            setSession(parsed);
+          } else {
+            // Corrupted or forged session — discard it.
+            setSession(null);
+          }
+        } catch {
+          // Invalid JSON — discard.
+          setSession(null);
+        }
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const login = useCallback(

@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: "class",
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
@@ -9,15 +10,22 @@ const config: Config = {
           red: "#8B1A1A",
           "red-light": "#B22222",
           "red-dark": "#5E1111",
-          navy: "#1A1A2E",
+          navy: "#0F0F1A",
           "navy-light": "#2A2A3E",
           cream: "#FAF8F6",
           warm: "#F5F3F0",
           stone: "#E5E1DC",
           charcoal: "#1E1E1E",
-          gray: "#6B6560",
+          gray: "rgba(255,255,255,0.45)",
           "gray-light": "#A09890",
           platinum: "#F0EFED",
+          dark: "#0A0A12",
+          "dark-elevated": "#141420",
+          "dark-surface": "#1E1E2E",
+          "text-primary": "#FFFFFF",
+          "text-secondary": "rgba(255,255,255,0.65)",
+          border: "rgba(255,255,255,0.08)",
+          "border-hover": "rgba(255,255,255,0.15)",
         },
       },
       fontFamily: {

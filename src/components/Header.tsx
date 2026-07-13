@@ -77,21 +77,135 @@ function useNavLinks(): NavLink[] {
   }, [isAuthenticated, session]);
 }
 
+const INSTITUTIONAL_LINKS = [
+  { href: "#inicio", label: "Inicio" },
+  { href: "#proposito", label: "Nosotros" },
+  { href: "#valores", label: "Formación" },
+  { href: "#inicio", label: "Competencias" },
+  { href: "#inicio", label: "Galería" },
+  { href: "#inicio", label: "Contacto" },
+];
+
+function InstitutionalHeader({ pathname }: { pathname: string }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-cata-dark/95 backdrop-blur-md">
+      <nav className="mx-auto flex max-w-8xl items-center justify-between px-4 py-3 sm:px-8 lg:px-12">
+        {/* Brand — real logo as identity anchor */}
+        <Link href="/" className="flex items-center gap-3">
+          <div className="relative h-10 w-10 overflow-hidden rounded-lg">
+            <Image
+              src="/brand/cata-club-logo.jpeg"
+              alt="Cata Club"
+              fill
+              className="object-cover"
+              sizes="40px"
+              priority
+            />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-lg font-bold leading-tight tracking-tight text-white">
+              Cata Club
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cata-red">
+              Tenis de Mesa
+            </span>
+          </div>
+        </Link>
+
+        {/* Desktop nav — institutional links centered */}
+        <ul className="hidden items-center gap-1 md:flex">
+          {INSTITUTIONAL_LINKS.map((link) => {
+            const isActive = pathname === link.href;
+            return (
+              <li key={link.label}>
+                <Link
+                  href={link.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className="rounded-xl px-3.5 py-2 text-sm font-medium text-white/65 transition-all duration-200 hover:text-white"
+                >
+                  {link.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* Login button */}
+        <div className="hidden md:flex items-center gap-3">
+          <Link
+            href="/login"
+            className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white/65 transition-all duration-200 hover:text-white"
+          >
+            <User size={15} strokeWidth={1.5} aria-hidden="true" />
+            Iniciar sesión
+          </Link>
+        </div>
+
+        {/* Mobile menu button */}
+        <button
+          type="button"
+          onClick={() => setMenuOpen(!menuOpen)}
+          className="rounded-xl p-2.5 text-white/65 hover:bg-white/[0.08] hover:text-white md:hidden"
+          aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
+        >
+          {menuOpen ? <X size={20} strokeWidth={1.5} /> : <Menu size={20} strokeWidth={1.5} />}
+        </button>
+      </nav>
+
+      {/* Mobile nav panel */}
+      {menuOpen && (
+        <div className="border-t border-white/10 bg-cata-dark md:hidden shadow-soft">
+          <ul className="space-y-0.5 px-4 py-4">
+            {INSTITUTIONAL_LINKS.map((link) => (
+              <li key={link.label}>
+                <Link
+                  href={link.href}
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center rounded-xl px-3.5 py-2.5 text-sm font-medium text-white/65 transition-all duration-200 hover:bg-white/[0.08] hover:text-white"
+                >
+                  {link.label}
+                </Link>
+              </li>
+            ))}
+            <li className="border-t border-white/10 pt-3 mt-3">
+              <Link
+                href="/login"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-white/65 transition-colors hover:bg-white/[0.08] hover:text-white"
+              >
+                <LogIn size={17} strokeWidth={1.5} aria-hidden="true" />
+                Iniciar sesión
+              </Link>
+            </li>
+          </ul>
+        </div>
+      )}
+    </header>
+  );
+}
+
 export default function Header() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const { isAuthenticated, session, logout, isLoading } = useAuth();
   const links = useNavLinks();
 
+  // Landing page gets the institutional header
+  if (pathname === "/") {
+    return <InstitutionalHeader pathname={pathname} />;
+  }
+
   // FOUC prevention: show minimal skeleton during session hydration
   if (isLoading) {
     return (
-      <header className="sticky top-0 z-50 border-b border-cata-stone/60 bg-white/95 backdrop-blur-md">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-cata-dark/95 backdrop-blur-md">
         <nav className="mx-auto flex max-w-8xl items-center justify-between px-4 py-3 sm:px-8 lg:px-12">
-          <div className="flex items-center gap-3 text-lg font-semibold tracking-tight text-cata-charcoal">
-            <div className="h-8 w-8 animate-pulse rounded-lg bg-cata-stone/30" />
+          <div className="flex items-center gap-3 text-lg font-semibold tracking-tight text-white">
+            <div className="h-8 w-8 animate-pulse rounded-lg bg-white/10" />
             <span className="hidden sm:inline">Cata Club</span>
-            <span className="ml-1.5 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-700">
+            <span className="ml-1.5 rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-400">
               Demo
             </span>
           </div>
@@ -101,12 +215,12 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-cata-stone/60 bg-white/95 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-cata-dark/95 backdrop-blur-md">
       <nav className="mx-auto flex max-w-8xl items-center justify-between px-4 py-3 sm:px-8 lg:px-12">
         {/* Brand — real logo as identity anchor */}
         <Link
           href="/"
-          className="flex items-center gap-3 text-lg font-semibold tracking-tight text-cata-charcoal"
+          className="flex items-center gap-3 text-lg font-semibold tracking-tight text-white"
         >
           <div className="relative h-8 w-8 overflow-hidden rounded-lg">
             <Image
@@ -119,7 +233,7 @@ export default function Header() {
             />
           </div>
           <span className="hidden sm:inline">Cata Club</span>
-          <span className="ml-1.5 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-700">
+          <span className="ml-1.5 rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-400">
             Demo
           </span>
         </Link>
@@ -135,8 +249,8 @@ export default function Header() {
                   aria-current={isActive ? "page" : undefined}
                   className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition-all duration-200 ${
                     isActive
-                      ? "bg-cata-red/8 text-cata-red"
-                      : "text-cata-gray hover:bg-cata-warm hover:text-cata-charcoal"
+                      ? "bg-cata-red/15 text-white"
+                      : "text-white/65 hover:bg-white/[0.08] hover:text-white"
                   }`}
                 >
                   <link.icon size={15} strokeWidth={1.5} aria-hidden="true" />
@@ -148,15 +262,15 @@ export default function Header() {
 
           {/* User menu — shown when authenticated */}
           {isAuthenticated && session && (
-            <li className="ml-2 flex items-center gap-2 border-l border-cata-stone/50 pl-3">
-              <span className="flex items-center gap-1.5 text-xs text-cata-gray">
+            <li className="ml-2 flex items-center gap-2 border-l border-white/10 pl-3">
+              <span className="flex items-center gap-1.5 text-xs text-white/65">
                 <User size={13} strokeWidth={1.5} aria-hidden="true" />
                 <span className="max-w-[120px] truncate">{session.user.name}</span>
               </span>
               <button
                 type="button"
                 onClick={logout}
-                className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-cata-gray transition-colors hover:bg-cata-warm hover:text-cata-red"
+                className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-white/65 transition-colors hover:bg-white/[0.08] hover:text-cata-red"
                 aria-label="Cerrar Sesión"
               >
                 <LogOut size={13} strokeWidth={1.5} aria-hidden="true" />
@@ -170,7 +284,7 @@ export default function Header() {
         <button
           type="button"
           onClick={() => setMenuOpen(!menuOpen)}
-          className="rounded-xl p-2.5 text-cata-gray hover:bg-cata-warm hover:text-cata-charcoal md:hidden"
+          className="rounded-xl p-2.5 text-white/65 hover:bg-white/[0.08] hover:text-white md:hidden"
           aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
         >
           {menuOpen ? <X size={20} strokeWidth={1.5} /> : <Menu size={20} strokeWidth={1.5} />}
@@ -179,7 +293,7 @@ export default function Header() {
 
       {/* Mobile nav panel */}
       {menuOpen && (
-        <div className="border-t border-cata-stone/60 bg-white md:hidden shadow-soft">
+        <div className="border-t border-white/10 bg-cata-dark md:hidden shadow-soft">
           <ul className="space-y-0.5 px-4 py-4">
             {links.map((link) => {
               const isActive = pathname === link.href;
@@ -191,8 +305,8 @@ export default function Header() {
                     onClick={() => setMenuOpen(false)}
                     className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200 ${
                       isActive
-                        ? "bg-cata-red/8 text-cata-red"
-                        : "text-cata-gray hover:bg-cata-warm hover:text-cata-charcoal"
+                        ? "bg-cata-red/15 text-white"
+                        : "text-white/65 hover:bg-white/[0.08] hover:text-white"
                     }`}
                   >
                     <link.icon size={17} strokeWidth={1.5} aria-hidden="true" />
@@ -204,8 +318,8 @@ export default function Header() {
 
             {/* User section in mobile menu */}
             {isAuthenticated && session && (
-              <li className="border-t border-cata-stone/30 pt-3 mt-3">
-                <div className="flex items-center gap-2 px-3.5 py-2 text-xs text-cata-gray">
+              <li className="border-t border-white/10 pt-3 mt-3">
+                <div className="flex items-center gap-2 px-3.5 py-2 text-xs text-white/65">
                   <User size={14} strokeWidth={1.5} aria-hidden="true" />
                   <span className="truncate">{session.user.name}</span>
                 </div>
@@ -215,7 +329,7 @@ export default function Header() {
                     logout();
                     setMenuOpen(false);
                   }}
-                  className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-cata-gray transition-colors hover:bg-cata-warm hover:text-cata-red"
+                  className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-white/65 transition-colors hover:bg-white/[0.08] hover:text-cata-red"
                 >
                   <LogOut size={17} strokeWidth={1.5} aria-hidden="true" />
                   Cerrar Sesión

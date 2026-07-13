@@ -78,13 +78,13 @@ function CapacityBar({ percent, total }: { percent: number; total: number }) {
       aria-valuemax={100}
       aria-label={`Capacidad utilizada: ${percent}% de ${total}`}
     >
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-cata-stone/30">
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
         <div
           className={`h-full rounded-full transition-all ${getCapacityBarColor(percent)}`}
           style={{ width: `${Math.min(percent, 100)}%` }}
         />
       </div>
-      <span className="text-[11px] font-medium text-cata-gray" aria-hidden="true">
+      <span className="text-[11px] font-medium text-white/65" aria-hidden="true">
         {percent}%
       </span>
     </div>
@@ -153,42 +153,41 @@ export default function GroupsPage() {
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
       <div>
-        {/* ══ Header ══ */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cata-red/10">
-              <Users
-                size={20}
-                strokeWidth={1.5}
-                className="text-cata-red"
-                aria-hidden="true"
-              />
+        {/* Hero Banner */}
+        <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
+              <Users size={14} strokeWidth={2} aria-hidden="true" />
+              Grupos de Entrenamiento
             </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-cata-charcoal">
-                Gestión de Grupos
-              </h1>
-              <p className="text-sm text-cata-gray">
-                Grupos de entrenamiento, asignación de alumnos y horarios
-              </p>
-            </div>
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+              Gestión de Grupos
+            </h1>
+            <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
+              Grupos de entrenamiento, asignación de alumnos y horarios. El nivel técnico
+              pertenece al grupo, no al alumno.
+            </p>
           </div>
         </div>
 
-        {/* ══ Demo indicator ══ */}
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
-          <span className="font-medium">Demo</span> &mdash; Las asignaciones
-          son simuladas en memoria. No hay integración con un backend real.
-          Los cambios se reinician al recargar la página.
+        {/* Demo badge */}
+        <div className="mb-6 flex items-center gap-2">
+          <span className="rounded-full bg-amber-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400">
+            Demo
+          </span>
+          <span className="text-xs text-white/40">
+            Las asignaciones son simuladas en memoria
+          </span>
         </div>
 
-        {/* ══ Notification ══ */}
+        {/* Notification */}
         {notification && (
           <div
             className={`mb-4 flex items-center gap-2 rounded-xl px-4 py-3 text-sm ${
               notification.type === "success"
-                ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border border-red-200 bg-red-50 text-red-700"
+                ? "border border-emerald-500/30 bg-emerald-900/20 text-emerald-400"
+                : "border border-red-500/30 bg-red-900/20 text-red-400"
             }`}
             role="alert"
           >
@@ -201,7 +200,7 @@ export default function GroupsPage() {
           </div>
         )}
 
-        {/* ══ Reset button ══ */}
+        {/* Reset button */}
         <div className="mb-4 flex justify-end">
           <button
             type="button"
@@ -213,13 +212,16 @@ export default function GroupsPage() {
           </button>
         </div>
 
-        {/* ══ Two-column layout ══ */}
+        {/* Two-column layout */}
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* ── Left column: Group cards ── */}
+          {/* Left column: Group cards */}
           <div className="space-y-4 lg:col-span-2">
-            <h2 className="text-lg font-semibold text-cata-charcoal">
-              Grupos ({cardData.length})
-            </h2>
+            <div className="mb-5 flex items-center gap-2">
+              <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+              <h2 className="text-lg font-bold text-white">
+                Grupos ({cardData.length})
+              </h2>
+            </div>
 
             {cardData.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2">
@@ -242,23 +244,28 @@ export default function GroupsPage() {
                           isSelected ? null : card.id,
                         )
                       }
-                      className={`card-hover p-4 text-left transition-all ${
+                      className={`card-hover p-5 text-left transition-all ${
                         isSelected
                           ? "ring-2 ring-cata-red/30 border-cata-red/20"
                           : ""
                       }`}
                     >
                       <div className="mb-3 flex items-start justify-between">
-                        <div>
-                          <h3 className="font-semibold text-cata-charcoal">
-                            {card.name}
-                          </h3>
-                          <LevelBadge level={card.level} />
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                            <GraduationCap size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-white">
+                              {card.name}
+                            </h3>
+                            <LevelBadge level={card.level} />
+                          </div>
                         </div>
                       </div>
 
                       {/* Student count */}
-                      <div className="mb-2 flex items-center gap-1.5 text-xs text-cata-gray">
+                      <div className="mb-2 flex items-center gap-1.5 text-xs text-white/65">
                         <Users size={12} strokeWidth={1.5} aria-hidden="true" />
                         {card.studentCount} alumno
                         {card.studentCount !== 1 ? "s" : ""}
@@ -278,7 +285,7 @@ export default function GroupsPage() {
                           linkedSchedules.slice(0, 3).map((sched) => (
                             <div
                               key={sched.id}
-                              className="flex items-center gap-1.5 text-[11px] text-cata-gray-light"
+                              className="flex items-center gap-1.5 text-[11px] text-white/45"
                             >
                               <Calendar
                                 size={10}
@@ -290,19 +297,19 @@ export default function GroupsPage() {
                                 {sched.horaInicio} &middot; {sched.cancha}
                               </span>
                               {!sched.activo && (
-                                <span className="rounded bg-gray-100 px-1 py-0.5 text-[9px] font-medium text-gray-500">
+                                <span className="rounded bg-white/5 px-1 py-0.5 text-[9px] font-medium text-white/45">
                                   Inactivo
                                 </span>
                               )}
                             </div>
                           ))
                         ) : (
-                          <span className="text-[11px] text-cata-gray-light">
+                          <span className="text-[11px] text-white/45">
                             Sin horarios asignados
                           </span>
                         )}
                         {linkedSchedules.length > 3 && (
-                          <span className="text-[11px] text-cata-gray-light">
+                          <span className="text-[11px] text-white/45">
                             +{linkedSchedules.length - 3} más
                           </span>
                         )}
@@ -325,23 +332,23 @@ export default function GroupsPage() {
             ) : (
               <div className="card flex flex-col items-center py-12 text-center">
                 <Users
-                  size={36}
-                  strokeWidth={1}
-                  className="mb-2 text-cata-stone"
+                  size={32}
+                  strokeWidth={1.5}
+                  className="mb-3 text-white/20"
                   aria-hidden="true"
                 />
-                <p className="text-sm text-cata-gray">
+                <p className="text-sm text-white/50">
                   No hay grupos configurados.
                 </p>
               </div>
             )}
 
-            {/* ── Unassigned students section ── */}
+            {/* Unassigned students section */}
             <div className="card p-5">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-cata-charcoal">
-                  Alumnos sin grupo (
-                  {unassigned.length})
+              <div className="mb-4 flex items-center gap-2">
+                <UserPlus size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                <h3 className="text-sm font-bold text-white">
+                  Alumnos sin grupo ({unassigned.length})
                 </h3>
               </div>
 
@@ -350,22 +357,22 @@ export default function GroupsPage() {
                   {unassigned.map((student) => (
                     <div
                       key={student.id}
-                      className="flex items-center justify-between rounded-lg border border-cata-stone/40 bg-white px-3.5 py-2.5 transition-colors hover:border-cata-stone/70"
+                      className="card-hover flex items-center justify-between px-4 py-3"
                     >
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-50">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-900/20">
                           <UserPlus
-                            size={12}
+                            size={16}
                             strokeWidth={1.5}
-                            className="text-amber-600"
+                            className="text-amber-400"
                             aria-hidden="true"
                           />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-cata-charcoal">
+                          <p className="text-sm font-medium text-white">
                             {student.nombres} {student.apellidos}
                           </p>
-                          <p className="text-[11px] text-amber-600">
+                          <p className="text-[11px] text-amber-400">
                             Sin grupo &middot; Sin nivel técnico asignado
                           </p>
                         </div>
@@ -379,10 +386,10 @@ export default function GroupsPage() {
                             onClick={() =>
                               handleAssignStudent(student.id, g.id)
                             }
-                            className="rounded-lg border border-cata-stone/40 px-2 py-1 text-[10px] font-medium transition-colors hover:bg-cata-red/8 hover:text-cata-red"
+                            className="rounded-lg border border-white/5 px-2 py-1 text-[10px] font-medium transition-colors hover:bg-cata-red/15 hover:text-cata-red whitespace-nowrap"
                             title={`Asignar a ${g.nombre}`}
                           >
-                            {g.nombre.slice(0, 8)}
+                            {g.nombre}
                           </button>
                         ))}
                       </div>
@@ -390,31 +397,37 @@ export default function GroupsPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-cata-gray/60">
-                  Todos los alumnos tienen un grupo asignado.
-                </p>
+                <div className="flex items-center gap-2 py-4">
+                  <CheckCircle2 size={14} strokeWidth={1.5} className="text-emerald-400" aria-hidden="true" />
+                  <p className="text-xs text-white/40">
+                    Todos los alumnos tienen un grupo asignado.
+                  </p>
+                </div>
               )}
             </div>
           </div>
 
-          {/* ── Right column: Group detail panel ── */}
+          {/* Right column: Group detail panel */}
           <div className="space-y-4">
             {selectedGrupo ? (
               <>
                 {/* Group detail */}
                 <div className="card p-5">
-                  <h3 className="mb-3 text-sm font-semibold text-cata-charcoal">
-                    {selectedGrupo.nombre}
-                  </h3>
+                  <div className="mb-4 flex items-center gap-2">
+                    <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                    <h3 className="text-sm font-bold text-white">
+                      {selectedGrupo.nombre}
+                    </h3>
+                  </div>
 
-                  <div className="mb-4 space-y-2 text-sm text-cata-gray">
+                  <div className="mb-4 space-y-2 text-sm text-white/65">
                     <div className="flex items-center justify-between">
                       <span>Nivel técnico</span>
                       <LevelBadge level={selectedGrupo.nivel} />
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Alumnos asignados</span>
-                      <span className="font-medium text-cata-charcoal">
+                      <span className="font-medium text-white">
                         {selectedGrupo.alumnosIds.length}
                       </span>
                     </div>
@@ -422,17 +435,20 @@ export default function GroupsPage() {
 
                   {/* Assigned students list */}
                   <div>
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wider text-cata-gray-light">
-                      Alumnos
-                    </p>
+                    <div className="mb-3 flex items-center gap-2">
+                      <Users size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                      <p className="text-xs font-medium uppercase tracking-wider text-white/45">
+                        Alumnos
+                      </p>
+                    </div>
                     {assignedStudentsForSelected.length > 0 ? (
                       <div className="space-y-1">
                         {assignedStudentsForSelected.map((s) => (
                           <div
                             key={s.id}
-                            className="flex items-center justify-between rounded-lg bg-cata-warm/50 px-3 py-2"
+                            className="flex items-center justify-between rounded-lg bg-cata-dark-surface/50 px-3 py-2"
                           >
-                            <span className="text-sm text-cata-charcoal">
+                            <span className="text-sm text-white">
                               {s.nombres} {s.apellidos}
                             </span>
                             <button
@@ -440,7 +456,7 @@ export default function GroupsPage() {
                               onClick={() =>
                                 handleClearAssignment(s.id)
                               }
-                              className="text-cata-gray-light transition-colors hover:text-cata-red"
+                              className="text-white/45 transition-colors hover:text-cata-red"
                               title="Remover del grupo"
                               aria-label={`Remover a ${s.nombres} del grupo`}
                             >
@@ -454,82 +470,94 @@ export default function GroupsPage() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-cata-gray/60">
-                        Sin alumnos asignados.
-                      </p>
+                      <div className="flex items-center gap-2 py-3">
+                        <Users size={14} strokeWidth={1.5} className="text-white/20" aria-hidden="true" />
+                        <p className="text-xs text-white/40">
+                          Sin alumnos asignados.
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>
 
                 {/* Linked schedules */}
                 <div className="card p-5">
-                  <h3 className="mb-3 text-sm font-semibold text-cata-charcoal">
-                    Horarios vinculados
-                  </h3>
+                  <div className="mb-4 flex items-center gap-2">
+                    <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                    <h3 className="text-sm font-bold text-white">
+                      Horarios vinculados
+                    </h3>
+                  </div>
 
                   {schedulesForSelected.length > 0 ? (
                     <div className="space-y-2">
                       {schedulesForSelected.map((sched) => (
                         <div
                           key={sched.id}
-                          className="rounded-lg border border-cata-stone/40 bg-white p-3 text-xs"
+                          className="card-hover flex items-start gap-3 p-3"
                         >
-                          <div className="flex items-center gap-1.5 font-medium text-cata-charcoal">
-                            <Calendar
-                              size={12}
-                              strokeWidth={1.5}
-                              aria-hidden="true"
-                            />
-                            {sched.diaSemana.slice(0, 3).replace(".", "")}{" "}
-                            {sched.horaInicio} — {sched.horaFin}
-                            {!sched.activo && (
-                              <span className="ml-auto rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
-                                Inactivo
-                              </span>
-                            )}
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cata-red/15">
+                            <Calendar size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                           </div>
-                          <div className="mt-1 flex items-center gap-1.5 text-cata-gray-light">
-                            <MapPin
-                              size={10}
-                              strokeWidth={1.5}
-                              aria-hidden="true"
-                            />
-                            {sched.cancha}
-                          </div>
-                          <div className="mt-1 flex items-center gap-1.5 text-cata-gray-light">
-                            <Users
-                              size={10}
-                              strokeWidth={1.5}
-                              aria-hidden="true"
-                            />
-                            Cupo: {sched.cupoMaximo} personas
+                          <div className="flex-1">
+                            <div className="flex items-center gap-1.5 text-sm font-medium text-white">
+                              {sched.diaSemana.slice(0, 3).replace(".", "")}{" "}
+                              {sched.horaInicio} — {sched.horaFin}
+                              {!sched.activo && (
+                                <span className="ml-auto rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-white/45">
+                                  Inactivo
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-1 flex items-center gap-1.5 text-xs text-white/45">
+                              <MapPin
+                                size={10}
+                                strokeWidth={1.5}
+                                aria-hidden="true"
+                              />
+                              {sched.cancha}
+                            </div>
+                            <div className="mt-1 flex items-center gap-1.5 text-xs text-white/45">
+                              <Users
+                                size={10}
+                                strokeWidth={1.5}
+                                aria-hidden="true"
+                              />
+                              Cupo: {sched.cupoMaximo} personas
+                            </div>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-cata-gray/60">
-                      Sin horarios vinculados. Los horarios se asignan desde la
-                      configuración del grupo.
-                    </p>
+                    <div className="flex items-center gap-2 py-3">
+                      <Calendar size={14} strokeWidth={1.5} className="text-white/20" aria-hidden="true" />
+                      <p className="text-xs text-white/40">
+                        Sin horarios vinculados. Los horarios se asignan desde la
+                        configuración del grupo.
+                      </p>
+                    </div>
                   )}
                 </div>
 
                 {/* Quick assign from unassigned */}
                 {unassigned.length > 0 && (
                   <div className="card p-5">
-                    <h3 className="mb-3 text-sm font-semibold text-cata-charcoal">
-                      Asignar alumno sin grupo
-                    </h3>
+                    <div className="mb-3 flex items-center gap-2">
+                      <UserPlus size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                      <h3 className="text-sm font-bold text-white">
+                        Asignar alumno sin grupo
+                      </h3>
+                    </div>
                     <div className="space-y-1.5">
                       {unassigned.slice(0, 5).map((s) => (
                         <button
                           key={s.id}
                           type="button"
                           onClick={() => handleAssignStudent(s.id, selectedGroupId!)}
-                          className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-cata-red/8"
+                          className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-cata-red/15"
                         >
-                          <span className="text-cata-charcoal">
+                          <span className="text-white">
                             {s.nombres} {s.apellidos}
                           </span>
                           <UserPlus
@@ -541,7 +569,7 @@ export default function GroupsPage() {
                         </button>
                       ))}
                       {unassigned.length > 5 && (
-                        <p className="text-xs text-cata-gray-light">
+                        <p className="text-xs text-white/45">
                           +{unassigned.length - 5} más sin grupo
                         </p>
                       )}
@@ -553,15 +581,15 @@ export default function GroupsPage() {
               /* Empty state — no group selected */
               <div className="card flex flex-col items-center py-12 text-center">
                 <Users
-                  size={36}
-                  strokeWidth={1}
-                  className="mb-2 text-cata-stone"
+                  size={32}
+                  strokeWidth={1.5}
+                  className="mb-3 text-white/20"
                   aria-hidden="true"
                 />
-                <p className="text-sm font-medium text-cata-charcoal">
+                <p className="text-sm font-medium text-white">
                   Seleccioná un grupo
                 </p>
-                <p className="mt-1 text-xs text-cata-gray">
+                <p className="mt-1 text-xs text-white/50">
                   Hacé clic en un grupo para ver su detalle
                   y gestionar la asignación de alumnos.
                 </p>
@@ -570,23 +598,24 @@ export default function GroupsPage() {
           </div>
         </div>
 
-        {/* ══ Domain info card ══ */}
-        <div className="mt-8 rounded-xl border border-cata-stone/50 bg-white p-5">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-cata-gray-light">
-            Modelo de dominio (Demo)
-          </h3>
-          <p className="text-xs leading-relaxed text-cata-gray">
-            El <strong>nivel técnico</strong> pertenece al grupo, no al alumno.
+        {/* Domain info card */}
+        <div className="mt-8 rounded-2xl border border-white/8 bg-cata-dark-elevated p-6">
+          <div className="mb-3 flex items-center gap-2">
+            <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            <h3 className="text-sm font-bold text-white">Modelo de dominio (Demo)</h3>
+          </div>
+          <p className="text-sm leading-relaxed text-white/65">
+            El <strong className="text-white">nivel técnico</strong> pertenece al grupo, no al alumno.
             Un alumno adquiere su nivel al ser asignado a un grupo.
             Los alumnos sin grupo asignado no tienen nivel técnico — está
             pendiente de evaluación por el entrenador.
-            Los <strong>horarios</strong> se vinculan al grupo, y la{" "}
-            <strong>asistencia</strong> se registra por sesión (grupo + horario).
+            Los <strong className="text-white">horarios</strong> se vinculan al grupo, y la{" "}
+            <strong className="text-white">asistencia</strong> se registra por sesión (grupo + horario).
           </p>
         </div>
 
-        {/* ══ Demo footer ══ */}
-        <p className="mt-8 text-center text-xs text-cata-gray/40">
+        {/* Demo footer */}
+        <p className="mt-8 text-center text-xs text-white/30">
           Los datos de grupos, alumnos y horarios son de demostración.
           Las asignaciones se simulan en memoria y se reinician al recargar.
         </p>

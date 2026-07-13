@@ -44,6 +44,7 @@ import type {
   ValidationStatus,
 } from "@/services/api";
 import { fetchPaymentValidations, updatePaymentValidation } from "@/services/api";
+import { formatCurrency, formatDate, formatDateTime } from "@/lib/format-utils";
 
 type FilterKey = "all" | "pendiente" | "validado" | "rechazado";
 
@@ -71,23 +72,6 @@ const validationStatusStyles: Record<ValidationStatus, string> = {
   validado: "badge-success",
   rechazado: "badge-error",
 };
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("es-EC", {
-    style: "currency",
-    currency: "USD",
-  }).format(amount);
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("es-EC", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 export default function PaymentsPage() {
   const [requests, setRequests] = useState<PaymentValidationRequest[]>([]);
@@ -221,517 +205,550 @@ export default function PaymentsPage() {
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
-    <div>
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cata-red/10">
-            <ShieldCheck
-              size={20}
-              strokeWidth={1.5}
-              className="text-cata-red"
-              aria-hidden="true"
-            />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-cata-charcoal">
+      <div>
+        {/* Hero Banner */}
+        <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
+              <ShieldCheck size={14} strokeWidth={2} aria-hidden="true" />
+              Validación de Pagos
+            </div>
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
               Membresías y Pagos
             </h1>
-            <p className="text-sm text-cata-gray">
-              Valide comprobantes de pago de membresías y administre el estado de los miembros
+            <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
+              Valide comprobantes de pago de membresías y administre el estado de los miembros.
+              Revise, apruebe o rechace solicitudes con trazabilidad completa.
             </p>
           </div>
         </div>
-      </div>
 
-      {/* Demo indicator */}
-      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
-        <span className="font-medium">Demo</span> &mdash; Los datos de pagos son simulados
-        con información local en memoria. No hay integración con un backend real.
-        Los datos se reinician al recargar la página o reiniciar el servidor.
-      </div>
+        {/* Demo badge */}
+        <div className="mb-6 flex items-center gap-2">
+          <span className="rounded-full bg-amber-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400">
+            Demo
+          </span>
+          <span className="text-xs text-white/40">
+            Los datos de pagos son simulados con información local en memoria
+          </span>
+        </div>
 
-      {/* Summary bar */}
-      <div className="mb-6 flex flex-wrap items-center gap-4 text-sm">
-        <span className="text-cata-gray">
-          <span className="font-medium text-cata-charcoal">{counts.total}</span>{" "}
-          total
-        </span>
-        <span className="flex items-center gap-1 text-amber-700">
-          <Clock size={14} strokeWidth={1.5} aria-hidden="true" />
-          <span className="font-medium">{counts.pending}</span> pendientes
-        </span>
-        <span className="flex items-center gap-1 text-emerald-700">
-          <CheckCircle2 size={14} strokeWidth={1.5} aria-hidden="true" />
-          <span className="font-medium">{counts.approved}</span> validadas
-        </span>
-        <span className="flex items-center gap-1 text-cata-red">
-          <XCircle size={14} strokeWidth={1.5} aria-hidden="true" />
-          <span className="font-medium">{counts.rejected}</span> rechazadas
-        </span>
-      </div>
-
-      {/* Main content: split layout */}
-      {!selectedRequest ? (
-        <>
-          {/* Filters */}
-          <div className="mb-6 flex items-center gap-2">
-            <Filter size={14} strokeWidth={1.5} className="text-cata-gray" aria-hidden="true" />
-            {filters.map((f) => (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => setActiveFilter(f.key)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  activeFilter === f.key
-                    ? "bg-cata-red/10 text-cata-red"
-                    : "bg-cata-warm text-cata-gray hover:bg-cata-stone"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+        {/* Stats cards */}
+        <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="card-hover p-5 sm:p-6">
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
+                <ShieldCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+              </div>
+            </div>
+            <p className="text-xs font-medium uppercase tracking-wider text-white/65">Total Solicitudes</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">{counts.total}</p>
           </div>
-
-          {/* Loading state */}
-          {loading && (
-            <div className="flex items-center justify-center py-16">
-              <p className="text-sm text-cata-gray">Cargando solicitudes...</p>
+          <div className="card-hover p-5 sm:p-6">
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-900/20">
+                <Clock size={22} strokeWidth={1.5} className="text-amber-400" aria-hidden="true" />
+              </div>
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
+                <AlertTriangle size={10} strokeWidth={2} aria-hidden="true" />
+                Pendientes
+              </span>
             </div>
-          )}
-
-          {/* Error state */}
-          {error && !loading && (
-            <div className="card border border-red-200 bg-red-50 p-6 text-center">
-              <p className="text-sm text-cata-red">{error}</p>
-              <button
-                type="button"
-                onClick={() => loadRequests()}
-                className="btn-ghost mt-3 text-xs text-cata-red"
-              >
-                Reintentar
-              </button>
+            <p className="text-xs font-medium uppercase tracking-wider text-white/65">Pendientes</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">{counts.pending}</p>
+          </div>
+          <div className="card-hover p-5 sm:p-6">
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-900/20">
+                <CheckCircle2 size={22} strokeWidth={1.5} className="text-emerald-400" aria-hidden="true" />
+              </div>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-900/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" />
+                Aprobados
+              </span>
             </div>
-          )}
-
-          {/* Empty state */}
-          {!loading && !error && filtered.length === 0 && (
-            <div className="card flex flex-col items-center py-16 text-center">
-              <ShieldCheck
-                size={40}
-                strokeWidth={1}
-                className="mb-3 text-cata-stone"
-                aria-hidden="true"
-              />
-              <p className="text-sm text-cata-gray">
-                {activeFilter === "all"
-                  ? "Aún no hay solicitudes de validación de pago."
-                  : `No hay solicitudes ${activeFilter === "pendiente" ? "pendientes" : activeFilter === "validado" ? "validadas" : "rechazadas"}.`}
-              </p>
-            </div>
-          )}
-
-          {/* Request table */}
-          {!loading && !error && filtered.length > 0 && (
-            <div className="card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-cata-stone/60 bg-cata-warm text-xs font-medium uppercase tracking-wider text-cata-gray">
-                      <th className="px-4 py-3 font-medium">Estudiante</th>
-                      <th className="px-4 py-3 font-medium">Responsable de pago</th>
-                      <th className="px-4 py-3 font-medium">Período</th>
-                      <th className="px-4 py-3 font-medium text-right">Monto</th>
-                      <th className="px-4 py-3 font-medium">Método</th>
-                      <th className="px-4 py-3 font-medium">Subido</th>
-                      <th className="px-4 py-3 font-medium">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-cata-stone/40">
-                    {filtered.map((req) => (
-                      <tr
-                        key={req.id}
-                        onClick={() => handleSelect(req)}
-                        className="cursor-pointer transition-colors hover:bg-cata-warm/60"
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <User size={14} strokeWidth={1.5} className="shrink-0 text-cata-gray" aria-hidden="true" />
-                            <span className="font-medium text-cata-charcoal">{req.studentName}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-cata-gray">
-                          {req.responsablePagoName || req.representativeName || (
-                            <span className="text-cata-gray/40">&mdash;</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-cata-gray">{req.membershipPeriod}</td>
-                        <td className="px-4 py-3 text-right font-medium text-cata-charcoal">
-                          {formatCurrency(req.expectedAmount)}
-                        </td>
-                        <td className="px-4 py-3 text-cata-gray">{req.paymentMethod}</td>
-                        <td className="px-4 py-3 text-xs text-cata-gray/60">
-                          {formatDate(req.uploadedAt)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={validationStatusStyles[req.validationStatus]}>
-                            {req.validationStatus === "pendiente" && (
-                              <Clock size={12} strokeWidth={2} aria-hidden="true" />
-                            )}
-                            {req.validationStatus === "validado" && (
-                              <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
-                            )}
-                            {req.validationStatus === "rechazado" && (
-                              <XCircle size={12} strokeWidth={2} aria-hidden="true" />
-                            )}
-                            {req.validationStatus === "pendiente"
-                              ? "Pendiente"
-                              : req.validationStatus === "validado"
-                                ? "Validado"
-                                : "Rechazado"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <p className="text-xs font-medium uppercase tracking-wider text-white/65">Aprobados</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">{counts.approved}</p>
+          </div>
+          <div className="card-hover p-5 sm:p-6">
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-900/20">
+                <XCircle size={22} strokeWidth={1.5} className="text-red-400" aria-hidden="true" />
               </div>
             </div>
-          )}
-        </>
-      ) : (
-        /* Detail Panel */
-        <div>
-          {/* Back button */}
-          <button
-            type="button"
-            onClick={handleBack}
-            className="btn-ghost mb-6 -ml-2 gap-1 text-xs text-cata-gray"
-          >
-            <ArrowLeft size={14} strokeWidth={1.5} aria-hidden="true" />
-            Volver a la lista
-          </button>
-
-          {/* Success feedback */}
-          {successMessage && (
-            <div className="mb-6 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-              <CheckCircle2 size={16} strokeWidth={1.5} className="shrink-0" aria-hidden="true" />
-              {successMessage}
-            </div>
-          )}
-
-          <div className="grid gap-6 lg:grid-cols-5">
-            {/* Left: Payment details */}
-            <div className="lg:col-span-3 space-y-6">
-              {/* Membership status card */}
-              <div className="card p-6">
-                <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-cata-charcoal">
-                  <BadgeCheck size={16} strokeWidth={1.5} aria-hidden="true" />
-                  Estado de la Membresía
-                </h2>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Estado Actual</p>
-                    <span className={`mt-1 inline-flex items-center gap-1.5 ${membershipStatusStyles[selectedRequest.currentMembershipStatus]}`}>
-                      {selectedRequest.currentMembershipStatus === "activa" && (
-                        <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
-                      )}
-                      {(selectedRequest.currentMembershipStatus === "vencida" || selectedRequest.currentMembershipStatus === "suspendida") && (
-                        <XCircle size={12} strokeWidth={2} aria-hidden="true" />
-                      )}
-                      {membershipStatusLabels[selectedRequest.currentMembershipStatus]}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Tipo de Membresía</p>
-                    <p className="mt-1 text-sm font-medium text-cata-charcoal">{selectedRequest.membershipType}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Payment request detail */}
-              <div className="card p-6">
-                <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-cata-charcoal">
-                  <DollarSign size={16} strokeWidth={1.5} aria-hidden="true" />
-                  Detalle de Solicitud de Pago
-                </h2>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Estudiante</p>
-                    <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-charcoal">
-                      <User size={14} strokeWidth={1.5} className="shrink-0 text-cata-gray" aria-hidden="true" />
-                      {selectedRequest.studentName}
-                    </div>
-                  </div>
-                  {(selectedRequest.responsablePagoName || selectedRequest.representativeName) && (
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Responsable de pago</p>
-                      <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-charcoal">
-                        <Building2 size={14} strokeWidth={1.5} className="shrink-0 text-cata-gray" aria-hidden="true" />
-                        {selectedRequest.responsablePagoName || selectedRequest.representativeName}
-                      </div>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Período</p>
-                    <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-charcoal">
-                      <Calendar size={14} strokeWidth={1.5} className="shrink-0 text-cata-gray" aria-hidden="true" />
-                      {selectedRequest.membershipPeriod}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Monto Esperado</p>
-                    <div className="mt-1 flex items-center gap-1.5 text-lg font-bold text-cata-charcoal">
-                      <DollarSign size={16} strokeWidth={2} className="shrink-0 text-cata-gray" aria-hidden="true" />
-                      {formatCurrency(selectedRequest.expectedAmount)}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Método de Pago</p>
-                    <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-charcoal">
-                      <CreditCard size={14} strokeWidth={1.5} className="shrink-0 text-cata-gray" aria-hidden="true" />
-                      {selectedRequest.paymentMethod}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-cata-gray/60">Subido el</p>
-                    <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-gray">
-                      <Clock size={14} strokeWidth={1.5} className="shrink-0" aria-hidden="true" />
-                      {formatDate(selectedRequest.uploadedAt)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Validation criteria */}
-              {selectedRequest.validationStatus === "pendiente" && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5">
-                  <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-800">
-                    <AlertTriangle size={14} strokeWidth={1.5} aria-hidden="true" />
-                    Lista de Verificación
-                  </h3>
-                  <ul className="space-y-1 text-sm text-amber-700">
-                    <li className="flex items-center gap-2">
-                      <div className="h-1 w-1 rounded-full bg-amber-500" />
-                      Verifique que el nombre del estudiante corresponda a un miembro registrado
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="h-1 w-1 rounded-full bg-amber-500" />
-                      Confirme que el período corresponda al ciclo de membresía actual
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="h-1 w-1 rounded-full bg-amber-500" />
-                      Compruebe que el monto coincida con la cuota de membresía esperada
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="h-1 w-1 rounded-full bg-amber-500" />
-                      Verifique que el método de pago sea correcto
-                    </li>
-                  </ul>
-                </div>
-              )}
-
-              {/* Rejection reason (displayed when already rejected) */}
-              {selectedRequest.validationStatus === "rechazado" && selectedRequest.rejectionReason && (
-                <div className="card border-red-200 bg-red-50 p-5">
-                  <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-cata-red">
-                    <XCircle size={14} strokeWidth={1.5} aria-hidden="true" />
-                    Motivo de Rechazo
-                  </h3>
-                  <p className="text-sm text-cata-red/80">{selectedRequest.rejectionReason}</p>
-                  {selectedRequest.validatedBy && selectedRequest.validatedAt && (
-                    <p className="mt-2 text-xs text-cata-gray">
-                      Rechazado por {selectedRequest.validatedBy} el {formatDate(selectedRequest.validatedAt)}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Validation metadata */}
-              {(selectedRequest.validationStatus === "validado" || selectedRequest.validationStatus === "rechazado") && (
-                <div className="text-xs text-cata-gray/60">
-                  {selectedRequest.validatedBy && (
-                    <p>Validado por: {selectedRequest.validatedBy}</p>
-                  )}
-                  {selectedRequest.validatedAt && (
-                    <p>Fecha de validación: {formatDate(selectedRequest.validatedAt)}</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Right: Proof file and actions */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Proof file block */}
-              <div className="card p-6">
-                <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-cata-charcoal">
-                  <Paperclip size={16} strokeWidth={1.5} aria-hidden="true" />
-                  Comprobante de Pago
-                </h2>
-
-                <div className="mb-4 rounded-xl border-2 border-dashed border-cata-stone/70 bg-cata-warm/50 p-6 text-center">
-                  {selectedRequest.proofPreviewUrl ? (
-                    <div className="relative mx-auto mb-3 h-48 w-full overflow-hidden rounded-lg bg-white">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={selectedRequest.proofPreviewUrl}
-                        alt="Vista previa del comprobante de pago"
-                        className="h-full w-full object-contain"
-                      />
-                    </div>
-                  ) : (
-                    <div className="mb-3 flex items-center justify-center">
-                      <div
-                        className={`flex h-16 w-16 items-center justify-center rounded-full ${
-                          selectedRequest.proofFileType === "pdf"
-                            ? "bg-cata-red/8"
-                            : "bg-cata-warm"
-                        }`}
-                      >
-                        <FileText
-                          size={28}
-                          strokeWidth={1.5}
-                          className={selectedRequest.proofFileType === "pdf" ? "text-cata-red" : "text-cata-gray"}
-                          aria-hidden="true"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-center gap-2">
-                    <Hash size={12} strokeWidth={1.5} className="text-cata-gray" aria-hidden="true" />
-                    <span className="text-sm font-medium text-cata-charcoal">
-                      {selectedRequest.proofFileName}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-cata-gray">
-                    {selectedRequest.proofFileType === "pdf" ? "Documento PDF" : "Archivo de imagen"}
-                  </p>
-
-                  <p className="mt-4 text-xs text-cata-gray/60">
-                    <Eye size={12} strokeWidth={1.5} className="inline-block -mt-0.5 mr-1" aria-hidden="true" />
-                    Vista previa del comprobante completo no disponible en modo demo.
-                  </p>
-                </div>
-              </div>
-
-              {/* Actions (only for pending requests) */}
-              {selectedRequest.validationStatus === "pendiente" && (
-                <div className="card p-6">
-                  <h2 className="mb-4 text-base font-semibold text-cata-charcoal">
-                    Acción de Validación
-                  </h2>
-
-                  {actionError && (
-                    <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-cata-red">
-                      {actionError}
-                    </div>
-                  )}
-
-                  {!showRejectForm ? (
-                    <div className="space-y-3">
-                      <button
-                        type="button"
-                        onClick={handleApprove}
-                        disabled={actionLoading !== null}
-                        className="btn-primary w-full shadow-soft"
-                      >
-                        {actionLoading === "approve" ? (
-                          "Procesando..."
-                        ) : (
-                          <>
-                            <ThumbsUp size={15} strokeWidth={2} aria-hidden="true" />
-                            Aprobar Pago
-                          </>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleRejectClick}
-                        disabled={actionLoading !== null}
-                        className="btn-secondary w-full border-red-200 text-cata-red hover:bg-red-50 hover:border-red-300"
-                      >
-                        <ThumbsDown size={15} strokeWidth={2} aria-hidden="true" />
-                        Rechazar Pago
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div>
-                        <label
-                          htmlFor="rejection-reason"
-                          className="mb-1.5 block text-xs font-medium text-cata-charcoal"
-                        >
-                          Motivo de Rechazo <span className="text-cata-red">*</span>
-                        </label>
-                        <textarea
-                          id="rejection-reason"
-                          rows={3}
-                          value={rejectionReason}
-                          onChange={(e) => {
-                            setRejectionReason(e.target.value);
-                            setRejectionValidationError(null);
-                          }}
-                          placeholder="Explique por qué se rechaza el comprobante de pago..."
-                          className="input-field resize-y"
-                          disabled={actionLoading !== null}
-                        />
-                        {rejectionValidationError && (
-                          <p className="mt-1 text-xs text-cata-red">{rejectionValidationError}</p>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={handleRejectSubmit}
-                          disabled={actionLoading !== null}
-                          className="btn-primary flex-1 shadow-soft"
-                        >
-                          {actionLoading === "reject" ? (
-                            "Procesando..."
-                          ) : (
-                            "Confirmar Rechazo"
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleRejectCancel}
-                          disabled={actionLoading !== null}
-                          className="btn-secondary"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Already resolved — show validado/rechazado badge */}
-              {selectedRequest.validationStatus !== "pendiente" && (
-                <div className="card p-6 text-center">
-                  <div className={`mb-3 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium ${
-                    selectedRequest.validationStatus === "validado"
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "bg-red-50 text-cata-red"
-                  }`}>
-                    {selectedRequest.validationStatus === "validado" ? (
-                      <CheckCircle2 size={16} strokeWidth={2} aria-hidden="true" />
-                    ) : (
-                      <XCircle size={16} strokeWidth={2} aria-hidden="true" />
-                    )}
-                    {selectedRequest.validationStatus === "validado" ? "Validado" : "Rechazado"}
-                  </div>
-                  <p className="text-xs text-cata-gray">
-                    Esta solicitud ya ha sido procesada.
-                  </p>
-                </div>
-              )}
-            </div>
+            <p className="text-xs font-medium uppercase tracking-wider text-white/65">Rechazados</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">{counts.rejected}</p>
           </div>
         </div>
-      )}
-    </div>
+
+        {/* Main content: split layout */}
+        {!selectedRequest ? (
+          <>
+            {/* Filters */}
+            <div className="mb-6 flex items-center gap-2">
+              <Filter size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+              <h2 className="text-lg font-bold text-white mr-2">Filtrar por Estado</h2>
+              {filters.map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setActiveFilter(f.key)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                    activeFilter === f.key
+                      ? "bg-cata-red/15 text-cata-red"
+                      : "bg-cata-dark-surface text-white/65 hover:bg-white/10"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Loading state */}
+            {loading && (
+              <div className="flex items-center justify-center py-16">
+                <div className="flex items-center gap-2">
+                  <Clock size={16} strokeWidth={1.5} className="animate-spin text-white/65" aria-hidden="true" />
+                  <p className="text-sm text-white/50">Cargando solicitudes...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Error state */}
+            {error && !loading && (
+              <div className="card border border-red-500/30 bg-red-900/20 p-6 text-center">
+                <XCircle size={32} strokeWidth={1.5} className="mx-auto mb-3 text-red-400" aria-hidden="true" />
+                <p className="text-sm text-cata-red">{error}</p>
+                <button
+                  type="button"
+                  onClick={() => loadRequests()}
+                  className="btn-ghost mt-3 text-xs text-cata-red"
+                >
+                  Reintentar
+                </button>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!loading && !error && filtered.length === 0 && (
+              <div className="card flex flex-col items-center py-16 text-center">
+                <ShieldCheck
+                  size={32}
+                  strokeWidth={1.5}
+                  className="mb-3 text-white/20"
+                  aria-hidden="true"
+                />
+                <p className="text-sm text-white/50">
+                  {activeFilter === "all"
+                    ? "Aún no hay solicitudes de validación de pago."
+                    : `No hay solicitudes ${activeFilter === "pendiente" ? "pendientes" : activeFilter === "validado" ? "validadas" : "rechazadas"}.`}
+                </p>
+              </div>
+            )}
+
+            {/* Request table */}
+            {!loading && !error && filtered.length > 0 && (
+              <div className="card overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-white/10 bg-cata-dark-surface text-xs font-medium uppercase tracking-wider text-white/65">
+                        <th className="px-4 py-3 font-medium">Estudiante</th>
+                        <th className="px-4 py-3 font-medium">Responsable de pago</th>
+                        <th className="px-4 py-3 font-medium">Período</th>
+                        <th className="px-4 py-3 font-medium text-right">Monto</th>
+                        <th className="px-4 py-3 font-medium">Método</th>
+                        <th className="px-4 py-3 font-medium">Subido</th>
+                        <th className="px-4 py-3 font-medium">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {filtered.map((req) => (
+                        <tr
+                          key={req.id}
+                          onClick={() => handleSelect(req)}
+                          className="cursor-pointer transition-colors hover:bg-cata-dark-surface/50"
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <User size={14} strokeWidth={1.5} className="shrink-0 text-white/65" aria-hidden="true" />
+                              <span className="font-medium text-white">{req.studentName}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-white/65">
+                            {req.responsablePagoName || req.representativeName || (
+                              <span className="text-white/30">&mdash;</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-white/65">{req.membershipPeriod}</td>
+                          <td className="px-4 py-3 text-right font-medium text-white">
+                            {formatCurrency(req.expectedAmount)}
+                          </td>
+                          <td className="px-4 py-3 text-white/65">{req.paymentMethod}</td>
+                          <td className="px-4 py-3 text-xs text-white/40">
+                            {formatDateTime(req.uploadedAt)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={validationStatusStyles[req.validationStatus]}>
+                              {req.validationStatus === "pendiente" && (
+                                <Clock size={12} strokeWidth={2} aria-hidden="true" />
+                              )}
+                              {req.validationStatus === "validado" && (
+                                <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
+                              )}
+                              {req.validationStatus === "rechazado" && (
+                                <XCircle size={12} strokeWidth={2} aria-hidden="true" />
+                              )}
+                              {req.validationStatus === "pendiente"
+                                ? "Pendiente"
+                                : req.validationStatus === "validado"
+                                  ? "Validado"
+                                  : "Rechazado"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          /* Detail Panel */
+          <div>
+            {/* Back button */}
+            <button
+              type="button"
+              onClick={handleBack}
+              className="btn-ghost mb-6 -ml-2 gap-1 text-xs text-white/65"
+            >
+              <ArrowLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+              Volver a la lista
+            </button>
+
+            {/* Success feedback */}
+            {successMessage && (
+              <div className="mb-6 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-900/20 px-4 py-3 text-sm text-emerald-400">
+                <CheckCircle2 size={16} strokeWidth={1.5} className="shrink-0" aria-hidden="true" />
+                {successMessage}
+              </div>
+            )}
+
+            <div className="grid gap-6 lg:grid-cols-5">
+              {/* Left: Payment details */}
+              <div className="lg:col-span-3 space-y-6">
+                {/* Membership status card */}
+                <div className="card p-6">
+                  <div className="mb-4 flex items-center gap-2">
+                    <BadgeCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                    <h2 className="text-base font-semibold text-white">Estado de la Membresía</h2>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wider text-white/40">Estado Actual</p>
+                      <span className={`mt-1 inline-flex items-center gap-1.5 ${membershipStatusStyles[selectedRequest.currentMembershipStatus]}`}>
+                        {selectedRequest.currentMembershipStatus === "activa" && (
+                          <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
+                        )}
+                        {(selectedRequest.currentMembershipStatus === "vencida" || selectedRequest.currentMembershipStatus === "suspendida") && (
+                          <XCircle size={12} strokeWidth={2} aria-hidden="true" />
+                        )}
+                        {membershipStatusLabels[selectedRequest.currentMembershipStatus]}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wider text-white/40">Tipo de Membresía</p>
+                      <p className="mt-1 text-sm font-medium text-white">{selectedRequest.membershipType}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment request detail */}
+                <div className="card p-6">
+                  <div className="mb-4 flex items-center gap-2">
+                    <DollarSign size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                    <h2 className="text-base font-semibold text-white">Detalle de Solicitud de Pago</h2>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wider text-white/40">Estudiante</p>
+                      <div className="mt-1 flex items-center gap-1.5 text-sm text-white">
+                        <User size={14} strokeWidth={1.5} className="shrink-0 text-white/65" aria-hidden="true" />
+                        {selectedRequest.studentName}
+                      </div>
+                    </div>
+                    {(selectedRequest.responsablePagoName || selectedRequest.representativeName) && (
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wider text-white/40">Responsable de pago</p>
+                        <div className="mt-1 flex items-center gap-1.5 text-sm text-white">
+                          <Building2 size={14} strokeWidth={1.5} className="shrink-0 text-white/65" aria-hidden="true" />
+                          {selectedRequest.responsablePagoName || selectedRequest.representativeName}
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wider text-white/40">Período</p>
+                      <div className="mt-1 flex items-center gap-1.5 text-sm text-white">
+                        <Calendar size={14} strokeWidth={1.5} className="shrink-0 text-white/65" aria-hidden="true" />
+                        {selectedRequest.membershipPeriod}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wider text-white/40">Monto Esperado</p>
+                      <div className="mt-1 flex items-center gap-1.5 text-lg font-bold text-white">
+                        <DollarSign size={16} strokeWidth={2} className="shrink-0 text-white/65" aria-hidden="true" />
+                        {formatCurrency(selectedRequest.expectedAmount)}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wider text-white/40">Método de Pago</p>
+                      <div className="mt-1 flex items-center gap-1.5 text-sm text-white">
+                        <CreditCard size={14} strokeWidth={1.5} className="shrink-0 text-white/65" aria-hidden="true" />
+                        {selectedRequest.paymentMethod}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wider text-white/40">Subido el</p>
+                      <div className="mt-1 flex items-center gap-1.5 text-sm text-white/65">
+                        <Clock size={14} strokeWidth={1.5} className="shrink-0" aria-hidden="true" />
+                        {formatDate(selectedRequest.uploadedAt)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Validation criteria */}
+                {selectedRequest.validationStatus === "pendiente" && (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-900/20 p-5">
+                    <div className="mb-2 flex items-center gap-2">
+                      <AlertTriangle size={14} strokeWidth={1.5} className="text-amber-400" aria-hidden="true" />
+                      <h3 className="text-sm font-semibold text-amber-400">Lista de Verificación</h3>
+                    </div>
+                    <ul className="space-y-1 text-sm text-amber-400">
+                      <li className="flex items-center gap-2">
+                        <div className="h-1 w-1 rounded-full bg-amber-400" />
+                        Verifique que el nombre del estudiante corresponda a un miembro registrado
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="h-1 w-1 rounded-full bg-amber-400" />
+                        Confirme que el período corresponda al ciclo de membresía actual
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="h-1 w-1 rounded-full bg-amber-400" />
+                        Compruebe que el monto coincida con la cuota de membresía esperada
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="h-1 w-1 rounded-full bg-amber-400" />
+                        Verifique que el método de pago sea correcto
+                      </li>
+                    </ul>
+                  </div>
+                )}
+
+                {/* Rejection reason (displayed when already rejected) */}
+                {selectedRequest.validationStatus === "rechazado" && selectedRequest.rejectionReason && (
+                  <div className="card border-red-500/30 bg-red-900/20 p-5">
+                    <div className="mb-2 flex items-center gap-2">
+                      <XCircle size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                      <h3 className="text-sm font-semibold text-cata-red">Motivo de Rechazo</h3>
+                    </div>
+                    <p className="text-sm text-cata-red/80">{selectedRequest.rejectionReason}</p>
+                    {selectedRequest.validatedBy && selectedRequest.validatedAt && (
+                      <p className="mt-2 text-xs text-white/65">
+                        Rechazado por {selectedRequest.validatedBy} el {formatDate(selectedRequest.validatedAt)}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Validation metadata */}
+                {(selectedRequest.validationStatus === "validado" || selectedRequest.validationStatus === "rechazado") && (
+                  <div className="text-xs text-white/40">
+                    {selectedRequest.validatedBy && (
+                      <p>Validado por: {selectedRequest.validatedBy}</p>
+                    )}
+                    {selectedRequest.validatedAt && (
+                      <p>Fecha de validación: {formatDate(selectedRequest.validatedAt)}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Proof file and actions */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Proof file block */}
+                <div className="card p-6">
+                  <div className="mb-4 flex items-center gap-2">
+                    <Paperclip size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                    <h2 className="text-base font-semibold text-white">Comprobante de Pago</h2>
+                  </div>
+
+                  <div className="mb-4 rounded-xl border-2 border-dashed border-white/15 bg-cata-dark-surface/50 p-6 text-center">
+                    {selectedRequest.proofPreviewUrl ? (
+                      <div className="relative mx-auto mb-3 h-48 w-full overflow-hidden rounded-lg bg-cata-dark-elevated">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={selectedRequest.proofPreviewUrl}
+                          alt="Vista previa del comprobante de pago"
+                          className="h-full w-full object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <div className="mb-3 flex items-center justify-center">
+                        <div
+                          className={`flex h-16 w-16 items-center justify-center rounded-full ${
+                            selectedRequest.proofFileType === "pdf"
+                              ? "bg-cata-red/15"
+                              : "bg-cata-dark-surface"
+                          }`}
+                        >
+                          <FileText
+                            size={28}
+                            strokeWidth={1.5}
+                            className={selectedRequest.proofFileType === "pdf" ? "text-cata-red" : "text-white/65"}
+                            aria-hidden="true"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-center gap-2">
+                      <Hash size={12} strokeWidth={1.5} className="text-white/65" aria-hidden="true" />
+                      <span className="text-sm font-medium text-white">
+                        {selectedRequest.proofFileName}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-white/65">
+                      {selectedRequest.proofFileType === "pdf" ? "Documento PDF" : "Archivo de imagen"}
+                    </p>
+
+                    <p className="mt-4 text-xs text-white/40">
+                      <Eye size={12} strokeWidth={1.5} className="inline-block -mt-0.5 mr-1" aria-hidden="true" />
+                      Vista previa del comprobante completo no disponible en modo demo.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Actions (only for pending requests) */}
+                {selectedRequest.validationStatus === "pendiente" && (
+                  <div className="card p-6">
+                    <div className="mb-4 flex items-center gap-2">
+                      <ShieldCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                      <h2 className="text-base font-semibold text-white">Acción de Validación</h2>
+                    </div>
+
+                    {actionError && (
+                      <div className="mb-4 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-cata-red">
+                        {actionError}
+                      </div>
+                    )}
+
+                    {!showRejectForm ? (
+                      <div className="space-y-3">
+                        <button
+                          type="button"
+                          onClick={handleApprove}
+                          disabled={actionLoading !== null}
+                          className="btn-primary w-full shadow-soft"
+                        >
+                          {actionLoading === "approve" ? (
+                            "Procesando..."
+                          ) : (
+                            <>
+                              <ThumbsUp size={15} strokeWidth={2} aria-hidden="true" />
+                              Aprobar Pago
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRejectClick}
+                          disabled={actionLoading !== null}
+                          className="btn-secondary w-full border-red-500/30 text-cata-red hover:bg-cata-red/10 hover:border-red-500/50"
+                        >
+                          <ThumbsDown size={15} strokeWidth={2} aria-hidden="true" />
+                          Rechazar Pago
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div>
+                          <label
+                            htmlFor="rejection-reason"
+                            className="mb-1.5 block text-sm font-medium text-white"
+                          >
+                            Motivo de Rechazo <span className="text-cata-red">*</span>
+                          </label>
+                          <textarea
+                            id="rejection-reason"
+                            rows={3}
+                            value={rejectionReason}
+                            onChange={(e) => {
+                              setRejectionReason(e.target.value);
+                              setRejectionValidationError(null);
+                            }}
+                            placeholder="Explique por qué se rechaza el comprobante de pago..."
+                            className="input-field resize-y"
+                            disabled={actionLoading !== null}
+                          />
+                          {rejectionValidationError && (
+                            <p className="mt-1 text-xs text-cata-red">{rejectionValidationError}</p>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={handleRejectSubmit}
+                            disabled={actionLoading !== null}
+                            className="btn-primary flex-1 shadow-soft"
+                          >
+                            {actionLoading === "reject" ? (
+                              "Procesando..."
+                            ) : (
+                              "Confirmar Rechazo"
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRejectCancel}
+                            disabled={actionLoading !== null}
+                            className="btn-secondary"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Already resolved — show validado/rechazado badge */}
+                {selectedRequest.validationStatus !== "pendiente" && (
+                  <div className="card p-6 text-center">
+                    <div className={`mb-3 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium ${
+                      selectedRequest.validationStatus === "validado"
+                        ? "bg-emerald-900/20 text-emerald-400"
+                        : "bg-red-900/20 text-cata-red"
+                    }`}>
+                      {selectedRequest.validationStatus === "validado" ? (
+                        <CheckCircle2 size={16} strokeWidth={2} aria-hidden="true" />
+                      ) : (
+                        <XCircle size={16} strokeWidth={2} aria-hidden="true" />
+                      )}
+                      {selectedRequest.validationStatus === "validado" ? "Validado" : "Rechazado"}
+                    </div>
+                    <p className="text-xs text-white/65">
+                      Esta solicitud ya ha sido procesada.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </ProtectedRoute>
   );
 }

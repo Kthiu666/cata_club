@@ -37,6 +37,7 @@ import {
   ChevronRight,
   AlertTriangle,
   ArrowRight,
+  ClipboardList,
 } from "lucide-react";
 import {
   AVAILABLE_SESSIONS,
@@ -71,16 +72,16 @@ const STEP_LABELS: Record<WizardStep, string> = {
 // ---------------------------------------------------------------------------
 
 const LEVEL_BADGE: Record<string, string> = {
-  Principiante: "bg-green-50 text-green-700 ring-1 ring-green-200",
-  Intermedio: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
-  Avanzado: "bg-red-50 text-red-700 ring-1 ring-red-200",
+  Principiante: "bg-green-900/20 text-green-400 ring-1 ring-green-500/30",
+  Intermedio: "bg-amber-900/20 text-amber-400 ring-1 ring-amber-500/30",
+  Avanzado: "bg-red-900/20 text-red-400 ring-1 ring-red-500/30",
 };
 
 const ATTENDANCE_ICONS: Record<EstadoAsistencia, React.ReactNode> = {
-  present: <UserCheck size={16} strokeWidth={2} />,
-  absent: <UserX size={16} strokeWidth={2} />,
-  late: <Timer size={16} strokeWidth={2} />,
-  justified: <FileText size={16} strokeWidth={2} />,
+  present: <UserCheck size={16} strokeWidth={2} aria-hidden="true" />,
+  absent: <UserX size={16} strokeWidth={2} aria-hidden="true" />,
+  late: <Timer size={16} strokeWidth={2} aria-hidden="true" />,
+  justified: <FileText size={16} strokeWidth={2} aria-hidden="true" />,
 };
 
 // ---------------------------------------------------------------------------
@@ -109,11 +110,11 @@ export default function TrainerAttendancePage() {
   // ---- Navigation ----
 
   function handleSelectSession(sessionId: string) {
-    const session = AVAILABLE_SESSIONS.find((s) => s.id === sessionId);
-    if (!session) return;
+    const trainingSession = AVAILABLE_SESSIONS.find((s) => s.id === sessionId);
+    if (!trainingSession) return;
     setSelectedSessionId(sessionId);
     // Clone students so the wizard works on mutable copies
-    setStudents(session.students.map((s) => ({ ...s })));
+    setStudents(trainingSession.students.map((s) => ({ ...s })));
     setStep("mark-attendance");
   }
 
@@ -172,61 +173,62 @@ export default function TrainerAttendancePage() {
   function renderSessionSelection() {
     return (
       <div className="space-y-4">
-        <p className="text-sm leading-relaxed text-cata-gray">
+        <p className="text-sm leading-relaxed text-white/65">
           Seleccione la sesión en la que desea registrar asistencia:
         </p>
 
         <div className="space-y-3">
-          {AVAILABLE_SESSIONS.map((session) => (
+          {AVAILABLE_SESSIONS.map((trainingSession) => (
             <button
-              key={session.id}
+              key={trainingSession.id}
               type="button"
-              onClick={() => handleSelectSession(session.id)}
+              onClick={() => handleSelectSession(trainingSession.id)}
               className="card-hover flex w-full items-start gap-4 p-5 text-left transition-all duration-200 sm:p-6"
             >
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cata-red/8">
-                <Calendar size={20} strokeWidth={1.5} className="text-cata-red" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cata-red/15">
+                <Calendar size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-semibold text-cata-charcoal">
-                    {session.groupName}
+                  <h3 className="font-semibold text-white">
+                    {trainingSession.groupName}
                   </h3>
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${LEVEL_BADGE[session.level] ?? "bg-cata-warm text-cata-gray"}`}>
-                    {session.level}
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${LEVEL_BADGE[trainingSession.level] ?? "bg-cata-dark-surface text-white/65"}`}>
+                    {trainingSession.level}
                   </span>
                 </div>
-                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-cata-gray">
+                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-white/65">
                   <span className="inline-flex items-center gap-1.5">
-                    <Clock size={13} strokeWidth={1.5} />
-                    {session.time}
+                    <Clock size={13} strokeWidth={1.5} aria-hidden="true" />
+                    {trainingSession.time}
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <GraduationCap size={13} strokeWidth={1.5} />
-                    {session.court}
+                    <GraduationCap size={13} strokeWidth={1.5} aria-hidden="true" />
+                    {trainingSession.court}
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <Users size={13} strokeWidth={1.5} />
-                    {session.studentCount} estudiantes
+                    <Users size={13} strokeWidth={1.5} aria-hidden="true" />
+                    {trainingSession.studentCount} estudiantes
                   </span>
                 </div>
               </div>
               <ChevronRight
                 size={18}
                 strokeWidth={1.5}
-                className="mt-1 shrink-0 text-cata-gray/40"
+                className="mt-1 shrink-0 text-white/30"
+                aria-hidden="true"
               />
             </button>
           ))}
         </div>
 
         {/* Domain reminder */}
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+        <div className="rounded-xl border border-amber-500/30 bg-amber-900/20 p-3 text-xs text-amber-400">
           <p className="flex items-center gap-1.5 font-medium">
-            <AlertTriangle size={12} strokeWidth={2} />
+            <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
             Cualquier entrenador puede registrar asistencia
           </p>
-          <p className="mt-1 text-amber-600/80">
+          <p className="mt-1 text-amber-400/80">
             Las sesiones no están asignadas a un entrenador específico.
             El sistema registrará quién tomó la asistencia.
           </p>
@@ -246,33 +248,35 @@ export default function TrainerAttendancePage() {
     return (
       <div className="space-y-4">
         {/* Session context */}
-        <div className="rounded-xl border border-cata-stone/50 bg-white p-4">
+        <div className="rounded-xl border border-white/8 bg-cata-dark-elevated p-4">
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <Calendar size={14} strokeWidth={1.5} className="text-cata-red" />
-            <span className="font-medium text-cata-charcoal">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cata-red/15">
+              <Calendar size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            </div>
+            <span className="font-medium text-white">
               {selectedSession.groupName}
             </span>
-            <span className="text-cata-gray">—</span>
-            <span className="text-cata-gray">{selectedSession.time}</span>
-            <span className="text-cata-gray">&middot;</span>
-            <span className="text-cata-gray">{selectedSession.court}</span>
+            <span className="text-white/65">—</span>
+            <span className="text-white/65">{selectedSession.time}</span>
+            <span className="text-white/65">&middot;</span>
+            <span className="text-white/65">{selectedSession.court}</span>
           </div>
           {/* Live counts */}
           <div className="mt-3 flex flex-wrap gap-3 text-xs">
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
-              <UserCheck size={11} strokeWidth={2} />
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-900/20 px-2 py-0.5 font-medium text-emerald-400">
+              <UserCheck size={11} strokeWidth={2} aria-hidden="true" />
               {presentCount} Presentes
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 font-medium text-red-700">
-              <UserX size={11} strokeWidth={2} />
+            <span className="inline-flex items-center gap-1 rounded-full bg-red-900/20 px-2 py-0.5 font-medium text-red-400">
+              <UserX size={11} strokeWidth={2} aria-hidden="true" />
               {absentCount} Ausentes
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700">
-              <Timer size={11} strokeWidth={2} />
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 font-medium text-amber-400">
+              <Timer size={11} strokeWidth={2} aria-hidden="true" />
               {lateCount} Tardanzas
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 font-medium text-blue-700">
-              <FileText size={11} strokeWidth={2} />
+            <span className="inline-flex items-center gap-1 rounded-full bg-blue-900/20 px-2 py-0.5 font-medium text-blue-400">
+              <FileText size={11} strokeWidth={2} aria-hidden="true" />
               {justifiedCount} Justificados
             </span>
           </div>
@@ -283,64 +287,62 @@ export default function TrainerAttendancePage() {
           {students.map((student, idx) => (
             <div
               key={student.id}
-              className="rounded-xl border border-cata-stone/50 bg-white p-3 transition-all duration-200 hover:border-cata-stone sm:p-4"
+              className="card-hover flex items-center justify-between gap-3 p-4"
             >
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-medium text-cata-charcoal">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cata-red/15">
+                  <UserCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                </div>
+                <span className="text-sm font-medium text-white">
                   {student.name}
                 </span>
-
-                {/* Quick-toggle button cycles through states */}
-                <div className="flex items-center gap-1.5">
-                  {/* Quick-state buttons for each attendance option */}
-                  <div className="hidden gap-1 sm:flex">
-                    {ATTENDANCE_STATES.map((state) => {
-                      const isActive = student.attendance === state;
-                      return (
-                        <button
-                          key={state}
-                          type="button"
-                          onClick={() => handleDirectAttendanceSet(idx, state)}
-                          title={ATTENDANCE_LABELS[state]}
-                          className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
-                            isActive
-                              ? ATTENDANCE_CARD_STYLES[state]
-                              : "border border-transparent text-cata-gray-light hover:border-cata-stone/70 hover:text-cata-gray"
-                          }`}
-                        >
-                          {ATTENDANCE_ICONS[state]}
-                          <span className="hidden lg:inline">{ATTENDANCE_LABELS[state]}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Mobile/compact toggle (cycle) */}
-                  <button
-                    type="button"
-                    onClick={() => handleToggleAttendance(idx)}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 sm:hidden ${
-                      ATTENDANCE_BADGE_STYLES[student.attendance]
-                    }`}
-                  >
-                    {ATTENDANCE_ICONS[student.attendance]}
-                    {ATTENDANCE_LABELS[student.attendance]}
-                  </button>
-                </div>
               </div>
 
-              {/* Mobile hint */}
-              <p className="mt-1 text-[10px] text-cata-gray-light sm:hidden">
-                Toque para cambiar estado
-              </p>
+              {/* Quick-toggle button cycles through states */}
+              <div className="flex items-center gap-1.5">
+                {/* Quick-state buttons for each attendance option */}
+                <div className="hidden gap-1 sm:flex">
+                  {ATTENDANCE_STATES.map((state) => {
+                    const isActive = student.attendance === state;
+                    return (
+                      <button
+                        key={state}
+                        type="button"
+                        onClick={() => handleDirectAttendanceSet(idx, state)}
+                        title={ATTENDANCE_LABELS[state]}
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
+                          isActive
+                            ? ATTENDANCE_CARD_STYLES[state]
+                            : "border border-transparent text-white/45 hover:border-white/15 hover:text-white/65"
+                        }`}
+                      >
+                        {ATTENDANCE_ICONS[state]}
+                        <span className="hidden lg:inline">{ATTENDANCE_LABELS[state]}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Mobile/compact toggle (cycle) */}
+                <button
+                  type="button"
+                  onClick={() => handleToggleAttendance(idx)}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 sm:hidden ${
+                    ATTENDANCE_BADGE_STYLES[student.attendance]
+                  }`}
+                >
+                  {ATTENDANCE_ICONS[student.attendance]}
+                  {ATTENDANCE_LABELS[student.attendance]}
+                </button>
+              </div>
             </div>
           ))}
         </div>
 
         {/* Trainer attribution reminder */}
-        <div className="rounded-xl border border-cata-stone/40 bg-cata-warm/50 p-3 text-xs text-cata-gray">
-          <span className="flex items-center gap-1.5 font-medium text-cata-charcoal">
-            <UserCheck size={12} strokeWidth={1.5} className="text-cata-red" />
+        <div className="rounded-xl border border-white/5 bg-cata-dark-surface/50 p-3 text-xs text-white/65">
+          <span className="flex items-center gap-1.5 font-medium text-white">
+            <UserCheck size={12} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
             Registrando como: {trainerName}
           </span>
         </div>
@@ -359,83 +361,92 @@ export default function TrainerAttendancePage() {
 
     return (
       <div className="space-y-5">
-        <p className="text-sm leading-relaxed text-cata-gray">
+        <p className="text-sm leading-relaxed text-white/65">
           Revise el resumen antes de confirmar el registro de asistencia:
         </p>
 
         {/* Session data */}
-        <div className="rounded-xl border border-cata-stone/50 bg-white p-4">
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-cata-gray-light">
-            Sesión
-          </h3>
+        <div className="card-hover p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Calendar size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-white/45">
+              Sesión
+            </h3>
+          </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <dt className="text-cata-gray">Grupo</dt>
-            <dd className="font-medium text-cata-charcoal">
+            <dt className="text-white/65">Grupo</dt>
+            <dd className="font-medium text-white">
               {selectedSession.groupName}
             </dd>
-            <dt className="text-cata-gray">Horario</dt>
-            <dd className="font-medium text-cata-charcoal">
+            <dt className="text-white/65">Horario</dt>
+            <dd className="font-medium text-white">
               {selectedSession.time}
             </dd>
-            <dt className="text-cata-gray">Cancha</dt>
-            <dd className="font-medium text-cata-charcoal">
+            <dt className="text-white/65">Cancha</dt>
+            <dd className="font-medium text-white">
               {selectedSession.court}
             </dd>
-            <dt className="text-cata-gray">Nivel</dt>
-            <dd className="font-medium text-cata-charcoal">
+            <dt className="text-white/65">Nivel</dt>
+            <dd className="font-medium text-white">
               {selectedSession.level}
             </dd>
           </dl>
         </div>
 
         {/* Attendance summary */}
-        <div className="rounded-xl border border-cata-stone/50 bg-white p-4">
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-cata-gray-light">
-            Resumen de Asistencia
-          </h3>
+        <div className="card-hover p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Users size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-white/45">
+              Resumen de Asistencia
+            </h3>
+          </div>
           <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-lg bg-emerald-50 p-3 text-center">
-              <p className="text-lg font-bold text-emerald-700">{presentCount}</p>
-              <p className="text-xs text-emerald-600">Presentes</p>
+            <div className="rounded-lg bg-emerald-900/20 p-3 text-center">
+              <p className="text-lg font-bold text-emerald-400">{presentCount}</p>
+              <p className="text-xs text-emerald-400/80">Presentes</p>
             </div>
-            <div className="rounded-lg bg-red-50 p-3 text-center">
-              <p className="text-lg font-bold text-red-700">{absentCount}</p>
-              <p className="text-xs text-red-600">Ausentes</p>
+            <div className="rounded-lg bg-red-900/20 p-3 text-center">
+              <p className="text-lg font-bold text-red-400">{absentCount}</p>
+              <p className="text-xs text-red-400/80">Ausentes</p>
             </div>
-            <div className="rounded-lg bg-amber-50 p-3 text-center">
-              <p className="text-lg font-bold text-amber-700">{lateCount}</p>
-              <p className="text-xs text-amber-600">Tardanzas</p>
+            <div className="rounded-lg bg-amber-900/20 p-3 text-center">
+              <p className="text-lg font-bold text-amber-400">{lateCount}</p>
+              <p className="text-xs text-amber-400/80">Tardanzas</p>
             </div>
-            <div className="rounded-lg bg-blue-50 p-3 text-center">
-              <p className="text-lg font-bold text-blue-700">{justifiedCount}</p>
-              <p className="text-xs text-blue-600">Justificados</p>
+            <div className="rounded-lg bg-blue-900/20 p-3 text-center">
+              <p className="text-lg font-bold text-blue-400">{justifiedCount}</p>
+              <p className="text-xs text-blue-400/80">Justificados</p>
             </div>
           </div>
-          <p className="text-xs text-cata-gray-light">{summary}</p>
+          <p className="text-xs text-white/45">{summary}</p>
         </div>
 
-        {/* Trainer attribution — explicit */}
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">
-            Asistencia Registrada Por
-          </h3>
-          <div className="flex items-center gap-2 text-sm">
-            <UserCheck size={16} strokeWidth={1.5} className="text-emerald-600" />
-            <span className="font-medium text-emerald-800">{trainerName}</span>
+        {/* Trainer attribution */}
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-900/20 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <UserCheck size={14} strokeWidth={1.5} className="text-emerald-400" aria-hidden="true" />
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
+              Asistencia Registrada Por
+            </h3>
           </div>
-          <p className="mt-1 text-xs text-emerald-600/80">
+          <div className="flex items-center gap-2 text-sm">
+            <UserCheck size={16} strokeWidth={1.5} className="text-emerald-400" aria-hidden="true" />
+            <span className="font-medium text-emerald-400">{trainerName}</span>
+          </div>
+          <p className="mt-1 text-xs text-emerald-400/80">
             {trainerName} será registrado como el entrenador que tomó la asistencia
             de {students.length} alumnos en esta sesión.
           </p>
         </div>
 
         {/* Demo note */}
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+        <div className="rounded-xl border border-amber-500/30 bg-amber-900/20 p-3 text-xs text-amber-400">
           <p className="flex items-center gap-1.5 font-medium">
-            <AlertTriangle size={12} strokeWidth={2} />
+            <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
             Demo — Sin almacenamiento real
           </p>
-          <p className="mt-1 text-amber-600/80">
+          <p className="mt-1 text-amber-400/80">
             Esta es una demostración del flujo de registro de asistencia.
             En producción, los datos se enviarían al backend para su almacenamiento permanente.
           </p>
@@ -448,159 +459,166 @@ export default function TrainerAttendancePage() {
 
   return (
     <ProtectedRoute allowedRoles={["trainer"]}>
-    {confirmed ? (
-      <div className="flex min-h-[75vh] items-center justify-center py-12">
-        <div className="w-full max-w-lg text-center">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-            <CheckCircle size={32} className="text-emerald-600" strokeWidth={1.5} />
-          </div>
-          <h1 className="mb-3 text-2xl font-bold tracking-tight text-cata-charcoal">
-            Asistencia Registrada
-          </h1>
-          <p className="mb-2 text-sm leading-relaxed text-cata-gray">
-            La asistencia para{" "}
-            <strong className="text-cata-charcoal">
-              {selectedSession?.groupName}
-            </strong>{" "}
-            ha sido registrada exitosamente.
-          </p>
-          <p className="mb-2 text-sm leading-relaxed text-cata-gray">
-            <strong className="text-cata-charcoal">{trainerName}</strong> figura como
-            el entrenador que tomó la asistencia de{" "}
-            <strong className="text-cata-charcoal">{students.length} alumnos</strong>.
-          </p>
-          {students.length > 0 && (
-            <p className="mb-8 text-xs text-cata-gray/60">
-              {buildAttendanceSummary(students)}
+      {confirmed ? (
+        <div className="flex min-h-[75vh] items-center justify-center py-12">
+          <div className="w-full max-w-lg text-center">
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-900/30">
+              <CheckCircle size={32} className="text-emerald-400" strokeWidth={1.5} aria-hidden="true" />
+            </div>
+            <h1 className="mb-3 text-2xl font-bold tracking-tight text-white">
+              Asistencia Registrada
+            </h1>
+            <p className="mb-2 text-sm leading-relaxed text-white/65">
+              La asistencia para{" "}
+              <strong className="text-white">
+                {selectedSession?.groupName}
+              </strong>{" "}
+              ha sido registrada exitosamente.
             </p>
-          )}
+            <p className="mb-2 text-sm leading-relaxed text-white/65">
+              <strong className="text-white">{trainerName}</strong> figura como
+              el entrenador que tomó la asistencia de{" "}
+              <strong className="text-white">{students.length} alumnos</strong>.
+            </p>
+            {students.length > 0 && (
+              <p className="mb-8 text-xs text-white/40">
+                {buildAttendanceSummary(students)}
+              </p>
+            )}
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-            <button type="button" onClick={handleReset} className="btn-primary shadow-soft">
-              Registrar Otra Asistencia
-            </button>
-            <Link href="/trainer" className="btn-secondary">
-              Volver al Panel
-            </Link>
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <button type="button" onClick={handleReset} className="btn-primary shadow-soft">
+                Registrar Otra Asistencia
+              </button>
+              <Link href="/trainer" className="btn-secondary">
+                Volver al Panel
+              </Link>
+            </div>
           </div>
         </div>
-      </div>
-    ) : (
-    <div className="py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight text-cata-charcoal sm:text-3xl">
-            Registrar Asistencia
-          </h1>
-          <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-700">
-            Demo
-          </span>
-        </div>
-        <p className="mt-1.5 text-sm text-cata-gray">
-          {step === "select-session" &&
-            "Seleccione la sesión en la que desea registrar asistencia."}
-          {step === "mark-attendance" &&
-            "Marque la asistencia de cada alumno en la sesión seleccionada."}
-          {step === "confirm" &&
-            "Revise y confirme el registro de asistencia."}
-        </p>
-      </div>
+      ) : (
+        <div className="py-8">
+          {/* Hero Banner */}
+          <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+            <div className="relative z-10 flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
+                  <UserCheck size={14} strokeWidth={2} aria-hidden="true" />
+                  Registro de Asistencia
+                </div>
+                <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+                  Asistencia de Sesión
+                </h1>
+                <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
+                  {step === "select-session" && "Seleccione la sesión en la que desea registrar asistencia."}
+                  {step === "mark-attendance" && "Marque la asistencia de cada alumno en la sesión seleccionada."}
+                  {step === "confirm" && "Revise y confirme el registro de asistencia."}
+                </p>
+              </div>
+              <span className="hidden rounded-full bg-amber-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 sm:inline-block">
+                Demo
+              </span>
+            </div>
+          </div>
 
-      {/* Progress bar */}
-      <div className="mb-8">
-        <div className="mb-2 flex items-center justify-between text-xs text-cata-gray-light">
-          <span>
-            Paso {currentIndex + 1} de {STEP_ORDER.length}
-          </span>
-          <span>{STEP_LABELS[step]}</span>
-        </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-cata-stone/50">
-          <div
-            className="h-full rounded-full bg-cata-red transition-all duration-400 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
+          {/* Progress bar */}
+          <div className="mb-8">
+            <div className="mb-2 flex items-center justify-between text-xs text-white/45">
+              <span>
+                Paso {currentIndex + 1} de {STEP_ORDER.length}
+              </span>
+              <span>{STEP_LABELS[step]}</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-cata-red transition-all duration-400 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
 
-      {/* Form card */}
-      <div className="card mx-auto max-w-2xl p-6 sm:p-8">
-        <h2 className="mb-6 text-lg font-semibold text-cata-charcoal">
-          {STEP_LABELS[step]}
-        </h2>
-
-        <form onSubmit={handleConfirm}>
-          {/* Step content */}
-          {step === "select-session" && renderSessionSelection()}
-          {step === "mark-attendance" && renderMarkAttendance()}
-          {step === "confirm" && renderConfirmation()}
-
-          {/* Navigation buttons */}
-          <div className="mt-8 flex items-center justify-between gap-3">
-            <div>
-              {!isFirst && (
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  disabled={submitting}
-                  className="btn-ghost"
-                >
-                  <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
-                  Atrás
-                </button>
-              )}
+          {/* Form card */}
+          <div className="card mx-auto max-w-2xl p-6 sm:p-8">
+            <div className="mb-6 flex items-center gap-2">
+              <ClipboardList size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+              <h2 className="text-lg font-semibold text-white">
+                {STEP_LABELS[step]}
+              </h2>
             </div>
 
-            <div className="flex gap-3">
-              {!isLast && step !== "select-session" ? (
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  className="btn-primary shadow-soft"
-                >
-                  Siguiente
-                  <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
-                </button>
-              ) : null}
+            <form onSubmit={handleConfirm}>
+              {/* Step content */}
+              {step === "select-session" && renderSessionSelection()}
+              {step === "mark-attendance" && renderMarkAttendance()}
+              {step === "confirm" && renderConfirmation()}
 
-              {isLast && (
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="btn-primary shadow-soft"
-                >
-                  {submitting ? (
-                    "Registrando..."
-                  ) : (
-                    <>
-                      <CheckCircle size={14} strokeWidth={2} />
-                      Confirmar Asistencia
-                    </>
+              {/* Navigation buttons */}
+              <div className="mt-8 flex items-center justify-between gap-3">
+                <div>
+                  {!isFirst && (
+                    <button
+                      type="button"
+                      onClick={handleBack}
+                      disabled={submitting}
+                      className="btn-ghost"
+                    >
+                      <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+                      Atrás
+                    </button>
                   )}
-                </button>
-              )}
-            </div>
+                </div>
+
+                <div className="flex gap-3">
+                  {!isLast && step !== "select-session" ? (
+                    <button
+                      type="button"
+                      onClick={handleNext}
+                      className="btn-primary shadow-soft"
+                    >
+                      Siguiente
+                      <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                    </button>
+                  ) : null}
+
+                  {isLast && (
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="btn-primary shadow-soft"
+                    >
+                      {submitting ? (
+                        "Registrando..."
+                      ) : (
+                        <>
+                          <CheckCircle size={14} strokeWidth={2} aria-hidden="true" />
+                          Confirmar Asistencia
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </form>
           </div>
-        </form>
-      </div>
 
-      {/* Navigation link */}
-      <p className="mt-6 text-center text-sm text-cata-gray">
-        <Link
-          href="/trainer"
-          className="font-medium text-cata-red transition-colors hover:text-cata-red-light"
-        >
-          &larr; Volver al Panel del Entrenador
-        </Link>
-      </p>
+          {/* Navigation link */}
+          <p className="mt-6 text-center text-sm text-white/65">
+            <Link
+              href="/trainer"
+              className="font-medium text-cata-red transition-colors hover:text-cata-red-light"
+            >
+              &larr; Volver al Panel del Entrenador
+            </Link>
+          </p>
 
-      {/* Demo note */}
-      <p className="mt-4 text-center text-xs text-cata-gray/40">
-        Prototipo de demostración interactivo. No se almacena ningún dato real.
-        Datos ficticios para fines de presentación.
-      </p>
-    </div>
-    )}
+          {/* Demo note */}
+          <p className="mt-4 text-center text-xs text-white/30">
+            Prototipo de demostración interactivo. No se almacena ningún dato real.
+            Datos ficticios para fines de presentación.
+          </p>
+        </div>
+      )}
     </ProtectedRoute>
   );
 }

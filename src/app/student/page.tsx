@@ -315,19 +315,19 @@ const paymentStatusConfig: Record<PaymentStatus, { label: string; badge: string 
 const proofStatusLabels: Record<ProofStatus, { label: string; icon: React.ReactNode }> = {
   not_uploaded: {
     label: "Pendiente de Pago",
-    icon: <Clock size={14} strokeWidth={2} />,
+    icon: <Clock size={14} strokeWidth={2} aria-hidden="true" />,
   },
   pending_validation: {
     label: "Pendiente de Validación",
-    icon: <AlertTriangle size={14} strokeWidth={2} />,
+    icon: <AlertTriangle size={14} strokeWidth={2} aria-hidden="true" />,
   },
   validado: {
     label: "Aprobado",
-    icon: <CheckCircle2 size={14} strokeWidth={2} />,
+    icon: <CheckCircle2 size={14} strokeWidth={2} aria-hidden="true" />,
   },
   rechazado: {
     label: "Rechazado / Vencido",
-    icon: <XCircle size={14} strokeWidth={2} />,
+    icon: <XCircle size={14} strokeWidth={2} aria-hidden="true" />,
   },
 };
 
@@ -354,9 +354,7 @@ export default function StudentPage() {
         ? "Alumno autogestionado"
         : "Portal de Cuenta";
 
-  const students = userId
-    ? demoStudentsByAccount[userId] ?? demoStudentsByAccount["user-rep-1"]
-    : demoStudentsByAccount["user-rep-1"];
+  const students = userId ? demoStudentsByAccount[userId] ?? [] : [];
 
   const [selectedStudentId, setSelectedStudentId] = useState<string>(students[0]?.id ?? "");
   const [demoScenario, setDemoScenario] = useState<DemoScenario>("active");
@@ -384,7 +382,16 @@ export default function StudentPage() {
   ];
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
-  const selectedStudent = students.find((s) => s.id === selectedStudentId) ?? students[0];
+  const selectedStudent =
+    students.find((s) => s.id === selectedStudentId) ??
+    students[0] ??
+    {
+      id: "empty",
+      nombre: "",
+      grupo: "",
+      scenarioData: scenarioData.active,
+      upcomingSessions: [],
+    };
 
   // Apply the demo scenario on top of the student's base data (clone to avoid mutation)
   const displayScenario = {
@@ -474,464 +481,484 @@ export default function StudentPage() {
 
   return (
     <ProtectedRoute allowedRoles={["responsable_pago"]}>
-    <div>
-      {/* ── Header banner ── */}
-      <div className="relative mb-8 overflow-hidden rounded-3xl bg-cata-navy px-6 py-8 sm:px-10 sm:py-10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.15),transparent_50%)]" />
-        <div className="relative z-10 flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
-              <UserCircle size={14} strokeWidth={2} aria-hidden="true" />
-              Área de Estudiantes
+      <div>
+        {/* Hero Banner */}
+        <div className="relative mb-8 overflow-hidden rounded-3xl bg-cata-navy px-6 py-8 sm:px-10 sm:py-10">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+          <div className="relative z-10 flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
+                <UserCircle size={14} strokeWidth={2} aria-hidden="true" />
+                Área de Estudiantes
+              </div>
+              <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+                Portal de Cuenta
+              </h1>
+              <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
+                {isPreEnrollment
+                  ? "Cuenta creada — aún no inscrito como alumno. Elija un plan y complete su registro."
+                  : `${selectedStudent?.nombre ?? ""} — membresía, pagos y horario`}
+              </p>
             </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-              Portal de Cuenta
-            </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
-              {isPreEnrollment
-                ? "Cuenta creada — aún no inscrito como alumno. Elija un plan y complete su registro."
-                : `${selectedStudent?.nombre ?? ""} — membresía, pagos y horario`}
-            </p>
-          </div>
-          <span className="hidden rounded-full bg-amber-100/20 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-300 backdrop-blur-sm sm:inline-block">
-            Demo
-          </span>
-        </div>
-      </div>
-
-      {/* Account type badge */}
-      <div className="mb-4 flex items-center gap-2">
-        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
-          isRepresentative
-            ? "bg-blue-50 text-blue-700"
-            : isPreEnrollment
-              ? "bg-violet-50 text-violet-700"
-              : "bg-emerald-50 text-emerald-700"
-        }`}>
-          {isRepresentative ? (
-            <Building2 size={12} strokeWidth={1.5} />
-          ) : isPreEnrollment ? (
-            <UserPlus size={12} strokeWidth={1.5} />
-          ) : (
-            <GraduationCap size={12} strokeWidth={1.5} />
-          )}
-          {accountLabel}
-        </span>
-        {isRepresentative && (
-          <span className="text-xs text-cata-gray">
-            Gestiona {students.length} alumnos
-          </span>
-        )}
-      </div>
-
-      {isRepresentative && students.length > 1 && (
-        <div className="mb-4">
-          <label htmlFor="student-select" className="text-xs font-medium text-cata-gray-light">
-            Seleccionar alumno
-          </label>
-          <div className="relative mt-1 inline-block">
-            <select
-              id="student-select"
-              value={selectedStudentId}
-              onChange={(e) => handleStudentChange(e.target.value)}
-              className="appearance-none rounded-xl border border-cata-stone/60 bg-white px-4 py-2 pr-10 text-sm font-medium text-cata-charcoal shadow-sm transition-colors hover:border-cata-stone focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/10"
-            >
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nombre} — {s.grupo}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              size={14}
-              strokeWidth={1.5}
-              className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-cata-gray"
-              aria-hidden="true"
-            />
+            <span className="hidden rounded-full bg-amber-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 sm:inline-block">
+              Demo
+            </span>
           </div>
         </div>
-      )}
 
-      {/* ── Enrollment CTAs ── */}
-      {(isRepresentative || (!isRepresentative && !isPreEnrollment)) && (
-        <div className="mb-6 flex flex-wrap items-center gap-3">
-          {/* Representative: can add a dependent OR join as player */}
+        {/* Account type badge */}
+        <div className="mb-4 flex items-center gap-2">
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+            isRepresentative
+              ? "bg-blue-900/20 text-blue-400"
+              : isPreEnrollment
+                ? "bg-violet-900/20 text-violet-400"
+                : "bg-emerald-900/20 text-emerald-400"
+          }`}>
+            {isRepresentative ? (
+              <Building2 size={12} strokeWidth={1.5} aria-hidden="true" />
+            ) : isPreEnrollment ? (
+              <UserPlus size={12} strokeWidth={1.5} aria-hidden="true" />
+            ) : (
+              <GraduationCap size={12} strokeWidth={1.5} aria-hidden="true" />
+            )}
+            {accountLabel}
+          </span>
           {isRepresentative && (
-            <>
+            <span className="text-xs text-white/65">
+              Gestiona {students.length} alumnos
+            </span>
+          )}
+        </div>
+
+        {isRepresentative && students.length > 1 && (
+          <div className="mb-4">
+            <label htmlFor="student-select" className="text-xs font-medium text-white/45">
+              Seleccionar alumno
+            </label>
+            <div className="relative mt-1 inline-block">
+              <select
+                id="student-select"
+                value={selectedStudentId}
+                onChange={(e) => handleStudentChange(e.target.value)}
+                className="appearance-none rounded-xl border border-white/10 bg-cata-dark-elevated px-4 py-2 pr-10 text-sm font-medium text-white shadow-sm transition-colors hover:border-white/15 focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/10"
+              >
+                {students.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombre} — {s.grupo}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={14}
+                strokeWidth={1.5}
+                className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-white/65"
+                aria-hidden="true"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Enrollment CTAs */}
+        {(isRepresentative || (!isRepresentative && !isPreEnrollment)) && (
+          <div className="mb-6 flex flex-wrap items-center gap-3">
+            {/* Representative: can add a dependent OR join as player */}
+            {isRepresentative && (
+              <>
+                <Link
+                  href="/student/enroll"
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-900/20 px-4 py-2.5 text-sm font-medium text-blue-400 transition-all duration-200 hover:bg-blue-900/30"
+                >
+                  <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
+                  Agregar hijo/dependiente
+                  <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                </Link>
+                <Link
+                  href="/student/enroll?type=player"
+                  className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
+                >
+                  <GraduationCap size={16} strokeWidth={1.5} aria-hidden="true" />
+                  Unirme como jugador
+                  <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                </Link>
+              </>
+            )}
+
+            {/* Self-managed enrolled student: can add a dependent to become a representative too */}
+            {!isRepresentative && !isPreEnrollment && (
               <Link
-                href="/student/enroll"
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 transition-all duration-200 hover:bg-blue-100"
+                href="/student/enroll?type=representative"
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-900/20 px-4 py-2.5 text-sm font-medium text-blue-400 transition-all duration-200 hover:bg-blue-900/30"
               >
                 <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
-                Agregar hijo/dependiente
+                Inscribir hijo/dependiente
                 <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
               </Link>
-              <Link
-                href="/student/enroll?type=player"
-                className="inline-flex items-center gap-2 rounded-xl bg-cata-red/8 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/15"
-              >
-                <GraduationCap size={16} strokeWidth={1.5} aria-hidden="true" />
-                Unirme como jugador
-                <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
-              </Link>
-            </>
-          )}
-
-          {/* Self-managed enrolled student: can add a dependent to become a representative too */}
-          {!isRepresentative && !isPreEnrollment && (
-            <Link
-              href="/student/enroll?type=representative"
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 transition-all duration-200 hover:bg-blue-100"
-            >
-              <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
-              Inscribir hijo/dependiente
-              <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
-            </Link>
-          )}
-        </div>
-      )}
-
-      {/* ── Pre‑enrollment view (natural / pre‑inscripción) ── */}
-      {isPreEnrollment ? (
-        <div className="mb-8">
-          {/* Intro */}
-          <div className="mb-6 rounded-xl border border-cata-stone/50 bg-white p-5">
-            <h2 className="mb-2 text-lg font-semibold text-cata-charcoal">
-              Bienvenido a Cata Club
-            </h2>
-            <p className="text-sm leading-relaxed text-cata-gray">
-              Su cuenta está creada pero aún no está inscrito como alumno.
-              Elija el plan de membresía que mejor se adapte a sus necesidades
-              y complete su inscripción para comenzar a entrenar.
-            </p>
-            <p className="mt-3 text-xs leading-relaxed text-cata-gray/70">
-              Una vez inscrito, desde su portal podrá agregar hijos o
-              dependientes si necesita gestionar las membresías de su familia.
-            </p>
+            )}
           </div>
+        )}
 
-          {/* Membership plan cards */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {membershipPlans.map((plan) => (
-              <div
-                key={plan.id}
-                className={`card-hover flex flex-col p-5 sm:p-6 ${
-                  plan.popular ? "ring-2 ring-cata-red/30" : ""
-                }`}
-              >
-                {plan.popular && (
-                  <span className="mb-3 self-start rounded-full bg-cata-red/8 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cata-red">
-                    Popular
-                  </span>
-                )}
-                <h3 className="text-base font-bold text-cata-charcoal">
-                  {plan.name}
-                </h3>
-                <div className="mt-2 flex items-baseline gap-1">
-                  <span className="text-2xl font-extrabold text-cata-charcoal">
-                    {plan.price}
-                  </span>
-                  <span className="text-sm text-cata-gray">{plan.period}</span>
-                </div>
-                <p className="mt-1 text-xs text-cata-gray">{plan.frequency}</p>
-                <ul className="mt-4 flex-1 space-y-2">
-                  {plan.benefits.map((benefit) => (
-                    <li key={benefit} className="flex items-start gap-2 text-xs text-cata-gray">
-                      <CheckCircle2 size={12} strokeWidth={2} className="mt-0.5 shrink-0 text-emerald-500" />
-                      {benefit}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-
-          {/* CTA to enroll */}
-          <div className="mt-8 text-center">
-            <Link
-              href="/student/enroll"
-              className="btn-primary inline-flex items-center gap-2 shadow-soft"
-            >
-              <UserPlus size={16} strokeWidth={1.5} />
-              Comenzar Inscripción
-              <ArrowRight size={14} strokeWidth={1.5} />
-            </Link>
-            <p className="mt-3 text-xs text-cata-gray">
-              El proceso toma solo unos minutos. No requiere ningún pago por adelantado.
-            </p>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* ── Demo Scenario Selector (representative / enrolled view) ── */}
+        {/* Pre‑enrollment view (natural / pre‑inscripción) */}
+        {isPreEnrollment ? (
           <div className="mb-8">
-            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-cata-gray-light">
-              Estado de Demo
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {(Object.keys(scenarioData) as DemoScenario[]).map((scenarioKey) => {
-                const isActive = demoScenario === scenarioKey;
-                return (
-                  <button
-                    key={scenarioKey}
-                    onClick={() => handleScenarioChange(scenarioKey)}
-                    className={`rounded-xl px-3.5 py-2 text-sm font-medium transition-all duration-200 ${
-                      isActive
-                        ? "bg-cata-red/8 text-cata-red ring-1 ring-cata-red/30"
-                        : "bg-white text-cata-gray ring-1 ring-cata-stone/50 hover:bg-cata-warm hover:text-cata-charcoal"
-                    }`}
-                  >
-                    {scenarioLabels[scenarioKey]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ── Membership & Payment cards ── */}
-          <div className="mb-8 grid gap-5 sm:grid-cols-2">
-            {/* Membership */}
-            <div className="card-hover p-5 sm:p-6">
-              <div className="mb-4 flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/8">
-                  <ShieldCheck size={18} strokeWidth={1.5} className="text-cata-red" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-cata-gray">Membresía</p>
-                  <p className="text-lg font-bold tracking-tight text-cata-charcoal">
-                    {scenario.membership.type}
-                  </p>
-                </div>
-                <span className={membershipInfo.badge}>{membershipInfo.label}</span>
+            {/* Intro */}
+            <div className="mb-6 rounded-2xl border border-white/8 bg-cata-dark-elevated p-6">
+              <div className="mb-3 flex items-center gap-2">
+                <UserPlus size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                <h2 className="text-lg font-bold text-white">
+                  Bienvenido a Cata Club
+                </h2>
               </div>
-              <div className="space-y-2 text-sm text-cata-gray">
-                <div className="flex justify-between">
-                  <span>Período</span>
-                  <span className="font-medium text-cata-charcoal">{scenario.membership.period}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Inicio</span>
-                  <span className="font-medium text-cata-charcoal">{scenario.membership.startDate}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Fin</span>
-                  <span className="font-medium text-cata-charcoal">{scenario.membership.endDate}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Cuota</span>
-                  <span className="font-medium text-cata-charcoal">{scenario.membership.fee}</span>
-                </div>
-              </div>
+              <p className="text-sm leading-relaxed text-white/65">
+                Su cuenta está creada pero aún no está inscrito como alumno.
+                Elija el plan de membresía que mejor se adapte a sus necesidades
+                y complete su inscripción para comenzar a entrenar.
+              </p>
+              <p className="mt-3 text-xs leading-relaxed text-white/45">
+                Una vez inscrito, desde su portal podrá agregar hijos o
+                dependientes si necesita gestionar las membresías de su familia.
+              </p>
             </div>
 
-            {/* Payment / Upload Proof */}
-            <div className="card-hover p-5 sm:p-6">
-              <div className="mb-4 flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/8">
-                  <CreditCard size={18} strokeWidth={1.5} className="text-cata-red" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-cata-gray">Pago Actual</p>
-                  <p className="text-lg font-bold tracking-tight text-cata-charcoal">
-                    {scenario.membership.period}
-                  </p>
-                </div>
-                <span className={paymentInfo.badge}>{paymentInfo.label}</span>
-              </div>
-              <div className="space-y-2 text-sm text-cata-gray">
-                <div className="flex justify-between">
-                  <span>Método de Pago</span>
-                  <span className="font-medium text-cata-charcoal">{scenario.payment.method}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Pagado el</span>
-                  <span className="font-medium text-cata-charcoal">{scenario.payment.paidOn}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span>Estado del Comprobante</span>
-                  <span className={`inline-flex items-center gap-1 text-xs font-medium ${
-                    proofStatus === "not_uploaded" ? "text-amber-600" :
-                    proofStatus === "pending_validation" ? "text-amber-600" :
-                    proofStatus === "validado" ? "text-emerald-600" :
-                    "text-cata-red"
-                  }`}>
-                    {proofInfo.icon}
-                    {proofInfo.label}
-                  </span>
-                </div>
-              </div>
-
-              {/* ── Upload Proof Section ── */}
-              <div className="mt-5 rounded-xl border-2 border-dashed border-cata-stone/70 bg-cata-warm/50 p-5">
-                {scenario.payment.validated ? (
-                  /* Already validated — read-only confirmation */
-                  <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                    <CheckCircle2 size={14} strokeWidth={2} />
-                    Comprobante registrado y validado
-                  </div>
-                ) : scenario.payment.proofUploaded && demoScenario !== "expired" ? (
-                  /* Uploaded but not yet validated — read-only pending message */
-                  <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    <AlertTriangle size={14} strokeWidth={2} />
-                    Comprobante enviado, pendiente de validación por administración
-                  </div>
-                ) : (
-                  <>
-                    <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-cata-charcoal">
-                      <Upload size={14} strokeWidth={1.5} />
-                      {demoScenario === "expired" ? "Renovar Membresía" : "Subir Comprobante de Pago"}
-                    </p>
-
-                    {demoScenario === "expired" && (
-                      <p className="mb-3 text-xs text-cata-gray">
-                        Su membresía está vencida. Suba el comprobante del nuevo período para renovarla.
-                      </p>
-                    )}
-
-                    {/* File Input */}
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*,application/pdf,.pdf"
-                      onChange={handleFileChange}
-                      aria-label="Seleccionar comprobante de pago (solo imágenes y PDF, máximo 5 MB)"
-                      className="block w-full text-xs text-cata-gray file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-cata-red/8 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-cata-red hover:file:bg-cata-red/15"
-                    />
-
-                    {/* File validation error */}
-                    {fileError && (
-                      <p className="mt-1 text-xs text-cata-red" role="alert">
-                        {fileError}
-                      </p>
-                    )}
-
-                    {/* Selected file info */}
-                    {selectedFile && !fileError && (
-                      <div className="mt-2 flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs text-cata-gray">
-                        <FileText size={14} strokeWidth={1.5} className="shrink-0 text-cata-red" />
-                        <span className="truncate font-medium text-cata-charcoal">
-                          {selectedFile.name}
-                        </span>
-                        <span className="shrink-0 text-cata-gray-light">
-                          ({formatFileSize(selectedFile.size)})
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Demo submit button */}
-                    <button
-                      type="button"
-                      onClick={handleDemoSubmit}
-                      disabled={!selectedFile || !!fileError || demoSubmitting || demoSubmitted}
-                      className="btn-primary mt-3 w-full shadow-soft text-xs"
-                    >
-                      {demoSubmitting ? (
-                        "Subiendo..."
-                      ) : (
-                        <>
-                          <Upload size={13} strokeWidth={2} />
-                          Subir Comprobante (Demo)
-                        </>
-                      )}
-                    </button>
-
-                    {/* Demo confirmation / change file after simulated upload */}
-                    {demoSubmitted && selectedFile && !demoSubmitting && (
-                      <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                        <p className="flex items-center gap-1.5 font-medium">
-                          <AlertTriangle size={12} strokeWidth={2} />
-                          Comprobante seleccionado en modo demo
-                        </p>
-                        <p className="mt-1 text-amber-600/80">
-                          No se almacenó ningún archivo. El envío real se habilitará cuando
-                          el backend esté conectado.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDemoSubmitted(false);
-                            setSelectedFile(null);
-                            setDemoSubmitting(false);
-                            if (fileInputRef.current) fileInputRef.current.value = "";
-                          }}
-                          className="mt-2 text-xs font-medium text-amber-700 underline hover:text-amber-800"
-                        >
-                          Cambiar archivo
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* ── Próximas Sesiones (compact) ── */}
-          <section className="mb-8">
-            <h2 className="mb-4 text-lg font-semibold text-cata-charcoal">
-              Próximas Sesiones {selectedStudent && `— ${selectedStudent.nombre}`}
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {activeSessions.map((session) => (
+            {/* Membership plan cards */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {membershipPlans.map((plan) => (
                 <div
-                  key={`${session.date}-${session.time}`}
-                  className="card-hover p-4 sm:p-5"
+                  key={plan.id}
+                  className={`card-hover flex flex-col p-5 sm:p-6 ${
+                    plan.popular ? "ring-2 ring-cata-red/30" : ""
+                  }`}
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-warm">
-                      <Calendar size={16} strokeWidth={1.5} className="text-cata-gray" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-cata-charcoal">{session.date}</p>
-                      <p className="text-sm text-cata-gray">{session.time}</p>
-                      <p className="mt-1 text-xs text-cata-gray/60">
-                        {session.court} &middot; {session.group}
-                      </p>
-                    </div>
+                  {plan.popular && (
+                    <span className="mb-3 self-start rounded-full bg-cata-red/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cata-red">
+                      Popular
+                    </span>
+                  )}
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-cata-red/15">
+                    <ShieldCheck size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                   </div>
+                  <h3 className="text-base font-bold text-white">
+                    {plan.name}
+                  </h3>
+                  <div className="mt-2 flex items-baseline gap-1">
+                    <span className="text-2xl font-extrabold text-white">
+                      {plan.price}
+                    </span>
+                    <span className="text-sm text-white/65">{plan.period}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-white/65">{plan.frequency}</p>
+                  <ul className="mt-4 flex-1 space-y-2">
+                    {plan.benefits.map((benefit) => (
+                      <li key={benefit} className="flex items-start gap-2 text-xs text-white/65">
+                        <CheckCircle2 size={12} strokeWidth={2} className="mt-0.5 shrink-0 text-emerald-400" aria-hidden="true" />
+                        {benefit}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ))}
             </div>
-          </section>
-        </>
-      )}
 
-      {/* ── Domain model info card (educational / transparent) ── */}
-      <div className="mb-8 rounded-xl border border-cata-stone/50 bg-white p-5">
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-cata-gray-light">
-          Modelo de dominio (Demo)
-        </h3>
-        <p className="text-xs leading-relaxed text-cata-gray">
-          {isRepresentative ? (
-            <>
-              Este portal corresponde a un <strong>responsable de pago tipo representante</strong>.
-              Una misma persona (ej. un padre/madre) puede gestionar las membresías y pagos
-              de <strong>varios alumnos</strong>. Cada alumno tiene su membresía, sesiones y
-              comprobantes asociados.
-            </>
-          ) : isPreEnrollment ? (
-            <>
-              Esta cuenta está en estado de <strong>pre‑inscripción</strong>: la persona creó su
-              cuenta de acceso pero aún no se ha inscrito como alumno del club. Al completar la
-              inscripción, la misma persona será el titular de la cuenta y el alumno que entrena
-              (<strong>jugador</strong>). Las membresías y pagos se gestionan
-              directamente desde el portal.
-            </>
-          ) : (
-            <>
-              Portal de cuenta genérico. Seleccione una cuenta de demostración para ver el
-              comportamiento específico.
-            </>
-          )}
+            {/* CTA to enroll */}
+            <div className="mt-8 text-center">
+              <Link
+                href="/student/enroll"
+                className="btn-primary inline-flex items-center gap-2 shadow-soft"
+              >
+                <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
+                Comenzar Inscripción
+                <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+              </Link>
+              <p className="mt-3 text-xs text-white/65">
+                El proceso toma solo unos minutos. No requiere ningún pago por adelantado.
+              </p>
+            </div>
+          </div>
+        ) : students.length === 0 ? (
+          <div className="card p-6 text-center">
+            <User size={32} strokeWidth={1.5} className="mx-auto mb-3 text-white/20" aria-hidden="true" />
+            <p className="text-sm text-white/50">
+              No se encontraron estudiantes asociados a esta cuenta.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Demo Scenario Selector (representative / enrolled view) */}
+            <div className="mb-8">
+              <div className="mb-3 flex items-center gap-2">
+                <ShieldCheck size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                <p className="text-xs font-medium uppercase tracking-wider text-white/45">
+                  Estado de Demo
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(scenarioData) as DemoScenario[]).map((scenarioKey) => {
+                  const isActive = demoScenario === scenarioKey;
+                  return (
+                    <button
+                      key={scenarioKey}
+                      onClick={() => handleScenarioChange(scenarioKey)}
+                      className={`rounded-xl px-3.5 py-2 text-sm font-medium transition-all duration-200 ${
+                        isActive
+                          ? "bg-cata-red/15 text-cata-red ring-1 ring-cata-red/30"
+                          : "bg-cata-dark-elevated text-white/65 ring-1 ring-white/10 hover:bg-cata-dark-surface hover:text-white"
+                      }`}
+                    >
+                      {scenarioLabels[scenarioKey]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Membership & Payment cards */}
+            <div className="mb-8 grid gap-5 sm:grid-cols-2">
+              {/* Membership */}
+              <div className="card-hover p-5 sm:p-6">
+                <div className="mb-4 flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                    <ShieldCheck size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-white/65">Membresía</p>
+                    <p className="text-lg font-bold tracking-tight text-white">
+                      {scenario.membership.type}
+                    </p>
+                  </div>
+                  <span className={membershipInfo.badge}>{membershipInfo.label}</span>
+                </div>
+                <div className="space-y-2 text-sm text-white/65">
+                  <div className="flex justify-between">
+                    <span>Período</span>
+                    <span className="font-medium text-white">{scenario.membership.period}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Inicio</span>
+                    <span className="font-medium text-white">{scenario.membership.startDate}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Fin</span>
+                    <span className="font-medium text-white">{scenario.membership.endDate}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Cuota</span>
+                    <span className="font-medium text-white">{scenario.membership.fee}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment / Upload Proof */}
+              <div className="card-hover p-5 sm:p-6">
+                <div className="mb-4 flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                    <CreditCard size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-white/65">Pago Actual</p>
+                    <p className="text-lg font-bold tracking-tight text-white">
+                      {scenario.membership.period}
+                    </p>
+                  </div>
+                  <span className={paymentInfo.badge}>{paymentInfo.label}</span>
+                </div>
+                <div className="space-y-2 text-sm text-white/65">
+                  <div className="flex justify-between">
+                    <span>Método de Pago</span>
+                    <span className="font-medium text-white">{scenario.payment.method}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Pagado el</span>
+                    <span className="font-medium text-white">{scenario.payment.paidOn}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Estado del Comprobante</span>
+                    <span className={`inline-flex items-center gap-1 text-xs font-medium ${
+                      proofStatus === "not_uploaded" ? "text-amber-400" :
+                      proofStatus === "pending_validation" ? "text-amber-400" :
+                      proofStatus === "validado" ? "text-emerald-400" :
+                      "text-cata-red"
+                    }`}>
+                      {proofInfo.icon}
+                      {proofInfo.label}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Upload Proof Section */}
+                <div className="mt-5 rounded-xl border-2 border-dashed border-white/15 bg-cata-dark-surface/50 p-5">
+                  {scenario.payment.validated ? (
+                    /* Already validated — read-only confirmation */
+                    <div className="flex items-center gap-2 rounded-lg bg-emerald-900/20 px-3 py-2 text-xs text-emerald-400">
+                      <CheckCircle2 size={14} strokeWidth={2} aria-hidden="true" />
+                      Comprobante registrado y validado
+                    </div>
+                  ) : scenario.payment.proofUploaded && demoScenario !== "expired" ? (
+                    /* Uploaded but not yet validated — read-only pending message */
+                    <div className="flex items-center gap-2 rounded-lg bg-amber-900/20 px-3 py-2 text-xs text-amber-400">
+                      <AlertTriangle size={14} strokeWidth={2} aria-hidden="true" />
+                      Comprobante enviado, pendiente de validación por administración
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                        <Upload size={14} strokeWidth={1.5} aria-hidden="true" />
+                        {demoScenario === "expired" ? "Renovar Membresía" : "Subir Comprobante de Pago"}
+                      </div>
+
+                      {demoScenario === "expired" && (
+                        <p className="mb-3 text-xs text-white/65">
+                          Su membresía está vencida. Suba el comprobante del nuevo período para renovarla.
+                        </p>
+                      )}
+
+                      {/* File Input */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,application/pdf,.pdf"
+                        onChange={handleFileChange}
+                        aria-label="Seleccionar comprobante de pago (solo imágenes y PDF, máximo 5 MB)"
+                        className="block w-full text-xs text-white/65 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-cata-red/15 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-cata-red hover:file:bg-cata-red/25"
+                      />
+
+                      {/* File validation error */}
+                      {fileError && (
+                        <p className="mt-1 text-xs text-cata-red" role="alert">
+                          {fileError}
+                        </p>
+                      )}
+
+                      {/* Selected file info */}
+                      {selectedFile && !fileError && (
+                        <div className="mt-2 flex items-center gap-2 rounded-lg bg-cata-dark-elevated px-3 py-2 text-xs text-white/65">
+                          <FileText size={14} strokeWidth={1.5} className="shrink-0 text-cata-red" aria-hidden="true" />
+                          <span className="truncate font-medium text-white">
+                            {selectedFile.name}
+                          </span>
+                          <span className="shrink-0 text-white/45">
+                            ({formatFileSize(selectedFile.size)})
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Demo submit button */}
+                      <button
+                        type="button"
+                        onClick={handleDemoSubmit}
+                        disabled={!selectedFile || !!fileError || demoSubmitting || demoSubmitted}
+                        className="btn-primary mt-3 w-full shadow-soft text-xs"
+                      >
+                        {demoSubmitting ? (
+                          "Subiendo..."
+                        ) : (
+                          <>
+                            <Upload size={13} strokeWidth={2} aria-hidden="true" />
+                            Subir Comprobante (Demo)
+                          </>
+                        )}
+                      </button>
+
+                      {/* Demo confirmation / change file after simulated upload */}
+                      {demoSubmitted && selectedFile && !demoSubmitting && (
+                        <div className="mt-3 rounded-lg bg-amber-900/20 px-3 py-2 text-xs text-amber-400">
+                          <p className="flex items-center gap-1.5 font-medium">
+                            <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
+                            Comprobante seleccionado en modo demo
+                          </p>
+                          <p className="mt-1 text-amber-400/80">
+                            No se almacenó ningún archivo. El envío real se habilitará cuando
+                            el backend esté conectado.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDemoSubmitted(false);
+                              setSelectedFile(null);
+                              setDemoSubmitting(false);
+                              if (fileInputRef.current) fileInputRef.current.value = "";
+                            }}
+                            className="mt-2 text-xs font-medium text-amber-400 underline hover:text-amber-300"
+                          >
+                            Cambiar archivo
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Próximas Sesiones (compact) */}
+            <section className="mb-8">
+              <div className="mb-4 flex items-center gap-2">
+                <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                <h2 className="text-lg font-bold text-white">
+                  Próximas Sesiones {selectedStudent && `— ${selectedStudent.nombre}`}
+                </h2>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {activeSessions.map((session) => (
+                  <div
+                    key={`${session.date}-${session.time}`}
+                    className="card-hover p-4 sm:p-5"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                        <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-white">{session.date}</p>
+                        <p className="text-sm text-white/65">{session.time}</p>
+                        <p className="mt-1 text-xs text-white/40">
+                          {session.court} &middot; {session.group}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
+
+        {/* Domain model info card (educational / transparent) */}
+        <div className="mb-8 rounded-2xl border border-white/8 bg-cata-dark-elevated p-6">
+          <div className="mb-3 flex items-center gap-2">
+            <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            <h3 className="text-sm font-bold text-white">Modelo de dominio (Demo)</h3>
+          </div>
+          <p className="text-sm leading-relaxed text-white/65">
+            {isRepresentative ? (
+              <>
+                Este portal corresponde a un <strong className="text-white">responsable de pago tipo representante</strong>.
+                Una misma persona (ej. un padre/madre) puede gestionar las membresías y pagos
+                de <strong className="text-white">varios alumnos</strong>. Cada alumno tiene su membresía, sesiones y
+                comprobantes asociados.
+              </>
+            ) : isPreEnrollment ? (
+              <>
+                Esta cuenta está en estado de <strong className="text-white">pre‑inscripción</strong>: la persona creó su
+                cuenta de acceso pero aún no se ha inscrito como alumno del club. Al completar la
+                inscripción, la misma persona será el titular de la cuenta y el alumno que entrena
+                (<strong className="text-white">jugador</strong>). Las membresías y pagos se gestionan
+                directamente desde el portal.
+              </>
+            ) : (
+              <>
+                Portal de cuenta genérico. Seleccione una cuenta de demostración para ver el
+                comportamiento específico.
+              </>
+            )}
+          </p>
+        </div>
+
+        {/* Demo honesty footer */}
+        <p className="mt-10 text-center text-xs text-white/30">
+          El portal de cuenta muestra solo datos de demostración. No se almacenan registros
+          reales de membresía, pagos, horarios o salud. Listo para la integración con la API del backend.
         </p>
       </div>
-
-      {/* ── Demo honesty footer ── */}
-      <p className="mt-10 text-center text-xs text-cata-gray/40">
-        El portal de cuenta muestra solo datos de demostración. No se almacenan registros
-        reales de membresía, pagos, horarios o salud. Listo para la integración con la API del backend.
-      </p>
-    </div>
     </ProtectedRoute>
   );
 }

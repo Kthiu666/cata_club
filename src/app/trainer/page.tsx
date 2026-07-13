@@ -17,8 +17,12 @@ import {
   CheckCircle2,
   ClipboardList,
   ArrowRight,
+  MapPin,
   type LucideIcon,
 } from "lucide-react";
+import { buildTrainingSessions } from "@/lib/groups-utils";
+import { MOCK_GRUPOS, MOCK_MEMBER_ACCOUNTS } from "@/mocks/members";
+import { MOCK_SCHEDULES } from "@/mocks/attendance";
 
 // ---------------------------------------------------------------------------
 // Demo data — Trainer dashboard (frontend-only, no backend)
@@ -41,56 +45,28 @@ interface TrainingSession {
   students: SessionStudent[];
 }
 
-const todaySessions: TrainingSession[] = [
-  {
-    id: "s1",
-    groupName: "Principiantes — Lun/Mié",
-    time: "15:00 — 16:30",
-    court: "Cancha 1",
-    level: "Principiante",
-    studentCount: 8,
-    students: [
-      { name: "Sofia Martinez", attendance: "present" },
-      { name: "Mateo Rodriguez", attendance: "present" },
-      { name: "Valentina Lopez", attendance: "late" },
-      { name: "Benjamin Torres", attendance: "absent" },
-      { name: "Camila Flores", attendance: "present" },
-      { name: "Emilia Castillo", attendance: "justified" },
-      { name: "Santiago Ramirez", attendance: "present" },
-      { name: "Isabella Morales", attendance: "absent" },
-    ],
-  },
-  {
-    id: "s2",
-    groupName: "Intermedios — Lun/Mié",
-    time: "16:45 — 18:15",
-    court: "Cancha 2",
-    level: "Intermedio",
-    studentCount: 6,
-    students: [
-      { name: "Nicolas Acosta", attendance: "present" },
-      { name: "Valeria Gomez", attendance: "present" },
-      { name: "Diego Herrera", attendance: "present" },
-      { name: "Luciana Paz", attendance: "late" },
-      { name: "Tomas Rivas", attendance: "present" },
-      { name: "Gabriela Silva", attendance: "absent" },
-    ],
-  },
-  {
-    id: "s3",
-    groupName: "Avanzados — Lun/Mié",
-    time: "18:30 — 20:00",
-    court: "Cancha 1 y 3",
-    level: "Avanzado",
-    studentCount: 4,
-    students: [
-      { name: "Alejandro Padilla", attendance: "present" },
-      { name: "Carolina Mendez", attendance: "present" },
-      { name: "Felipe Ortega", attendance: "present" },
-      { name: "Mariana Rios", attendance: "justified" },
-    ],
-  },
-];
+const studentNameMap: Record<string, string> = {};
+for (const account of MOCK_MEMBER_ACCOUNTS) {
+  for (const alumno of account.alumnos) {
+    studentNameMap[alumno.id] = `${alumno.nombres} ${alumno.apellidos}`;
+  }
+}
+
+const allSessions = buildTrainingSessions(
+  MOCK_GRUPOS,
+  MOCK_SCHEDULES,
+  studentNameMap,
+);
+
+const jsDayToLabel = ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
+const todayLabel = jsDayToLabel[new Date().getDay()];
+
+const todaySessions = allSessions.filter((s) => {
+  const dayPart = s.groupName.split(" — ")[1];
+  if (!dayPart) return false;
+  const shortDay = dayPart.split("/")[0];
+  return shortDay === todayLabel;
+});
 
 // ---------------------------------------------------------------------------
 // Attendance UI helpers
@@ -111,16 +87,16 @@ const attendanceIcons: Record<AttendanceState, LucideIcon> = {
 };
 
 const attendanceBadgeStyles: Record<AttendanceState, string> = {
-  present: "bg-emerald-50 text-emerald-700",
-  absent: "bg-red-50 text-cata-red",
-  late: "bg-amber-50 text-amber-700",
-  justified: "bg-blue-50 text-blue-700",
+  present: "bg-emerald-900/20 text-emerald-400",
+  absent: "bg-red-900/20 text-cata-red",
+  late: "bg-amber-900/20 text-amber-400",
+  justified: "bg-blue-900/20 text-blue-400",
 };
 
 const levelBadge: Record<string, string> = {
-  Principiante: "bg-green-50 text-green-700",
-  Intermedio: "bg-amber-50 text-amber-700",
-  Avanzado: "bg-cata-red/8 text-cata-red",
+  Principiante: "bg-green-900/20 text-green-400",
+  Intermedio: "bg-amber-900/20 text-amber-400",
+  Avanzado: "bg-cata-red/15 text-cata-red",
 };
 
 // ---------------------------------------------------------------------------
@@ -156,7 +132,7 @@ const weekDayLabels = ["Lun", "Mar", "Mie", "Jue", "Vie"] as const;
 const weekDays = weekDayLabels.map((label) => ({
   label,
   sessions: weeklySchedule.filter((s) => s.day === label).length,
-  isToday: label === "Lun",
+  isToday: label === todayLabel,
 }));
 
 export default function TrainerPage() {
@@ -174,121 +150,127 @@ export default function TrainerPage() {
 
   return (
     <ProtectedRoute allowedRoles={["trainer"]}>
-    <div>
-      {/* ── Header banner ── */}
-      <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.15),transparent_50%)]" />
-        <div className="relative z-10 flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
-              <GraduationCap size={14} strokeWidth={2} aria-hidden="true" />
-              Área de Entrenadores
+      <div>
+        {/* Hero Banner */}
+        <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+          <div className="relative z-10 flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
+                <GraduationCap size={14} strokeWidth={2} aria-hidden="true" />
+                Área de Entrenadores
+              </div>
+              <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+                Panel del Entrenador
+              </h1>
+              <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
+                Resumen de entrenamiento de hoy — {new Date().toLocaleDateString("es-EC", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+              </p>
             </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-              Panel del Entrenador
-            </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
-              Resumen de entrenamiento de hoy — lunes, 30 de junio de 2026
+            <span className="hidden rounded-full bg-amber-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 sm:inline-block">
+              Demo
+            </span>
+          </div>
+        </div>
+
+        {/* Interactive Attendance CTA */}
+        <div className="mb-6">
+          <Link
+            href="/trainer/attendance"
+            className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
+          >
+            <ClipboardList size={16} strokeWidth={1.5} aria-hidden="true" />
+            Registrar Asistencia Interactiva
+            <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+          </Link>
+        </div>
+
+        {/* Summary stats */}
+        <div className="mb-10 grid gap-5 sm:grid-cols-3">
+          <div className="card-hover p-5 sm:p-6">
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
+                <Calendar size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+              </div>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-900/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" />
+                Hoy
+              </span>
+            </div>
+            <p className="text-xs font-medium uppercase tracking-wider text-white/65">Sesiones de Hoy</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">
+              {todaySessions.length}
             </p>
           </div>
-          <span className="hidden rounded-full bg-amber-100/20 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-300 backdrop-blur-sm sm:inline-block">
-            Demo
-          </span>
-        </div>
-      </div>
-
-      {/* ── Interactive Attendance CTA ── */}
-      <div className="mb-6">
-        <Link
-          href="/trainer/attendance"
-          className="inline-flex items-center gap-2 rounded-xl bg-cata-red/8 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/15"
-        >
-          <ClipboardList size={16} strokeWidth={1.5} aria-hidden="true" />
-          Registrar Asistencia Interactiva
-          <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
-        </Link>
-      </div>
-
-      {/* ── Summary stats ── */}
-      <div className="mb-10 grid gap-5 sm:grid-cols-3">
-        <div className="card-hover p-5 sm:p-6">
-          <div className="mb-4 flex items-start justify-between">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/8">
-              <Calendar size={22} strokeWidth={1.5} className="text-cata-red" />
+          <div className="card-hover p-5 sm:p-6">
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
+                <Users size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+              </div>
             </div>
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-              <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" />
-              Hoy
-            </span>
+            <p className="text-xs font-medium uppercase tracking-wider text-white/65">Estudiantes Asignados</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">
+              {totalStudents}
+            </p>
           </div>
-          <p className="text-xs font-medium uppercase tracking-wider text-cata-gray">Sesiones de Hoy</p>
-          <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-charcoal">
-            {todaySessions.length}
-          </p>
-        </div>
-        <div className="card-hover p-5 sm:p-6">
-          <div className="mb-4 flex items-start justify-between">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/8">
-              <Users size={22} strokeWidth={1.5} className="text-cata-red" />
+          <div className="card-hover p-5 sm:p-6">
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
+                <UserCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+              </div>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-900/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                <TrendingUp size={10} strokeWidth={2} aria-hidden="true" />
+                {Math.round((totalPresent / totalStudents) * 100)}%
+              </span>
             </div>
+            <p className="text-xs font-medium uppercase tracking-wider text-white/65">Presentes Hoy</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">
+              {totalPresent}/{totalStudents}
+            </p>
           </div>
-          <p className="text-xs font-medium uppercase tracking-wider text-cata-gray">Estudiantes Asignados</p>
-          <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-charcoal">
-            {totalStudents}
-          </p>
         </div>
-        <div className="card-hover p-5 sm:p-6">
-          <div className="mb-4 flex items-start justify-between">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/8">
-              <UserCheck size={22} strokeWidth={1.5} className="text-cata-red" />
-            </div>
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-              <TrendingUp size={10} strokeWidth={2} aria-hidden="true" />
-              {Math.round((totalPresent / totalStudents) * 100)}%
-            </span>
-          </div>
-          <p className="text-xs font-medium uppercase tracking-wider text-cata-gray">Presentes Hoy</p>
-          <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-charcoal">
-            {totalPresent}/{totalStudents}
-          </p>
-        </div>
-      </div>
 
-      {/* ── Sessions & roster ── */}
-      <div className="space-y-8">
-        <section>
-            <h2 className="mb-4 text-lg font-semibold text-cata-charcoal">
-              Sesiones de Hoy
-            </h2>
+        {/* Sessions & roster */}
+        <div className="space-y-8">
+          <section>
+            <div className="mb-4 flex items-center gap-2">
+              <ClipboardList size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+              <h2 className="text-lg font-bold text-white">
+                Sesiones de Hoy
+              </h2>
+            </div>
             <div className="space-y-4">
               {todaySessions.map((session) => (
                 <div key={session.id} className="card overflow-hidden">
-                  {/* ── Session header (click to expand roster) ── */}
+                  {/* Session header (click to expand roster) */}
                   <button
                     onClick={() => toggleSession(session.id)}
-                    className="flex w-full items-center justify-between p-5 text-left transition-colors hover:bg-cata-warm/50 sm:p-6"
+                    className="flex w-full items-center justify-between p-5 text-left transition-colors hover:bg-cata-dark-surface/50 sm:p-6"
                     aria-expanded={expandedSession === session.id}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-semibold text-cata-charcoal">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cata-red/15">
+                          <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                        </div>
+                        <h3 className="font-semibold text-white">
                           {session.groupName}
                         </h3>
                         <span className={`badge ${levelBadge[session.level] ?? "badge-neutral"}`}>
                           {session.level}
                         </span>
                       </div>
-                      <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-sm text-cata-gray">
+                      <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-sm text-white/65">
                         <span className="inline-flex items-center gap-1.5">
-                          <Clock size={13} strokeWidth={1.5} />
+                          <Clock size={13} strokeWidth={1.5} aria-hidden="true" />
                           {session.time}
                         </span>
                         <span className="inline-flex items-center gap-1.5">
-                          <GraduationCap size={13} strokeWidth={1.5} />
+                          <MapPin size={13} strokeWidth={1.5} aria-hidden="true" />
                           {session.court}
                         </span>
                         <span className="inline-flex items-center gap-1.5">
-                          <Users size={13} strokeWidth={1.5} />
+                          <Users size={13} strokeWidth={1.5} aria-hidden="true" />
                           {session.studentCount} estudiantes
                         </span>
                       </div>
@@ -296,18 +278,19 @@ export default function TrainerPage() {
                     <ChevronRight
                       size={18}
                       strokeWidth={1.5}
-                      className={`ml-3 shrink-0 text-cata-gray/40 transition-transform ${
+                      className={`ml-3 shrink-0 text-white/30 transition-transform ${
                         expandedSession === session.id ? "rotate-90" : ""
                       }`}
+                      aria-hidden="true"
                     />
                   </button>
 
-                  {/* ── Roster (expandable) ── */}
+                  {/* Roster (expandable) */}
                   {expandedSession === session.id && (
-                    <div className="border-t border-cata-stone/50 px-5 py-4 sm:px-6 sm:py-5 overflow-x-auto">
+                    <div className="border-t border-white/5 px-5 py-4 sm:px-6 sm:py-5 overflow-x-auto">
                       <table className="w-full text-sm min-w-[300px]">
                         <thead>
-                          <tr className="border-b border-cata-stone/30 text-left text-xs font-medium uppercase tracking-wider text-cata-gray-light">
+                          <tr className="border-b border-white/5 text-left text-xs font-medium uppercase tracking-wider text-white/45">
                             <th className="pb-2 pr-4">Estudiante</th>
                             <th className="pb-2">Asistencia</th>
                           </tr>
@@ -318,9 +301,9 @@ export default function TrainerPage() {
                             return (
                               <tr
                                 key={student.name}
-                                className="border-b border-cata-stone/20 last:border-0"
+                                className="border-b border-white/5 last:border-0"
                               >
-                                <td className="py-2.5 pr-4 font-medium text-cata-charcoal">
+                                <td className="py-2.5 pr-4 font-medium text-white">
                                   {student.name}
                                 </td>
                                 <td className="py-2.5">
@@ -329,7 +312,7 @@ export default function TrainerPage() {
                                       attendanceBadgeStyles[student.attendance]
                                     }`}
                                   >
-                                    <Icon size={12} strokeWidth={2} />
+                                    <Icon size={12} strokeWidth={2} aria-hidden="true" />
                                     {attendanceLabels[student.attendance]}
                                   </span>
                                 </td>
@@ -339,18 +322,18 @@ export default function TrainerPage() {
                         </tbody>
                       </table>
 
-                      {/* Session attendance summary — explicit labels for every state */}
+                      {/* Session attendance summary */}
                       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                        <span className="text-emerald-700">
+                        <span className="text-emerald-400">
                           {session.students.filter((s) => s.attendance === "present").length} Presentes
                         </span>
-                        <span className="text-amber-700">
+                        <span className="text-amber-400">
                           {session.students.filter((s) => s.attendance === "late").length} Tardanzas
                         </span>
                         <span className="text-cata-red">
                           {session.students.filter((s) => s.attendance === "absent").length} Ausentes
                         </span>
-                        <span className="text-blue-700">
+                        <span className="text-blue-400">
                           {session.students.filter((s) => s.attendance === "justified").length} Justificados
                         </span>
                       </div>
@@ -359,49 +342,52 @@ export default function TrainerPage() {
                 </div>
               ))}
             </div>
-        </section>
-      </div>
+          </section>
+        </div>
 
-      {/* ── Weekly calendar strip ── */}
-      <section className="mt-10">
-        <h2 className="mb-4 text-lg font-semibold text-cata-charcoal">
-          Horario Semanal
-        </h2>
-        <p className="mb-4 text-sm leading-relaxed text-cata-gray">
-          Cualquier entrenador puede registrar asistencia en las sesiones disponibles.
-          Las sesiones no están asignadas a un entrenador específico.
-        </p>
-        <div className="grid gap-3 sm:grid-cols-5">
-          {weekDays.map((day) => (
-            <div
-              key={day.label}
-              className={`card p-4 text-center transition-all ${
-                day.isToday
-                  ? "ring-2 ring-cata-red/20 ring-offset-2 ring-offset-cata-cream"
-                  : ""
-              }`}
-            >
-              <p
-                className={`text-sm font-semibold ${
-                  day.isToday ? "text-cata-red" : "text-cata-charcoal"
+        {/* Weekly calendar strip */}
+        <section className="mt-10">
+          <div className="mb-4 flex items-center gap-2">
+            <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            <h2 className="text-lg font-bold text-white">
+              Horario Semanal
+            </h2>
+          </div>
+          <p className="mb-4 text-sm leading-relaxed text-white/65">
+            Cualquier entrenador puede registrar asistencia en las sesiones disponibles.
+            Las sesiones no están asignadas a un entrenador específico.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-5">
+            {weekDays.map((day) => (
+              <div
+                key={day.label}
+                className={`card p-4 text-center transition-all ${
+                  day.isToday
+                    ? "ring-2 ring-cata-red/20 ring-offset-2 ring-offset-cata-dark"
+                    : ""
                 }`}
               >
-                {day.label}
-              </p>
-              <p className="mt-1.5 text-xs text-cata-gray">
-                {day.sessions} {day.sessions === 1 ? "sesión" : "sesiones"}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
+                <p
+                  className={`text-sm font-semibold ${
+                    day.isToday ? "text-cata-red" : "text-white"
+                  }`}
+                >
+                  {day.label}
+                </p>
+                <p className="mt-1.5 text-xs text-white/65">
+                  {day.sessions} {day.sessions === 1 ? "sesión" : "sesiones"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
 
-      {/* ── Demo honesty footer ── */}
-      <p className="mt-10 text-center text-xs text-cata-gray/40">
-        El panel del entrenador muestra solo datos de demostración. No se almacenan registros
-        reales de asistencia u horarios. Listo para la integración con la API del backend.
-      </p>
-    </div>
+        {/* Demo honesty footer */}
+        <p className="mt-10 text-center text-xs text-white/30">
+          El panel del entrenador muestra solo datos de demostración. No se almacenan registros
+          reales de asistencia u horarios. Listo para la integración con la API del backend.
+        </p>
+      </div>
     </ProtectedRoute>
   );
 }

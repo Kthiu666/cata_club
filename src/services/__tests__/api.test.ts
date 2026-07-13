@@ -11,6 +11,8 @@
  *  - Timeout/abort: default timeout fires and rejects the request.
  *  - Mock default: USE_MOCKS defaults to true when env var is unset.
  *  - Payment validation: approve and reject flows, rejection reason validation.
+ *
+ * @vitest-environment node
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";

@@ -4,6 +4,8 @@
  * These tests verify that the mock store behaves like a minimal data layer
  * without needing a real backend.
  * They are NOT a substitute for the real backend's integration tests.
+ *
+ * @vitest-environment node
  */
 
 import { describe, it, expect, beforeEach } from "vitest";

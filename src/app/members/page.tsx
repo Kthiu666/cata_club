@@ -35,8 +35,6 @@ import {
 } from "@/mocks/members";
 import {
   buildMemberStats,
-  formatCurrency,
-  formatDate,
   formatMembershipPeriod,
   countActiveStudents,
   filterAccounts,
@@ -47,10 +45,12 @@ import {
   PAYMENT_STATUS_LABELS,
   PAYMENT_STATUS_BADGE,
   PAYER_TYPE_LABELS,
+  MEMBERSHIP_TYPE_LABELS,
   type MemberAccount,
   type MemberStudentSummary,
   type PaymentStatus,
 } from "./members-utils";
+import { formatCurrency, formatDate } from "@/lib/format-utils";
 
 // ---------------------------------------------------------------------------
 // Payment status icon helper
@@ -83,17 +83,13 @@ interface StatCardProps {
 function StatCard({ icon, label, value, highlight }: StatCardProps) {
   return (
     <div className="card-hover p-5 sm:p-6">
-      <div className="mb-3 flex items-center justify-between">
-        <div
-          className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-            highlight ? "bg-cata-red/8" : "bg-cata-warm"
-          }`}
-        >
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
           {icon}
         </div>
       </div>
-      <p className="text-sm font-medium text-cata-gray">{label}</p>
-      <p className="mt-0.5 text-3xl font-bold tracking-tight text-cata-charcoal">
+      <p className="text-xs font-medium uppercase tracking-wider text-white/65">{label}</p>
+      <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">
         {value}
       </p>
     </div>
@@ -122,23 +118,23 @@ function StudentRow({ student }: { student: MemberStudentSummary }) {
   const nivelDisplay = getNivelLabelFromGrupo(student.grupoId, MOCK_GRUPOS);
 
   return (
-    <tr id={`student-detail-${student.id}`} className="border-t border-cata-stone/30 bg-cata-warm/30">
+    <tr id={`student-detail-${student.id}`} className="border-t border-white/5 bg-cata-dark-surface/30">
       <td colSpan={7} className="px-4 py-4">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* Student identity */}
           <div>
-            <p className="flex items-center gap-1.5 text-sm font-medium text-cata-charcoal">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-white">
               <User size={14} strokeWidth={1.5} aria-hidden="true" />
               {student.nombres} {student.apellidos}
             </p>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-cata-gray">
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/65">
               {nivelDisplay ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-cata-warm px-2 py-0.5">
+                <span className="inline-flex items-center gap-1 rounded-full bg-cata-dark-surface px-2 py-0.5">
                   <GraduationCap size={10} strokeWidth={1.5} aria-hidden="true" />
                   {nivelDisplay}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 text-amber-400">
                   Sin grupo asignado
                 </span>
               )}
@@ -152,36 +148,32 @@ function StudentRow({ student }: { student: MemberStudentSummary }) {
 
           {/* Membership */}
           <div>
-            <p className="mb-1 text-xs font-medium uppercase tracking-wider text-cata-gray/60">
+            <p className="mb-1 text-xs font-medium uppercase tracking-wider text-white/40">
               Membresía
             </p>
             {student.membresia ? (
               <>
                 <span className={membershipBadge}>{membershipLabel}</span>
-                <p className="mt-1 text-xs text-cata-gray">
-                  {student.membresia.tipo === "mensual"
-                    ? "Mensual"
-                    : student.membresia.tipo === "trimestral"
-                      ? "Trimestral"
-                      : "Anual"}{" "}
+                <p className="mt-1 text-xs text-white/65">
+                  {MEMBERSHIP_TYPE_LABELS[student.membresia.tipo]}{" "}
                   &middot;{" "}
                   {formatMembershipPeriod(
                     student.membresia.fechaInicio,
                     student.membresia.fechaFin,
                   )}
                 </p>
-                <p className="text-xs text-cata-gray">
+                <p className="text-xs text-white/65">
                   {formatCurrency(student.membresia.monto)}
                 </p>
               </>
             ) : (
-              <span className="text-xs text-cata-gray/60">Sin membresía registrada</span>
+              <span className="text-xs text-white/40">Sin membresía registrada</span>
             )}
           </div>
 
           {/* Last payment */}
           <div>
-            <p className="mb-1 text-xs font-medium uppercase tracking-wider text-cata-gray/60">
+            <p className="mb-1 text-xs font-medium uppercase tracking-wider text-white/40">
               Último pago
             </p>
             {student.ultimoPago ? (
@@ -190,25 +182,25 @@ function StudentRow({ student }: { student: MemberStudentSummary }) {
                   <PaymentStatusIcon estado={student.ultimoPago.estado} />
                   {paymentLabel}
                 </span>
-                <p className="mt-1 text-xs text-cata-gray">
+                <p className="mt-1 text-xs text-white/65">
                   {formatCurrency(student.ultimoPago.monto)} &middot;{" "}
                   {student.ultimoPago.periodo}
                 </p>
               </>
             ) : (
-              <span className="text-xs text-cata-gray/60">No registrado</span>
+              <span className="text-xs text-white/40">No registrado</span>
             )}
           </div>
 
           {/* Status indicator */}
           <div className="flex items-start justify-end">
             {student.activo ? (
-              <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+              <span className="inline-flex items-center gap-1 text-xs text-emerald-400">
                 <CheckCircle2 size={11} strokeWidth={2} aria-hidden="true" />
                 Activo
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 text-xs text-cata-gray/60">
+              <span className="inline-flex items-center gap-1 text-xs text-white/40">
                 <XCircle size={11} strokeWidth={2} aria-hidden="true" />
                 Inactivo
               </span>
@@ -237,7 +229,7 @@ function AccountRow({
 
   return (
     <>
-      <tr className="transition-colors hover:bg-cata-warm/60">
+      <tr className="transition-colors hover:bg-cata-dark-surface/50">
         <td className="px-4 py-3.5">
           <button
             type="button"
@@ -245,7 +237,7 @@ function AccountRow({
               e.stopPropagation();
               setExpanded(!expanded);
             }}
-            className="mr-2 inline-flex items-center text-cata-gray"
+            className="mr-2 inline-flex items-center text-white/65"
             aria-label={expanded ? "Contraer" : "Expandir"}
             aria-expanded={expanded}
             aria-controls={account.alumnos.map((a) => `student-detail-${a.id}`).join(" ")}
@@ -259,7 +251,7 @@ function AccountRow({
         </td>
         <td className="px-4 py-3.5">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cata-red/8">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cata-red/15">
               {account.tipo === "representante" ? (
                 <Building2 size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
               ) : (
@@ -267,16 +259,16 @@ function AccountRow({
               )}
             </div>
             <div>
-              <p className="font-medium text-cata-charcoal">
+              <p className="font-medium text-white">
                 {account.nombres} {account.apellidos}
               </p>
-              <p className="text-xs text-cata-gray">
+              <p className="text-xs text-white/65">
                 {PAYER_TYPE_LABELS[account.tipo]}
               </p>
             </div>
           </div>
         </td>
-        <td className="px-4 py-3.5 text-xs text-cata-gray">
+        <td className="px-4 py-3.5 text-xs text-white/65">
           <div className="flex items-center gap-1.5">
             <Mail size={11} strokeWidth={1.5} aria-hidden="true" />
             {account.email}
@@ -287,12 +279,12 @@ function AccountRow({
           </div>
         </td>
         <td className="px-4 py-3.5 text-center">
-          <span className="text-sm font-medium text-cata-charcoal">
+          <span className="text-sm font-medium text-white">
             {account.alumnos.length}
           </span>
         </td>
         <td className="px-4 py-3.5 text-center">
-          <span className="text-sm font-medium text-cata-charcoal">
+          <span className="text-sm font-medium text-white">
             {activeCount}
           </span>
         </td>
@@ -324,68 +316,66 @@ export default function MembersPage() {
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
       <div>
-        {/* ══ Header ══ */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cata-red/10">
-              <Users
-                size={20}
-                strokeWidth={1.5}
-                className="text-cata-red"
-                aria-hidden="true"
-              />
+        {/* Hero Banner */}
+        <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
+              <Users size={14} strokeWidth={2} aria-hidden="true" />
+              Gestión de Miembros
             </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-cata-charcoal">
-                Gestionar Miembros
-              </h1>
-              <p className="text-sm text-cata-gray">
-                Responsables de pago, alumnos y resumen de membresías
-              </p>
-            </div>
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+              Miembros del Club
+            </h1>
+            <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
+              Responsables de pago, alumnos y resumen de membresías. Administre cuentas,
+              estudiantes y estados de membresía desde un solo lugar.
+            </p>
           </div>
         </div>
 
-        {/* ══ Demo indicator ══ */}
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
-          <span className="font-medium">Demo</span> &mdash; Los datos de
-          miembros son simulados con información local en memoria. No hay
-          integración con un backend real. Los datos se reinician al recargar
-          la página o reiniciar el servidor.
+        {/* Demo badge */}
+        <div className="mb-6 flex items-center gap-2">
+          <span className="rounded-full bg-amber-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400">
+            Demo
+          </span>
+          <span className="text-xs text-white/40">
+            Los datos de miembros son simulados con información local en memoria
+          </span>
         </div>
 
-        {/* ══ Stats grid ══ */}
+        {/* Stats grid */}
         <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            icon={<Users size={18} strokeWidth={1.5} className="text-cata-gray" aria-hidden="true" />}
+            icon={<Users size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
             label="Cuentas"
             value={stats.totalAccounts}
           />
           <StatCard
-            icon={<UserCheck size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
+            icon={<UserCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
             label="Alumnos"
             value={stats.totalStudents}
             highlight
           />
           <StatCard
-            icon={<ShieldCheck size={18} strokeWidth={1.5} className="text-emerald-600" aria-hidden="true" />}
+            icon={<ShieldCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
             label="Membresías activas"
             value={stats.activeMemberships}
           />
           <StatCard
-            icon={<Clock size={18} strokeWidth={1.5} className="text-amber-600" aria-hidden="true" />}
+            icon={<Clock size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
             label="Pagos pendientes"
             value={stats.pendingPayments}
           />
         </div>
 
-        {/* ══ Search ══ */}
+        {/* Search */}
         <div className="mb-6">
           <div className="relative max-w-sm">
             <Search
               size={14}
               strokeWidth={1.5}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-gray"
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/65"
               aria-hidden="true"
             />
             <input
@@ -399,13 +389,13 @@ export default function MembersPage() {
           </div>
         </div>
 
-        {/* ══ Members table ══ */}
+        {/* Members table */}
         {filteredAccounts.length > 0 ? (
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
-                  <tr className="border-b border-cata-stone/60 bg-cata-warm text-xs font-medium uppercase tracking-wider text-cata-gray">
+                  <tr className="border-b border-white/10 bg-cata-dark-surface text-xs font-medium uppercase tracking-wider text-white/65">
                     <th className="w-10 px-4 py-3 font-medium" />
                     <th className="px-4 py-3 font-medium">Responsable de pago</th>
                     <th className="px-4 py-3 font-medium">Contacto</th>
@@ -414,7 +404,7 @@ export default function MembersPage() {
                     <th className="px-4 py-3 font-medium">Estado</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-cata-stone/40">
+                <tbody className="divide-y divide-white/5">
                   {filteredAccounts.map((account, index) => (
                     <AccountRow
                       key={account.id}
@@ -430,12 +420,12 @@ export default function MembersPage() {
           /* Empty state */
           <div className="card flex flex-col items-center py-16 text-center">
             <Users
-              size={40}
-              strokeWidth={1}
-              className="mb-3 text-cata-stone"
+              size={32}
+              strokeWidth={1.5}
+              className="mb-3 text-white/20"
               aria-hidden="true"
             />
-            <p className="text-sm text-cata-gray">
+            <p className="text-sm text-white/50">
               {searchTerm
                 ? "No se encontraron miembros con ese criterio de búsqueda."
                 : "Aún no hay miembros registrados."}
@@ -452,22 +442,23 @@ export default function MembersPage() {
           </div>
         )}
 
-        {/* ══ Domain info card ══ */}
-        <div className="mt-8 rounded-xl border border-cata-stone/50 bg-white p-5">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-cata-gray-light">
-            Modelo de dominio (Demo)
-          </h3>
-          <p className="text-xs leading-relaxed text-cata-gray">
-            Cada <strong>responsable de pago</strong> (titular de cuenta) gestiona
+        {/* Domain info card */}
+        <div className="mt-8 rounded-2xl border border-white/8 bg-cata-dark-elevated p-6">
+          <div className="mb-3 flex items-center gap-2">
+            <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            <h3 className="text-sm font-bold text-white">Modelo de dominio (Demo)</h3>
+          </div>
+          <p className="text-sm leading-relaxed text-white/65">
+            Cada <strong className="text-white">responsable de pago</strong> (titular de cuenta) gestiona
             uno o más alumnos. Un representante (ej. padre/madre) puede gestionar
             varios alumnos. Un alumno autogestionado es su propio responsable de pago.
-            El <strong>nivel técnico</strong> lo lleva el grupo asignado, no el alumno.
+            El <strong className="text-white">nivel técnico</strong> lo lleva el grupo asignado, no el alumno.
             Los datos de membresía, grupos y pagos son simulados.
           </p>
         </div>
 
-        {/* ══ Demo footer ══ */}
-        <p className="mt-8 text-center text-xs text-cata-gray/40">
+        {/* Demo footer */}
+        <p className="mt-8 text-center text-xs text-white/30">
           Los datos de miembros son de demostración. No se almacenan registros reales.
           Listo para la integración con la API del backend.
         </p>

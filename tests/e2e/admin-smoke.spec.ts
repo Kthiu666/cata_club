@@ -34,7 +34,7 @@ test.describe("Admin smoke", () => {
     // quick action "Gestionar Miembros" which has a different accessible name.
     await page.getByRole("link", { name: "Miembros", exact: true }).click();
     await expect(page).toHaveURL(/\/members/);
-    await expect(page.getByRole("heading", { name: /gestionar miembros/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /miembros del club/i })).toBeVisible();
 
     // ── Step 5: Navigate to attendance page ──
     await page.getByRole("link", { name: "Horarios y Asistencia", exact: true }).click();

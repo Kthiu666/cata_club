@@ -142,7 +142,7 @@ export interface Entrenador {
 // ---------------------------------------------------------------------------
 
 /** Membership plan types. */
-export type TipoMembresia = "mensual" | "trimestral" | "anual";
+export type TipoMembresia = "mensual" | "trimestral" | "semestral" | "anual";
 
 /**
  * Lifecycle state of a membership.

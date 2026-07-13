@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global base styles — Cata Club Admin */
+/* Global base styles — Cata Club Admin Dark Theme */
 
 @layer base {
   *,
@@ -12,6 +12,8 @@
   }
 
   body {
+    background-color: #0A0A12;
+    color: #FFFFFF;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -29,27 +31,66 @@
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-cata-stone/60 bg-white shadow-card;
+    background-color: #141420;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 1rem;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
   }
 
   .card-hover {
-    @apply card transition-all duration-300 hover:shadow-elevated hover:border-cata-stone;
+    background-color: #141420;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 1rem;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    transition: all 0.2s ease;
+  }
+
+  .card-hover:hover {
+    border-color: rgba(255,255,255,0.15);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-cata-red px-5 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-cata-red-light focus:outline-none focus:ring-2 focus:ring-cata-red/30 disabled:cursor-not-allowed disabled:opacity-50;
+    background-color: #8B1A1A;
+    color: #FFFFFF;
+    border-radius: 0.75rem;
+    transition: all 0.2s ease;
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium hover:bg-cata-red-light focus:outline-none focus:ring-2 focus:ring-cata-red/30 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary:hover {
+    background-color: #B22222;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(139,26,26,0.3);
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-cata-stone/70 bg-white px-5 py-2.5 text-sm font-medium text-cata-charcoal transition-all duration-200 hover:bg-cata-warm hover:border-cata-stone focus:outline-none focus:ring-2 focus:ring-cata-stone/30 disabled:cursor-not-allowed disabled:opacity-50;
+    background-color: transparent;
+    color: #FFFFFF;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 0.75rem;
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium transition-all duration-200 hover:bg-white/[0.08] hover:border-white/25 focus:outline-none focus:ring-2 focus:ring-white/10 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-cata-gray transition-colors duration-200 hover:bg-cata-warm hover:text-cata-charcoal focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white/65 transition-colors duration-200 hover:bg-white/[0.08] hover:text-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .input-field {
-    @apply w-full rounded-xl border border-cata-stone/70 bg-white px-4 py-2.5 text-sm text-cata-charcoal placeholder:text-cata-gray/50 transition-all duration-200 focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/15 disabled:cursor-not-allowed disabled:opacity-50;
+    background-color: #141420;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 0.75rem;
+    color: #FFFFFF;
+    @apply w-full px-4 py-2.5 text-sm transition-all duration-200 placeholder:text-white/35 focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/15 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .input-field::placeholder {
+    color: rgba(255,255,255,0.35);
+  }
+
+  .input-field:focus {
+    border-color: #8B1A1A;
+    box-shadow: 0 0 0 3px rgba(139,26,26,0.2);
   }
 
   .badge {
@@ -57,19 +98,27 @@
   }
 
   .badge-success {
-    @apply badge bg-emerald-50 text-emerald-700;
+    background-color: rgba(16,185,129,0.15);
+    color: #34D399;
+    border: 1px solid rgba(16,185,129,0.2);
   }
 
   .badge-warning {
-    @apply badge bg-amber-50 text-amber-700;
+    background-color: rgba(245,158,11,0.15);
+    color: #FBBF24;
+    border: 1px solid rgba(245,158,11,0.2);
   }
 
   .badge-error {
-    @apply badge bg-red-50 text-cata-red;
+    background-color: rgba(239,68,68,0.15);
+    color: #F87171;
+    border: 1px solid rgba(239,68,68,0.2);
   }
 
   .badge-neutral {
-    @apply badge bg-cata-warm text-cata-gray;
+    background-color: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.65);
+    border: 1px solid rgba(255,255,255,0.1);
   }
 }
 
@@ -83,5 +132,4 @@
   .bg-logo-glow {
     background: radial-gradient(ellipse 50% 60% at 50% 40%, rgba(139, 26, 26, 0.04) 0%, transparent 70%);
   }
-
 }

@@ -19,33 +19,6 @@
  */
 
 // ---------------------------------------------------------------------------
-// Types — Products (legacy, hidden from nav)
-// ---------------------------------------------------------------------------
-
-export interface Product {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  stock: number;
-  imageUrl?: string;
-  category: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CreateProductDTO {
-  name: string;
-  description: string;
-  price: number;
-  stock: number;
-  imageUrl?: string;
-  category: string;
-}
-
-export interface UpdateProductDTO extends Partial<CreateProductDTO> {}
-
-// ---------------------------------------------------------------------------
 // Types — Membership Payment Validation (CU012)
 // ---------------------------------------------------------------------------
 
@@ -271,60 +244,6 @@ async function request<T>(
       clearTimeout(timeoutId);
     }
   }
-}
-
-// ---------------------------------------------------------------------------
-// Product API Methods (legacy — kept for existing tests)
-// ---------------------------------------------------------------------------
-
-/**
- * Fetch all products.
- */
-export async function fetchProducts(): Promise<Product[]> {
-  return request<Product[]>(apiEndpoint("/products"));
-}
-
-/**
- * Fetch a single product by ID.
- */
-export async function fetchProductById(id: string): Promise<Product> {
-  return request<Product>(apiEndpoint(`/products/${id}`));
-}
-
-/**
- * Create a new product.
- */
-export async function createProduct(
-  data: CreateProductDTO,
-): Promise<Product> {
-  return request<Product>(apiEndpoint("/products"), {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-/**
- * Update an existing product.
- */
-export async function updateProduct(
-  id: string,
-  data: UpdateProductDTO,
-): Promise<Product> {
-  return request<Product>(apiEndpoint(`/products/${id}`), {
-    method: "PUT",
-    body: JSON.stringify(data),
-  });
-}
-
-/**
- * Delete a product.
- */
-export async function deleteProduct(
-  id: string,
-): Promise<{ message: string }> {
-  return request<{ message: string }>(apiEndpoint(`/products/${id}`), {
-    method: "DELETE",
-  });
 }
 
 // ---------------------------------------------------------------------------

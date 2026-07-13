@@ -31,7 +31,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" className={inter.variable}>
-      <body className="min-h-screen bg-cata-cream bg-subtle-dot font-sans text-cata-charcoal antialiased">
+      <body className="min-h-screen bg-cata-dark font-sans text-white antialiased">
         <AuthProviderWrapper>
           <Header />
           <main className="mx-auto max-w-8xl px-4 py-10 sm:px-8 lg:px-12">

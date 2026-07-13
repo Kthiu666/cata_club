@@ -52,27 +52,27 @@ import {
 function AttendanceIcon({ estado }: { estado: string }) {
   switch (estado) {
     case "present":
-      return <CheckCircle2 size={12} strokeWidth={2} className="text-emerald-600" aria-hidden="true" />;
+      return <CheckCircle2 size={12} strokeWidth={2} className="text-emerald-400" aria-hidden="true" />;
     case "absent":
-      return <XCircle size={12} strokeWidth={2} className="text-red-600" aria-hidden="true" />;
+      return <XCircle size={12} strokeWidth={2} className="text-red-400" aria-hidden="true" />;
     case "late":
-      return <Clock3 size={12} strokeWidth={2} className="text-amber-600" aria-hidden="true" />;
+      return <Clock3 size={12} strokeWidth={2} className="text-amber-400" aria-hidden="true" />;
     case "justified":
-      return <AlertTriangle size={12} strokeWidth={2} className="text-blue-600" aria-hidden="true" />;
+      return <AlertTriangle size={12} strokeWidth={2} className="text-blue-400" aria-hidden="true" />;
     default:
-      return <HelpCircle size={12} strokeWidth={2} className="text-cata-gray" aria-hidden="true" />;
+      return <HelpCircle size={12} strokeWidth={2} className="text-white/65" aria-hidden="true" />;
   }
 }
 
 function AttendanceBadge({ estado }: { estado: string }) {
   const base = "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium";
   const colors: Record<string, string> = {
-    present: "bg-emerald-50 text-emerald-700",
-    absent: "bg-red-50 text-red-700",
-    late: "bg-amber-50 text-amber-700",
-    justified: "bg-blue-50 text-blue-700",
+    present: "bg-emerald-900/20 text-emerald-400",
+    absent: "bg-red-900/20 text-red-400",
+    late: "bg-amber-900/20 text-amber-400",
+    justified: "bg-blue-900/20 text-blue-400",
   };
-  const safeColor = colors[estado] ?? "bg-gray-50 text-gray-700";
+  const safeColor = colors[estado] ?? "bg-white/5 text-white/65";
   const safeLabel = ATTENDANCE_LABELS[estado as keyof typeof ATTENDANCE_LABELS] ?? "Desconocido";
   return (
     <span className={`${base} ${safeColor}`}>
@@ -114,74 +114,79 @@ export default function AttendancePage() {
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
       <div>
-        {/* ══ Header ══ */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cata-red/10">
-              <Calendar
-                size={20}
-                strokeWidth={1.5}
-                className="text-cata-red"
-                aria-hidden="true"
-              />
+        {/* Hero Banner */}
+        <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
+              <Calendar size={14} strokeWidth={2} aria-hidden="true" />
+              Asistencia y Horarios
             </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-cata-charcoal">
-                Horarios y Asistencia
-              </h1>
-              <p className="text-sm text-cata-gray">
-                Horarios de entrenamiento y registros de asistencia
-              </p>
-            </div>
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+              Horarios y Asistencia
+            </h1>
+            <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
+              Horarios de entrenamiento y registros de asistencia. Organice sesiones,
+              canchas y grupos de entrenamiento.
+            </p>
           </div>
         </div>
 
-        {/* ══ Demo indicator ══ */}
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
-          <span className="font-medium">Demo</span> &mdash; Los datos de
-          horarios y asistencia son simulados. No hay integración con un backend
-          real.
+        {/* Demo badge */}
+        <div className="mb-6 flex items-center gap-2">
+          <span className="rounded-full bg-amber-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400">
+            Demo
+          </span>
+          <span className="text-xs text-white/40">
+            Los datos de horarios y asistencia son simulados
+          </span>
         </div>
 
-        {/* ══ Stats grid ══ */}
+        {/* Stats grid */}
         <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <div className="card-hover p-5 sm:p-6">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cata-warm">
-                <Calendar size={18} strokeWidth={1.5} className="text-cata-gray" aria-hidden="true" />
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
+                <Calendar size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
               </div>
             </div>
-            <p className="text-sm font-medium text-cata-gray">Horarios</p>
-            <p className="mt-0.5 text-3xl font-bold tracking-tight text-cata-charcoal">
+            <p className="text-xs font-medium uppercase tracking-wider text-white/65">Horarios</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">
               {MOCK_SCHEDULES.length}
             </p>
-            <p className="mt-0.5 text-xs text-cata-gray/60">{activeCount} activos</p>
+            <p className="mt-1 text-xs text-white/40">{activeCount} activos</p>
           </div>
 
           <div className="card-hover p-5 sm:p-6">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cata-red/8">
-                <UserCheck size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
+                <UserCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
               </div>
             </div>
-            <p className="text-sm font-medium text-cata-gray">Asistencias registradas</p>
-            <p className="mt-0.5 text-3xl font-bold tracking-tight text-cata-charcoal">
+            <p className="text-xs font-medium uppercase tracking-wider text-white/65">Asistencias registradas</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">
               {todayStats.totalStudents}
             </p>
-            <p className="mt-0.5 text-xs text-cata-gray/60">en los últimos registros</p>
+            <p className="mt-1 text-xs text-white/40">en los últimos registros</p>
           </div>
 
           <div className="card-hover p-5 sm:p-6">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50">
-                <CheckCircle2 size={18} strokeWidth={1.5} className="text-emerald-600" aria-hidden="true" />
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
+                <CheckCircle2 size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
               </div>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-900/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" />
+                {todayStats.totalStudents > 0
+                  ? `${Math.round((todayStats.totalPresent / todayStats.totalStudents) * 100)}%`
+                  : "N/A"}
+              </span>
             </div>
-            <p className="text-sm font-medium text-cata-gray">Presentes</p>
-            <p className="mt-0.5 text-3xl font-bold tracking-tight text-cata-charcoal">
+            <p className="text-xs font-medium uppercase tracking-wider text-white/65">Presentes</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">
               {todayStats.totalPresent}
             </p>
-            <p className="mt-0.5 text-xs text-cata-gray/60">
+            <p className="mt-1 text-xs text-white/40">
               {todayStats.totalStudents > 0
                 ? `${Math.round((todayStats.totalPresent / todayStats.totalStudents) * 100)}% de asistencia`
                 : "sin datos"}
@@ -189,29 +194,32 @@ export default function AttendancePage() {
           </div>
 
           <div className="card-hover p-5 sm:p-6">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50">
-                <Clock3 size={18} strokeWidth={1.5} className="text-amber-600" aria-hidden="true" />
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
+                <Clock3 size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
               </div>
             </div>
-            <p className="text-sm font-medium text-cata-gray">Ausencias / Tardanzas</p>
-            <p className="mt-0.5 text-3xl font-bold tracking-tight text-cata-charcoal">
+            <p className="text-xs font-medium uppercase tracking-wider text-white/65">Ausencias / Tardanzas</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">
               {todayStats.totalAbsent + todayStats.totalLate}
             </p>
-            <p className="mt-0.5 text-xs text-cata-gray/60">
+            <p className="mt-1 text-xs text-white/40">
               {todayStats.totalAbsent} ausentes &middot; {todayStats.totalLate} tardanzas
             </p>
           </div>
         </div>
 
-        {/* ══ Schedules section ══ */}
+        {/* Schedules section */}
         <div className="mb-8">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-cata-charcoal">
-              Horarios de Entrenamiento
-            </h2>
             <div className="flex items-center gap-2">
-              <Filter size={13} strokeWidth={1.5} className="text-cata-gray" aria-hidden="true" />
+              <Clock size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+              <h2 className="text-lg font-bold text-white">
+                Horarios de Entrenamiento
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <Filter size={13} strokeWidth={1.5} className="text-white/65" aria-hidden="true" />
               <select
                 value={dayFilter}
                 onChange={(e) => setDayFilter(e.target.value)}
@@ -236,15 +244,20 @@ export default function AttendancePage() {
                     !slot.activo ? "opacity-50" : ""
                   }`}
                 >
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-cata-charcoal">
-                      {formatDay(slot.diaSemana)}
-                    </span>
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cata-red/15">
+                        <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                      </div>
+                      <span className="text-sm font-bold text-white">
+                        {formatDay(slot.diaSemana)}
+                      </span>
+                    </div>
                     {!slot.activo && (
                       <span className="badge badge-error text-[10px]">Inactivo</span>
                     )}
                   </div>
-                  <div className="space-y-1 text-xs text-cata-gray">
+                  <div className="space-y-1.5 text-xs text-white/65">
                     <p className="flex items-center gap-1.5">
                       <Clock size={12} strokeWidth={1.5} aria-hidden="true" />
                       {slot.horaInicio} — {slot.horaFin}
@@ -273,25 +286,28 @@ export default function AttendancePage() {
             </div>
           ) : (
             <div className="card flex flex-col items-center py-12 text-center">
-              <Calendar size={36} strokeWidth={1} className="mb-2 text-cata-stone" aria-hidden="true" />
-              <p className="text-sm text-cata-gray">
+              <Calendar size={32} strokeWidth={1.5} className="mb-3 text-white/20" aria-hidden="true" />
+              <p className="text-sm text-white/50">
                 No hay horarios para el día seleccionado.
               </p>
             </div>
           )}
         </div>
 
-        {/* ══ Recent attendance section ══ */}
+        {/* Recent attendance section */}
         <div className="mb-8">
-          <h2 className="mb-4 text-lg font-semibold text-cata-charcoal">
-            Registros de Asistencia Recientes
-          </h2>
+          <div className="mb-4 flex items-center gap-2">
+            <UserCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            <h2 className="text-lg font-bold text-white">
+              Registros de Asistencia Recientes
+            </h2>
+          </div>
 
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
-                  <tr className="border-b border-cata-stone/60 bg-cata-warm text-xs font-medium uppercase tracking-wider text-cata-gray">
+                  <tr className="border-b border-white/10 bg-cata-dark-surface text-xs font-medium uppercase tracking-wider text-white/65">
                     <th className="px-4 py-3 font-medium">Fecha</th>
                     <th className="px-4 py-3 font-medium">Horario</th>
                     <th className="px-4 py-3 font-medium">Alumno</th>
@@ -299,22 +315,22 @@ export default function AttendancePage() {
                     <th className="px-4 py-3 font-medium">Registrado por</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-cata-stone/40">
+                <tbody className="divide-y divide-white/5">
                   {MOCK_ATTENDANCE_RECORDS.map((record) => (
-                    <tr key={record.id} className="transition-colors hover:bg-cata-warm/40">
-                      <td className="px-4 py-3 text-xs text-cata-gray">
+                    <tr key={record.id} className="transition-colors hover:bg-cata-dark-surface/50">
+                      <td className="px-4 py-3 text-xs text-white/65">
                         {record.fecha}
                       </td>
-                      <td className="px-4 py-3 text-xs text-cata-charcoal">
+                      <td className="px-4 py-3 text-xs text-white">
                         {record.horario}
                       </td>
-                      <td className="px-4 py-3 text-sm font-medium text-cata-charcoal">
+                      <td className="px-4 py-3 text-sm font-medium text-white">
                         {record.alumno}
                       </td>
                       <td className="px-4 py-3">
                         <AttendanceBadge estado={record.estado} />
                       </td>
-                      <td className="px-4 py-3 text-xs text-cata-gray">
+                      <td className="px-4 py-3 text-xs text-white/65">
                         <span className="flex items-center gap-1.5">
                           <UserCheck size={11} strokeWidth={1.5} aria-hidden="true" />
                           {record.entrenador}
@@ -328,22 +344,23 @@ export default function AttendancePage() {
           </div>
         </div>
 
-        {/* ══ Domain info card ══ */}
-        <div className="rounded-xl border border-cata-stone/50 bg-white p-5">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-cata-gray-light">
-            Modelo de dominio (Demo)
-          </h3>
-          <p className="text-xs leading-relaxed text-cata-gray">
-            Los <strong>horarios</strong> son slots de entrenamiento disponibles.
+        {/* Domain info card */}
+        <div className="rounded-2xl border border-white/8 bg-cata-dark-elevated p-6">
+          <div className="mb-3 flex items-center gap-2">
+            <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            <h3 className="text-sm font-bold text-white">Modelo de dominio (Demo)</h3>
+          </div>
+          <p className="text-sm leading-relaxed text-white/65">
+            Los <strong className="text-white">horarios</strong> son slots de entrenamiento disponibles.
             NO pertenecen a un entrenador específico. El registro de{" "}
-            <strong>asistencia</strong> almacena qué entrenador registró la
+            <strong className="text-white">asistencia</strong> almacena qué entrenador registró la
             asistencia de cada alumno en una sesión determinada. Cualquier
             entrenador puede registrar asistencia en cualquier horario disponible.
           </p>
         </div>
 
-        {/* ══ Demo footer ══ */}
-        <p className="mt-8 text-center text-xs text-cata-gray/40">
+        {/* Demo footer */}
+        <p className="mt-8 text-center text-xs text-white/30">
           Datos de demostración. Los registros reales se cargarán desde el backend.
         </p>
       </div>

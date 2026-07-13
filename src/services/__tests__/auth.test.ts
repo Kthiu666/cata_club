@@ -4,6 +4,8 @@
  * Uses global mocks for localStorage since the test environment is node.
  * Covers login success for all roles, login failure modes, session
  * persistence, and logout behaviour.
+ *
+ * @vitest-environment node
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";

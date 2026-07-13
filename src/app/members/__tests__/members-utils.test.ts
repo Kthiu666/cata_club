@@ -12,8 +12,6 @@ import {
 } from "@/mocks/members";
 import {
   buildMemberStats,
-  formatCurrency,
-  formatDate,
   formatMembershipPeriod,
   getPayerTypeLabel,
   countActiveStudents,
@@ -22,8 +20,10 @@ import {
   getGrupoById,
   getNivelLabelFromGrupo,
   normalizeText,
+  MEMBERSHIP_TYPE_LABELS,
   type MemberAccount,
 } from "../members-utils";
+import { formatCurrency, formatDate } from "../../../lib/format-utils";
 
 // ---------------------------------------------------------------------------
 // buildMemberStats
@@ -216,6 +216,28 @@ describe("getPayerTypeLabel", () => {
 
   it('returns "Alumno autogestionado" for autogestionado', () => {
     expect(getPayerTypeLabel("autogestionado")).toBe("Alumno autogestionado");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MEMBERSHIP_TYPE_LABELS
+// ---------------------------------------------------------------------------
+
+describe("MEMBERSHIP_TYPE_LABELS", () => {
+  it('returns "Mensual" for mensual', () => {
+    expect(MEMBERSHIP_TYPE_LABELS["mensual"]).toBe("Mensual");
+  });
+
+  it('returns "Trimestral" for trimestral', () => {
+    expect(MEMBERSHIP_TYPE_LABELS["trimestral"]).toBe("Trimestral");
+  });
+
+  it('returns "Semestral" for semestral', () => {
+    expect(MEMBERSHIP_TYPE_LABELS["semestral"]).toBe("Semestral");
+  });
+
+  it('returns "Anual" for anual', () => {
+    expect(MEMBERSHIP_TYPE_LABELS["anual"]).toBe("Anual");
   });
 });
 
