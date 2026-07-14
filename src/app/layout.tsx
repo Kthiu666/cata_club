@@ -12,6 +12,10 @@ const inter = Inter({
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Cata Club Admin";
 
+interface RootLayoutProps {
+  children: React.ReactNode;
+}
+
 export const metadata: Metadata = {
   title: {
     default: APP_NAME,
@@ -26,15 +30,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode;
-}) {
+}: RootLayoutProps): React.ReactElement {
   return (
     <html lang="es" className={inter.variable}>
       <body className="min-h-screen bg-cata-dark font-sans text-white antialiased">
         <AuthProviderWrapper>
-          <Header />
-          <main className="mx-auto max-w-8xl px-4 py-10 sm:px-8 lg:px-12">
+          <Header hideOnLanding />
+          <main className="app-main mx-auto max-w-8xl px-4 py-10 sm:px-8 lg:px-12">
             {children}
           </main>
         </AuthProviderWrapper>

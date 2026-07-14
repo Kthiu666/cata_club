@@ -1,6 +1,13 @@
+@import "leaflet/dist/leaflet.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.app-main:has(.landing-page) {
+  max-width: none;
+  padding: 0;
+}
 
 /* Global base styles — Cata Club Admin Dark Theme */
 

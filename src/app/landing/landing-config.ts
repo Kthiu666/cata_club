@@ -1,0 +1,85 @@
+export interface LandingStat {
+  value: string;
+  numericValue?: number;
+  prefix?: string;
+  label: string;
+}
+
+export interface LandingSchedule {
+  category: string;
+  audience: string;
+  hours: string;
+  days: string;
+}
+
+export interface LandingContact {
+  whatsapp: string;
+  facebook: string;
+  email: string;
+  hours: string;
+}
+
+export interface LandingConfig {
+  stats: LandingStat[];
+  schedules: LandingSchedule[];
+  contact: LandingContact;
+}
+
+export const landingConfig: LandingConfig = {
+  stats: [
+    {
+      value: "2013",
+      numericValue: 2013,
+      label: "Fundado el 10 de octubre",
+    },
+    {
+      // TODO(client): Confirm the club's current number of years training athletes.
+      value: "+12",
+      numericValue: 12,
+      prefix: "+",
+      label: "Años formando deportistas",
+    },
+    {
+      // TODO(client): Confirm the current number of athletes in training.
+      value: "+80",
+      numericValue: 80,
+      prefix: "+",
+      label: "Deportistas en formación",
+    },
+    {
+      value: "Loja",
+      label: "Junto al Coliseo Ciudad de Loja",
+    },
+  ],
+  // TODO(client): Replace all training schedules with the club's confirmed timetable.
+  schedules: [
+    {
+      category: "Infantil",
+      audience: "8 a 12 años",
+      hours: "15:00 – 16:30",
+      days: "Lunes a Viernes",
+    },
+    {
+      category: "Juvenil",
+      audience: "13 a 17 años",
+      hours: "16:30 – 18:30",
+      days: "Lunes a Viernes",
+    },
+    {
+      category: "Competitivo",
+      audience: "Selección y adultos",
+      hours: "18:30 – 20:30",
+      days: "Lunes a Sábado",
+    },
+  ],
+  contact: {
+    // TODO(client): Replace with the club's official WhatsApp number.
+    whatsapp: "+593 99 999 9999",
+    // TODO(client): Replace with the club's official Facebook page name.
+    facebook: "Cata Club Loja",
+    // TODO(client): Replace with the club's official email address.
+    email: "info@cataclub.ec",
+    // TODO(client): Confirm the public contact hours.
+    hours: "Lun – Sáb · 16:00 – 20:30",
+  },
+};

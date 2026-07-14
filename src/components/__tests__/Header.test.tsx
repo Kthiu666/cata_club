@@ -12,41 +12,54 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import Header from "@/components/Header";
 
+interface MockLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
+  children: React.ReactNode;
+  href: string;
+}
+
+interface MockImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
+  fill?: boolean;
+  priority?: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockPathname = vi.fn();
+const mockPathname = vi.fn<() => string>();
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => mockPathname(),
+vi.mock("next/navigation", (): { usePathname: () => string } => ({
+  usePathname: (): string => mockPathname(),
 }));
 
-vi.mock("next/link", () => ({
+vi.mock("next/link", (): { __esModule: boolean; default: (props: MockLinkProps) => React.ReactElement } => ({
   __esModule: true,
   default: ({
     children,
     href,
     ...props
-  }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>
-      {children as React.ReactNode}
+  }: MockLinkProps): React.ReactElement => (
+    <a href={href} {...props}>
+      {children}
     </a>
   ),
 }));
 
-vi.mock("next/image", () => ({
+vi.mock("next/image", (): { __esModule: boolean; default: (props: MockImageProps) => React.ReactElement } => ({
   __esModule: true,
-  default: (props: Record<string, unknown>) => {
+  default: (props: MockImageProps): React.ReactElement => {
     // Strip Next.js-specific props, keep standard img attrs
     const { fill, priority, sizes, ...rest } = props;
+    void fill;
+    void priority;
+    void sizes;
     // eslint-disable-next-line @next/next/no-img-element
     return <img alt="" {...rest} />;
   },
 }));
 
-vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: vi.fn(),
+vi.mock("@/contexts/AuthContext", (): { useAuth: typeof useAuth } => ({
+  useAuth: vi.fn<typeof useAuth>(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -66,17 +79,32 @@ const mockUseAuth = vi.mocked(useAuth);
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("Header", () => {
-  beforeEach(() => {
+describe("Header", (): void => {
+  beforeEach((): void => {
     mockPathname.mockReturnValue("/dashboard");
     mockUseAuth.mockReset();
     // Default: not loading, not authenticated
     mockUseAuth.mockReturnValue(createUnauthenticatedAuth(false));
   });
 
+  it("hides the header on the landing route when requested", (): void => {
+    mockPathname.mockReturnValue("/");
+    render(<Header hideOnLanding />);
+
+    expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+  });
+
+  it("shows the header on a non-landing route when landing hiding is requested", (): void => {
+    mockPathname.mockReturnValue("/login");
+
+    render(<Header hideOnLanding />);
+
+    expect(screen.getByRole("banner")).toBeInTheDocument();
+  });
+
   // --- Loading skeleton ---
 
-  it("shows skeleton while session is hydrating", () => {
+  it("shows skeleton while session is hydrating", (): void => {
     mockUseAuth.mockReturnValue(createLoadingAuth());
 
     render(<Header />);
@@ -90,45 +118,9 @@ describe("Header", () => {
     expect(screen.queryByRole("link", { name: /Iniciar Sesi\u00f3n/i })).not.toBeInTheDocument();
   });
 
-  // --- Institutional Header (landing page) ---
-
-  it("shows institutional links on landing page", () => {
-    mockPathname.mockReturnValue("/");
-    render(<Header />);
-
-    // Brand shows "Cata Club" + "Tenis de Mesa"
-    expect(screen.getByText("Cata Club")).toBeInTheDocument();
-    expect(screen.getByText("Tenis de Mesa")).toBeInTheDocument();
-
-    // Institutional navigation
-    expect(screen.getByRole("link", { name: /Inicio/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Nosotros/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Formaci\u00f3n/i })).toBeInTheDocument();
-
-    // Login button for unauthenticated users
-    expect(
-      screen.getByRole("link", { name: /Iniciar sesi\u00f3n/i }),
-    ).toBeInTheDocument();
-
-    // No app-specific elements
-    expect(screen.queryByText("Demo")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Cerrar Sesi\u00f3n/i })).not.toBeInTheDocument();
-  });
-
-  it("shows institutional mobile menu on landing", () => {
-    mockPathname.mockReturnValue("/");
-    render(<Header />);
-
-    fireEvent.click(screen.getByRole("button", { name: /Abrir men\u00fa/i }));
-
-    // Mobile menu has institutional links
-    expect(screen.getAllByRole("link", { name: /Inicio/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("link", { name: /Iniciar sesi\u00f3n/i }).length).toBeGreaterThan(0);
-  });
-
   // --- Unauthenticated ---
 
-  it("shows Inicio and Iniciar Sesión when not authenticated", () => {
+  it("shows Inicio and Iniciar Sesión when not authenticated", (): void => {
     render(<Header />);
 
     expect(screen.getByRole("link", { name: /Inicio/i })).toBeInTheDocument();
@@ -143,7 +135,7 @@ describe("Header", () => {
 
   // --- Authenticated — admin ---
 
-  it("shows admin nav links, user name, and logout button", () => {
+  it("shows admin nav links, user name, and logout button", (): void => {
     mockUseAuth.mockReturnValue(
       createAuthenticatedAuth("admin", "Admin Cata Club"),
     );
@@ -175,7 +167,7 @@ describe("Header", () => {
 
   // --- Authenticated — trainer ---
 
-  it("shows trainer nav links", () => {
+  it("shows trainer nav links", (): void => {
     mockUseAuth.mockReturnValue(
       createAuthenticatedAuth("trainer", "Carlos Entrenador"),
     );
@@ -200,7 +192,7 @@ describe("Header", () => {
 
   // --- Authenticated — responsable_pago ---
 
-  it("shows responsable_pago nav link", () => {
+  it("shows responsable_pago nav link", (): void => {
     mockUseAuth.mockReturnValue(
       createAuthenticatedAuth("responsable_pago", "Carlos Martinez"),
     );
@@ -223,7 +215,7 @@ describe("Header", () => {
 
   // --- Active link highlighting ---
 
-  it("marks the active link with aria-current=\"page\"", () => {
+  it("marks the active link with aria-current=\"page\"", (): void => {
     mockPathname.mockReturnValue("/members");
     mockUseAuth.mockReturnValue(
       createAuthenticatedAuth("admin", "Admin"),
@@ -235,7 +227,7 @@ describe("Header", () => {
     expect(membersLink).toHaveAttribute("aria-current", "page");
   });
 
-  it("does not apply aria-current to non-current route links", () => {
+  it("does not apply aria-current to non-current route links", (): void => {
     mockPathname.mockReturnValue("/members");
     mockUseAuth.mockReturnValue(
       createAuthenticatedAuth("admin", "Admin"),
@@ -249,11 +241,12 @@ describe("Header", () => {
 
   // --- Mobile menu ---
 
-  it("toggles mobile menu open and closed", () => {
+  it("toggles mobile menu open and closed", (): void => {
     render(<Header />);
 
     const menuButton = screen.getByRole("button", { name: /Abrir menú/i });
     expect(menuButton).toBeInTheDocument();
+    expect(menuButton).toHaveAttribute("aria-expanded", "false");
 
     // Mobile menu is closed initially — nav not visible on mobile
     // (the desktop nav is rendered but hidden via CSS, the mobile panel is not rendered)
@@ -264,12 +257,18 @@ describe("Header", () => {
 
     // Now the mobile menu button label changes to "Cerrar menú"
     expect(screen.queryByRole("button", { name: /Abrir menú/i })).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Cerrar menú/i }),
-    ).toBeInTheDocument();
+    const closeMenuButton = screen.getByRole("button", { name: /Cerrar menú/i });
+    expect(closeMenuButton).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(closeMenuButton);
+
+    expect(screen.getByRole("button", { name: /Abrir menú/i })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
   });
 
-  it("renders mobile nav panel with admin links when authenticated", () => {
+  it("renders mobile nav panel with admin links when authenticated", (): void => {
     mockUseAuth.mockReturnValue(
       createAuthenticatedAuth("admin", "Admin"),
     );
@@ -290,7 +289,7 @@ describe("Header", () => {
 
   // --- Logout ---
 
-  it("calls logout when desktop logout button is clicked", () => {
+  it("calls logout when desktop logout button is clicked", (): void => {
     const mockLogout = vi.fn();
     mockUseAuth.mockReturnValue(
       createAuthenticatedAuth("admin", "Admin", { logout: mockLogout }),
@@ -304,7 +303,7 @@ describe("Header", () => {
     expect(mockLogout).toHaveBeenCalledTimes(1);
   });
 
-  it("calls logout when mobile logout button is clicked", () => {
+  it("calls logout when mobile logout button is clicked", (): void => {
     const mockLogout = vi.fn();
     mockUseAuth.mockReturnValue(
       createAuthenticatedAuth("admin", "Admin", { logout: mockLogout }),
