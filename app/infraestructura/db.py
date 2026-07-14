@@ -1,22 +1,22 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import sessionmaker, Session
 
-from app.soporte_transversal.config import settings
+from app.soporte_transversal.configuracion import settings
+from app.dominio.modelos import Base
 
-# 1. Crear el motor de la base de datos (Engine)
-engine = create_engine(settings.database_url, echo=True)
-
-# 2. Crear la fábrica de sesiones (Session)
+engine = create_engine(settings.database_url, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# 3. Clase Base
-class Base(DeclarativeBase):
-    pass
 
-# 4. Dependencia de Inyección (Para FastAPI)
-def get_db():
+def obtener_sesion() -> Session:
+    """Dependencia de FastAPI: entrega una sesión de BD por request y la cierra al final."""
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+def crear_tablas():
+    """Solo para desarrollo. En producción se usa Alembic para migraciones."""
+    Base.metadata.create_all(bind=engine)

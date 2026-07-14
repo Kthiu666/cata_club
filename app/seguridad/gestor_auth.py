@@ -26,9 +26,23 @@ class GestorAutenticacion:
     @staticmethod
     def crear_token_acceso(datos: dict, expiracion_minutos: Optional[int] = None) -> str:
         payload = datos.copy()
+        # El claim `type` distingue un access token de un refresh token;
+        # el endpoint /auth/refresh valida que lo que recibe sea `type=refresh`.
+        payload["type"] = "access"
         expira = datetime.now(timezone.utc) + timedelta(
             minutes=expiracion_minutos or settings.jwt_expira_minutos
         )
+        payload.update({"exp": expira})
+        return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algoritmo)
+
+    @staticmethod
+    def crear_token_refresco(datos: dict) -> str:
+        """Emite un refresh token (vida larga, type=refresh). Sirve únicamente
+        para pedir un nuevo access token vía /auth/refresh; NO se usa para
+        autenticar requests a endpoints de negocio (eso requiere access token)."""
+        payload = datos.copy()
+        payload["type"] = "refresh"
+        expira = datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_expira_dias)
         payload.update({"exp": expira})
         return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algoritmo)
 
