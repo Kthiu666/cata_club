@@ -51,25 +51,36 @@ export const landingConfig: LandingConfig = {
       label: "Junto al Coliseo Ciudad de Loja",
     },
   ],
-  // TODO(client): Replace all training schedules with the club's confirmed timetable.
   schedules: [
+    {
+      category: "Formativo",
+      audience: "5 a 10 años",
+      hours: "15:00 – 16:00",
+      days: "Lunes a Viernes",
+    },
     {
       category: "Infantil",
       audience: "8 a 12 años",
-      hours: "15:00 – 16:30",
+      hours: "16:00 – 17:00",
       days: "Lunes a Viernes",
     },
     {
       category: "Juvenil",
-      audience: "13 a 17 años",
-      hours: "16:30 – 18:30",
+      audience: "Mayores de 12 años",
+      hours: "17:00 – 18:00",
       days: "Lunes a Viernes",
     },
     {
       category: "Competitivo",
-      audience: "Selección y adultos",
-      hours: "18:30 – 20:30",
+      audience: "Selección",
+      hours: "18:00 – 20:00",
       days: "Lunes a Sábado",
+    },
+    {
+      category: "Adultos",
+      audience: "",
+      hours: "20:00 – 21:15",
+      days: "Lunes a Viernes",
     },
   ],
   contact: {

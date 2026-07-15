@@ -77,7 +77,7 @@ function Navbar(): React.ReactElement {
     <nav className="landing-navbar" aria-label="Navegación principal">
       <a className="landing-logo" href="#inicio" aria-label="Cata Club, inicio">
         <Image src="/landing/cata-club-logo.jpeg" alt="" width={62} height={62} priority />
-        <span className="landing-display">Cata Club<small>TENIS DE MESA</small></span>
+        <span className="landing-display"><small>TENIS DE MESA</small>Cata Club</span>
       </a>
       <div className="landing-nav-links">
         <a className="active" href="#inicio" aria-current="page">Inicio</a>
@@ -98,9 +98,9 @@ function Hero(): React.ReactElement {
       <span className="landing-halftone" aria-hidden="true" />
       <span className="landing-ribbon landing-ribbon-top" aria-hidden="true" />
       <div className="landing-hero-copy">
-        <span className="landing-eyebrow">Club de tenis de mesa · Loja</span>
+        <span className="landing-hero-brand"><b>Tenis de Mesa</b> · Cata Club</span>
         <h1 className="landing-display" aria-label="Cata Club — Formando campeones para la vida">FORMANDO <span>CAMPEONES</span> PARA LA VIDA</h1>
-        <p>Únete a la academia donde la técnica y el carácter se forjan en cada punto.</p>
+        <p>Únete a nuestro club, donde la técnica y el carácter forjan en cada punto.</p>
         <div className="landing-hero-actions">
           <Link className="landing-button" href="/login" aria-label="ENTRAR — Iniciar sesión">ENTRAR <ArrowRight aria-hidden="true" /></Link>
           <a className="landing-button landing-button-outline" href="#nosotros">Conoce el club</a>
@@ -183,7 +183,7 @@ function Values(): React.ReactElement {
         <ValueCard title="Respeto">Honramos a rivales, compañeros y entrenadores en cada encuentro.</ValueCard>
         <ValueCard title="Disciplina">El progreso nace de la constancia y el entrenamiento diario.</ValueCard>
         <ValueCard title="Esfuerzo">Cada punto se gana con entrega y dedicación total.</ValueCard>
-        <ValueCard title="Compañerismo">Crecemos como equipo, celebrando juntos cada logro.</ValueCard>
+        <ValueCard title="Compañerismo">Crecemos como una familia, celebrando juntos cada logro.</ValueCard>
       </div>
     </section>
   );
@@ -245,7 +245,7 @@ function Location(): React.ReactElement {
         <LandingMap />
         <aside className="landing-contact" data-reveal>
           <h3>Información de contacto</h3>
-          <p><MapPin aria-hidden="true" /><span>Av. Manuel Agustín Aguirre, Barrio La Tebaida, Loja, Ecuador — junto al Coliseo Ciudad de Loja</span></p>
+          <p><MapPin aria-hidden="true" /><span>Av. Manuel Agustín Aguirre, Barrio Perpetuo Socorro, Loja, Ecuador — junto al Coliseo Ciudad de Loja</span></p>
           <p><Phone className="landing-icon-whatsapp" aria-hidden="true" /><strong>WhatsApp</strong><span>{contact.whatsapp}</span></p>
           <p><Facebook className="landing-icon-facebook" aria-hidden="true" /><strong>Facebook</strong><span>{contact.facebook}</span></p>
           <p><Mail aria-hidden="true" /><strong>Correo</strong><span>{contact.email}</span></p>
@@ -265,7 +265,7 @@ function Footer(): React.ReactElement {
       <span className="landing-halftone" aria-hidden="true" />
       <div className="landing-footer-top">
         <div className="landing-footer-brand">
-          <div><span><Image src="/landing/cata-club-logo.jpeg" alt="" width={58} height={58} /></span><b className="landing-display">Cata Club<small>TENIS DE MESA</small></b></div>
+          <div><span><Image src="/landing/cata-club-logo.jpeg" alt="" width={58} height={58} /></span><b className="landing-display"><small>TENIS DE MESA</small>Cata Club</b></div>
           <p>Formando campeones de tenis de mesa en Loja desde 2013.</p><Stars />
         </div>
         <nav aria-label="Servicios"><h2>Servicios</h2><a href="#horarios">Entrenamientos</a><a href="#horarios">Horarios</a><a href="#horarios">Categorías</a><a href="#horarios">Alto rendimiento</a></nav>

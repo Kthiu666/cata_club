@@ -63,6 +63,8 @@
 .landing-ribbon { position: absolute; width: 440px; height: 190px; pointer-events: none; border-radius: 50%; border-bottom: 28px solid var(--landing-highlight); box-shadow: 0 14px 0 color-mix(in srgb, var(--landing-surface) 42%, transparent), 0 34px 0 var(--landing-brand-red-strong); }
 .landing-ribbon-top { top: -100px; right: -80px; transform: rotate(27deg); }
 .landing-hero-copy { position: relative; z-index: 1; display: flex; flex: 1; flex-direction: column; gap: 24px; }
+.landing-hero-brand { display: block; color: var(--landing-on-action); font-family: var(--font-landing-barlow); font-size: 15px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; }
+.landing-hero-brand b { color: var(--landing-highlight); font-weight: 800; }
 .landing-hero .landing-eyebrow { color: var(--landing-on-action); }
 .landing-hero h1 { max-width: 610px; color: var(--landing-on-action); font-size: clamp(38px, 3.35vw, 48px); line-height: 1.15; }
 .landing-hero h1 span { color: var(--landing-highlight); }

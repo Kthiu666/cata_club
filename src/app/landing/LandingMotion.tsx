@@ -23,9 +23,10 @@ export default function LandingMotion(): null {
           const targets = section.querySelectorAll<HTMLElement>("[data-reveal]");
           if (targets.length > 0) {
             gsap.from(targets, {
-              y: 30,
-              duration: 0.42,
-              stagger: 0.07,
+              y: 40,
+              opacity: 0,
+              duration: 0.7,
+              stagger: 0.1,
               ease: "power3.out",
               immediateRender: false,
               scrollTrigger: { trigger: section, start: "top 82%", once: true },
