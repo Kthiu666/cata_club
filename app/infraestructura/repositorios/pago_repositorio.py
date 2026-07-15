@@ -1,7 +1,9 @@
 from typing import Optional
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, joinedload
 
 from app.dominio.modelos import Pago, ComprobantePago
+from app.dominio.enums import EstadoPago
 
 
 class PagoRepositorio:
@@ -10,6 +12,22 @@ class PagoRepositorio:
 
     def obtener_por_id(self, pago_id: int) -> Optional[Pago]:
         return self.db.get(Pago, pago_id)
+
+    def listar(
+        self,
+        estado_pago: Optional[EstadoPago] = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> list[Pago]:
+        """Lista pagos para la cola de validación del Administrador.
+        `joinedload(Pago.persona)` evita el problema N+1: el servicio necesita
+        el nombre de cada persona para armar PagoListItemDTO y sin esto
+        dispararía una query aparte por cada fila."""
+        stmt = select(Pago).options(joinedload(Pago.persona))
+        if estado_pago is not None:
+            stmt = stmt.where(Pago.estado_pago == estado_pago)
+        stmt = stmt.order_by(Pago.fecha_registro.desc()).offset(skip).limit(limit)
+        return list(self.db.execute(stmt).scalars().all())
 
     def crear(self, pago: Pago) -> Pago:
         self.db.add(pago)

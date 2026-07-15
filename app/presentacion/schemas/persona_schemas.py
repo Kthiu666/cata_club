@@ -79,6 +79,9 @@ class FichaMedicaCreateDTO(BaseModel):
     tipo_sangre: TipoSangre
     persona_id: int
     enfermedades: List[str] = Field(default_factory=list)  # nombres de enfermedades, opcional
+    alergias: Optional[str] = Field(default=None, max_length=255)
+    contacto_emergencia: Optional[str] = Field(default=None, max_length=150)
+    telefono_emergencia: Optional[str] = Field(default=None, max_length=15)
 
 
 class FichaMedicaUpdateDTO(BaseModel):
@@ -87,6 +90,9 @@ class FichaMedicaUpdateDTO(BaseModel):
     predecible para el frontend que un merge implícito."""
     tipo_sangre: Optional[TipoSangre] = None
     enfermedades: Optional[List[str]] = None
+    alergias: Optional[str] = Field(default=None, max_length=255)
+    contacto_emergencia: Optional[str] = Field(default=None, max_length=150)
+    telefono_emergencia: Optional[str] = Field(default=None, max_length=15)
 
 
 class FichaMedicaResponseDTO(BaseModel):
@@ -94,4 +100,7 @@ class FichaMedicaResponseDTO(BaseModel):
     tipo_sangre: TipoSangre
     persona_id: int
     enfermedades: List[EnfermedadResponseDTO] = []
+    alergias: Optional[str] = None
+    contacto_emergencia: Optional[str] = None
+    telefono_emergencia: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)

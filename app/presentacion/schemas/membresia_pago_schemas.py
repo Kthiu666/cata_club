@@ -78,6 +78,28 @@ class PagoResponseDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# --- Listado / cola de validación (GET /membresias/pagos) -------------------
+# Gap identificado en la integración con el frontend: no existía forma de
+# listar pagos (ej. la cola "pendientes de validación" que ve el
+# Administrador). PagoResponseDTO no alcanza porque el frontend necesita el
+# nombre de la persona sin tener que pedirlo aparte por cada fila.
+class PagoListItemDTO(BaseModel):
+    id: int
+    monto: Decimal
+    estado_pago: EstadoPago
+    tipo_pago: TipoPago
+    fecha_registro: datetime
+    fecha_validacion: Optional[datetime] = None
+    fecha_inicio: date
+    fecha_fin: date
+    persona_id: int
+    persona_nombre_completo: str
+    membresia_id: int
+    voucher_url: Optional[str] = None
+    voucher_formato: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
 # --- ComprobantePago ---
 # `pago_id` NO va aquí: viene del path del endpoint
 # (`POST /membresias/pagos/{pago_id}/comprobante`). Lo quitamos del DTO para

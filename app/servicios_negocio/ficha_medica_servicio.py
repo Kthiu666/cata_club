@@ -19,7 +19,13 @@ class FichaMedicaServicio:
         if persona.ficha_medica:
             raise EntidadDuplicada("La persona ya tiene una ficha médica registrada")
 
-        ficha = FichaMedica(tipo_sangre=datos.tipo_sangre, persona_id=datos.persona_id)
+        ficha = FichaMedica(
+            tipo_sangre=datos.tipo_sangre,
+            persona_id=datos.persona_id,
+            alergias=datos.alergias,
+            contacto_emergencia=datos.contacto_emergencia,
+            telefono_emergencia=datos.telefono_emergencia,
+        )
         for nombre in datos.enfermedades:
             ficha.enfermedades.append(Enfermedades(nombre_enfermedad=nombre))
         return self.repo.crear(ficha)
@@ -40,4 +46,10 @@ class FichaMedicaServicio:
             ficha.tipo_sangre = datos.tipo_sangre
         if datos.enfermedades is not None:
             ficha.enfermedades = [Enfermedades(nombre_enfermedad=n) for n in datos.enfermedades]
+        if datos.alergias is not None:
+            ficha.alergias = datos.alergias
+        if datos.contacto_emergencia is not None:
+            ficha.contacto_emergencia = datos.contacto_emergencia
+        if datos.telefono_emergencia is not None:
+            ficha.telefono_emergencia = datos.telefono_emergencia
         return self.repo.guardar_cambios(ficha)

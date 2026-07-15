@@ -15,13 +15,16 @@ from datetime import datetime, date, time, timezone
 from decimal import Decimal
 from typing import List, Optional
 
-from sqlalchemy import String, ForeignKey, Numeric, DateTime, Date, Time, Boolean, Table, Column, Enum as SAEnum
+from sqlalchemy import (
+    String, ForeignKey, Numeric, DateTime, Date, Time, Boolean, Table, Column,
+    Enum as SAEnum, UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from app.dominio.enums import (
     TipoRol, EstadoMembresia, TipoModalidad, EstadoPago,
     TipoPago, EstadoAsistencia, TipoEscuela, NivelTecnicoAlumno, TipoSangre, DiaSemana,
-    EstadoSolicitudExtra,
+    EstadoSolicitudExtra, EstadoJustificativoRanking, TipoNotificacion,
 )
 
 
@@ -169,6 +172,13 @@ class Persona(Base):
     solicitudes_clase_extra: Mapped[List["SolicitudClaseExtra"]] = relationship(back_populates="persona")
     # 1..0..1 con Ranking: una persona puede o no tener fila de ranking.
     ranking: Mapped[Optional["Ranking"]] = relationship(back_populates="persona", uselist=False)
+    resultados_ranking_mensual: Mapped[List["ResultadoRankingMensual"]] = relationship(
+        back_populates="persona"
+    )
+    justificativos_ranking: Mapped[List["JustificativoRanking"]] = relationship(
+        back_populates="persona", foreign_keys="JustificativoRanking.persona_id"
+    )
+    notificaciones: Mapped[List["Notificacion"]] = relationship(back_populates="persona")
 
     # Como entrenador:
     horarios_a_cargo: Mapped[List["HorarioEntrenamiento"]] = relationship(
@@ -266,6 +276,39 @@ class ComprobantePago(Base):
 # ---------------------------------------------------------------------------
 # Asistencia y Horarios
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Nivel de Ranking (E03) — unifica "grupo de entrenamiento" y "nivel
+# competitivo": según confirmó el equipo, los alumnos entrenan agrupados por
+# su nivel de ranking (no existen como conceptos separados). Reemplaza la idea
+# de "Grupo" que se había explorado en el frontend: en vez de una entidad
+# nueva de agrupación de horarios, el nivel de ranking ES el agrupador, y ya
+# trae el límite de capacidad que pedía E03-RF001 (6 a 10 deportistas).
+#
+# Nota de diseño: el máximo (10) SÍ se valida de forma dura al asignar una
+# persona a un nivel (servicios_negocio lanza OperacionInvalida si ya está
+# lleno). El mínimo (6) se expone como información en el DTO de respuesta
+# (`necesita_revision`) pero NO bloquea operaciones: un club nuevo o un nivel
+# recién creado puede tener menos de 6 personas temporalmente, y bloquear ahí
+# dejaría al Administrador sin forma de operar. Es una decisión de diseño
+# explícita, no una omisión.
+# ---------------------------------------------------------------------------
+class NivelRanking(Base):
+    __tablename__ = "nivel_ranking"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # Orden jerárquico: 1 = nivel más alto/competitivo. Único para poder
+    # calcular "nivel inmediatamente superior/inferior" sin ambigüedad.
+    numero_nivel: Mapped[int] = mapped_column(unique=True)
+    nombre: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    capacidad_minima: Mapped[int] = mapped_column(default=6)
+    capacidad_maxima: Mapped[int] = mapped_column(default=10)
+
+    horarios: Mapped[List["HorarioEntrenamiento"]] = relationship(back_populates="nivel_ranking")
+    rankings: Mapped[List["Ranking"]] = relationship(back_populates="nivel_ranking")
+    resultados_mensuales: Mapped[List["ResultadoRankingMensual"]] = relationship(
+        back_populates="nivel_ranking"
+    )
+
+
 class HorarioEntrenamiento(Base):
     """
     entrenador_id: entrenador TITULAR asignado a este horario (fijo por defecto).
@@ -282,6 +325,13 @@ class HorarioEntrenamiento(Base):
     entrenador: Mapped["Persona"] = relationship(
         back_populates="horarios_a_cargo", foreign_keys=[entrenador_id]
     )
+
+    # Nullable: horarios creados antes de este cambio, o de administración
+    # general, pueden no estar ligados a un nivel de ranking todavía.
+    nivel_ranking_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("nivel_ranking.id"), nullable=True
+    )
+    nivel_ranking: Mapped[Optional["NivelRanking"]] = relationship(back_populates="horarios")
 
     asistencias: Mapped[List["Asistencia"]] = relationship(back_populates="horario")
     solicitudes_clase_extra: Mapped[List["SolicitudClaseExtra"]] = relationship(back_populates="horario")
@@ -322,6 +372,14 @@ class FichaMedica(Base):
     __tablename__ = "ficha_medica"
     id: Mapped[int] = mapped_column(primary_key=True)
     tipo_sangre: Mapped[TipoSangre] = mapped_column(SAEnum(TipoSangre))
+
+    # --- Campos agregados: el frontend los necesita para su ficha de
+    # emergencia (alergias + a quién/cómo contactar), y no existían en el
+    # modelo original. Los tres son opcionales: una ficha médica puede
+    # registrarse sin esta información y completarse después.
+    alergias: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    contacto_emergencia: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    telefono_emergencia: Mapped[Optional[str]] = mapped_column(String(15), nullable=True)
 
     persona_id: Mapped[int] = mapped_column(ForeignKey("persona.id"), unique=True)
     persona: Mapped["Persona"] = relationship(back_populates="ficha_medica")
@@ -372,16 +430,29 @@ class SolicitudClaseExtra(Base):
 # ---------------------------------------------------------------------------
 # Ranking (E03)
 #
-# Regla E03:
-#   - El ranking asigna puntajes descendentes según la posición en competencias
-#     (1er lugar = 90 pts, 2do = 80, 3ro = 70, ..., último = 0 pts).
+# Regla E03 (actualizada — el comentario original de este bloque describía una
+# fórmula desactualizada de 90/80/70... que NO corresponde a los requisitos
+# reales; se corrige aquí):
+#   - Fórmula de puntos (RF004), definida junto con el equipo a partir de los
+#     tres anclajes del requisito (puesto 1 = 90, puesto 90+ = 1, descenso
+#     proporcional entre medio): puntos(p) = max(91 - p, 1). Implementada en
+#     app.servicios_negocio.ranking_servicio.calcular_puntos_por_posicion.
 #   - Es OBLIGATORIO diferenciar un alumno que "No participó" de uno que quedó
 #     en "Último lugar con 0 puntos". Se resuelve con `participo` (Boolean):
 #       * participo=False  -> No figura en el ranking (no suma, no se muestra).
 #       * participo=True   -> Sí figura, aunque el puntaje sea 0 (último lugar).
 #   - `esta_en_ranking` es el flag de VISIBILIDAD usado por los endpoints del
-#     frontend. La tarea de Celery Beat lo pondrá en False cuando el alumno
-#     acumule más de 60 días sin actividad (`ultimo_combate_o_asistencia`).
+#     frontend. Se pone en False por dos mecanismos independientes:
+#       1) La tarea de Celery Beat de limpieza por inactividad general (60
+#          días sin ninguna actividad registrada -- ver ranking_tareas.py).
+#       2) El cierre mensual manual (RF007): 2 meses calendario consecutivos
+#          sin participar y sin justificativo aprobado.
+#     Ambos mecanismos coexisten a propósito: el primero es una red de
+#     seguridad general, el segundo es la regla de negocio específica de E03.
+#   - `nivel_ranking_id`: el nivel de ranking ES el grupo de entrenamiento
+#     (ver NivelRanking arriba). Puede ser NULL momentáneamente entre que se
+#     crea la fila de Ranking (alumno nuevo) y el Entrenador le asigna nivel
+#     inicial (RF002) -- por eso es nullable, no obligatorio en el modelo.
 # ---------------------------------------------------------------------------
 class Ranking(Base):
     __tablename__ = "ranking"
@@ -399,4 +470,104 @@ class Ranking(Base):
     )
     esta_en_ranking: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # --- E03-RF002/RF009: nivel operativo actual (= grupo de entrenamiento) ---
+    nivel_ranking_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("nivel_ranking.id"), nullable=True
+    )
+    nivel_ranking: Mapped[Optional["NivelRanking"]] = relationship(back_populates="rankings")
+
+    # --- E03-RF007: contador de meses consecutivos sin participar (sin
+    # justificativo aprobado). Se resetea a 0 apenas el alumno vuelve a
+    # participar o presenta un justificativo aprobado para el mes. Al llegar
+    # a 2, el cierre mensual notifica y luego elimina (esta_en_ranking=False).
+    meses_consecutivos_ausente: Mapped[int] = mapped_column(default=0)
+
+    # --- E03-RF011: selección oficial de Cata Club para representar al club
+    # en torneos del año vigente.
+    seleccion_oficial: Mapped[bool] = mapped_column(Boolean, default=False)
+    anio_seleccion: Mapped[Optional[int]] = mapped_column(nullable=True)
+
     persona: Mapped["Persona"] = relationship(back_populates="ranking")
+
+
+# ---------------------------------------------------------------------------
+# Resultado mensual de ranking (E03-RF003/RF004/RF005/RF007)
+# Historial mes a mes: necesario para (a) no perder el detalle al recalcular
+# el ranking vigente, y (b) poder verificar "2 meses consecutivos" sin
+# depender únicamente de un contador (el contador en Ranking es una
+# optimización; este historial es la fuente de verdad auditable).
+# ---------------------------------------------------------------------------
+class ResultadoRankingMensual(Base):
+    __tablename__ = "resultado_ranking_mensual"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    anio: Mapped[int] = mapped_column()
+    mes: Mapped[int] = mapped_column()  # 1-12
+    posicion: Mapped[Optional[int]] = mapped_column(nullable=True)  # None si no participó
+    puntos_obtenidos: Mapped[int] = mapped_column(default=0)
+    participo: Mapped[bool] = mapped_column(Boolean, default=False)
+    ausencia_justificada: Mapped[bool] = mapped_column(Boolean, default=False)
+    fecha_registro: Mapped[datetime] = mapped_column(DateTime, default=_ahora_utc)
+
+    persona_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
+    persona: Mapped["Persona"] = relationship(back_populates="resultados_ranking_mensual")
+
+    nivel_ranking_id: Mapped[int] = mapped_column(ForeignKey("nivel_ranking.id"))
+    nivel_ranking: Mapped["NivelRanking"] = relationship(back_populates="resultados_mensuales")
+
+    __table_args__ = (
+        UniqueConstraint("persona_id", "anio", "mes", name="uq_resultado_ranking_persona_periodo"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Justificativo de inasistencia al ranking mensual (E03-RF006a/RF006b)
+# ---------------------------------------------------------------------------
+class JustificativoRanking(Base):
+    __tablename__ = "justificativo_ranking"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    anio: Mapped[int] = mapped_column()
+    mes: Mapped[int] = mapped_column()
+    motivo: Mapped[str] = mapped_column(String(255))
+    archivo_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    estado: Mapped[EstadoJustificativoRanking] = mapped_column(
+        SAEnum(EstadoJustificativoRanking), default=EstadoJustificativoRanking.PENDIENTE
+    )
+    motivo_rechazo: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    fecha_solicitud: Mapped[datetime] = mapped_column(DateTime, default=_ahora_utc)
+    fecha_evaluacion: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    persona_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
+    persona: Mapped["Persona"] = relationship(
+        back_populates="justificativos_ranking", foreign_keys=[persona_id]
+    )
+
+    # Quién evalúa (aprueba/rechaza): un ADMINISTRADOR, por RF006b.
+    evaluado_por_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("persona.id"), nullable=True
+    )
+    evaluado_por: Mapped[Optional["Persona"]] = relationship(foreign_keys=[evaluado_por_id])
+
+    __table_args__ = (
+        UniqueConstraint("persona_id", "anio", "mes", name="uq_justificativo_persona_periodo"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Notificación in-app (usada por E03-RF005/RF007/RF009 y por evaluación de
+# justificativos). Genérica a propósito: no se acopla solo a Ranking, para
+# poder reutilizarse en otros flujos del sistema a futuro.
+# ---------------------------------------------------------------------------
+class Notificacion(Base):
+    __tablename__ = "notificacion"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tipo: Mapped[TipoNotificacion] = mapped_column(SAEnum(TipoNotificacion))
+    mensaje: Mapped[str] = mapped_column(String(255))
+    leida: Mapped[bool] = mapped_column(Boolean, default=False)
+    fecha_creacion: Mapped[datetime] = mapped_column(DateTime, default=_ahora_utc)
+    # Id de la entidad relacionada (ej. el Ranking o JustificativoRanking que
+    # originó la notificación), sin FK estricta porque el tipo de entidad
+    # varía según `tipo` -- mantenerlo simple evita una jerarquía de tablas.
+    entidad_relacionada_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+
+    persona_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
+    persona: Mapped["Persona"] = relationship(back_populates="notificaciones")

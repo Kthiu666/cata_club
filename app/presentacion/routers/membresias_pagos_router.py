@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from app.infraestructura.db import obtener_sesion
+from app.dominio.enums import EstadoPago
 from app.presentacion.schemas.membresia_pago_schemas import (
     MembresiaCreateDTO, MembresiaResponseDTO,
-    PagoCreateDTO, PagoResponseDTO, PagoValidarDTO,
+    PagoCreateDTO, PagoResponseDTO, PagoValidarDTO, PagoListItemDTO,
     ComprobantePagoCreateDTO, ComprobantePagoResponseDTO,
     TipoMembresiaCreateDTO, TipoMembresiaResponseDTO,
 )
@@ -42,6 +43,33 @@ async def crear_membresia(datos: MembresiaCreateDTO, db: Session = Depends(obten
     return MembresiaServicio(db).crear_membresia(datos)
 
 
+# --- Pago ---
+# IMPORTANTE sobre el orden: este bloque de rutas de /pagos debe declararse
+# ANTES de `GET /{membresia_id}` (más abajo). FastAPI/Starlette resuelve
+# rutas en el orden en que se registran, y `/{membresia_id}` es un patrón
+# genérico de un solo segmento que capturaría "GET /membresias/pagos"
+# interpretando "pagos" como membresia_id (-> 422 al no poder parsearlo como
+# int). Se descubrió este problema al agregar el listado de pagos.
+
+# Cola de validación (Administrador). Gap identificado al integrar con el
+# frontend: no existía ningún endpoint de listado; solo se podía consultar
+# un pago a la vez por id. `estado_pago` es opcional para poder ver el
+# historial completo, no solo pendientes.
+@router.get(
+    "/pagos",
+    response_model=List[PagoListItemDTO],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
+)
+async def listar_pagos(
+    estado_pago: Optional[EstadoPago] = Query(default=None),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(obtener_sesion),
+):
+    return PagoServicio(db).listar_pagos(estado_pago=estado_pago, skip=skip, limit=limit)
+
+
+# --- Membresia ---
 # Membresía expone relación persona<->plan: exige autenticación (no rol admin).
 @router.get(
     "/{membresia_id}",
@@ -50,9 +78,6 @@ async def crear_membresia(datos: MembresiaCreateDTO, db: Session = Depends(obten
 )
 async def obtener_membresia(membresia_id: int, db: Session = Depends(obtener_sesion)):
     return MembresiaServicio(db).obtener_membresia(membresia_id)
-
-
-# --- Pago ---
 # Registra un pago pendiente. A diferencia de antes, ya NO basta con estar
 # autenticado con cualquier rol: se exige ser el dueño (persona_id del token
 # == persona_id del payload) o ADMINISTRADOR, igual que en /voucher. Antes

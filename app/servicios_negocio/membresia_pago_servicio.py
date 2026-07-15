@@ -11,6 +11,7 @@ from app.infraestructura.repositorios.membresia_repositorio import MembresiaRepo
 from app.infraestructura.repositorios.pago_repositorio import PagoRepositorio, ComprobantePagoRepositorio
 from app.presentacion.schemas.membresia_pago_schemas import (
     TipoMembresiaCreateDTO, MembresiaCreateDTO, PagoCreateDTO, PagoValidarDTO, ComprobantePagoCreateDTO,
+    PagoListItemDTO,
 )
 
 
@@ -105,6 +106,36 @@ class PagoServicio:
         if not pago:
             raise EntidadNoEncontrada(f"Pago con id {pago_id} no encontrado")
         return pago
+
+    def listar_pagos(
+        self,
+        estado_pago: EstadoPago | None = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> list[PagoListItemDTO]:
+        """Cola de validación (Administrador). Construye PagoListItemDTO a mano
+        (en vez de from_attributes directo) porque `persona_nombre_completo`
+        no es una columna de Pago: se arma a partir de la relación cargada
+        (ver joinedload en el repositorio, evita N+1 queries)."""
+        pagos = self.repo.listar(estado_pago=estado_pago, skip=skip, limit=limit)
+        return [
+            PagoListItemDTO(
+                id=p.id,
+                monto=p.monto,
+                estado_pago=p.estado_pago,
+                tipo_pago=p.tipo_pago,
+                fecha_registro=p.fecha_registro,
+                fecha_validacion=p.fecha_validacion,
+                fecha_inicio=p.fecha_inicio,
+                fecha_fin=p.fecha_fin,
+                persona_id=p.persona_id,
+                persona_nombre_completo=f"{p.persona.nombres} {p.persona.apellidos}",
+                membresia_id=p.membresia_id,
+                voucher_url=p.voucher_url,
+                voucher_formato=p.voucher_formato,
+            )
+            for p in pagos
+        ]
 
     def validar_pago(self, pago_id: int, datos: PagoValidarDTO) -> Pago:
         """

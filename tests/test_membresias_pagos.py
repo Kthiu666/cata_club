@@ -123,3 +123,64 @@ def test_pago_rechazado_no_reutiliza_estado_de_membresia(client):
     membresia_actualizada = client.get(f"/api/v1/membresias/{membresia['id']}").json()
     assert membresia_actualizada["estado"] == "INACTIVA"
     assert "PENDIENTE_PAGO" not in [membresia_actualizada["estado"]]
+
+
+# --- GET /membresias/pagos (cola de validación) -----------------------------
+def test_listar_pagos_incluye_nombre_de_persona(client):
+    persona = _crear_persona(client)
+    tipo = _crear_tipo_membresia(client)
+    membresia = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": persona["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+    client.post(
+        "/api/v1/membresias/pagos",
+        json={
+            "monto": "35.00", "tipo_pago": "EFECTIVO",
+            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+            "persona_id": persona["id"], "membresia_id": membresia["id"],
+        },
+    )
+
+    resp = client.get("/api/v1/membresias/pagos")
+    assert resp.status_code == 200
+    items = resp.json()
+    assert len(items) == 1
+    assert items[0]["persona_nombre_completo"] == "Ana Torres"
+    assert items[0]["estado_pago"] == "PENDIENTE_VALIDACION"
+
+
+def test_listar_pagos_filtra_por_estado(client):
+    persona = _crear_persona(client)
+    tipo = _crear_tipo_membresia(client)
+    membresia = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": persona["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+    pago = client.post(
+        "/api/v1/membresias/pagos",
+        json={
+            "monto": "35.00", "tipo_pago": "EFECTIVO",
+            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+            "persona_id": persona["id"], "membresia_id": membresia["id"],
+        },
+    ).json()
+    client.patch(f"/api/v1/membresias/pagos/{pago['id']}/validar", json={"estado_pago": "APROBADO"})
+
+    resp = client.get("/api/v1/membresias/pagos", params={"estado_pago": "PENDIENTE_VALIDACION"})
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+    resp = client.get("/api/v1/membresias/pagos", params={"estado_pago": "APROBADO"})
+    assert len(resp.json()) == 1
+
+
+def test_listar_pagos_requiere_admin(client_sin_permisos):
+    resp = client_sin_permisos.get("/api/v1/membresias/pagos")
+    assert resp.status_code == 403

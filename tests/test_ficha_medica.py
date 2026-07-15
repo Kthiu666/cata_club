@@ -70,3 +70,58 @@ def test_actualizar_ficha_medica_requiere_admin(client_sin_permisos):
         "/api/v1/fichas-medicas/persona/1", json={"tipo_sangre": "O_POSITIVO"}
     )
     assert resp.status_code == 403
+
+
+def test_crear_ficha_medica_con_datos_de_emergencia(client):
+    """Campos agregados a pedido del frontend: alergias y contacto de
+    emergencia. Deben persistirse igual que tipo_sangre/enfermedades."""
+    persona = _crear_persona(client)
+    resp = client.post(
+        "/api/v1/fichas-medicas/",
+        json={
+            "tipo_sangre": "O_POSITIVO", "persona_id": persona["id"], "enfermedades": [],
+            "alergias": "Penicilina", "contacto_emergencia": "María Torres",
+            "telefono_emergencia": "0991112233",
+        },
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["alergias"] == "Penicilina"
+    assert body["contacto_emergencia"] == "María Torres"
+    assert body["telefono_emergencia"] == "0991112233"
+
+
+def test_crear_ficha_medica_sin_datos_de_emergencia_son_opcionales(client):
+    persona = _crear_persona(client)
+    resp = client.post(
+        "/api/v1/fichas-medicas/",
+        json={"tipo_sangre": "O_POSITIVO", "persona_id": persona["id"], "enfermedades": []},
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["alergias"] is None
+    assert body["contacto_emergencia"] is None
+    assert body["telefono_emergencia"] is None
+
+
+def test_actualizar_datos_de_emergencia_parcial(client):
+    persona = _crear_persona(client)
+    client.post(
+        "/api/v1/fichas-medicas/",
+        json={
+            "tipo_sangre": "O_POSITIVO", "persona_id": persona["id"], "enfermedades": [],
+            "alergias": "Ninguna",
+        },
+    )
+
+    resp = client.patch(
+        f"/api/v1/fichas-medicas/persona/{persona['id']}",
+        json={"contacto_emergencia": "Luis Pérez", "telefono_emergencia": "0987654321"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    # tipo_sangre y alergias no vinieron en el PATCH: deben quedar intactos.
+    assert body["tipo_sangre"] == "O_POSITIVO"
+    assert body["alergias"] == "Ninguna"
+    assert body["contacto_emergencia"] == "Luis Pérez"
+    assert body["telefono_emergencia"] == "0987654321"
