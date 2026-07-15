@@ -22,7 +22,6 @@ import {
   CheckCircle2,
   XCircle,
   Filter,
-  Search,
   User,
   Calendar,
   DollarSign,
@@ -73,7 +72,7 @@ const validationStatusStyles: Record<ValidationStatus, string> = {
   rechazado: "badge-error",
 };
 
-export default function PaymentsPage() {
+export default function PaymentsPage(): React.ReactElement {
   const [requests, setRequests] = useState<PaymentValidationRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,16 +85,15 @@ export default function PaymentsPage() {
   const [rejectionValidationError, setRejectionValidationError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const loadRequests = useCallback(async () => {
+  const loadRequests = useCallback(async (): Promise<void> => {
     try {
       setLoading(true);
       setError(null);
       const data = await fetchPaymentValidations();
       setRequests(data);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Error al cargar las solicitudes de validación de pago",
-      );
+      console.error("[payments] fetchPaymentValidations failed", err);
+      setError("Error al cargar las solicitudes de validación de pago");
     } finally {
       setLoading(false);
     }
@@ -117,7 +115,7 @@ export default function PaymentsPage() {
     rejected: requests.filter((r) => r.validationStatus === "rechazado").length,
   };
 
-  function handleSelect(request: PaymentValidationRequest) {
+  function handleSelect(request: PaymentValidationRequest): void {
     setSelectedRequest(request);
     setShowRejectForm(false);
     setRejectionReason("");
@@ -126,7 +124,7 @@ export default function PaymentsPage() {
     setSuccessMessage(null);
   }
 
-  function handleBack() {
+  function handleBack(): void {
     setSelectedRequest(null);
     setShowRejectForm(false);
     setRejectionReason("");
@@ -135,7 +133,7 @@ export default function PaymentsPage() {
     setSuccessMessage(null);
   }
 
-  async function handleApprove() {
+  async function handleApprove(): Promise<void> {
     if (!selectedRequest) return;
     setActionLoading("approve");
     setActionError(null);
@@ -150,27 +148,28 @@ export default function PaymentsPage() {
       setSelectedRequest(updated);
       setSuccessMessage("Demo — Pago aprobado. La membresía ahora está activa.");
     } catch (err) {
+      console.error("[payments] approve failed", err);
       setActionError(
-        err instanceof Error ? err.message : "Error al aprobar el pago",
+        "Error al aprobar el pago",
       );
     } finally {
       setActionLoading(null);
     }
   }
 
-  function handleRejectClick() {
+  function handleRejectClick(): void {
     setShowRejectForm(true);
     setRejectionValidationError(null);
     setActionError(null);
   }
 
-  function handleRejectCancel() {
+  function handleRejectCancel(): void {
     setShowRejectForm(false);
     setRejectionReason("");
     setRejectionValidationError(null);
   }
 
-  async function handleRejectSubmit() {
+  async function handleRejectSubmit(): Promise<void> {
     if (!selectedRequest) return;
 
     // Client-side validation: rejection reason must not be empty
@@ -195,8 +194,9 @@ export default function PaymentsPage() {
       setShowRejectForm(false);
       setSuccessMessage("Demo — Pago rechazado. El estado de la membresía se mantiene sin cambios.");
     } catch (err) {
+      console.error("[payments] reject failed", err);
       setActionError(
-        err instanceof Error ? err.message : "Error al rechazar el pago",
+        "Error al rechazar el pago",
       );
     } finally {
       setActionLoading(null);
@@ -208,7 +208,7 @@ export default function PaymentsPage() {
       <div>
         {/* Hero Banner */}
         <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,33,40,0.08),transparent_50%)]" />
           <div className="relative z-10">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
               <ShieldCheck size={14} strokeWidth={2} aria-hidden="true" />

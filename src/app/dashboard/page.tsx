@@ -87,13 +87,13 @@ const recentActivity = [
   { icon: Activity, text: "Sesión de avanzados finalizada — Cancha 1", time: "Hace 3 h", color: "text-blue-400", bg: "bg-blue-900/20" },
 ];
 
-export default function DashboardPage() {
+export default function DashboardPage(): React.ReactElement {
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
       <div>
         {/* Hero Banner */}
         <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,33,40,0.08),transparent_50%)]" />
           <div className="relative z-10">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
               <Zap size={14} strokeWidth={2} aria-hidden="true" />

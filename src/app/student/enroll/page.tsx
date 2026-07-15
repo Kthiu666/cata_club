@@ -50,13 +50,29 @@ import {
 // Constants — see enroll-utils.ts for shared constants
 // ---------------------------------------------------------------------------
 
-const todayStr = new Date().toISOString().slice(0, 10);
+const ACCENTED_CHARS: Record<string, string> = {
+  á: "a", é: "e", í: "i", ó: "o", ú: "u", ü: "u", ñ: "n",
+};
+
+/**
+ * Derives a stable, unique-enough field id from a label so <label htmlFor>
+ * can be programmatically associated with its <input>/<textarea>.
+ */
+function slugifyLabel(label: string): string {
+  return label
+    .toLowerCase()
+    .split("")
+    .map((char) => ACCENTED_CHARS[char] ?? char)
+    .join("")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export default function EnrollPage() {
+export default function EnrollPage(): React.ReactElement {
   const [step, setStep] = useState<WizardStep>("type");
   const [formData, setFormData] = useState<EnrollFormData>(initialFormData);
   const [submitting, setSubmitting] = useState(false);
@@ -96,7 +112,7 @@ export default function EnrollPage() {
 
   // ---- Helpers ----
 
-  function clearConfirmTimeout() {
+  function clearConfirmTimeout(): void {
     if (confirmTimeoutRef.current) {
       clearTimeout(confirmTimeoutRef.current);
       confirmTimeoutRef.current = null;
@@ -106,12 +122,12 @@ export default function EnrollPage() {
   function updateField<K extends keyof EnrollFormData>(
     key: K,
     value: EnrollFormData[K],
-  ) {
+  ): void {
     setFormData((prev) => ({ ...prev, [key]: value }));
     setFormErrors([]);
   }
 
-  function handleNext() {
+  function handleNext(): void {
     const errors = validateEnrollStep(step, formData);
     if (errors.length > 0) {
       setFormErrors(errors);
@@ -126,7 +142,7 @@ export default function EnrollPage() {
     }
   }
 
-  function handleBack() {
+  function handleBack(): void {
     setFormErrors([]);
     const prevIdx = currentIndex - 1;
     if (prevIdx >= 0) {
@@ -134,7 +150,7 @@ export default function EnrollPage() {
     }
   }
 
-  function handleConfirm(e: FormEvent<HTMLFormElement>) {
+  function handleConfirm(e: FormEvent<HTMLFormElement>): void {
     e.preventDefault();
     if (confirmInFlightRef.current || submitting || confirmed) return;
     if (step !== "summary") {
@@ -162,7 +178,7 @@ export default function EnrollPage() {
     }, 1200);
   }
 
-  function handleReset() {
+  function handleReset(): void {
     clearConfirmTimeout();
     setFormData(initialFormData);
     setStep("type");
@@ -175,7 +191,7 @@ export default function EnrollPage() {
 
   // ---- Demo helper — quick-fill for testing convenience ----
 
-  function fillDemoData(type: EnrollmentType) {
+  function fillDemoData(type: EnrollmentType): void {
     clearConfirmTimeout();
     const base: Partial<EnrollFormData> = {
       contactoEmergencia: "Carlos Martinez",
@@ -230,10 +246,11 @@ export default function EnrollPage() {
     maxLength?: number;
     inputMode?: string;
     disabled?: boolean;
-  }) {
+  }): React.ReactElement {
+    const fieldId = `enroll-${slugifyLabel(opts.label)}`;
     return (
       <div className="mb-4">
-        <label className="mb-1.5 block text-sm font-medium text-white">
+        <label htmlFor={fieldId} className="mb-1.5 block text-sm font-medium text-white">
           {opts.label}
           {opts.required && <span className="ml-0.5 text-cata-red">*</span>}
         </label>
@@ -244,6 +261,7 @@ export default function EnrollPage() {
             </span>
           )}
           <input
+            id={fieldId}
             type={opts.type ?? "text"}
             value={opts.value}
             onChange={(e) => opts.onChange(e.target.value)}
@@ -268,10 +286,11 @@ export default function EnrollPage() {
     required?: boolean;
     icon?: React.ReactNode;
     rows?: number;
-  }) {
+  }): React.ReactElement {
+    const fieldId = `enroll-${slugifyLabel(opts.label)}`;
     return (
       <div className="mb-4">
-        <label className="mb-1.5 block text-sm font-medium text-white">
+        <label htmlFor={fieldId} className="mb-1.5 block text-sm font-medium text-white">
           {opts.label}
           {opts.required && <span className="ml-0.5 text-cata-red">*</span>}
           {!opts.required && (
@@ -285,6 +304,7 @@ export default function EnrollPage() {
             </span>
           )}
           <textarea
+            id={fieldId}
             value={opts.value}
             onChange={(e) => opts.onChange(e.target.value)}
             placeholder={opts.placeholder}
@@ -300,7 +320,7 @@ export default function EnrollPage() {
 
   // ---- Step renderers ----
 
-  function renderTypeStep() {
+  function renderTypeStep(): React.ReactElement {
     return (
       <div className="space-y-4">
         <p className="text-sm leading-relaxed text-white/65">
@@ -397,7 +417,7 @@ export default function EnrollPage() {
     );
   }
 
-  function renderPersonalStep() {
+  function renderPersonalStep(): React.ReactElement {
     return (
       <div className="space-y-1">
         <p className="mb-4 text-sm leading-relaxed text-white/65">
@@ -523,7 +543,7 @@ export default function EnrollPage() {
     );
   }
 
-  function renderClubStep() {
+  function renderClubStep(): React.ReactElement {
     return (
       <div className="space-y-1">
         <p className="mb-4 text-sm leading-relaxed text-white/65">
@@ -572,7 +592,7 @@ export default function EnrollPage() {
     );
   }
 
-  function renderHealthStep() {
+  function renderHealthStep(): React.ReactElement {
     return (
       <div className="space-y-1">
         <p className="mb-4 text-sm leading-relaxed text-white/65">
@@ -654,7 +674,7 @@ export default function EnrollPage() {
     );
   }
 
-  function renderSummary() {
+  function renderSummary(): React.ReactElement {
     const age = formData.fechaNacimiento
       ? calculateAge(formData.fechaNacimiento)
       : null;
@@ -863,7 +883,7 @@ export default function EnrollPage() {
         <div className="py-8">
           {/* Hero Banner */}
           <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,33,40,0.08),transparent_50%)]" />
             <div className="relative z-10 flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
@@ -902,7 +922,7 @@ export default function EnrollPage() {
           </div>
 
           {/* Demo helper — quick-fill for testing convenience (not part of production flow) */}
-          <div className="mb-6 rounded-xl border border-dashed border-white/10 bg-amber-900/20/40 p-3">
+          <div className="mb-6 rounded-xl border border-dashed border-white/10 bg-amber-900/20 p-3">
             <div className="mb-2 flex items-center gap-2">
               <AlertTriangle size={14} strokeWidth={1.5} className="text-amber-400" aria-hidden="true" />
               <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">

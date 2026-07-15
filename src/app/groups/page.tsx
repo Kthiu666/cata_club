@@ -43,17 +43,18 @@ import {
   buildGroupCards,
   getLevelLabel,
   type GroupCardData,
-  type StudentRef,
 } from "@/lib/groups-utils";
-import type { Grupo } from "@/types/domain";
-import type { ScheduleSlot } from "@/app/attendance/attendance-utils";
 import {
   buildStudentRefs,
   getLevelBadgeClass,
   getCapacityBarColor,
 } from "./groups-page-utils";
 
-function LevelBadge({ level }: { level: string }) {
+interface LevelBadgeProps {
+  level: string;
+}
+
+function LevelBadge({ level }: LevelBadgeProps): React.ReactElement {
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getLevelBadgeClass(level)}`}
@@ -68,7 +69,12 @@ function LevelBadge({ level }: { level: string }) {
 // Capacity bar
 // ---------------------------------------------------------------------------
 
-function CapacityBar({ percent, total }: { percent: number; total: number }) {
+interface CapacityBarProps {
+  percent: number;
+  total: number;
+}
+
+function CapacityBar({ percent, total }: CapacityBarProps): React.ReactElement {
   return (
     <div
       className="flex items-center gap-2"
@@ -95,7 +101,7 @@ function CapacityBar({ percent, total }: { percent: number; total: number }) {
 // Page component
 // ---------------------------------------------------------------------------
 
-export default function GroupsPage() {
+export default function GroupsPage(): React.ReactElement {
   const [grupos, setGrupos] = useState(() =>
     MOCK_GRUPOS.map((g) => ({ ...g, alumnosIds: [...g.alumnosIds] })),
   );
@@ -113,14 +119,14 @@ export default function GroupsPage() {
     : null;
 
   const showNotification = useCallback(
-    (type: "success" | "error", message: string) => {
+    (type: "success" | "error", message: string): void => {
       setNotification({ type, message });
       setTimeout(() => setNotification(null), 4000);
     },
     [],
   );
 
-  function handleAssignStudent(alumnoId: string, targetGroupId: string) {
+  function handleAssignStudent(alumnoId: string, targetGroupId: string): void {
     const result = assignStudentToGroup(alumnoId, targetGroupId, grupos);
     if (result.success) {
       setGrupos(result.updatedGrupos);
@@ -130,13 +136,13 @@ export default function GroupsPage() {
     }
   }
 
-  function handleClearAssignment(alumnoId: string) {
+  function handleClearAssignment(alumnoId: string): void {
     const updated = removeStudentFromAllGroups(alumnoId, grupos);
     setGrupos(updated);
     showNotification("success", "Alumno removido del grupo.");
   }
 
-  function handleResetToMock() {
+  function handleResetToMock(): void {
     setGrupos(MOCK_GRUPOS.map((g) => ({ ...g, alumnosIds: [...g.alumnosIds] })));
     setSelectedGroupId(null);
     showNotification("success", "Datos restablecidos a valores de demostración.");
@@ -155,7 +161,7 @@ export default function GroupsPage() {
       <div>
         {/* Hero Banner */}
         <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,33,40,0.08),transparent_50%)]" />
           <div className="relative z-10">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
               <Users size={14} strokeWidth={2} aria-hidden="true" />
@@ -227,7 +233,10 @@ export default function GroupsPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 {cardData.map((card) => {
                   const isSelected = selectedGroupId === card.id;
-                  const grupo = grupos.find((g) => g.id === card.id)!;
+                  const grupo = grupos.find((g) => g.id === card.id);
+                  if (!grupo) {
+                    return null;
+                  }
                   const linkedSchedules = getSchedulesByGroup(
                     grupo,
                     MOCK_SCHEDULES,
@@ -554,7 +563,7 @@ export default function GroupsPage() {
                         <button
                           key={s.id}
                           type="button"
-                          onClick={() => handleAssignStudent(s.id, selectedGroupId!)}
+                          onClick={() => handleAssignStudent(s.id, selectedGrupo.id)}
                           className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-cata-red/15"
                         >
                           <span className="text-white">

@@ -58,7 +58,7 @@
   }
 
   .btn-primary {
-    background-color: #8B1A1A;
+    background-color: #D92128;
     color: #FFFFFF;
     border-radius: 0.75rem;
     transition: all 0.2s ease;
@@ -66,9 +66,9 @@
   }
 
   .btn-primary:hover {
-    background-color: #B22222;
+    background-color: #EF3E45;
     transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(139,26,26,0.3);
+    box-shadow: 0 4px 16px rgba(217,33,40,0.3);
   }
 
   .btn-secondary {
@@ -96,8 +96,8 @@
   }
 
   .input-field:focus {
-    border-color: #8B1A1A;
-    box-shadow: 0 0 0 3px rgba(139,26,26,0.2);
+    border-color: #D92128;
+    box-shadow: 0 0 0 3px rgba(217,33,40,0.2);
   }
 
   .badge {
@@ -132,11 +132,11 @@
 /* Subtle background texture — premium spa/Swiss aesthetic */
 @layer utilities {
   .bg-subtle-dot {
-    background-image: radial-gradient(circle, rgba(139, 26, 26, 0.03) 1px, transparent 1px);
+    background-image: radial-gradient(circle, rgba(217, 33, 40, 0.03) 1px, transparent 1px);
     background-size: 24px 24px;
   }
 
   .bg-logo-glow {
-    background: radial-gradient(ellipse 50% 60% at 50% 40%, rgba(139, 26, 26, 0.04) 0%, transparent 70%);
+    background: radial-gradient(ellipse 50% 60% at 50% 40%, rgba(217, 33, 40, 0.04) 0%, transparent 70%);
   }
 }

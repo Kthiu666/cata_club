@@ -335,7 +335,7 @@ const proofStatusLabels: Record<ProofStatus, { label: string; icon: React.ReactN
 // Component
 // ---------------------------------------------------------------------------
 
-export default function StudentPage() {
+export default function StudentPage(): React.ReactElement {
   const { session } = useAuth();
   const userId = session?.user?.id;
 
@@ -393,12 +393,7 @@ export default function StudentPage() {
       upcomingSessions: [],
     };
 
-  // Apply the demo scenario on top of the student's base data (clone to avoid mutation)
-  const displayScenario = {
-    ...selectedStudent.scenarioData,
-    ...scenarioData[demoScenario],
-  };
-  // Override with whatever state the scenario selector chose
+  // Use whatever state the scenario selector chose
   const scenario = scenarioData[demoScenario];
   const membershipInfo = membershipConfig[scenario.membership.status];
   const paymentInfo = paymentStatusConfig[scenario.payment.status];
@@ -412,7 +407,7 @@ export default function StudentPage() {
 
   const activeSessions = selectedStudent?.upcomingSessions ?? [];
 
-  function handleStudentChange(studentId: string) {
+  function handleStudentChange(studentId: string): void {
     if (uploadTimeoutRef.current) {
       clearTimeout(uploadTimeoutRef.current);
       uploadTimeoutRef.current = null;
@@ -427,7 +422,7 @@ export default function StudentPage() {
     }
   }
 
-  function handleScenarioChange(scenario: DemoScenario) {
+  function handleScenarioChange(scenario: DemoScenario): void {
     if (uploadTimeoutRef.current) {
       clearTimeout(uploadTimeoutRef.current);
       uploadTimeoutRef.current = null;
@@ -442,7 +437,7 @@ export default function StudentPage() {
     }
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>): void {
     const file = e.target.files?.[0] ?? null;
     setSelectedFile(file);
     setDemoSubmitted(false);
@@ -470,7 +465,7 @@ export default function StudentPage() {
     }
   }
 
-  function handleDemoSubmit() {
+  function handleDemoSubmit(): void {
     setDemoSubmitting(true);
     uploadTimeoutRef.current = setTimeout(() => {
       setDemoSubmitting(false);
@@ -484,7 +479,7 @@ export default function StudentPage() {
       <div>
         {/* Hero Banner */}
         <div className="relative mb-8 overflow-hidden rounded-3xl bg-cata-navy px-6 py-8 sm:px-10 sm:py-10">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,33,40,0.08),transparent_50%)]" />
           <div className="relative z-10 flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">

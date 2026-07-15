@@ -30,21 +30,6 @@ import { MOCK_SCHEDULES } from "@/mocks/attendance";
 
 type AttendanceState = "present" | "absent" | "late" | "justified";
 
-interface SessionStudent {
-  name: string;
-  attendance: AttendanceState;
-}
-
-interface TrainingSession {
-  id: string;
-  groupName: string;
-  time: string;
-  court: string;
-  level: string;
-  studentCount: number;
-  students: SessionStudent[];
-}
-
 const studentNameMap: Record<string, string> = {};
 for (const account of MOCK_MEMBER_ACCOUNTS) {
   for (const alumno of account.alumnos) {
@@ -135,10 +120,10 @@ const weekDays = weekDayLabels.map((label) => ({
   isToday: label === todayLabel,
 }));
 
-export default function TrainerPage() {
+export default function TrainerPage(): React.ReactElement {
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
 
-  function toggleSession(sessionId: string) {
+  function toggleSession(sessionId: string): void {
     setExpandedSession((prev) => (prev === sessionId ? null : sessionId));
   }
 
@@ -147,13 +132,14 @@ export default function TrainerPage() {
     (sum, s) => sum + s.students.filter((st) => st.attendance === "present").length,
     0,
   );
+  const presentPercent = totalStudents > 0 ? Math.round((totalPresent / totalStudents) * 100) : 0;
 
   return (
     <ProtectedRoute allowedRoles={["trainer"]}>
       <div>
         {/* Hero Banner */}
         <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,33,40,0.08),transparent_50%)]" />
           <div className="relative z-10 flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
@@ -220,7 +206,7 @@ export default function TrainerPage() {
               </div>
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-900/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
                 <TrendingUp size={10} strokeWidth={2} aria-hidden="true" />
-                {Math.round((totalPresent / totalStudents) * 100)}%
+                {presentPercent}%
               </span>
             </div>
             <p className="text-xs font-medium uppercase tracking-wider text-white/65">Presentes Hoy</p>
@@ -240,6 +226,19 @@ export default function TrainerPage() {
               </h2>
             </div>
             <div className="space-y-4">
+              {todaySessions.length === 0 && (
+                <div className="card flex flex-col items-center py-12 text-center">
+                  <ClipboardList
+                    size={32}
+                    strokeWidth={1.5}
+                    className="mb-3 text-white/20"
+                    aria-hidden="true"
+                  />
+                  <p className="text-sm text-white/50">
+                    No hay sesiones programadas para hoy.
+                  </p>
+                </div>
+              )}
               {todaySessions.map((session) => (
                 <div key={session.id} className="card overflow-hidden">
                   {/* Session header (click to expand roster) */}

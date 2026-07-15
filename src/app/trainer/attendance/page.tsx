@@ -36,7 +36,6 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertTriangle,
-  ArrowRight,
   ClipboardList,
 } from "lucide-react";
 import {
@@ -44,11 +43,9 @@ import {
   ATTENDANCE_LABELS,
   ATTENDANCE_BADGE_STYLES,
   ATTENDANCE_CARD_STYLES,
-  ATTENDANCE_CARD_DEFAULT,
   ATTENDANCE_STATES,
   countByState,
   buildAttendanceSummary,
-  type TrainingSession,
   type SessionStudent,
 } from "./attendance-utils";
 import type { EstadoAsistencia } from "@/types/domain";
@@ -88,7 +85,7 @@ const ATTENDANCE_ICONS: Record<EstadoAsistencia, React.ReactNode> = {
 // Component
 // ---------------------------------------------------------------------------
 
-export default function TrainerAttendancePage() {
+export default function TrainerAttendancePage(): React.ReactElement {
   const { session } = useAuth();
   const trainerName = session?.user?.name ?? "Entrenador Demo";
 
@@ -109,7 +106,7 @@ export default function TrainerAttendancePage() {
 
   // ---- Navigation ----
 
-  function handleSelectSession(sessionId: string) {
+  function handleSelectSession(sessionId: string): void {
     const trainingSession = AVAILABLE_SESSIONS.find((s) => s.id === sessionId);
     if (!trainingSession) return;
     setSelectedSessionId(sessionId);
@@ -118,21 +115,21 @@ export default function TrainerAttendancePage() {
     setStep("mark-attendance");
   }
 
-  function handleBack() {
+  function handleBack(): void {
     const prevIdx = currentIndex - 1;
     if (prevIdx >= 0) {
       setStep(STEP_ORDER[prevIdx]);
     }
   }
 
-  function handleNext() {
+  function handleNext(): void {
     const nextIdx = currentIndex + 1;
     if (nextIdx < STEP_ORDER.length) {
       setStep(STEP_ORDER[nextIdx]);
     }
   }
 
-  function handleToggleAttendance(studentIndex: number) {
+  function handleToggleAttendance(studentIndex: number): void {
     setStudents((prev) =>
       prev.map((s, i) => {
         if (i !== studentIndex) return s;
@@ -144,13 +141,13 @@ export default function TrainerAttendancePage() {
     );
   }
 
-  function handleDirectAttendanceSet(studentIndex: number, state: EstadoAsistencia) {
+  function handleDirectAttendanceSet(studentIndex: number, state: EstadoAsistencia): void {
     setStudents((prev) =>
       prev.map((s, i) => (i === studentIndex ? { ...s, attendance: state } : s)),
     );
   }
 
-  function handleConfirm(e: FormEvent<HTMLFormElement>) {
+  function handleConfirm(e: FormEvent<HTMLFormElement>): void {
     e.preventDefault();
     setSubmitting(true);
     // Simulate submission delay
@@ -160,7 +157,7 @@ export default function TrainerAttendancePage() {
     }, 1200);
   }
 
-  function handleReset() {
+  function handleReset(): void {
     setStep("select-session");
     setSelectedSessionId(null);
     setStudents([]);
@@ -170,7 +167,7 @@ export default function TrainerAttendancePage() {
 
   // ---- Step renderers ----
 
-  function renderSessionSelection() {
+  function renderSessionSelection(): React.ReactElement {
     return (
       <div className="space-y-4">
         <p className="text-sm leading-relaxed text-white/65">
@@ -237,7 +234,7 @@ export default function TrainerAttendancePage() {
     );
   }
 
-  function renderMarkAttendance() {
+  function renderMarkAttendance(): React.ReactElement | null {
     if (!selectedSession) return null;
 
     const presentCount = countByState(students, "present");
@@ -350,7 +347,7 @@ export default function TrainerAttendancePage() {
     );
   }
 
-  function renderConfirmation() {
+  function renderConfirmation(): React.ReactElement | null {
     if (!selectedSession) return null;
 
     const presentCount = countByState(students, "present");
@@ -500,7 +497,7 @@ export default function TrainerAttendancePage() {
         <div className="py-8">
           {/* Hero Banner */}
           <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,33,40,0.08),transparent_50%)]" />
             <div className="relative z-10 flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">

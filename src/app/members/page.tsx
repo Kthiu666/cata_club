@@ -56,7 +56,11 @@ import { formatCurrency, formatDate } from "@/lib/format-utils";
 // Payment status icon helper
 // ---------------------------------------------------------------------------
 
-function PaymentStatusIcon({ estado }: { estado: PaymentStatus }) {
+interface PaymentStatusIconProps {
+  estado: PaymentStatus;
+}
+
+function PaymentStatusIcon({ estado }: PaymentStatusIconProps): React.ReactElement | null {
   switch (estado) {
     case "aprobado":
       return <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />;
@@ -77,10 +81,9 @@ interface StatCardProps {
   icon: React.ReactNode;
   label: string;
   value: number;
-  highlight?: boolean;
 }
 
-function StatCard({ icon, label, value, highlight }: StatCardProps) {
+function StatCard({ icon, label, value }: StatCardProps): React.ReactElement {
   return (
     <div className="card-hover p-5 sm:p-6">
       <div className="mb-4 flex items-center justify-between">
@@ -100,7 +103,11 @@ function StatCard({ icon, label, value, highlight }: StatCardProps) {
 // Student detail row (expanded within an account)
 // ---------------------------------------------------------------------------
 
-function StudentRow({ student }: { student: MemberStudentSummary }) {
+interface StudentRowProps {
+  student: MemberStudentSummary;
+}
+
+function StudentRow({ student }: StudentRowProps): React.ReactElement {
   const membershipLabel = student.membresia
     ? MEMBERSHIP_STATUS_LABELS[student.membresia.estado]
     : "Sin membresía";
@@ -216,13 +223,15 @@ function StudentRow({ student }: { student: MemberStudentSummary }) {
 // Account row (collapsible)
 // ---------------------------------------------------------------------------
 
+interface AccountRowProps {
+  account: MemberAccount;
+  defaultOpen: boolean;
+}
+
 function AccountRow({
   account,
   defaultOpen,
-}: {
-  account: MemberAccount;
-  defaultOpen: boolean;
-}) {
+}: AccountRowProps): React.ReactElement {
   const [expanded, setExpanded] = useState(defaultOpen);
   const activeCount = countActiveStudents(account);
   const statusBadge = getAccountStatusBadge(account);
@@ -306,7 +315,7 @@ function AccountRow({
 // Page component
 // ---------------------------------------------------------------------------
 
-export default function MembersPage() {
+export default function MembersPage(): React.ReactElement {
   const [searchTerm, setSearchTerm] = useState("");
   const accounts = MOCK_MEMBER_ACCOUNTS;
   const stats = buildMemberStats(accounts);
@@ -318,7 +327,7 @@ export default function MembersPage() {
       <div>
         {/* Hero Banner */}
         <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,33,40,0.08),transparent_50%)]" />
           <div className="relative z-10">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
               <Users size={14} strokeWidth={2} aria-hidden="true" />
@@ -355,7 +364,6 @@ export default function MembersPage() {
             icon={<UserCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
             label="Alumnos"
             value={stats.totalStudents}
-            highlight
           />
           <StatCard
             icon={<ShieldCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}

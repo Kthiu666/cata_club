@@ -42,14 +42,17 @@ import {
   DIA_SEMANA_LABELS,
   ATTENDANCE_LABELS,
   type ScheduleSlot,
-  type AttendanceRecord,
 } from "./attendance-utils";
 
 // ---------------------------------------------------------------------------
 // Attendance state icon
 // ---------------------------------------------------------------------------
 
-function AttendanceIcon({ estado }: { estado: string }) {
+interface AttendanceIconProps {
+  estado: string;
+}
+
+function AttendanceIcon({ estado }: AttendanceIconProps): React.ReactElement {
   switch (estado) {
     case "present":
       return <CheckCircle2 size={12} strokeWidth={2} className="text-emerald-400" aria-hidden="true" />;
@@ -64,7 +67,11 @@ function AttendanceIcon({ estado }: { estado: string }) {
   }
 }
 
-function AttendanceBadge({ estado }: { estado: string }) {
+interface AttendanceBadgeProps {
+  estado: string;
+}
+
+function AttendanceBadge({ estado }: AttendanceBadgeProps): React.ReactElement {
   const base = "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium";
   const colors: Record<string, string> = {
     present: "bg-emerald-900/20 text-emerald-400",
@@ -100,7 +107,7 @@ const DAY_OPTIONS = [
 // Page component
 // ---------------------------------------------------------------------------
 
-export default function AttendancePage() {
+export default function AttendancePage(): React.ReactElement {
   const [dayFilter, setDayFilter] = useState<string>("all");
   const todayStats = buildAttendanceStats(MOCK_ATTENDANCE_RECORDS);
 
@@ -116,7 +123,7 @@ export default function AttendancePage() {
       <div>
         {/* Hero Banner */}
         <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.08),transparent_50%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,33,40,0.08),transparent_50%)]" />
           <div className="relative z-10">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
               <Calendar size={14} strokeWidth={2} aria-hidden="true" />
