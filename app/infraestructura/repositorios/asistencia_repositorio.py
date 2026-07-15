@@ -33,3 +33,25 @@ class AsistenciaRepositorio:
 
     def listar_por_persona(self, persona_id: int) -> List[Asistencia]:
         return self.db.query(Asistencia).filter(Asistencia.persona_id == persona_id).all()
+
+    def listar_reporte(
+        self,
+        horario_id: Optional[int] = None,
+        persona_id: Optional[int] = None,
+        fecha_inicio=None,
+        fecha_fin=None,
+    ) -> List[Asistencia]:
+        """E02-RF005: reporte de asistencia por horario, periodo o alumno.
+        Los tres filtros son opcionales y combinables."""
+        query = self.db.query(Asistencia)
+        if horario_id is not None:
+            query = query.filter(Asistencia.horario_id == horario_id)
+        if persona_id is not None:
+            query = query.filter(Asistencia.persona_id == persona_id)
+        if fecha_inicio is not None:
+            query = query.filter(Asistencia.fecha_entrenamiento >= fecha_inicio)
+        if fecha_fin is not None:
+            query = query.filter(Asistencia.fecha_entrenamiento <= fecha_fin)
+        return query.order_by(Asistencia.fecha_entrenamiento.desc()).all()
+
+

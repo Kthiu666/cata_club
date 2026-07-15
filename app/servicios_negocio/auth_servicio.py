@@ -27,6 +27,13 @@ class AuthServicio:
         usuario = self.repo.obtener_por_correo(correo)
         if not usuario or not GestorAutenticacion.verificar_contrasenia(contrasenia, usuario.contrasenia):
             raise CredencialesInvalidas("Correo o contraseña incorrectos")
+        # E01-RF013: una cuenta suspendida por el Administrador no puede
+        # loguearse, aunque la contraseña sea correcta. Mismo tipo de
+        # excepción que credenciales inválidas: no se revela si la cuenta
+        # existe pero está inactiva vs. si la contraseña es incorrecta,
+        # para no filtrar información de cuentas ajenas.
+        if not usuario.activo:
+            raise CredencialesInvalidas("Correo o contraseña incorrectos")
 
         return self._emitir_par_tokens(usuario)
 
@@ -124,3 +131,31 @@ class AuthServicio:
         refresh_claims = {"sub": usuario.correo, "persona_id": usuario.persona_id}
         refresh_token = GestorAutenticacion.crear_token_refresco(refresh_claims)
         return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
+
+    # --- E01-RF003: recuperación de contraseña -------------------------------
+    def solicitar_recuperacion(self, correo: str) -> dict:
+        """
+        Deliberadamente NO revela si el correo existe o no (mismo mensaje de
+        éxito en ambos casos) -- evita que este endpoint sirva para enumerar
+        correos registrados. Si existe, dispara la tarea de Celery que
+        simula el envío (ver recuperacion_tareas.py).
+        """
+        usuario = self.repo.obtener_por_correo(correo)
+        if usuario:
+            token = GestorAutenticacion.crear_token_recuperacion(correo)
+            from app.infraestructura.tareas.recuperacion_tareas import enviar_enlace_recuperacion
+            try:
+                enviar_enlace_recuperacion.delay(correo, token)
+            except Exception:
+                # Sin broker de Celery disponible (ej. entorno de tests): no
+                # debe tumbar la request. El envío es "best effort" por diseño.
+                pass
+        return {"mensaje": "Si el correo está registrado, se envió un enlace de recuperación"}
+
+    def restablecer_contrasenia(self, token: str, nueva_contrasenia: str) -> None:
+        correo = GestorAutenticacion.decodificar_token_recuperacion(token)
+        usuario = self.repo.obtener_por_correo(correo)
+        if not usuario:
+            raise CredencialesInvalidas("El enlace de recuperación es inválido o expiró")
+        usuario.contrasenia = GestorAutenticacion.obtener_hash_contrasenia(nueva_contrasenia)
+        self.db.commit()

@@ -54,3 +54,14 @@ class AsistenciaServicio:
         if not self.repo_persona.obtener_por_id(persona_id):
             raise EntidadNoEncontrada(f"Persona con id {persona_id} no encontrada")
         return self.repo.listar_por_persona(persona_id)
+
+    def generar_reporte(
+        self, horario_id=None, persona_id=None, fecha_inicio=None, fecha_fin=None
+    ) -> list[Asistencia]:
+        """E02-RF005: reporte de asistencia por horario, periodo o alumno.
+        No existía ningún endpoint de reporte -- solo el historial fijo por
+        persona de arriba. Los tres filtros son opcionales y combinables."""
+        return self.repo.listar_reporte(
+            horario_id=horario_id, persona_id=persona_id,
+            fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+        )

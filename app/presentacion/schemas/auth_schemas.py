@@ -43,3 +43,17 @@ class UsuarioMeResponseDTO(BaseModel):
 
 class LogoutResponseDTO(BaseModel):
     mensaje: str
+
+
+# --- E01-RF003: recuperación de contraseña ----------------------------------
+class SolicitarRecuperacionDTO(BaseModel):
+    correo: EmailStr
+
+
+class SolicitarRecuperacionResponseDTO(BaseModel):
+    mensaje: str
+
+
+class RestablecerContraseniaDTO(BaseModel):
+    token: str
+    nueva_contrasenia: str = Field(..., min_length=8)

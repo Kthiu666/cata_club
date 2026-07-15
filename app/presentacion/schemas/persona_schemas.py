@@ -1,8 +1,8 @@
 from pydantic import BaseModel, Field, ConfigDict
-from datetime import date
+from datetime import date, datetime
 from typing import Optional, List
 
-from app.dominio.enums import TipoEscuela, NivelTecnicoAlumno, TipoSangre
+from app.dominio.enums import TipoEscuela, NivelTecnicoAlumno, TipoSangre, TipoManoDominante
 
 
 # --- Institucion ---
@@ -38,6 +38,11 @@ class PersonaUpdateDTO(BaseModel):
     foto_url: Optional[str] = None
     direccion_id: Optional[int] = None
     institucion_id: Optional[int] = None
+    # E01-RF009: etiqueta informativa, sin efecto en facturación.
+    prioridad_municipal: Optional[bool] = None
+    # E01-RF011: porcentaje de 0 (sin beca) a 100 (exoneración total).
+    porcentaje_beca: Optional[int] = Field(default=None, ge=0, le=100)
+    motivo_beca: Optional[str] = Field(default=None, max_length=150)
 
 
 class PersonaResponseDTO(BaseModel):
@@ -50,6 +55,10 @@ class PersonaResponseDTO(BaseModel):
     telefono: str
     telefono_contacto: Optional[str] = None
     representante_id: Optional[int] = None
+    prioridad_municipal: bool = False
+    porcentaje_beca: int = 0
+    motivo_beca: Optional[str] = None
+    fecha_registro: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -58,6 +67,12 @@ class AntecedentesClubCreateDTO(BaseModel):
     nivel_tecnico_alumno: NivelTecnicoAlumno
     fecha_inicio_club: date
     persona_id: int
+    mano_dominante: Optional[TipoManoDominante] = None
+
+
+class AntecedentesClubUpdateDTO(BaseModel):
+    nivel_tecnico_alumno: Optional[NivelTecnicoAlumno] = None
+    mano_dominante: Optional[TipoManoDominante] = None
 
 
 class AntecedentesClubResponseDTO(AntecedentesClubCreateDTO):

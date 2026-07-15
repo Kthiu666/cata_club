@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
+from datetime import date
 
 from app.infraestructura.db import obtener_sesion
 from app.presentacion.schemas.asistencia_schemas import (
@@ -44,3 +45,22 @@ async def registrar_asistencia(datos: AsistenciaCreateDTO, db: Session = Depends
 )
 async def historial_asistencia_persona(persona_id: int, db: Session = Depends(obtener_sesion)):
     return AsistenciaServicio(db).historial_por_persona(persona_id)
+
+
+# --- E02-RF005: reporte de asistencia por horario, periodo o alumno --------
+@router.get(
+    "/reportes",
+    response_model=List[AsistenciaResponseDTO],
+    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR", "ENTRENADOR"]))],
+)
+async def reporte_asistencia(
+    horario_id: Optional[int] = Query(default=None),
+    persona_id: Optional[int] = Query(default=None),
+    fecha_inicio: Optional[date] = Query(default=None),
+    fecha_fin: Optional[date] = Query(default=None),
+    db: Session = Depends(obtener_sesion),
+):
+    return AsistenciaServicio(db).generar_reporte(
+        horario_id=horario_id, persona_id=persona_id,
+        fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+    )

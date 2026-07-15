@@ -46,6 +46,33 @@ class GestorAutenticacion:
         payload.update({"exp": expira})
         return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algoritmo)
 
+    # --- E01-RF003: recuperación de contraseña -------------------------------
+    @staticmethod
+    def crear_token_recuperacion(correo: str, expiracion_minutos: int = 30) -> str:
+        """Token de un solo propósito (`type=reset_password`), corta duración
+        (30 min por defecto). No lleva roles ni persona_id: solo sirve para
+        probar "quien pidió el reset es dueño de ese correo", nada más."""
+        payload = {
+            "sub": correo,
+            "type": "reset_password",
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=expiracion_minutos),
+        }
+        return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algoritmo)
+
+    @staticmethod
+    def decodificar_token_recuperacion(token: str) -> str:
+        """Devuelve el correo asociado si el token es válido y de tipo
+        reset_password. Lanza CredencialesInvalidas en cualquier otro caso
+        (expirado, corrupto, o un access/refresh token reusado aquí)."""
+        from app.dominio.excepciones import CredencialesInvalidas
+        try:
+            payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algoritmo])
+        except jwt.PyJWTError:
+            raise CredencialesInvalidas("El enlace de recuperación es inválido o expiró")
+        if payload.get("type") != "reset_password":
+            raise CredencialesInvalidas("El enlace de recuperación es inválido o expiró")
+        return payload["sub"]
+
     @staticmethod
     def decodificar_token(token: str = Depends(oauth2_scheme)) -> dict:
         try:

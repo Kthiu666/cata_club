@@ -3,12 +3,13 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.dominio.modelos import Membresia, TipoMembresia, Pago, ComprobantePago
+from app.dominio.modelos import Membresia, TipoMembresia, Pago, ComprobantePago, Persona
 from app.dominio.enums import EstadoPago, EstadoMembresia
 from app.dominio.excepciones import EntidadNoEncontrada, OperacionInvalida, PermisosInsuficientes
 from app.infraestructura.repositorios.persona_repositorio import PersonaRepositorio
 from app.infraestructura.repositorios.membresia_repositorio import MembresiaRepositorio, TipoMembresiaRepositorio
 from app.infraestructura.repositorios.pago_repositorio import PagoRepositorio, ComprobantePagoRepositorio
+from app.servicios_negocio.persona_servicio import _calcular_edad
 from app.presentacion.schemas.membresia_pago_schemas import (
     TipoMembresiaCreateDTO, MembresiaCreateDTO, PagoCreateDTO, PagoValidarDTO, ComprobantePagoCreateDTO,
     PagoListItemDTO,
@@ -31,6 +32,7 @@ TAMANO_MAXIMO_VOUCHER_BYTES = 5 * 1024 * 1024  # 5 MB
 
 class MembresiaServicio:
     def __init__(self, db: Session):
+        self.db = db
         self.repo = MembresiaRepositorio(db)
         self.repo_tipo = TipoMembresiaRepositorio(db)
         self.repo_persona = PersonaRepositorio(db)
@@ -59,7 +61,13 @@ class MembresiaServicio:
             persona_id=datos.persona_id,
             tipo_membresia_id=datos.tipo_membresia_id,
         )
-        return self.repo.crear(membresia)
+        membresia = self.repo.crear(membresia)
+        # Asignación perezosa del rol ALUMNO (principio de diseño ya
+        # acordado: se asigna al matricularse, no al crear la cuenta).
+        # Best-effort: si la persona aún no tiene Usuario, no hace nada.
+        from app.servicios_negocio.rol_servicio import RolServicio
+        RolServicio(self.db).asignar_alumno_si_corresponde(datos.persona_id)
+        return membresia
 
     def obtener_membresia(self, membresia_id: int) -> Membresia:
         membresia = self.repo.obtener_por_id(membresia_id)
@@ -82,18 +90,53 @@ class PagoServicio:
         persona_id_solicitante: int | None = None,
         roles_solicitante: list[str] | None = None,
     ) -> Pago:
-        # Autorización primero: solo el dueño (persona_id del token ==
-        # persona_id del payload) o un ADMINISTRADOR pueden registrar el pago.
-        # Mismo criterio que adjuntar_voucher, para que nadie registre pagos
-        # a nombre de otro. Se valida antes que la existencia de la membresía
-        # para no filtrar esa información a quien no tiene permiso.
+        """
+        Autorización primero, existencia después (para no filtrar existencia
+        de recursos ajenos a quien no tiene ningún vínculo con ellos):
+        dueño, su representante, o un ADMINISTRADOR pueden registrar el pago.
+
+        E04-RF003 exige que el "Alumno O Representante" puedan subir el
+        comprobante -- el chequeo original solo contemplaba al dueño, lo que
+        en la práctica le impedía a un representante pagar por su
+        representado. Se corrige aquí.
+
+        Para resolver "es representante" hace falta leer la Persona
+        objetivo, pero SOLO se hace esa consulta cuando ni dueño ni admin ya
+        autorizan de entrada -- así un solicitante sin ningún vínculo real
+        sigue sin poder distinguir "persona inexistente" de "persona sin
+        relación conmigo" (ambos dan 403 igual).
+        """
         roles_solicitante = roles_solicitante or []
         es_duenio = persona_id_solicitante is not None and persona_id_solicitante == datos.persona_id
         es_admin = "ADMINISTRADOR" in roles_solicitante
-        if not (es_duenio or es_admin):
-            raise PermisosInsuficientes(
-                "Solo la propia persona o un administrador pueden registrar este pago"
+        es_representante = False
+
+        if not es_duenio and not es_admin and persona_id_solicitante is not None:
+            persona_objetivo = self.repo_persona.obtener_por_id(datos.persona_id)
+            es_representante = bool(
+                persona_objetivo and persona_objetivo.representante_id == persona_id_solicitante
             )
+
+        if not (es_duenio or es_representante or es_admin):
+            raise PermisosInsuficientes(
+                "Solo la propia persona, su representante, o un administrador "
+                "pueden registrar este pago"
+            )
+
+        # Recién aquí (ya autorizado) se resuelve existencia real y, si
+        # corresponde, el chequeo de solo-lectura financiera para menores
+        # (E01-RF006/RF007). No aplica si actúa el representante o un admin.
+        if es_duenio and not es_admin and not es_representante:
+            persona_objetivo = self.repo_persona.obtener_por_id(datos.persona_id)
+            if not persona_objetivo:
+                raise EntidadNoEncontrada(f"Persona con id {datos.persona_id} no encontrada")
+            edad = _calcular_edad(persona_objetivo.fecha_nacimiento)
+            if edad < 18:
+                raise PermisosInsuficientes(
+                    "Los alumnos menores de edad tienen acceso de solo lectura "
+                    "al módulo financiero; un representante o el Administrador "
+                    "deben registrar este pago"
+                )
 
         if not self.repo_membresia.obtener_por_id(datos.membresia_id):
             raise EntidadNoEncontrada(f"Membresía con id {datos.membresia_id} no encontrada")
@@ -161,6 +204,7 @@ class PagoServicio:
             membresia.fecha_activacion = pago.fecha_validacion
 
             self._aplicar_regla_familiar_si_corresponde(membresia, pago)
+            self._aplicar_beca_si_corresponde(membresia, persona=pago.persona)
 
             self.repo.guardar_cambios(pago)
             self._disparar_generacion_comprobante_pdf(pago_id)
@@ -195,6 +239,23 @@ class PagoServicio:
 
         if activas_familia >= FAMILIA_UMBRAL_GRATUIDAD + 1:
             membresia.monto_aplicado = Decimal("0.00")
+            membresia.es_gratuidad_familiar = True
+        return None
+
+    # --- E01-RF011: beca/descuento -------------------------------------------
+    def _aplicar_beca_si_corresponde(self, membresia: Membresia, persona: Persona) -> None:
+        """
+        Aplica el porcentaje de beca/descuento de la persona (E01-RF011) sobre
+        el monto ya calculado. Se ejecuta DESPUÉS de la regla familiar (E04-RF002)
+        y respeta su resultado: si la gratuidad familiar ya dejó el monto en 0,
+        no hay nada que descontar (0 * cualquier% sigue siendo 0), así que no
+        hace falta un `if` explícito de exclusión -- pero se documenta para que
+        quede claro que el orden de aplicación importa y es intencional.
+        """
+        if not persona.porcentaje_beca:
+            return None
+        factor = (Decimal(100) - Decimal(persona.porcentaje_beca)) / Decimal(100)
+        membresia.monto_aplicado = (membresia.monto_aplicado * factor).quantize(Decimal("0.01"))
         return None
 
     def adjuntar_comprobante(self, pago_id: int, datos: ComprobantePagoCreateDTO) -> ComprobantePago:
@@ -241,13 +302,30 @@ class PagoServicio:
                 "Solo se puede adjuntar voucher a un pago pendiente de validación"
             )
 
-        # 3. Autorización: dueño del pago o admin.
+        # 3. Autorización: dueño del pago, su representante, o admin.
+        persona_titular = pago.persona
         es_duenio = persona_id_solicitante is not None and persona_id_solicitante == pago.persona_id
+        es_representante = (
+            persona_id_solicitante is not None
+            and persona_titular.representante_id == persona_id_solicitante
+        )
         es_admin = "ADMINISTRADOR" in roles_solicitante
-        if not (es_duenio or es_admin):
+        if not (es_duenio or es_representante or es_admin):
             raise PermisosInsuficientes(
-                "Solo el titular del pago o un administrador pueden adjuntar el voucher"
+                "Solo el titular del pago, su representante, o un administrador "
+                "pueden adjuntar el voucher"
             )
+
+        # E01-RF006/RF007: mismo criterio de solo-lectura financiera para
+        # menores que en registrar_pago (ver docstring allá).
+        if es_duenio and not es_admin and not es_representante:
+            edad = _calcular_edad(persona_titular.fecha_nacimiento)
+            if edad < 18:
+                raise PermisosInsuficientes(
+                    "Los alumnos menores de edad tienen acceso de solo lectura "
+                    "al módulo financiero; un representante o el Administrador "
+                    "deben adjuntar este voucher"
+                )
 
         # 4. Tipo MIME permitido.
         if not content_type or content_type not in TIPOS_MIME_PERMITIDOS_VOUCHER:

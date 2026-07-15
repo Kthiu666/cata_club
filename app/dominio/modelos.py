@@ -25,6 +25,7 @@ from app.dominio.enums import (
     TipoRol, EstadoMembresia, TipoModalidad, EstadoPago,
     TipoPago, EstadoAsistencia, TipoEscuela, NivelTecnicoAlumno, TipoSangre, DiaSemana,
     EstadoSolicitudExtra, EstadoJustificativoRanking, TipoNotificacion,
+    TipoManoDominante, TipoMovimientoEvento,
 )
 
 
@@ -122,6 +123,9 @@ class Usuario(Base):
     correo: Mapped[str] = mapped_column(String(100), unique=True)
     contrasenia: Mapped[str] = mapped_column(String(255))
     fecha_creacion: Mapped[datetime] = mapped_column(DateTime, default=_ahora_utc)
+    # E01-RF013: permite al Administrador suspender una cuenta sin borrar los
+    # datos (Persona/historial). Antes solo existía DELETE (borrado duro).
+    activo: Mapped[bool] = mapped_column(Boolean, default=True)
 
     persona_id: Mapped[int] = mapped_column(ForeignKey("persona.id"), unique=True)
     persona: Mapped["Persona"] = relationship(back_populates="usuario")
@@ -142,6 +146,21 @@ class Persona(Base):
     foto_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     telefono: Mapped[str] = mapped_column(String(15))
     telefono_contacto: Mapped[Optional[str]] = mapped_column(String(15), nullable=True)
+
+    # E04-RF014: el reporte "alumnos nuevos por periodo" necesita saber
+    # cuándo se dio de alta cada Persona -- no existía ningún timestamp.
+    fecha_registro: Mapped[datetime] = mapped_column(DateTime, default=_ahora_utc)
+
+    # --- E01-RF009: etiqueta administrativa/informativa, sin efecto en
+    # facturación (a diferencia de la beca, que sí afecta el monto).
+    prioridad_municipal: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # --- E01-RF011: beca/descuento. Un solo par (porcentaje + motivo) cubre
+    # tanto "beca total" (100) como "descuento parcial" (1-99) -- son la
+    # misma mecánica de negocio (reducir el monto a cobrar), no ameritan dos
+    # campos ni una entidad aparte.
+    porcentaje_beca: Mapped[int] = mapped_column(default=0)
+    motivo_beca: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
 
     # --- Relación reflexiva: 1 adulto representa a 0..* personas ---
     representante_id: Mapped[Optional[int]] = mapped_column(ForeignKey("persona.id"), nullable=True)
@@ -194,6 +213,11 @@ class AntecedentesClub(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     nivel_tecnico_alumno: Mapped[NivelTecnicoAlumno] = mapped_column(SAEnum(NivelTecnicoAlumno))
     fecha_inicio_club: Mapped[date] = mapped_column(Date)
+    # E01-RF008: dato técnico, opcional (no siempre se conoce al momento del
+    # alta; se puede completar después).
+    mano_dominante: Mapped[Optional[TipoManoDominante]] = mapped_column(
+        SAEnum(TipoManoDominante), nullable=True
+    )
 
     persona_id: Mapped[int] = mapped_column(ForeignKey("persona.id"), unique=True)
     persona: Mapped["Persona"] = relationship(back_populates="antecedentes_club")
@@ -219,6 +243,9 @@ class Membresia(Base):
     estado: Mapped[EstadoMembresia] = mapped_column(SAEnum(EstadoMembresia))
     monto_aplicado: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     fecha_activacion: Mapped[datetime] = mapped_column(DateTime)
+    # E04-RF002: auditoría de por qué monto_aplicado quedó en 0 -- necesario
+    # para que un reporte financiero no lo confunda con un error de cobro.
+    es_gratuidad_familiar: Mapped[bool] = mapped_column(Boolean, default=False)
 
     persona_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
     persona: Mapped["Persona"] = relationship(back_populates="membresias")
@@ -571,3 +598,49 @@ class Notificacion(Base):
 
     persona_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
     persona: Mapped["Persona"] = relationship(back_populates="notificaciones")
+
+
+# ---------------------------------------------------------------------------
+# Tesorería (E04-RF009/RF010/RF011/RF012)
+# ---------------------------------------------------------------------------
+class Egreso(Base):
+    """E04-RF009: egresos generales del club (servicios, implementos, etc.),
+    gestionados por el Administrador. Independiente de los movimientos de un
+    evento de recaudación (esos los gestiona el Tesorero, ver abajo)."""
+    __tablename__ = "egreso"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    concepto: Mapped[str] = mapped_column(String(150))
+    categoria: Mapped[str] = mapped_column(String(80))  # libre: "servicios", "implementos", etc.
+    monto: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    fecha: Mapped[date] = mapped_column(Date)
+    registrado_por_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
+    registrado_por: Mapped["Persona"] = relationship()
+
+
+class EventoRecaudacion(Base):
+    """E04-RF010: eventos de recaudación gestionados por el Tesorero."""
+    __tablename__ = "evento_recaudacion"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(150))
+    descripcion: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    fecha_inicio: Mapped[date] = mapped_column(Date)
+    fecha_fin: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    meta_monto: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+
+    movimientos: Mapped[List["MovimientoEvento"]] = relationship(back_populates="evento")
+
+
+class MovimientoEvento(Base):
+    """E04-RF011: ingresos y egresos vinculados a un evento de recaudación."""
+    __tablename__ = "movimiento_evento"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tipo: Mapped[TipoMovimientoEvento] = mapped_column(SAEnum(TipoMovimientoEvento))
+    monto: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    descripcion: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    fecha: Mapped[date] = mapped_column(Date)
+
+    evento_id: Mapped[int] = mapped_column(ForeignKey("evento_recaudacion.id"))
+    evento: Mapped["EventoRecaudacion"] = relationship(back_populates="movimientos")
+
+    registrado_por_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
+    registrado_por: Mapped["Persona"] = relationship()

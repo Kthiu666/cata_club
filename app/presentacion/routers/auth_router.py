@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.infraestructura.db import obtener_sesion
 from app.presentacion.schemas.auth_schemas import (
     RegistroUsuarioDTO, RefreshTokenDTO, UsuarioMeResponseDTO, LogoutResponseDTO,
+    SolicitarRecuperacionDTO, SolicitarRecuperacionResponseDTO, RestablecerContraseniaDTO,
 )
 from app.seguridad.gestor_auth import GestorAutenticacion
 from app.servicios_negocio.auth_servicio import AuthServicio
@@ -67,3 +68,14 @@ async def logout():
     de refresh tokens (ver `AuthServicio.refrescar_sesion`).
     """
     return {"mensaje": "Sesión finalizada"}
+
+
+# --- E01-RF003: recuperación de contraseña -----------------------------------
+@router.post("/recuperar-contrasenia", response_model=SolicitarRecuperacionResponseDTO)
+async def solicitar_recuperacion(datos: SolicitarRecuperacionDTO, db: Session = Depends(obtener_sesion)):
+    return AuthServicio(db).solicitar_recuperacion(datos.correo)
+
+
+@router.post("/restablecer-contrasenia", status_code=status.HTTP_204_NO_CONTENT)
+async def restablecer_contrasenia(datos: RestablecerContraseniaDTO, db: Session = Depends(obtener_sesion)):
+    AuthServicio(db).restablecer_contrasenia(datos.token, datos.nueva_contrasenia)
