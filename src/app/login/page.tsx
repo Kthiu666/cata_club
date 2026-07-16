@@ -137,17 +137,10 @@ export default function LoginPage() {
               </button>
             ))}
           </div>
-          <p className="mt-2 text-center text-[10px] text-cata-text/40">
-            Clic en cualquier botón para iniciar sesión automáticamente con datos de demo.
-          </p>
         </div>
 
         {/* Divider */}
-        <div className="mb-6 flex items-center gap-3">
-          <div className="h-px flex-1 bg-cata-border" />
-          <span className="text-xs text-cata-text/45">o use credenciales</span>
-          <div className="h-px flex-1 bg-cata-border" />
-        </div>
+        <div className="mb-6 h-px bg-cata-border" />
 
         {/* Form card */}
         <div className="card p-8 sm:p-9">
@@ -245,39 +238,6 @@ export default function LoginPage() {
               {submitting ? "Iniciando sesión..." : "Iniciar Sesión"}
             </button>
           </form>
-        </div>
-
-        {/* Demo credentials hint */}
-        <div className="mt-6 rounded-xl border border-cata-border bg-cata-surface p-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-cata-text">
-            Acceso de Demostración
-          </p>
-          <ul className="space-y-1.5 text-xs text-cata-text/65">
-            <li className="flex justify-between">
-              <span>Administrador</span>
-              <span className="font-mono text-cata-text">admin@cataclub.com / admin123</span>
-            </li>
-            <li className="flex justify-between">
-              <span>Entrenador</span>
-              <span className="font-mono text-cata-text">entrenador@cataclub.com / trainer123</span>
-            </li>
-            <li className="flex justify-between">
-              <span>Responsable de pago (representante)</span>
-              <span className="font-mono text-cata-text">representante@cataclub.com / rep123</span>
-            </li>
-            <li className="flex justify-between">
-              <span>Alumno autogestionado (inscrito)</span>
-              <span className="font-mono text-cata-text">autogestionado@cataclub.com / self123</span>
-            </li>
-            <li className="flex justify-between">
-              <span>Pre‑inscripción</span>
-              <span className="font-mono text-cata-text">natural@cataclub.com / natural123</span>
-            </li>
-          </ul>
-          <p className="mt-2 text-[10px] leading-relaxed text-cata-text/40">
-            <strong>Autogestionado</strong> representa a un alumno ya inscrito que gestiona su propia membresía, pagos y sesiones desde el portal.
-            La nueva cuenta <strong>Pre‑inscripción</strong> permite probar el flujo de registro antes de estar inscrito.
-          </p>
         </div>
 
         {/* Auth companion links */}
