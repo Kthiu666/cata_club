@@ -16,6 +16,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   ShieldCheck,
   Clock,
@@ -84,6 +85,7 @@ export default function PaymentsPage(): React.ReactElement {
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectionValidationError, setRejectionValidationError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [confirmApproveOpen, setConfirmApproveOpen] = useState(false);
 
   const loadRequests = useCallback(async (): Promise<void> => {
     try {
@@ -649,9 +651,9 @@ export default function PaymentsPage(): React.ReactElement {
                       <div className="space-y-3">
                         <button
                           type="button"
-                          onClick={handleApprove}
+                          onClick={() => setConfirmApproveOpen(true)}
                           disabled={actionLoading !== null}
-                          className="btn-primary w-full shadow-soft"
+                          className="btn-primary w-full bg-cata-state-ok shadow-soft hover:bg-cata-state-ok/90"
                         >
                           {actionLoading === "approve" ? (
                             "Procesando..."
@@ -748,6 +750,18 @@ export default function PaymentsPage(): React.ReactElement {
             </div>
           </div>
         )}
+
+        <ConfirmDialog
+          open={confirmApproveOpen}
+          variant="state-ok"
+          title="Aprobar pago"
+          message="¿Confirma que aprueba este pago? La membresía pasará a activa."
+          onConfirm={() => {
+            setConfirmApproveOpen(false);
+            handleApprove();
+          }}
+          onCancel={() => setConfirmApproveOpen(false)}
+        />
       </div>
     </ProtectedRoute>
   );
