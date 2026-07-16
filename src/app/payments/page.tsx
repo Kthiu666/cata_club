@@ -210,7 +210,7 @@ export default function PaymentsPage(): React.ReactElement {
       <div>
         {/* Hero Banner */}
         <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.05),transparent_50%)]" />
+          <div className="absolute inset-0 bg-logo-glow" />
           <div className="relative z-10">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
               <ShieldCheck size={14} strokeWidth={2} aria-hidden="true" />
