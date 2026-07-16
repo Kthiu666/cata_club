@@ -5,7 +5,7 @@ import {
   CalendarDays,
   Eye,
   Facebook,
-  Mail,
+  Instagram,
   MapPin,
   Navigation,
   Phone,
@@ -243,9 +243,9 @@ function Location(): React.ReactElement {
         <aside className="landing-contact" data-reveal>
           <h3>Información de contacto</h3>
           <p><MapPin aria-hidden="true" /><span>Av. Manuel Agustín Aguirre, Barrio Perpetuo Socorro, Loja, Ecuador — junto al Coliseo Ciudad de Loja</span></p>
-          <p><Phone className="landing-icon-whatsapp" aria-hidden="true" /><strong>WhatsApp</strong><span>{contact.whatsapp}</span></p>
-          <p><Facebook className="landing-icon-facebook" aria-hidden="true" /><strong>Facebook</strong><span>{contact.facebook}</span></p>
-          <p><Mail aria-hidden="true" /><strong>Correo</strong><span>{contact.email}</span></p>
+          <p><Phone className="landing-icon-whatsapp" aria-hidden="true" /><strong>Contactos</strong><span>{contact.whatsapp.join(" · ")}</span></p>
+          <p><Facebook className="landing-icon-facebook" aria-hidden="true" /><strong>Facebook</strong><a href={contact.facebook} target="_blank" rel="noreferrer">Cata Club Loja</a></p>
+          <p><Instagram className="landing-icon-instagram" aria-hidden="true" /><strong>Instagram</strong><a href={contact.instagram} target="_blank" rel="noreferrer">@cataclub_tenis_de_mesa</a></p>
           <p><CalendarDays aria-hidden="true" /><strong>Horario</strong><span>{contact.hours}</span></p>
           <a className="landing-button" href="https://www.openstreetmap.org/?mlat=-4.0056095&mlon=-79.2046238#map=18/-4.0056095/-79.2046238" target="_blank" rel="noreferrer">
             <Navigation aria-hidden="true" /> Cómo llegar

@@ -13,9 +13,9 @@ export interface LandingSchedule {
 }
 
 export interface LandingContact {
-  whatsapp: string;
+  whatsapp: string[];
   facebook: string;
-  email: string;
+  instagram: string;
   hours: string;
 }
 
@@ -84,12 +84,9 @@ export const landingConfig: LandingConfig = {
     },
   ],
   contact: {
-    // TODO(client): Replace with the club's official WhatsApp number.
-    whatsapp: "+593 99 999 9999",
-    // TODO(client): Replace with the club's official Facebook page name.
-    facebook: "Cata Club Loja",
-    // TODO(client): Replace with the club's official email address.
-    email: "info@cataclub.ec",
+    whatsapp: ["0994219619", "0990288152"],
+    facebook: "https://www.facebook.com/share/1FN5DkgzXG/",
+    instagram: "https://www.instagram.com/cataclub_tenis_de_mesa",
     // TODO(client): Confirm the public contact hours.
     hours: "Lun – Sáb · 16:00 – 20:30",
   },

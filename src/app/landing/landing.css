@@ -14,6 +14,7 @@
   --landing-state-ok: #15803d;
   --landing-third-party-whatsapp: #25d366;
   --landing-third-party-facebook: #1877f2;
+  --landing-third-party-instagram: #e1306c;
 
   /* Semantic landing tokens: Option A, Deportivo Clasico. */
   --landing-background: var(--landing-bg-base);
@@ -140,7 +141,10 @@
 .landing-contact p svg { width: 19px; height: 19px; flex: none; color: var(--landing-action); }
 .landing-contact p .landing-icon-whatsapp { color: var(--landing-third-party-whatsapp); }
 .landing-contact p .landing-icon-facebook { color: var(--landing-third-party-facebook); }
+.landing-contact p .landing-icon-instagram { color: var(--landing-third-party-instagram); }
 .landing-contact p strong { color: var(--landing-text-strong); }
+.landing-contact p a { color: var(--landing-text); text-decoration: none; }
+.landing-contact p a:hover { text-decoration: underline; }
 .landing-contact .landing-button { margin-top: 4px; }
 
 .landing-footer { position: relative; display: flex; flex-direction: column; gap: 34px; padding: 60px 8.33vw 44px; overflow: hidden; background: var(--landing-footer); }

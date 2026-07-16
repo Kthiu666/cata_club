@@ -65,11 +65,9 @@ describe("LandingPage", (): void => {
     expect(screen.getByText(landingConfig.stats[1].value)).toBeInTheDocument();
     expect(screen.getByText(landingConfig.stats[2].value)).toBeInTheDocument();
     expect(screen.getByText(landingConfig.schedules[0].hours)).toBeInTheDocument();
-    expect(screen.getByText(landingConfig.contact.whatsapp)).toBeInTheDocument();
-    expect(screen.getByText(landingConfig.contact.facebook)).toBeInTheDocument();
-    expect(screen.getByText(landingConfig.contact.email)).toBeInTheDocument();
-    expect(screen.getByText("Facebook")).toBeInTheDocument();
-    expect(screen.queryByText("Instagram")).not.toBeInTheDocument();
+    expect(screen.getByText(landingConfig.contact.whatsapp.join(" · "))).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Cata Club Loja" })).toHaveAttribute("href", landingConfig.contact.facebook);
+    expect(screen.getByRole("link", { name: "@cataclub_tenis_de_mesa" })).toHaveAttribute("href", landingConfig.contact.instagram);
   });
 
   it("renders each configured schedule as its own card", (): void => {
