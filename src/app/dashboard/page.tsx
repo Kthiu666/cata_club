@@ -111,37 +111,51 @@ export default function DashboardPage(): React.ReactElement {
 
         {/* Stats grid */}
         <div className="mb-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => (
-            <div key={stat.label} className="card-hover p-5 sm:p-6">
-              <div className="mb-4 flex items-start justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
-                  <stat.icon
-                    size={22}
-                    strokeWidth={1.5}
-                    className="text-cata-red"
-                    aria-hidden="true"
-                  />
+          {stats.map((stat) => {
+            const isAlert = stat.trend === "alert";
+            return (
+              <div
+                key={stat.label}
+                className={
+                  isAlert
+                    ? "card border-2 border-cata-red/40 bg-cata-yellow/10 p-6 shadow-elevated sm:p-7"
+                    : "card p-5 sm:p-6"
+                }
+              >
+                <div className="mb-4 flex items-start justify-between">
+                  <div
+                    className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+                      isAlert ? "bg-cata-yellow/25" : "bg-cata-red/15"
+                    }`}
+                  >
+                    <stat.icon
+                      size={22}
+                      strokeWidth={isAlert ? 2 : 1.5}
+                      className="text-cata-red"
+                      aria-hidden="true"
+                    />
+                  </div>
+                  {stat.trend === "up" && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-cata-state-ok/10 px-2 py-0.5 text-[10px] font-semibold text-cata-state-ok">
+                      <TrendingUp size={10} strokeWidth={2} aria-hidden="true" />
+                      Activo
+                    </span>
+                  )}
+                  {stat.trend === "alert" && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                      <AlertTriangle size={10} strokeWidth={2} aria-hidden="true" />
+                      Atención
+                    </span>
+                  )}
                 </div>
-                {stat.trend === "up" && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-cata-state-ok/10 px-2 py-0.5 text-[10px] font-semibold text-cata-state-ok">
-                    <TrendingUp size={10} strokeWidth={2} aria-hidden="true" />
-                    Activo
-                  </span>
-                )}
-                {stat.trend === "alert" && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                    <AlertTriangle size={10} strokeWidth={2} aria-hidden="true" />
-                    Atención
-                  </span>
-                )}
+                <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">{stat.label}</p>
+                <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">
+                  {stat.value}
+                </p>
+                <p className="mt-1 text-xs text-cata-text/40">{stat.sub}</p>
               </div>
-              <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">{stat.label}</p>
-              <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">
-                {stat.value}
-              </p>
-              <p className="mt-1 text-xs text-cata-text/40">{stat.sub}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="grid gap-8 lg:grid-cols-3">
@@ -155,7 +169,7 @@ export default function DashboardPage(): React.ReactElement {
               {quickActions.map((action) => (
                 <Link key={action.href} href={action.href}>
                   <div className="card-hover group flex items-start gap-4 p-5 sm:p-6">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cata-red/15">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-cata-red/15">
                       <action.icon
                         size={22}
                         strokeWidth={1.5}
