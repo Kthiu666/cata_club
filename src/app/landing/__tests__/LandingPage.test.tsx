@@ -98,10 +98,10 @@ describe("LandingPage", (): void => {
     expect(screen.getByRole("link", { name: "ENTRAR — Iniciar sesión" })).toHaveAttribute("href", "/login");
   });
 
-  it("describes the Singapore competition image without club attribution", (): void => {
+  it("describes the South American championship competition image", (): void => {
     render(<LandingPage />);
 
-    expect(screen.getByAltText("Athletes competing in a table tennis tournament in Singapore")).toBeInTheDocument();
+    expect(screen.getByAltText("Cata Club athletes at the South American U11-U13 Table Tennis Championship in Asunción, Paraguay")).toBeInTheDocument();
     expect(screen.getByText("Competencia internacional de tenis de mesa")).toBeInTheDocument();
   });
 

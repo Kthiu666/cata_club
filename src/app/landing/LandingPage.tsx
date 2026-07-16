@@ -39,12 +39,12 @@ interface GalleryItem {
 const GALLERY_ITEMS: GalleryItem[] = [
   {
     src: "/landing/gallery-young-athletes.jpeg",
-    alt: "Young Cata Club athletes training table tennis",
+    alt: "Young Cata Club athlete returning a serve during a match",
     caption: "Nuestras futuras promesas",
   },
   {
     src: "/landing/gallery-competition.jpeg",
-    alt: "Athletes competing in a table tennis tournament in Singapore",
+    alt: "Cata Club athletes at the South American U11-U13 Table Tennis Championship in Asunción, Paraguay",
     caption: "Competencia internacional de tenis de mesa",
   },
   {
@@ -109,17 +109,14 @@ function Hero(): React.ReactElement {
       </div>
       <div className="landing-hero-animation" data-hero-parallax>
         <div className="landing-hero-screen">
-          {[1, 2, 3, 4].map((frame): React.ReactElement => (
-            <Image
-              key={frame}
-              className={`landing-frame landing-frame-${frame}`}
-              src={`/landing/hero-frame-${frame}.png`}
-              alt={frame === 1 ? "Pixel art table tennis match inside Cata Club" : ""}
-              fill
-              priority
-              sizes="(max-width: 768px) 90vw, 500px"
-            />
-          ))}
+          <Image
+            className="landing-hero-photo"
+            src="/landing/hero-photo.jpeg"
+            alt="Entrenadores, deportistas y familias de Cata Club celebrando juntos"
+            fill
+            priority
+            sizes="(max-width: 768px) 90vw, 620px"
+          />
         </div>
       </div>
     </header>
