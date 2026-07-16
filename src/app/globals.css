@@ -57,7 +57,7 @@
   }
 
   .btn-primary {
-    background-color: #8B1A1A;
+    background-color: #D92128;
     color: #FFFFFF;
     border-radius: 0.75rem;
     transition: all 0.2s ease;
@@ -65,9 +65,9 @@
   }
 
   .btn-primary:hover {
-    background-color: #B22222;
+    background-color: #E55157;
     transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(139,26,26,0.3);
+    box-shadow: 0 4px 16px rgba(217,33,40,0.3);
   }
 
   .btn-secondary {
@@ -95,8 +95,8 @@
   }
 
   .input-field:focus {
-    border-color: #8B1A1A;
-    box-shadow: 0 0 0 3px rgba(139,26,26,0.2);
+    border-color: #D92128;
+    box-shadow: 0 0 0 3px rgba(217,33,40,0.2);
   }
 
   .badge {

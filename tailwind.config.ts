@@ -7,9 +7,9 @@ const config: Config = {
     extend: {
       colors: {
         cata: {
-          red: "#8B1A1A",
-          "red-light": "#B22222",
-          "red-dark": "#5E1111",
+          red: "#D92128",
+          "red-light": "#E55157",
+          "red-dark": "#A11D22",
           yellow: "#FFD600",
           "yellow-soft": "#FFEF9E",
           amber: "#F4B41A",
