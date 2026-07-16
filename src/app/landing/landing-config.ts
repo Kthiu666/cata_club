@@ -78,7 +78,7 @@ export const landingConfig: LandingConfig = {
     },
     {
       category: "Adultos",
-      audience: "",
+      audience: "Mayores de 18 años",
       hours: "20:00 – 21:15",
       days: "Lunes a Viernes",
     },

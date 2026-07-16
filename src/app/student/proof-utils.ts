@@ -38,6 +38,25 @@ export function getProofStatus(
   return "rechazado";
 }
 
+/**
+ * Tailwind text-color class for a given proof status.
+ *
+ * Reuses the same warning/success/error semantics as the shared
+ * `.badge-*` classes (globals.css) so proof status text stays visually
+ * consistent with badges elsewhere in the app.
+ */
+export function getProofStatusColorClass(status: ProofStatus): string {
+  switch (status) {
+    case "not_uploaded":
+    case "pending_validation":
+      return "text-amber-700";
+    case "validado":
+      return "text-cata-state-ok";
+    case "rechazado":
+      return "text-cata-red";
+  }
+}
+
 /** Human-readable file size string (B / KB / MB). */
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

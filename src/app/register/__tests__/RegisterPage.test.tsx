@@ -189,5 +189,18 @@ describe("RegisterPage", () => {
       expect(mockLogin).toHaveBeenCalledTimes(1);
       expect(mockPush).toHaveBeenCalledTimes(1);
     });
+
+    it("renders the login-failure error via the shared alert-error banner, not a duplicated inline banner", async () => {
+      mockLogin.mockReturnValue(null); // Simulate failed login
+      const button = await submitAndReachSuccess();
+
+      fireEvent.click(button);
+
+      const alertEl = await screen.findByRole("alert");
+      expect(alertEl).toHaveTextContent(/no se pudo iniciar la sesión/i);
+      expect(alertEl).toHaveClass("alert-error");
+      // No duplicated inline dark-theme banner markup remains
+      expect(alertEl.className).not.toMatch(/bg-red-900|border-red-500/);
+    });
   });
 });

@@ -22,7 +22,7 @@ import {
   UserPlus,
   ArrowRight,
 } from "lucide-react";
-import { getProofStatus, formatFileSize } from "./proof-utils";
+import { getProofStatus, formatFileSize, getProofStatusColorClass } from "./proof-utils";
 import type { ProofStatus, MembershipStatus } from "./proof-utils";
 
 // ---------------------------------------------------------------------------
@@ -478,24 +478,24 @@ export default function StudentPage(): React.ReactElement {
     <ProtectedRoute allowedRoles={["responsable_pago"]}>
       <div>
         {/* Hero Banner */}
-        <div className="relative mb-8 overflow-hidden rounded-3xl bg-cata-navy px-6 py-8 sm:px-10 sm:py-10">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,33,40,0.08),transparent_50%)]" />
+        <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.05),transparent_50%)]" />
           <div className="relative z-10 flex items-start justify-between">
             <div>
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
                 <UserCircle size={14} strokeWidth={2} aria-hidden="true" />
                 Área de Estudiantes
               </div>
-              <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+              <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
                 Portal de Cuenta
               </h1>
-              <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
+              <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
                 {isPreEnrollment
                   ? "Cuenta creada — aún no inscrito como alumno. Elija un plan y complete su registro."
                   : `${selectedStudent?.nombre ?? ""} — membresía, pagos y horario`}
               </p>
             </div>
-            <span className="hidden rounded-full bg-amber-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 sm:inline-block">
+            <span className="hidden rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700 sm:inline-block">
               Demo
             </span>
           </div>
@@ -505,10 +505,10 @@ export default function StudentPage(): React.ReactElement {
         <div className="mb-4 flex items-center gap-2">
           <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
             isRepresentative
-              ? "bg-blue-900/20 text-blue-400"
+              ? "bg-blue-50 text-blue-700"
               : isPreEnrollment
-                ? "bg-violet-900/20 text-violet-400"
-                : "bg-emerald-900/20 text-emerald-400"
+                ? "bg-violet-50 text-violet-700"
+                : "bg-emerald-50 text-emerald-700"
           }`}>
             {isRepresentative ? (
               <Building2 size={12} strokeWidth={1.5} aria-hidden="true" />
@@ -520,7 +520,7 @@ export default function StudentPage(): React.ReactElement {
             {accountLabel}
           </span>
           {isRepresentative && (
-            <span className="text-xs text-white/65">
+            <span className="text-xs text-cata-text/65">
               Gestiona {students.length} alumnos
             </span>
           )}
@@ -528,7 +528,7 @@ export default function StudentPage(): React.ReactElement {
 
         {isRepresentative && students.length > 1 && (
           <div className="mb-4">
-            <label htmlFor="student-select" className="text-xs font-medium text-white/45">
+            <label htmlFor="student-select" className="text-xs font-medium text-cata-text/45">
               Seleccionar alumno
             </label>
             <div className="relative mt-1 inline-block">
@@ -536,7 +536,7 @@ export default function StudentPage(): React.ReactElement {
                 id="student-select"
                 value={selectedStudentId}
                 onChange={(e) => handleStudentChange(e.target.value)}
-                className="appearance-none rounded-xl border border-white/10 bg-cata-dark-elevated px-4 py-2 pr-10 text-sm font-medium text-white shadow-sm transition-colors hover:border-white/15 focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/10"
+                className="appearance-none rounded-xl border border-cata-border bg-cata-surface px-4 py-2 pr-10 text-sm font-medium text-cata-text shadow-sm transition-colors hover:border-cata-red/30 focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/10"
               >
                 {students.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -547,7 +547,7 @@ export default function StudentPage(): React.ReactElement {
               <ChevronDown
                 size={14}
                 strokeWidth={1.5}
-                className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-white/65"
+                className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
                 aria-hidden="true"
               />
             </div>
@@ -562,7 +562,7 @@ export default function StudentPage(): React.ReactElement {
               <>
                 <Link
                   href="/student/enroll"
-                  className="inline-flex items-center gap-2 rounded-xl bg-blue-900/20 px-4 py-2.5 text-sm font-medium text-blue-400 transition-all duration-200 hover:bg-blue-900/30"
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 transition-all duration-200 hover:bg-blue-100"
                 >
                   <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
                   Agregar hijo/dependiente
@@ -583,7 +583,7 @@ export default function StudentPage(): React.ReactElement {
             {!isRepresentative && !isPreEnrollment && (
               <Link
                 href="/student/enroll?type=representative"
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-900/20 px-4 py-2.5 text-sm font-medium text-blue-400 transition-all duration-200 hover:bg-blue-900/30"
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 transition-all duration-200 hover:bg-blue-100"
               >
                 <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
                 Inscribir hijo/dependiente
@@ -597,19 +597,19 @@ export default function StudentPage(): React.ReactElement {
         {isPreEnrollment ? (
           <div className="mb-8">
             {/* Intro */}
-            <div className="mb-6 rounded-2xl border border-white/8 bg-cata-dark-elevated p-6">
+            <div className="mb-6 rounded-2xl border border-cata-border bg-cata-bg p-6">
               <div className="mb-3 flex items-center gap-2">
                 <UserPlus size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                <h2 className="text-lg font-bold text-white">
+                <h2 className="text-lg font-bold text-cata-text">
                   Bienvenido a Cata Club
                 </h2>
               </div>
-              <p className="text-sm leading-relaxed text-white/65">
+              <p className="text-sm leading-relaxed text-cata-text/65">
                 Su cuenta está creada pero aún no está inscrito como alumno.
                 Elija el plan de membresía que mejor se adapte a sus necesidades
                 y complete su inscripción para comenzar a entrenar.
               </p>
-              <p className="mt-3 text-xs leading-relaxed text-white/45">
+              <p className="mt-3 text-xs leading-relaxed text-cata-text/45">
                 Una vez inscrito, desde su portal podrá agregar hijos o
                 dependientes si necesita gestionar las membresías de su familia.
               </p>
@@ -632,20 +632,20 @@ export default function StudentPage(): React.ReactElement {
                   <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-cata-red/15">
                     <ShieldCheck size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                   </div>
-                  <h3 className="text-base font-bold text-white">
+                  <h3 className="text-base font-bold text-cata-text">
                     {plan.name}
                   </h3>
                   <div className="mt-2 flex items-baseline gap-1">
-                    <span className="text-2xl font-extrabold text-white">
+                    <span className="text-2xl font-extrabold text-cata-text">
                       {plan.price}
                     </span>
-                    <span className="text-sm text-white/65">{plan.period}</span>
+                    <span className="text-sm text-cata-text/65">{plan.period}</span>
                   </div>
-                  <p className="mt-1 text-xs text-white/65">{plan.frequency}</p>
+                  <p className="mt-1 text-xs text-cata-text/65">{plan.frequency}</p>
                   <ul className="mt-4 flex-1 space-y-2">
                     {plan.benefits.map((benefit) => (
-                      <li key={benefit} className="flex items-start gap-2 text-xs text-white/65">
-                        <CheckCircle2 size={12} strokeWidth={2} className="mt-0.5 shrink-0 text-emerald-400" aria-hidden="true" />
+                      <li key={benefit} className="flex items-start gap-2 text-xs text-cata-text/65">
+                        <CheckCircle2 size={12} strokeWidth={2} className="mt-0.5 shrink-0 text-cata-state-ok" aria-hidden="true" />
                         {benefit}
                       </li>
                     ))}
@@ -664,15 +664,15 @@ export default function StudentPage(): React.ReactElement {
                 Comenzar Inscripción
                 <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
               </Link>
-              <p className="mt-3 text-xs text-white/65">
+              <p className="mt-3 text-xs text-cata-text/65">
                 El proceso toma solo unos minutos. No requiere ningún pago por adelantado.
               </p>
             </div>
           </div>
         ) : students.length === 0 ? (
           <div className="card p-6 text-center">
-            <User size={32} strokeWidth={1.5} className="mx-auto mb-3 text-white/20" aria-hidden="true" />
-            <p className="text-sm text-white/50">
+            <User size={32} strokeWidth={1.5} className="mx-auto mb-3 text-cata-text/20" aria-hidden="true" />
+            <p className="text-sm text-cata-text/50">
               No se encontraron estudiantes asociados a esta cuenta.
             </p>
           </div>
@@ -682,7 +682,7 @@ export default function StudentPage(): React.ReactElement {
             <div className="mb-8">
               <div className="mb-3 flex items-center gap-2">
                 <ShieldCheck size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                <p className="text-xs font-medium uppercase tracking-wider text-white/45">
+                <p className="text-xs font-medium uppercase tracking-wider text-cata-text/45">
                   Estado de Demo
                 </p>
               </div>
@@ -696,7 +696,7 @@ export default function StudentPage(): React.ReactElement {
                       className={`rounded-xl px-3.5 py-2 text-sm font-medium transition-all duration-200 ${
                         isActive
                           ? "bg-cata-red/15 text-cata-red ring-1 ring-cata-red/30"
-                          : "bg-cata-dark-elevated text-white/65 ring-1 ring-white/10 hover:bg-cata-dark-surface hover:text-white"
+                          : "bg-cata-bg text-cata-text/65 ring-1 ring-cata-border hover:bg-cata-border/60 hover:text-cata-text"
                       }`}
                     >
                       {scenarioLabels[scenarioKey]}
@@ -715,29 +715,29 @@ export default function StudentPage(): React.ReactElement {
                     <ShieldCheck size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-white/65">Membresía</p>
-                    <p className="text-lg font-bold tracking-tight text-white">
+                    <p className="text-sm font-medium text-cata-text/65">Membresía</p>
+                    <p className="text-lg font-bold tracking-tight text-cata-text">
                       {scenario.membership.type}
                     </p>
                   </div>
                   <span className={membershipInfo.badge}>{membershipInfo.label}</span>
                 </div>
-                <div className="space-y-2 text-sm text-white/65">
+                <div className="space-y-2 text-sm text-cata-text/65">
                   <div className="flex justify-between">
                     <span>Período</span>
-                    <span className="font-medium text-white">{scenario.membership.period}</span>
+                    <span className="font-medium text-cata-text">{scenario.membership.period}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Inicio</span>
-                    <span className="font-medium text-white">{scenario.membership.startDate}</span>
+                    <span className="font-medium text-cata-text">{scenario.membership.startDate}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Fin</span>
-                    <span className="font-medium text-white">{scenario.membership.endDate}</span>
+                    <span className="font-medium text-cata-text">{scenario.membership.endDate}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Cuota</span>
-                    <span className="font-medium text-white">{scenario.membership.fee}</span>
+                    <span className="font-medium text-cata-text">{scenario.membership.fee}</span>
                   </div>
                 </div>
               </div>
@@ -749,30 +749,25 @@ export default function StudentPage(): React.ReactElement {
                     <CreditCard size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-white/65">Pago Actual</p>
-                    <p className="text-lg font-bold tracking-tight text-white">
+                    <p className="text-sm font-medium text-cata-text/65">Pago Actual</p>
+                    <p className="text-lg font-bold tracking-tight text-cata-text">
                       {scenario.membership.period}
                     </p>
                   </div>
                   <span className={paymentInfo.badge}>{paymentInfo.label}</span>
                 </div>
-                <div className="space-y-2 text-sm text-white/65">
+                <div className="space-y-2 text-sm text-cata-text/65">
                   <div className="flex justify-between">
                     <span>Método de Pago</span>
-                    <span className="font-medium text-white">{scenario.payment.method}</span>
+                    <span className="font-medium text-cata-text">{scenario.payment.method}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Pagado el</span>
-                    <span className="font-medium text-white">{scenario.payment.paidOn}</span>
+                    <span className="font-medium text-cata-text">{scenario.payment.paidOn}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span>Estado del Comprobante</span>
-                    <span className={`inline-flex items-center gap-1 text-xs font-medium ${
-                      proofStatus === "not_uploaded" ? "text-amber-400" :
-                      proofStatus === "pending_validation" ? "text-amber-400" :
-                      proofStatus === "validado" ? "text-emerald-400" :
-                      "text-cata-red"
-                    }`}>
+                    <span className={`inline-flex items-center gap-1 text-xs font-medium ${getProofStatusColorClass(proofStatus)}`}>
                       {proofInfo.icon}
                       {proofInfo.label}
                     </span>
@@ -780,28 +775,28 @@ export default function StudentPage(): React.ReactElement {
                 </div>
 
                 {/* Upload Proof Section */}
-                <div className="mt-5 rounded-xl border-2 border-dashed border-white/15 bg-cata-dark-surface/50 p-5">
+                <div className="mt-5 rounded-xl border-2 border-dashed border-cata-border bg-cata-bg p-5">
                   {scenario.payment.validated ? (
                     /* Already validated — read-only confirmation */
-                    <div className="flex items-center gap-2 rounded-lg bg-emerald-900/20 px-3 py-2 text-xs text-emerald-400">
+                    <div className="flex items-center gap-2 rounded-lg bg-cata-state-ok/10 px-3 py-2 text-xs text-cata-state-ok">
                       <CheckCircle2 size={14} strokeWidth={2} aria-hidden="true" />
                       Comprobante registrado y validado
                     </div>
                   ) : scenario.payment.proofUploaded && demoScenario !== "expired" ? (
                     /* Uploaded but not yet validated — read-only pending message */
-                    <div className="flex items-center gap-2 rounded-lg bg-amber-900/20 px-3 py-2 text-xs text-amber-400">
+                    <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
                       <AlertTriangle size={14} strokeWidth={2} aria-hidden="true" />
                       Comprobante enviado, pendiente de validación por administración
                     </div>
                   ) : (
                     <>
-                      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-cata-text">
                         <Upload size={14} strokeWidth={1.5} aria-hidden="true" />
                         {demoScenario === "expired" ? "Renovar Membresía" : "Subir Comprobante de Pago"}
                       </div>
 
                       {demoScenario === "expired" && (
-                        <p className="mb-3 text-xs text-white/65">
+                        <p className="mb-3 text-xs text-cata-text/65">
                           Su membresía está vencida. Suba el comprobante del nuevo período para renovarla.
                         </p>
                       )}
@@ -813,7 +808,7 @@ export default function StudentPage(): React.ReactElement {
                         accept="image/*,application/pdf,.pdf"
                         onChange={handleFileChange}
                         aria-label="Seleccionar comprobante de pago (solo imágenes y PDF, máximo 5 MB)"
-                        className="block w-full text-xs text-white/65 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-cata-red/15 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-cata-red hover:file:bg-cata-red/25"
+                        className="block w-full text-xs text-cata-text/65 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-cata-red/15 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-cata-red hover:file:bg-cata-red/25"
                       />
 
                       {/* File validation error */}
@@ -825,12 +820,12 @@ export default function StudentPage(): React.ReactElement {
 
                       {/* Selected file info */}
                       {selectedFile && !fileError && (
-                        <div className="mt-2 flex items-center gap-2 rounded-lg bg-cata-dark-elevated px-3 py-2 text-xs text-white/65">
+                        <div className="mt-2 flex items-center gap-2 rounded-lg bg-cata-bg px-3 py-2 text-xs text-cata-text/65">
                           <FileText size={14} strokeWidth={1.5} className="shrink-0 text-cata-red" aria-hidden="true" />
-                          <span className="truncate font-medium text-white">
+                          <span className="truncate font-medium text-cata-text">
                             {selectedFile.name}
                           </span>
-                          <span className="shrink-0 text-white/45">
+                          <span className="shrink-0 text-cata-text/45">
                             ({formatFileSize(selectedFile.size)})
                           </span>
                         </div>
@@ -855,12 +850,12 @@ export default function StudentPage(): React.ReactElement {
 
                       {/* Demo confirmation / change file after simulated upload */}
                       {demoSubmitted && selectedFile && !demoSubmitting && (
-                        <div className="mt-3 rounded-lg bg-amber-900/20 px-3 py-2 text-xs text-amber-400">
+                        <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
                           <p className="flex items-center gap-1.5 font-medium">
                             <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
                             Comprobante seleccionado en modo demo
                           </p>
-                          <p className="mt-1 text-amber-400/80">
+                          <p className="mt-1 text-amber-700/80">
                             No se almacenó ningún archivo. El envío real se habilitará cuando
                             el backend esté conectado.
                           </p>
@@ -872,7 +867,7 @@ export default function StudentPage(): React.ReactElement {
                               setDemoSubmitting(false);
                               if (fileInputRef.current) fileInputRef.current.value = "";
                             }}
-                            className="mt-2 text-xs font-medium text-amber-400 underline hover:text-amber-300"
+                            className="mt-2 text-xs font-medium text-amber-700 underline hover:text-amber-800"
                           >
                             Cambiar archivo
                           </button>
@@ -888,7 +883,7 @@ export default function StudentPage(): React.ReactElement {
             <section className="mb-8">
               <div className="mb-4 flex items-center gap-2">
                 <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                <h2 className="text-lg font-bold text-white">
+                <h2 className="text-lg font-bold text-cata-text">
                   Próximas Sesiones {selectedStudent && `— ${selectedStudent.nombre}`}
                 </h2>
               </div>
@@ -903,9 +898,9 @@ export default function StudentPage(): React.ReactElement {
                         <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-white">{session.date}</p>
-                        <p className="text-sm text-white/65">{session.time}</p>
-                        <p className="mt-1 text-xs text-white/40">
+                        <p className="font-medium text-cata-text">{session.date}</p>
+                        <p className="text-sm text-cata-text/65">{session.time}</p>
+                        <p className="mt-1 text-xs text-cata-text/40">
                           {session.court} &middot; {session.group}
                         </p>
                       </div>
@@ -918,25 +913,25 @@ export default function StudentPage(): React.ReactElement {
         )}
 
         {/* Domain model info card (educational / transparent) */}
-        <div className="mb-8 rounded-2xl border border-white/8 bg-cata-dark-elevated p-6">
+        <div className="mb-8 rounded-2xl border border-cata-border bg-cata-bg p-6">
           <div className="mb-3 flex items-center gap-2">
             <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <h3 className="text-sm font-bold text-white">Modelo de dominio (Demo)</h3>
+            <h3 className="text-sm font-bold text-cata-text">Modelo de dominio (Demo)</h3>
           </div>
-          <p className="text-sm leading-relaxed text-white/65">
+          <p className="text-sm leading-relaxed text-cata-text/65">
             {isRepresentative ? (
               <>
-                Este portal corresponde a un <strong className="text-white">responsable de pago tipo representante</strong>.
+                Este portal corresponde a un <strong className="text-cata-text">responsable de pago tipo representante</strong>.
                 Una misma persona (ej. un padre/madre) puede gestionar las membresías y pagos
-                de <strong className="text-white">varios alumnos</strong>. Cada alumno tiene su membresía, sesiones y
+                de <strong className="text-cata-text">varios alumnos</strong>. Cada alumno tiene su membresía, sesiones y
                 comprobantes asociados.
               </>
             ) : isPreEnrollment ? (
               <>
-                Esta cuenta está en estado de <strong className="text-white">pre‑inscripción</strong>: la persona creó su
+                Esta cuenta está en estado de <strong className="text-cata-text">pre‑inscripción</strong>: la persona creó su
                 cuenta de acceso pero aún no se ha inscrito como alumno del club. Al completar la
                 inscripción, la misma persona será el titular de la cuenta y el alumno que entrena
-                (<strong className="text-white">jugador</strong>). Las membresías y pagos se gestionan
+                (<strong className="text-cata-text">jugador</strong>). Las membresías y pagos se gestionan
                 directamente desde el portal.
               </>
             ) : (
@@ -949,7 +944,7 @@ export default function StudentPage(): React.ReactElement {
         </div>
 
         {/* Demo honesty footer */}
-        <p className="mt-10 text-center text-xs text-white/30">
+        <p className="mt-10 text-center text-xs text-cata-text/30">
           El portal de cuenta muestra solo datos de demostración. No se almacenan registros
           reales de membresía, pagos, horarios o salud. Listo para la integración con la API del backend.
         </p>

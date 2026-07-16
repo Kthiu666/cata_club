@@ -81,10 +81,10 @@ const quickActions = [
 ];
 
 const recentActivity = [
-  { icon: CheckCircle2, text: "Sofía Martínez — pago validado", time: "Hace 10 min", color: "text-emerald-400", bg: "bg-emerald-900/20" },
-  { icon: AlertTriangle, text: "3 comprobantes pendientes de revisión", time: "Hace 1 h", color: "text-amber-400", bg: "bg-amber-900/20" },
+  { icon: CheckCircle2, text: "Sofía Martínez — pago validado", time: "Hace 10 min", color: "text-cata-state-ok", bg: "bg-cata-state-ok/10" },
+  { icon: AlertTriangle, text: "3 comprobantes pendientes de revisión", time: "Hace 1 h", color: "text-amber-700", bg: "bg-amber-50" },
   { icon: Users, text: "Nuevo miembro: Mateo Rodríguez", time: "Hace 2 h", color: "text-cata-red", bg: "bg-cata-red/15" },
-  { icon: Activity, text: "Sesión de avanzados finalizada — Cancha 1", time: "Hace 3 h", color: "text-blue-400", bg: "bg-blue-900/20" },
+  { icon: Activity, text: "Sesión de avanzados finalizada — Cancha 1", time: "Hace 3 h", color: "text-blue-700", bg: "bg-blue-50" },
 ];
 
 export default function DashboardPage(): React.ReactElement {
@@ -92,17 +92,17 @@ export default function DashboardPage(): React.ReactElement {
     <ProtectedRoute allowedRoles={["admin"]}>
       <div>
         {/* Hero Banner */}
-        <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,33,40,0.08),transparent_50%)]" />
+        <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.05),transparent_50%)]" />
           <div className="relative z-10">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
               <Zap size={14} strokeWidth={2} aria-hidden="true" />
               Panel Administrativo
             </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
               Panel de Control
             </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
+            <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
               Cata Club — Resumen diario, métricas clave y acceso rápido a las funciones
               administrativas del club.
             </p>
@@ -123,23 +123,23 @@ export default function DashboardPage(): React.ReactElement {
                   />
                 </div>
                 {stat.trend === "up" && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-900/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-cata-state-ok/10 px-2 py-0.5 text-[10px] font-semibold text-cata-state-ok">
                     <TrendingUp size={10} strokeWidth={2} aria-hidden="true" />
                     Activo
                   </span>
                 )}
                 {stat.trend === "alert" && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
                     <AlertTriangle size={10} strokeWidth={2} aria-hidden="true" />
                     Atención
                   </span>
                 )}
               </div>
-              <p className="text-xs font-medium uppercase tracking-wider text-white/65">{stat.label}</p>
-              <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">
+              <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">{stat.label}</p>
+              <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">
                 {stat.value}
               </p>
-              <p className="mt-1 text-xs text-white/40">{stat.sub}</p>
+              <p className="mt-1 text-xs text-cata-text/40">{stat.sub}</p>
             </div>
           ))}
         </div>
@@ -149,7 +149,7 @@ export default function DashboardPage(): React.ReactElement {
           <div className="lg:col-span-2">
             <div className="mb-6 flex items-center gap-2">
               <Activity size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-              <h2 className="text-lg font-bold text-white">Acciones Rápidas</h2>
+              <h2 className="text-lg font-bold text-cata-text">Acciones Rápidas</h2>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               {quickActions.map((action) => (
@@ -164,15 +164,15 @@ export default function DashboardPage(): React.ReactElement {
                       />
                     </div>
                     <div className="flex-1">
-                      <p className="font-bold text-white">{action.label}</p>
-                      <p className="mt-0.5 text-sm text-white/65">
+                      <p className="font-bold text-cata-text">{action.label}</p>
+                      <p className="mt-0.5 text-sm text-cata-text/65">
                         {action.description}
                       </p>
                     </div>
                     <ArrowRight
                       size={18}
                       strokeWidth={1.5}
-                      className="mt-1 shrink-0 text-white/30 transition-transform group-hover:translate-x-0.5"
+                      className="mt-1 shrink-0 text-cata-text/30 transition-transform group-hover:translate-x-0.5"
                       aria-hidden="true"
                     />
                   </div>
@@ -181,12 +181,12 @@ export default function DashboardPage(): React.ReactElement {
             </div>
 
             {/* Modules reference */}
-            <div className="mt-8 rounded-2xl border border-white/8 bg-cata-dark-elevated p-6">
+            <div className="card mt-8 p-6">
               <div className="mb-4 flex items-center gap-2">
                 <ClipboardList size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                <h3 className="text-sm font-bold text-white">Módulos del Sistema</h3>
+                <h3 className="text-sm font-bold text-cata-text">Módulos del Sistema</h3>
               </div>
-              <div className="grid gap-3 text-sm text-white/65 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 text-sm text-cata-text/65 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="flex items-center gap-2">
                   <UserCheck size={14} strokeWidth={1.5} className="shrink-0 text-cata-red" aria-hidden="true" />
                   <span>Acceso y Usuarios — inicio de sesión, cuentas, credenciales</span>
@@ -211,7 +211,7 @@ export default function DashboardPage(): React.ReactElement {
           <div>
             <div className="mb-6 flex items-center gap-2">
               <Clock size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-              <h2 className="text-lg font-bold text-white">Actividad Reciente</h2>
+              <h2 className="text-lg font-bold text-cata-text">Actividad Reciente</h2>
             </div>
             <div className="card p-5">
               <div className="space-y-4">
@@ -221,8 +221,8 @@ export default function DashboardPage(): React.ReactElement {
                       <item.icon size={16} strokeWidth={1.5} className={item.color} aria-hidden="true" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm leading-snug text-white">{item.text}</p>
-                      <p className="mt-0.5 text-xs text-white/40">{item.time}</p>
+                      <p className="text-sm leading-snug text-cata-text">{item.text}</p>
+                      <p className="mt-0.5 text-xs text-cata-text/40">{item.time}</p>
                     </div>
                   </div>
                 ))}
@@ -232,7 +232,7 @@ export default function DashboardPage(): React.ReactElement {
         </div>
 
         {/* Demo data note */}
-        <p className="mt-10 text-center text-xs text-white/30">
+        <p className="mt-10 text-center text-xs text-cata-text/30">
           Las métricas del dashboard son datos de demostración. Los datos reales reemplazarán
           estos una vez que la API del backend esté conectada.
         </p>

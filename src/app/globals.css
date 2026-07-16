@@ -9,7 +9,7 @@
   padding: 0;
 }
 
-/* Global base styles — Cata Club Admin Dark Theme */
+/* Global base styles — Cata Club Admin Light Theme */
 
 @layer base {
   *,
@@ -19,8 +19,8 @@
   }
 
   body {
-    background-color: #0A0A12;
-    color: #FFFFFF;
+    background-color: #F9FAFB;
+    color: #1F2937;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -38,27 +38,26 @@
 
 @layer components {
   .card {
-    background-color: #141420;
-    border: 1px solid rgba(255,255,255,0.08);
+    background-color: #FFFFFF;
+    border: 1px solid #E5E7EB;
     border-radius: 1rem;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    @apply shadow-card;
   }
 
   .card-hover {
-    background-color: #141420;
-    border: 1px solid rgba(255,255,255,0.08);
+    background-color: #FFFFFF;
+    border: 1px solid #E5E7EB;
     border-radius: 1rem;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
     transition: all 0.2s ease;
+    @apply shadow-card;
   }
 
   .card-hover:hover {
-    border-color: rgba(255,255,255,0.15);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    @apply shadow-elevated;
   }
 
   .btn-primary {
-    background-color: #D92128;
+    background-color: #8B1A1A;
     color: #FFFFFF;
     border-radius: 0.75rem;
     transition: all 0.2s ease;
@@ -66,38 +65,38 @@
   }
 
   .btn-primary:hover {
-    background-color: #EF3E45;
+    background-color: #B22222;
     transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(217,33,40,0.3);
+    box-shadow: 0 4px 16px rgba(139,26,26,0.3);
   }
 
   .btn-secondary {
     background-color: transparent;
-    color: #FFFFFF;
-    border: 1px solid rgba(255,255,255,0.15);
+    color: #1F2937;
+    border: 1px solid #E5E7EB;
     border-radius: 0.75rem;
-    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium transition-all duration-200 hover:bg-white/[0.08] hover:border-white/25 focus:outline-none focus:ring-2 focus:ring-white/10 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium transition-all duration-200 hover:bg-cata-bg focus:outline-none focus:ring-2 focus:ring-cata-border disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white/65 transition-colors duration-200 hover:bg-white/[0.08] hover:text-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-cata-text/65 transition-colors duration-200 hover:bg-cata-bg hover:text-cata-text focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .input-field {
-    background-color: #141420;
-    border: 1px solid rgba(255,255,255,0.12);
+    background-color: #FFFFFF;
+    border: 1px solid #E5E7EB;
     border-radius: 0.75rem;
-    color: #FFFFFF;
-    @apply w-full px-4 py-2.5 text-sm transition-all duration-200 placeholder:text-white/35 focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/15 disabled:cursor-not-allowed disabled:opacity-50;
+    color: #1F2937;
+    @apply w-full px-4 py-2.5 text-sm transition-all duration-200 placeholder:text-cata-text/35 focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/15 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .input-field::placeholder {
-    color: rgba(255,255,255,0.35);
+    color: rgba(31,41,55,0.35);
   }
 
   .input-field:focus {
-    border-color: #D92128;
-    box-shadow: 0 0 0 3px rgba(217,33,40,0.2);
+    border-color: #8B1A1A;
+    box-shadow: 0 0 0 3px rgba(139,26,26,0.2);
   }
 
   .badge {
@@ -105,27 +104,34 @@
   }
 
   .badge-success {
-    background-color: rgba(16,185,129,0.15);
-    color: #34D399;
-    border: 1px solid rgba(16,185,129,0.2);
+    background-color: rgba(21,128,61,0.12);
+    color: #15803D;
+    border: 1px solid rgba(21,128,61,0.3);
   }
 
   .badge-warning {
-    background-color: rgba(245,158,11,0.15);
-    color: #FBBF24;
-    border: 1px solid rgba(245,158,11,0.2);
+    background-color: rgba(146,64,14,0.12);
+    color: #92400E;
+    border: 1px solid rgba(146,64,14,0.3);
   }
 
   .badge-error {
-    background-color: rgba(239,68,68,0.15);
-    color: #F87171;
-    border: 1px solid rgba(239,68,68,0.2);
+    background-color: rgba(185,28,28,0.1);
+    color: #B91C1C;
+    border: 1px solid rgba(185,28,28,0.3);
   }
 
   .badge-neutral {
-    background-color: rgba(255,255,255,0.08);
-    color: rgba(255,255,255,0.65);
-    border: 1px solid rgba(255,255,255,0.1);
+    background-color: rgba(55,65,81,0.08);
+    color: #374151;
+    border: 1px solid rgba(55,65,81,0.15);
+  }
+
+  .alert-error {
+    @apply flex items-center gap-2 rounded-lg border px-3 py-2 text-xs;
+    background-color: rgba(185,28,28,0.1);
+    border-color: rgba(185,28,28,0.3);
+    color: #B91C1C;
   }
 }
 

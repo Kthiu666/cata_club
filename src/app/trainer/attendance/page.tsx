@@ -36,18 +36,19 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertTriangle,
+  ArrowRight,
   ClipboardList,
 } from "lucide-react";
 import {
   AVAILABLE_SESSIONS,
   ATTENDANCE_LABELS,
-  ATTENDANCE_BADGE_STYLES,
-  ATTENDANCE_CARD_STYLES,
   ATTENDANCE_STATES,
   countByState,
   buildAttendanceSummary,
   type SessionStudent,
 } from "./attendance-utils";
+import { getAttendanceBadgeTokens } from "@/app/attendance/attendance-utils";
+import { getLevelBadgeTokens } from "@/lib/groups-utils";
 import type { EstadoAsistencia } from "@/types/domain";
 
 // ---------------------------------------------------------------------------
@@ -67,12 +68,6 @@ const STEP_LABELS: Record<WizardStep, string> = {
 // ---------------------------------------------------------------------------
 // UI constants
 // ---------------------------------------------------------------------------
-
-const LEVEL_BADGE: Record<string, string> = {
-  Principiante: "bg-green-900/20 text-green-400 ring-1 ring-green-500/30",
-  Intermedio: "bg-amber-900/20 text-amber-400 ring-1 ring-amber-500/30",
-  Avanzado: "bg-red-900/20 text-red-400 ring-1 ring-red-500/30",
-};
 
 const ATTENDANCE_ICONS: Record<EstadoAsistencia, React.ReactNode> = {
   present: <UserCheck size={16} strokeWidth={2} aria-hidden="true" />,
@@ -170,7 +165,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
   function renderSessionSelection(): React.ReactElement {
     return (
       <div className="space-y-4">
-        <p className="text-sm leading-relaxed text-white/65">
+        <p className="text-sm leading-relaxed text-cata-text/65">
           Seleccione la sesión en la que desea registrar asistencia:
         </p>
 
@@ -187,14 +182,14 @@ export default function TrainerAttendancePage(): React.ReactElement {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-semibold text-white">
+                  <h3 className="font-semibold text-cata-text">
                     {trainingSession.groupName}
                   </h3>
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${LEVEL_BADGE[trainingSession.level] ?? "bg-cata-dark-surface text-white/65"}`}>
+                  <span className={`badge ${getLevelBadgeTokens(trainingSession.level)}`}>
                     {trainingSession.level}
                   </span>
                 </div>
-                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-white/65">
+                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-cata-text/65">
                   <span className="inline-flex items-center gap-1.5">
                     <Clock size={13} strokeWidth={1.5} aria-hidden="true" />
                     {trainingSession.time}
@@ -212,7 +207,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
               <ChevronRight
                 size={18}
                 strokeWidth={1.5}
-                className="mt-1 shrink-0 text-white/30"
+                className="mt-1 shrink-0 text-cata-text/30"
                 aria-hidden="true"
               />
             </button>
@@ -225,7 +220,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
             <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
             Cualquier entrenador puede registrar asistencia
           </p>
-          <p className="mt-1 text-amber-400/80">
+          <p className="mt-1 text-amber-700/80">
             Las sesiones no están asignadas a un entrenador específico.
             El sistema registrará quién tomó la asistencia.
           </p>
@@ -245,34 +240,34 @@ export default function TrainerAttendancePage(): React.ReactElement {
     return (
       <div className="space-y-4">
         {/* Session context */}
-        <div className="rounded-xl border border-white/8 bg-cata-dark-elevated p-4">
+        <div className="rounded-xl border border-cata-border bg-cata-surface p-4">
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cata-red/15">
               <Calendar size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
             </div>
-            <span className="font-medium text-white">
+            <span className="font-medium text-cata-text">
               {selectedSession.groupName}
             </span>
-            <span className="text-white/65">—</span>
-            <span className="text-white/65">{selectedSession.time}</span>
-            <span className="text-white/65">&middot;</span>
-            <span className="text-white/65">{selectedSession.court}</span>
+            <span className="text-cata-text/65">—</span>
+            <span className="text-cata-text/65">{selectedSession.time}</span>
+            <span className="text-cata-text/65">&middot;</span>
+            <span className="text-cata-text/65">{selectedSession.court}</span>
           </div>
           {/* Live counts */}
           <div className="mt-3 flex flex-wrap gap-3 text-xs">
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-900/20 px-2 py-0.5 font-medium text-emerald-400">
+            <span className="inline-flex items-center gap-1 rounded-full bg-cata-state-ok/10 px-2 py-0.5 font-medium text-cata-state-ok">
               <UserCheck size={11} strokeWidth={2} aria-hidden="true" />
               {presentCount} Presentes
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-red-900/20 px-2 py-0.5 font-medium text-red-400">
+            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 font-medium text-red-700">
               <UserX size={11} strokeWidth={2} aria-hidden="true" />
               {absentCount} Ausentes
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 font-medium text-amber-400">
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700">
               <Timer size={11} strokeWidth={2} aria-hidden="true" />
               {lateCount} Tardanzas
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-blue-900/20 px-2 py-0.5 font-medium text-blue-400">
+            <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 font-medium text-blue-700">
               <FileText size={11} strokeWidth={2} aria-hidden="true" />
               {justifiedCount} Justificados
             </span>
@@ -290,7 +285,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cata-red/15">
                   <UserCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                 </div>
-                <span className="text-sm font-medium text-white">
+                <span className="text-sm font-medium text-cata-text">
                   {student.name}
                 </span>
               </div>
@@ -307,10 +302,10 @@ export default function TrainerAttendancePage(): React.ReactElement {
                         type="button"
                         onClick={() => handleDirectAttendanceSet(idx, state)}
                         title={ATTENDANCE_LABELS[state]}
-                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
+                        className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
                           isActive
-                            ? ATTENDANCE_CARD_STYLES[state]
-                            : "border border-transparent text-white/45 hover:border-white/15 hover:text-white/65"
+                            ? `border-current/20 ${getAttendanceBadgeTokens(state).badgeClass}`
+                            : "border-transparent text-cata-text/45 hover:border-cata-border hover:text-cata-text/65"
                         }`}
                       >
                         {ATTENDANCE_ICONS[state]}
@@ -325,7 +320,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
                   type="button"
                   onClick={() => handleToggleAttendance(idx)}
                   className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 sm:hidden ${
-                    ATTENDANCE_BADGE_STYLES[student.attendance]
+                    getAttendanceBadgeTokens(student.attendance).badgeClass
                   }`}
                 >
                   {ATTENDANCE_ICONS[student.attendance]}
@@ -337,8 +332,8 @@ export default function TrainerAttendancePage(): React.ReactElement {
         </div>
 
         {/* Trainer attribution reminder */}
-        <div className="rounded-xl border border-white/5 bg-cata-dark-surface/50 p-3 text-xs text-white/65">
-          <span className="flex items-center gap-1.5 font-medium text-white">
+        <div className="rounded-xl border border-cata-border bg-cata-bg p-3 text-xs text-cata-text/65">
+          <span className="flex items-center gap-1.5 font-medium text-cata-text">
             <UserCheck size={12} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
             Registrando como: {trainerName}
           </span>
@@ -358,7 +353,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
 
     return (
       <div className="space-y-5">
-        <p className="text-sm leading-relaxed text-white/65">
+        <p className="text-sm leading-relaxed text-cata-text/65">
           Revise el resumen antes de confirmar el registro de asistencia:
         </p>
 
@@ -366,25 +361,25 @@ export default function TrainerAttendancePage(): React.ReactElement {
         <div className="card-hover p-4">
           <div className="mb-3 flex items-center gap-2">
             <Calendar size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-white/45">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-cata-text/45">
               Sesión
             </h3>
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <dt className="text-white/65">Grupo</dt>
-            <dd className="font-medium text-white">
+            <dt className="text-cata-text/65">Grupo</dt>
+            <dd className="font-medium text-cata-text">
               {selectedSession.groupName}
             </dd>
-            <dt className="text-white/65">Horario</dt>
-            <dd className="font-medium text-white">
+            <dt className="text-cata-text/65">Horario</dt>
+            <dd className="font-medium text-cata-text">
               {selectedSession.time}
             </dd>
-            <dt className="text-white/65">Cancha</dt>
-            <dd className="font-medium text-white">
+            <dt className="text-cata-text/65">Cancha</dt>
+            <dd className="font-medium text-cata-text">
               {selectedSession.court}
             </dd>
-            <dt className="text-white/65">Nivel</dt>
-            <dd className="font-medium text-white">
+            <dt className="text-cata-text/65">Nivel</dt>
+            <dd className="font-medium text-cata-text">
               {selectedSession.level}
             </dd>
           </dl>
@@ -394,44 +389,44 @@ export default function TrainerAttendancePage(): React.ReactElement {
         <div className="card-hover p-4">
           <div className="mb-3 flex items-center gap-2">
             <Users size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-white/45">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-cata-text/45">
               Resumen de Asistencia
             </h3>
           </div>
           <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-lg bg-emerald-900/20 p-3 text-center">
-              <p className="text-lg font-bold text-emerald-400">{presentCount}</p>
-              <p className="text-xs text-emerald-400/80">Presentes</p>
+            <div className="rounded-lg bg-cata-state-ok/10 p-3 text-center">
+              <p className="text-lg font-bold text-cata-state-ok">{presentCount}</p>
+              <p className="text-xs text-cata-state-ok/80">Presentes</p>
             </div>
-            <div className="rounded-lg bg-red-900/20 p-3 text-center">
-              <p className="text-lg font-bold text-red-400">{absentCount}</p>
-              <p className="text-xs text-red-400/80">Ausentes</p>
+            <div className="rounded-lg bg-red-50 p-3 text-center">
+              <p className="text-lg font-bold text-red-700">{absentCount}</p>
+              <p className="text-xs text-red-700/80">Ausentes</p>
             </div>
-            <div className="rounded-lg bg-amber-900/20 p-3 text-center">
-              <p className="text-lg font-bold text-amber-400">{lateCount}</p>
-              <p className="text-xs text-amber-400/80">Tardanzas</p>
+            <div className="rounded-lg bg-amber-50 p-3 text-center">
+              <p className="text-lg font-bold text-amber-700">{lateCount}</p>
+              <p className="text-xs text-amber-700/80">Tardanzas</p>
             </div>
-            <div className="rounded-lg bg-blue-900/20 p-3 text-center">
-              <p className="text-lg font-bold text-blue-400">{justifiedCount}</p>
-              <p className="text-xs text-blue-400/80">Justificados</p>
+            <div className="rounded-lg bg-blue-50 p-3 text-center">
+              <p className="text-lg font-bold text-blue-700">{justifiedCount}</p>
+              <p className="text-xs text-blue-700/80">Justificados</p>
             </div>
           </div>
-          <p className="text-xs text-white/45">{summary}</p>
+          <p className="text-xs text-cata-text/45">{summary}</p>
         </div>
 
         {/* Trainer attribution */}
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-900/20 p-4">
+        <div className="rounded-xl border border-cata-state-ok/30 bg-cata-state-ok/10 p-4">
           <div className="mb-2 flex items-center gap-2">
-            <UserCheck size={14} strokeWidth={1.5} className="text-emerald-400" aria-hidden="true" />
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
+            <UserCheck size={14} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-cata-state-ok">
               Asistencia Registrada Por
             </h3>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <UserCheck size={16} strokeWidth={1.5} className="text-emerald-400" aria-hidden="true" />
-            <span className="font-medium text-emerald-400">{trainerName}</span>
+            <UserCheck size={16} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />
+            <span className="font-medium text-cata-state-ok">{trainerName}</span>
           </div>
-          <p className="mt-1 text-xs text-emerald-400/80">
+          <p className="mt-1 text-xs text-cata-state-ok/80">
             {trainerName} será registrado como el entrenador que tomó la asistencia
             de {students.length} alumnos en esta sesión.
           </p>
@@ -443,7 +438,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
             <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
             Demo — Sin almacenamiento real
           </p>
-          <p className="mt-1 text-amber-400/80">
+          <p className="mt-1 text-amber-700/80">
             Esta es una demostración del flujo de registro de asistencia.
             En producción, los datos se enviarían al backend para su almacenamiento permanente.
           </p>
@@ -459,26 +454,26 @@ export default function TrainerAttendancePage(): React.ReactElement {
       {confirmed ? (
         <div className="flex min-h-[75vh] items-center justify-center py-12">
           <div className="w-full max-w-lg text-center">
-            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-900/30">
-              <CheckCircle size={32} className="text-emerald-400" strokeWidth={1.5} aria-hidden="true" />
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-cata-state-ok/10">
+              <CheckCircle size={32} className="text-cata-state-ok" strokeWidth={1.5} aria-hidden="true" />
             </div>
-            <h1 className="mb-3 text-2xl font-bold tracking-tight text-white">
+            <h1 className="mb-3 text-2xl font-bold tracking-tight text-cata-text">
               Asistencia Registrada
             </h1>
-            <p className="mb-2 text-sm leading-relaxed text-white/65">
+            <p className="mb-2 text-sm leading-relaxed text-cata-text/65">
               La asistencia para{" "}
-              <strong className="text-white">
+              <strong className="text-cata-text">
                 {selectedSession?.groupName}
               </strong>{" "}
               ha sido registrada exitosamente.
             </p>
-            <p className="mb-2 text-sm leading-relaxed text-white/65">
-              <strong className="text-white">{trainerName}</strong> figura como
+            <p className="mb-2 text-sm leading-relaxed text-cata-text/65">
+              <strong className="text-cata-text">{trainerName}</strong> figura como
               el entrenador que tomó la asistencia de{" "}
-              <strong className="text-white">{students.length} alumnos</strong>.
+              <strong className="text-cata-text">{students.length} alumnos</strong>.
             </p>
             {students.length > 0 && (
-              <p className="mb-8 text-xs text-white/40">
+              <p className="mb-8 text-xs text-cata-text/40">
                 {buildAttendanceSummary(students)}
               </p>
             )}
@@ -496,24 +491,24 @@ export default function TrainerAttendancePage(): React.ReactElement {
       ) : (
         <div className="py-8">
           {/* Hero Banner */}
-          <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,33,40,0.08),transparent_50%)]" />
+          <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.05),transparent_50%)]" />
             <div className="relative z-10 flex items-start justify-between">
               <div>
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
                   <UserCheck size={14} strokeWidth={2} aria-hidden="true" />
                   Registro de Asistencia
                 </div>
-                <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+                <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
                   Asistencia de Sesión
                 </h1>
-                <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
+                <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
                   {step === "select-session" && "Seleccione la sesión en la que desea registrar asistencia."}
                   {step === "mark-attendance" && "Marque la asistencia de cada alumno en la sesión seleccionada."}
                   {step === "confirm" && "Revise y confirme el registro de asistencia."}
                 </p>
               </div>
-              <span className="hidden rounded-full bg-amber-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 sm:inline-block">
+              <span className="hidden rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700 sm:inline-block">
                 Demo
               </span>
             </div>
@@ -521,13 +516,13 @@ export default function TrainerAttendancePage(): React.ReactElement {
 
           {/* Progress bar */}
           <div className="mb-8">
-            <div className="mb-2 flex items-center justify-between text-xs text-white/45">
+            <div className="mb-2 flex items-center justify-between text-xs text-cata-text/45">
               <span>
                 Paso {currentIndex + 1} de {STEP_ORDER.length}
               </span>
               <span>{STEP_LABELS[step]}</span>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+            <div className="h-1.5 overflow-hidden rounded-full bg-cata-border">
               <div
                 className="h-full rounded-full bg-cata-red transition-all duration-400 ease-out"
                 style={{ width: `${progress}%` }}
@@ -539,7 +534,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
           <div className="card mx-auto max-w-2xl p-6 sm:p-8">
             <div className="mb-6 flex items-center gap-2">
               <ClipboardList size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-              <h2 className="text-lg font-semibold text-white">
+              <h2 className="text-lg font-semibold text-cata-text">
                 {STEP_LABELS[step]}
               </h2>
             </div>
@@ -600,7 +595,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
           </div>
 
           {/* Navigation link */}
-          <p className="mt-6 text-center text-sm text-white/65">
+          <p className="mt-6 text-center text-sm text-cata-text/65">
             <Link
               href="/trainer"
               className="font-medium text-cata-red transition-colors hover:text-cata-red-light"
@@ -610,7 +605,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
           </p>
 
           {/* Demo note */}
-          <p className="mt-4 text-center text-xs text-white/30">
+          <p className="mt-4 text-center text-xs text-cata-text/30">
             Prototipo de demostración interactivo. No se almacena ningún dato real.
             Datos ficticios para fines de presentación.
           </p>

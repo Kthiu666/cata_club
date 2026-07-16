@@ -93,6 +93,41 @@ export function getLevelLabel(nivel: NivelTecnico): string {
 }
 
 // ---------------------------------------------------------------------------
+// Level badge color tokens (Fase 4 — trainer light-theme migration)
+// ---------------------------------------------------------------------------
+
+/**
+ * Light-theme badge color tokens for a technical-level label.
+ *
+ * Keyed by the human-readable label (as returned by `getLevelLabel`) since
+ * callers (e.g. the trainer session roster) commonly work with the derived
+ * label rather than the raw `NivelTecnico` enum once sessions are built.
+ * Mirrors the `cata-*`-only palette established by `groups-page-utils.ts`'s
+ * `LEVEL_BADGE` (B3 fix) — `principiante` uses the `state-ok` success token,
+ * `intermedio` reuses `cata-navy` (no dedicated "warning" hue exists in the
+ * brand namespace), `avanzado` reuses the brand red. Keep these two maps in
+ * sync; do not reintroduce plain Tailwind `green-*`/`amber-*` here.
+ */
+const NIVEL_BADGE_TOKENS: Record<string, string> = {
+  Principiante: "bg-cata-state-ok/10 text-cata-state-ok",
+  Intermedio: "bg-cata-navy/10 text-cata-navy",
+  Avanzado: "bg-cata-red/15 text-cata-red",
+};
+
+/** Neutral fallback token for an unrecognized level label at runtime. */
+const FALLBACK_NIVEL_BADGE_TOKENS = "bg-cata-border/40 text-cata-text/65";
+
+/**
+ * Get the light-theme badge color classes for a technical-level label.
+ *
+ * Returns a neutral fallback for unknown/unexpected labels — never throws,
+ * avoids rendering an unstyled badge for bad runtime data.
+ */
+export function getLevelBadgeTokens(levelLabel: string): string {
+  return NIVEL_BADGE_TOKENS[levelLabel] ?? FALLBACK_NIVEL_BADGE_TOKENS;
+}
+
+// ---------------------------------------------------------------------------
 // Pure helpers
 // ---------------------------------------------------------------------------
 

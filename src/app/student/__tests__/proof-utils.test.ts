@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { getProofStatus, formatFileSize } from "../proof-utils";
+import { getProofStatus, formatFileSize, getProofStatusColorClass } from "../proof-utils";
 import type { ProofStatus } from "../proof-utils";
 
 // ---------------------------------------------------------------------------
@@ -63,6 +63,28 @@ describe("getProofStatus", () => {
         }
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getProofStatusColorClass
+// ---------------------------------------------------------------------------
+
+describe("getProofStatusColorClass", () => {
+  it('returns the warning color for "not_uploaded"', () => {
+    expect(getProofStatusColorClass("not_uploaded")).toBe("text-amber-700");
+  });
+
+  it('returns the warning color for "pending_validation"', () => {
+    expect(getProofStatusColorClass("pending_validation")).toBe("text-amber-700");
+  });
+
+  it('returns the brand success color for "validado"', () => {
+    expect(getProofStatusColorClass("validado")).toBe("text-cata-state-ok");
+  });
+
+  it('returns the brand error color for "rechazado"', () => {
+    expect(getProofStatusColorClass("rechazado")).toBe("text-cata-red");
   });
 });
 

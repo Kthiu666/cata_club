@@ -207,17 +207,17 @@ export default function PaymentsPage(): React.ReactElement {
     <ProtectedRoute allowedRoles={["admin"]}>
       <div>
         {/* Hero Banner */}
-        <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,33,40,0.08),transparent_50%)]" />
+        <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.05),transparent_50%)]" />
           <div className="relative z-10">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
               <ShieldCheck size={14} strokeWidth={2} aria-hidden="true" />
               Validación de Pagos
             </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
               Membresías y Pagos
             </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
+            <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
               Valide comprobantes de pago de membresías y administre el estado de los miembros.
               Revise, apruebe o rechace solicitudes con trazabilidad completa.
             </p>
@@ -226,10 +226,10 @@ export default function PaymentsPage(): React.ReactElement {
 
         {/* Demo badge */}
         <div className="mb-6 flex items-center gap-2">
-          <span className="rounded-full bg-amber-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400">
+          <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">
             Demo
           </span>
-          <span className="text-xs text-white/40">
+          <span className="text-xs text-cata-text/40">
             Los datos de pagos son simulados con información local en memoria
           </span>
         </div>
@@ -242,43 +242,43 @@ export default function PaymentsPage(): React.ReactElement {
                 <ShieldCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
               </div>
             </div>
-            <p className="text-xs font-medium uppercase tracking-wider text-white/65">Total Solicitudes</p>
-            <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">{counts.total}</p>
+            <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Total Solicitudes</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">{counts.total}</p>
           </div>
           <div className="card-hover p-5 sm:p-6">
             <div className="mb-4 flex items-start justify-between">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-900/20">
-                <Clock size={22} strokeWidth={1.5} className="text-amber-400" aria-hidden="true" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50">
+                <Clock size={22} strokeWidth={1.5} className="text-amber-700" aria-hidden="true" />
               </div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
                 <AlertTriangle size={10} strokeWidth={2} aria-hidden="true" />
                 Pendientes
               </span>
             </div>
-            <p className="text-xs font-medium uppercase tracking-wider text-white/65">Pendientes</p>
-            <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">{counts.pending}</p>
+            <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Pendientes</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">{counts.pending}</p>
           </div>
           <div className="card-hover p-5 sm:p-6">
             <div className="mb-4 flex items-start justify-between">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-900/20">
-                <CheckCircle2 size={22} strokeWidth={1.5} className="text-emerald-400" aria-hidden="true" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-state-ok/10">
+                <CheckCircle2 size={22} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />
               </div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-900/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+              <span className="inline-flex items-center gap-1 rounded-full bg-cata-state-ok/10 px-2 py-0.5 text-[10px] font-semibold text-cata-state-ok">
                 <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" />
                 Aprobados
               </span>
             </div>
-            <p className="text-xs font-medium uppercase tracking-wider text-white/65">Aprobados</p>
-            <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">{counts.approved}</p>
+            <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Aprobados</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">{counts.approved}</p>
           </div>
           <div className="card-hover p-5 sm:p-6">
             <div className="mb-4 flex items-start justify-between">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-900/20">
-                <XCircle size={22} strokeWidth={1.5} className="text-red-400" aria-hidden="true" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50">
+                <XCircle size={22} strokeWidth={1.5} className="text-red-700" aria-hidden="true" />
               </div>
             </div>
-            <p className="text-xs font-medium uppercase tracking-wider text-white/65">Rechazados</p>
-            <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">{counts.rejected}</p>
+            <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Rechazados</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">{counts.rejected}</p>
           </div>
         </div>
 
@@ -288,7 +288,7 @@ export default function PaymentsPage(): React.ReactElement {
             {/* Filters */}
             <div className="mb-6 flex items-center gap-2">
               <Filter size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-              <h2 className="text-lg font-bold text-white mr-2">Filtrar por Estado</h2>
+              <h2 className="text-lg font-bold text-cata-text mr-2">Filtrar por Estado</h2>
               {filters.map((f) => (
                 <button
                   key={f.key}
@@ -297,7 +297,7 @@ export default function PaymentsPage(): React.ReactElement {
                   className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                     activeFilter === f.key
                       ? "bg-cata-red/15 text-cata-red"
-                      : "bg-cata-dark-surface text-white/65 hover:bg-white/10"
+                      : "bg-cata-bg text-cata-text/65 hover:bg-cata-border/60"
                   }`}
                 >
                   {f.label}
@@ -309,16 +309,16 @@ export default function PaymentsPage(): React.ReactElement {
             {loading && (
               <div className="flex items-center justify-center py-16">
                 <div className="flex items-center gap-2">
-                  <Clock size={16} strokeWidth={1.5} className="animate-spin text-white/65" aria-hidden="true" />
-                  <p className="text-sm text-white/50">Cargando solicitudes...</p>
+                  <Clock size={16} strokeWidth={1.5} className="animate-spin text-cata-text/65" aria-hidden="true" />
+                  <p className="text-sm text-cata-text/50">Cargando solicitudes...</p>
                 </div>
               </div>
             )}
 
             {/* Error state */}
             {error && !loading && (
-              <div className="card border border-red-500/30 bg-red-900/20 p-6 text-center">
-                <XCircle size={32} strokeWidth={1.5} className="mx-auto mb-3 text-red-400" aria-hidden="true" />
+              <div className="card border border-red-200 bg-red-50 p-6 text-center">
+                <XCircle size={32} strokeWidth={1.5} className="mx-auto mb-3 text-red-700" aria-hidden="true" />
                 <p className="text-sm text-cata-red">{error}</p>
                 <button
                   type="button"
@@ -336,10 +336,10 @@ export default function PaymentsPage(): React.ReactElement {
                 <ShieldCheck
                   size={32}
                   strokeWidth={1.5}
-                  className="mb-3 text-white/20"
+                  className="mb-3 text-cata-text/20"
                   aria-hidden="true"
                 />
-                <p className="text-sm text-white/50">
+                <p className="text-sm text-cata-text/50">
                   {activeFilter === "all"
                     ? "Aún no hay solicitudes de validación de pago."
                     : `No hay solicitudes ${activeFilter === "pendiente" ? "pendientes" : activeFilter === "validado" ? "validadas" : "rechazadas"}.`}
@@ -353,7 +353,7 @@ export default function PaymentsPage(): React.ReactElement {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
                     <thead>
-                      <tr className="border-b border-white/10 bg-cata-dark-surface text-xs font-medium uppercase tracking-wider text-white/65">
+                      <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
                         <th className="px-4 py-3 font-medium">Estudiante</th>
                         <th className="px-4 py-3 font-medium">Responsable de pago</th>
                         <th className="px-4 py-3 font-medium">Período</th>
@@ -363,30 +363,30 @@ export default function PaymentsPage(): React.ReactElement {
                         <th className="px-4 py-3 font-medium">Estado</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/5">
+                    <tbody className="divide-y divide-cata-border">
                       {filtered.map((req) => (
                         <tr
                           key={req.id}
                           onClick={() => handleSelect(req)}
-                          className="cursor-pointer transition-colors hover:bg-cata-dark-surface/50"
+                          className="cursor-pointer transition-colors hover:bg-cata-bg"
                         >
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              <User size={14} strokeWidth={1.5} className="shrink-0 text-white/65" aria-hidden="true" />
-                              <span className="font-medium text-white">{req.studentName}</span>
+                              <User size={14} strokeWidth={1.5} className="shrink-0 text-cata-text/65" aria-hidden="true" />
+                              <span className="font-medium text-cata-text">{req.studentName}</span>
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-white/65">
+                          <td className="px-4 py-3 text-cata-text/65">
                             {req.responsablePagoName || req.representativeName || (
-                              <span className="text-white/30">&mdash;</span>
+                              <span className="text-cata-text/30">&mdash;</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-white/65">{req.membershipPeriod}</td>
-                          <td className="px-4 py-3 text-right font-medium text-white">
+                          <td className="px-4 py-3 text-cata-text/65">{req.membershipPeriod}</td>
+                          <td className="px-4 py-3 text-right font-medium text-cata-text">
                             {formatCurrency(req.expectedAmount)}
                           </td>
-                          <td className="px-4 py-3 text-white/65">{req.paymentMethod}</td>
-                          <td className="px-4 py-3 text-xs text-white/40">
+                          <td className="px-4 py-3 text-cata-text/65">{req.paymentMethod}</td>
+                          <td className="px-4 py-3 text-xs text-cata-text/40">
                             {formatDateTime(req.uploadedAt)}
                           </td>
                           <td className="px-4 py-3">
@@ -422,7 +422,7 @@ export default function PaymentsPage(): React.ReactElement {
             <button
               type="button"
               onClick={handleBack}
-              className="btn-ghost mb-6 -ml-2 gap-1 text-xs text-white/65"
+              className="btn-ghost mb-6 -ml-2 gap-1 text-xs text-cata-text/65"
             >
               <ArrowLeft size={14} strokeWidth={1.5} aria-hidden="true" />
               Volver a la lista
@@ -430,7 +430,7 @@ export default function PaymentsPage(): React.ReactElement {
 
             {/* Success feedback */}
             {successMessage && (
-              <div className="mb-6 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-900/20 px-4 py-3 text-sm text-emerald-400">
+              <div className="mb-6 flex items-center gap-2 rounded-xl border border-cata-state-ok/30 bg-cata-state-ok/10 px-4 py-3 text-sm text-cata-state-ok">
                 <CheckCircle2 size={16} strokeWidth={1.5} className="shrink-0" aria-hidden="true" />
                 {successMessage}
               </div>
@@ -443,11 +443,11 @@ export default function PaymentsPage(): React.ReactElement {
                 <div className="card p-6">
                   <div className="mb-4 flex items-center gap-2">
                     <BadgeCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                    <h2 className="text-base font-semibold text-white">Estado de la Membresía</h2>
+                    <h2 className="text-base font-semibold text-cata-text">Estado de la Membresía</h2>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wider text-white/40">Estado Actual</p>
+                      <p className="text-xs font-medium uppercase tracking-wider text-cata-text/40">Estado Actual</p>
                       <span className={`mt-1 inline-flex items-center gap-1.5 ${membershipStatusStyles[selectedRequest.currentMembershipStatus]}`}>
                         {selectedRequest.currentMembershipStatus === "activa" && (
                           <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
@@ -459,8 +459,8 @@ export default function PaymentsPage(): React.ReactElement {
                       </span>
                     </div>
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wider text-white/40">Tipo de Membresía</p>
-                      <p className="mt-1 text-sm font-medium text-white">{selectedRequest.membershipType}</p>
+                      <p className="text-xs font-medium uppercase tracking-wider text-cata-text/40">Tipo de Membresía</p>
+                      <p className="mt-1 text-sm font-medium text-cata-text">{selectedRequest.membershipType}</p>
                     </div>
                   </div>
                 </div>
@@ -469,49 +469,49 @@ export default function PaymentsPage(): React.ReactElement {
                 <div className="card p-6">
                   <div className="mb-4 flex items-center gap-2">
                     <DollarSign size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                    <h2 className="text-base font-semibold text-white">Detalle de Solicitud de Pago</h2>
+                    <h2 className="text-base font-semibold text-cata-text">Detalle de Solicitud de Pago</h2>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wider text-white/40">Estudiante</p>
-                      <div className="mt-1 flex items-center gap-1.5 text-sm text-white">
-                        <User size={14} strokeWidth={1.5} className="shrink-0 text-white/65" aria-hidden="true" />
+                      <p className="text-xs font-medium uppercase tracking-wider text-cata-text/40">Estudiante</p>
+                      <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-text">
+                        <User size={14} strokeWidth={1.5} className="shrink-0 text-cata-text/65" aria-hidden="true" />
                         {selectedRequest.studentName}
                       </div>
                     </div>
                     {(selectedRequest.responsablePagoName || selectedRequest.representativeName) && (
                       <div>
-                        <p className="text-xs font-medium uppercase tracking-wider text-white/40">Responsable de pago</p>
-                        <div className="mt-1 flex items-center gap-1.5 text-sm text-white">
-                          <Building2 size={14} strokeWidth={1.5} className="shrink-0 text-white/65" aria-hidden="true" />
+                        <p className="text-xs font-medium uppercase tracking-wider text-cata-text/40">Responsable de pago</p>
+                        <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-text">
+                          <Building2 size={14} strokeWidth={1.5} className="shrink-0 text-cata-text/65" aria-hidden="true" />
                           {selectedRequest.responsablePagoName || selectedRequest.representativeName}
                         </div>
                       </div>
                     )}
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wider text-white/40">Período</p>
-                      <div className="mt-1 flex items-center gap-1.5 text-sm text-white">
-                        <Calendar size={14} strokeWidth={1.5} className="shrink-0 text-white/65" aria-hidden="true" />
+                      <p className="text-xs font-medium uppercase tracking-wider text-cata-text/40">Período</p>
+                      <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-text">
+                        <Calendar size={14} strokeWidth={1.5} className="shrink-0 text-cata-text/65" aria-hidden="true" />
                         {selectedRequest.membershipPeriod}
                       </div>
                     </div>
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wider text-white/40">Monto Esperado</p>
-                      <div className="mt-1 flex items-center gap-1.5 text-lg font-bold text-white">
-                        <DollarSign size={16} strokeWidth={2} className="shrink-0 text-white/65" aria-hidden="true" />
+                      <p className="text-xs font-medium uppercase tracking-wider text-cata-text/40">Monto Esperado</p>
+                      <div className="mt-1 flex items-center gap-1.5 text-lg font-bold text-cata-text">
+                        <DollarSign size={16} strokeWidth={2} className="shrink-0 text-cata-text/65" aria-hidden="true" />
                         {formatCurrency(selectedRequest.expectedAmount)}
                       </div>
                     </div>
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wider text-white/40">Método de Pago</p>
-                      <div className="mt-1 flex items-center gap-1.5 text-sm text-white">
-                        <CreditCard size={14} strokeWidth={1.5} className="shrink-0 text-white/65" aria-hidden="true" />
+                      <p className="text-xs font-medium uppercase tracking-wider text-cata-text/40">Método de Pago</p>
+                      <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-text">
+                        <CreditCard size={14} strokeWidth={1.5} className="shrink-0 text-cata-text/65" aria-hidden="true" />
                         {selectedRequest.paymentMethod}
                       </div>
                     </div>
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wider text-white/40">Subido el</p>
-                      <div className="mt-1 flex items-center gap-1.5 text-sm text-white/65">
+                      <p className="text-xs font-medium uppercase tracking-wider text-cata-text/40">Subido el</p>
+                      <div className="mt-1 flex items-center gap-1.5 text-sm text-cata-text/65">
                         <Clock size={14} strokeWidth={1.5} className="shrink-0" aria-hidden="true" />
                         {formatDate(selectedRequest.uploadedAt)}
                       </div>
@@ -521,26 +521,26 @@ export default function PaymentsPage(): React.ReactElement {
 
                 {/* Validation criteria */}
                 {selectedRequest.validationStatus === "pendiente" && (
-                  <div className="rounded-xl border border-amber-500/30 bg-amber-900/20 p-5">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
                     <div className="mb-2 flex items-center gap-2">
-                      <AlertTriangle size={14} strokeWidth={1.5} className="text-amber-400" aria-hidden="true" />
-                      <h3 className="text-sm font-semibold text-amber-400">Lista de Verificación</h3>
+                      <AlertTriangle size={14} strokeWidth={1.5} className="text-amber-700" aria-hidden="true" />
+                      <h3 className="text-sm font-semibold text-amber-700">Lista de Verificación</h3>
                     </div>
-                    <ul className="space-y-1 text-sm text-amber-400">
+                    <ul className="space-y-1 text-sm text-amber-700">
                       <li className="flex items-center gap-2">
-                        <div className="h-1 w-1 rounded-full bg-amber-400" />
+                        <div className="h-1 w-1 rounded-full bg-amber-700" />
                         Verifique que el nombre del estudiante corresponda a un miembro registrado
                       </li>
                       <li className="flex items-center gap-2">
-                        <div className="h-1 w-1 rounded-full bg-amber-400" />
+                        <div className="h-1 w-1 rounded-full bg-amber-700" />
                         Confirme que el período corresponda al ciclo de membresía actual
                       </li>
                       <li className="flex items-center gap-2">
-                        <div className="h-1 w-1 rounded-full bg-amber-400" />
+                        <div className="h-1 w-1 rounded-full bg-amber-700" />
                         Compruebe que el monto coincida con la cuota de membresía esperada
                       </li>
                       <li className="flex items-center gap-2">
-                        <div className="h-1 w-1 rounded-full bg-amber-400" />
+                        <div className="h-1 w-1 rounded-full bg-amber-700" />
                         Verifique que el método de pago sea correcto
                       </li>
                     </ul>
@@ -549,14 +549,14 @@ export default function PaymentsPage(): React.ReactElement {
 
                 {/* Rejection reason (displayed when already rejected) */}
                 {selectedRequest.validationStatus === "rechazado" && selectedRequest.rejectionReason && (
-                  <div className="card border-red-500/30 bg-red-900/20 p-5">
+                  <div className="card border-red-200 bg-red-50 p-5">
                     <div className="mb-2 flex items-center gap-2">
                       <XCircle size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                       <h3 className="text-sm font-semibold text-cata-red">Motivo de Rechazo</h3>
                     </div>
                     <p className="text-sm text-cata-red/80">{selectedRequest.rejectionReason}</p>
                     {selectedRequest.validatedBy && selectedRequest.validatedAt && (
-                      <p className="mt-2 text-xs text-white/65">
+                      <p className="mt-2 text-xs text-cata-text/65">
                         Rechazado por {selectedRequest.validatedBy} el {formatDate(selectedRequest.validatedAt)}
                       </p>
                     )}
@@ -565,7 +565,7 @@ export default function PaymentsPage(): React.ReactElement {
 
                 {/* Validation metadata */}
                 {(selectedRequest.validationStatus === "validado" || selectedRequest.validationStatus === "rechazado") && (
-                  <div className="text-xs text-white/40">
+                  <div className="text-xs text-cata-text/40">
                     {selectedRequest.validatedBy && (
                       <p>Validado por: {selectedRequest.validatedBy}</p>
                     )}
@@ -582,12 +582,12 @@ export default function PaymentsPage(): React.ReactElement {
                 <div className="card p-6">
                   <div className="mb-4 flex items-center gap-2">
                     <Paperclip size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                    <h2 className="text-base font-semibold text-white">Comprobante de Pago</h2>
+                    <h2 className="text-base font-semibold text-cata-text">Comprobante de Pago</h2>
                   </div>
 
-                  <div className="mb-4 rounded-xl border-2 border-dashed border-white/15 bg-cata-dark-surface/50 p-6 text-center">
+                  <div className="mb-4 rounded-xl border-2 border-dashed border-cata-border bg-cata-bg p-6 text-center">
                     {selectedRequest.proofPreviewUrl ? (
-                      <div className="relative mx-auto mb-3 h-48 w-full overflow-hidden rounded-lg bg-cata-dark-elevated">
+                      <div className="relative mx-auto mb-3 h-48 w-full overflow-hidden rounded-lg bg-cata-border/40">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={selectedRequest.proofPreviewUrl}
@@ -601,13 +601,13 @@ export default function PaymentsPage(): React.ReactElement {
                           className={`flex h-16 w-16 items-center justify-center rounded-full ${
                             selectedRequest.proofFileType === "pdf"
                               ? "bg-cata-red/15"
-                              : "bg-cata-dark-surface"
+                              : "bg-cata-border/40"
                           }`}
                         >
                           <FileText
                             size={28}
                             strokeWidth={1.5}
-                            className={selectedRequest.proofFileType === "pdf" ? "text-cata-red" : "text-white/65"}
+                            className={selectedRequest.proofFileType === "pdf" ? "text-cata-red" : "text-cata-text/65"}
                             aria-hidden="true"
                           />
                         </div>
@@ -615,16 +615,16 @@ export default function PaymentsPage(): React.ReactElement {
                     )}
 
                     <div className="flex items-center justify-center gap-2">
-                      <Hash size={12} strokeWidth={1.5} className="text-white/65" aria-hidden="true" />
-                      <span className="text-sm font-medium text-white">
+                      <Hash size={12} strokeWidth={1.5} className="text-cata-text/65" aria-hidden="true" />
+                      <span className="text-sm font-medium text-cata-text">
                         {selectedRequest.proofFileName}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-white/65">
+                    <p className="mt-1 text-xs text-cata-text/65">
                       {selectedRequest.proofFileType === "pdf" ? "Documento PDF" : "Archivo de imagen"}
                     </p>
 
-                    <p className="mt-4 text-xs text-white/40">
+                    <p className="mt-4 text-xs text-cata-text/40">
                       <Eye size={12} strokeWidth={1.5} className="inline-block -mt-0.5 mr-1" aria-hidden="true" />
                       Vista previa del comprobante completo no disponible en modo demo.
                     </p>
@@ -636,11 +636,11 @@ export default function PaymentsPage(): React.ReactElement {
                   <div className="card p-6">
                     <div className="mb-4 flex items-center gap-2">
                       <ShieldCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                      <h2 className="text-base font-semibold text-white">Acción de Validación</h2>
+                      <h2 className="text-base font-semibold text-cata-text">Acción de Validación</h2>
                     </div>
 
                     {actionError && (
-                      <div className="mb-4 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-cata-red">
+                      <div className="alert-error mb-4" role="alert">
                         {actionError}
                       </div>
                     )}
@@ -666,7 +666,7 @@ export default function PaymentsPage(): React.ReactElement {
                           type="button"
                           onClick={handleRejectClick}
                           disabled={actionLoading !== null}
-                          className="btn-secondary w-full border-red-500/30 text-cata-red hover:bg-cata-red/10 hover:border-red-500/50"
+                          className="btn-secondary w-full border-cata-red/30 text-cata-red hover:bg-cata-red/10 hover:border-cata-red/50"
                         >
                           <ThumbsDown size={15} strokeWidth={2} aria-hidden="true" />
                           Rechazar Pago
@@ -677,7 +677,7 @@ export default function PaymentsPage(): React.ReactElement {
                         <div>
                           <label
                             htmlFor="rejection-reason"
-                            className="mb-1.5 block text-sm font-medium text-white"
+                            className="mb-1.5 block text-sm font-medium text-cata-text"
                           >
                             Motivo de Rechazo <span className="text-cata-red">*</span>
                           </label>
@@ -729,8 +729,8 @@ export default function PaymentsPage(): React.ReactElement {
                   <div className="card p-6 text-center">
                     <div className={`mb-3 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium ${
                       selectedRequest.validationStatus === "validado"
-                        ? "bg-emerald-900/20 text-emerald-400"
-                        : "bg-red-900/20 text-cata-red"
+                        ? "bg-cata-state-ok/10 text-cata-state-ok"
+                        : "bg-red-50 text-red-700"
                     }`}>
                       {selectedRequest.validationStatus === "validado" ? (
                         <CheckCircle2 size={16} strokeWidth={2} aria-hidden="true" />
@@ -739,7 +739,7 @@ export default function PaymentsPage(): React.ReactElement {
                       )}
                       {selectedRequest.validationStatus === "validado" ? "Validado" : "Rechazado"}
                     </div>
-                    <p className="text-xs text-white/65">
+                    <p className="text-xs text-cata-text/65">
                       Esta solicitud ya ha sido procesada.
                     </p>
                   </div>

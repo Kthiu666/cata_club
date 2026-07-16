@@ -19,6 +19,7 @@ import {
   buildGroupCards,
   buildTrainingSessions,
   getLevelLabel,
+  getLevelBadgeTokens,
   type StudentRef,
 } from "../groups-utils";
 
@@ -83,6 +84,43 @@ describe("getLevelLabel", () => {
     expect(getLevelLabel("principiante")).toBe("Principiante");
     expect(getLevelLabel("intermedio")).toBe("Intermedio");
     expect(getLevelLabel("avanzado")).toBe("Avanzado");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getLevelBadgeTokens (Fase 4 — trainer light-theme badge tokens)
+// ---------------------------------------------------------------------------
+
+describe("getLevelBadgeTokens", () => {
+  it("returns the cata-state-ok token for Principiante", () => {
+    expect(getLevelBadgeTokens("Principiante")).toBe(
+      "bg-cata-state-ok/10 text-cata-state-ok",
+    );
+  });
+
+  it("returns the cata-navy token for Intermedio", () => {
+    expect(getLevelBadgeTokens("Intermedio")).toBe(
+      "bg-cata-navy/10 text-cata-navy",
+    );
+  });
+
+  it("returns the cata-red token for Avanzado", () => {
+    expect(getLevelBadgeTokens("Avanzado")).toBe(
+      "bg-cata-red/15 text-cata-red",
+    );
+  });
+
+  it("returns a neutral fallback for unknown level labels — never throws", () => {
+    expect(getLevelBadgeTokens("Desconocido")).toBe(
+      "bg-cata-border/40 text-cata-text/65",
+    );
+  });
+
+  it("never returns a dark-theme (900/opacity or bare white) token — regression guard", () => {
+    for (const label of ["Principiante", "Intermedio", "Avanzado", "Desconocido"]) {
+      const tokens = getLevelBadgeTokens(label);
+      expect(tokens).not.toMatch(/900|text-white|bg-white/);
+    }
   });
 });
 

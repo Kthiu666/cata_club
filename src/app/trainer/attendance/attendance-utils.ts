@@ -84,24 +84,13 @@ export const ATTENDANCE_LABELS: Record<EstadoAsistencia, string> = {
   justified: "Justificado",
 };
 
-/** CSS badge styles per state. */
-export const ATTENDANCE_BADGE_STYLES: Record<EstadoAsistencia, string> = {
-  present: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
-  absent: "bg-red-50 text-red-700 ring-1 ring-red-200",
-  late: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
-  justified: "bg-blue-50 text-blue-700 ring-1 ring-blue-200",
-};
-
-/** CSS background for the selector card per state. */
-export const ATTENDANCE_CARD_STYLES: Record<EstadoAsistencia, string> = {
-  present: "border-emerald-300 bg-emerald-50 text-emerald-800",
-  absent: "border-red-300 bg-red-50 text-red-800",
-  late: "border-amber-300 bg-amber-50 text-amber-800",
-  justified: "border-blue-300 bg-blue-50 text-blue-800",
-};
-
-/** Default (unselected) card style. */
-export const ATTENDANCE_CARD_DEFAULT = "border-cata-stone/60 bg-white text-cata-gray hover:border-cata-stone hover:shadow-soft";
+// Badge/status color tokens for each attendance state now come from the
+// shared `getAttendanceBadgeTokens` in `@/app/attendance/attendance-utils`
+// (Fase 3b — B4), imported directly by page.tsx. This keeps trainer
+// attendance's badge/status colors byte-identical to the admin attendance
+// view instead of maintaining a second, drifting color-mapping Record here
+// (Fase 4b — see admin-light-theme spec, "Trainer attendance matches Fase 3
+// badge pattern").
 
 /** All possible attendance states for the toggle. */
 export const ATTENDANCE_STATES: EstadoAsistencia[] = [

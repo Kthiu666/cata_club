@@ -16,6 +16,7 @@ import {
   countActiveSchedules,
   buildScheduleGroupMap,
   getScheduleLevelLabel,
+  getAttendanceBadgeTokens,
   type AttendanceRecord,
 } from "../attendance-utils";
 import type { EstadoAsistencia, Grupo, NivelTecnico } from "@/types/domain";
@@ -360,5 +361,54 @@ describe("getScheduleLevelLabel", () => {
       const slot = testSlots[1]; // sched-shared
       expect(getScheduleLevelLabel(slot, testGrupos)).toBe("Principiante");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getAttendanceBadgeTokens (Fase 3b — B4 light-theme badge tokens)
+// ---------------------------------------------------------------------------
+
+describe("getAttendanceBadgeTokens", () => {
+  it("returns state-ok light tokens for present", () => {
+    expect(getAttendanceBadgeTokens("present")).toEqual({
+      badgeClass: "bg-cata-state-ok/10 text-cata-state-ok",
+      iconClass: "text-cata-state-ok",
+    });
+  });
+
+  it("returns red-50/red-700 light tokens for absent", () => {
+    expect(getAttendanceBadgeTokens("absent")).toEqual({
+      badgeClass: "bg-red-50 text-red-700",
+      iconClass: "text-red-700",
+    });
+  });
+
+  it("returns amber-50/amber-700 light tokens for late", () => {
+    expect(getAttendanceBadgeTokens("late")).toEqual({
+      badgeClass: "bg-amber-50 text-amber-700",
+      iconClass: "text-amber-700",
+    });
+  });
+
+  it("returns blue-50/blue-700 light tokens for justified", () => {
+    expect(getAttendanceBadgeTokens("justified")).toEqual({
+      badgeClass: "bg-blue-50 text-blue-700",
+      iconClass: "text-blue-700",
+    });
+  });
+
+  it("returns a neutral fallback for unknown estado values — never throws", () => {
+    expect(getAttendanceBadgeTokens("unexpected_value")).toEqual({
+      badgeClass: "bg-cata-border/40 text-cata-text/65",
+      iconClass: "text-cata-text/65",
+    });
+  });
+
+  it("never returns a dark-theme (rgba/900 or bare white) token — regression guard for B4", () => {
+    for (const estado of ["present", "absent", "late", "justified", "unknown_value"]) {
+      const tokens = getAttendanceBadgeTokens(estado);
+      expect(tokens.badgeClass).not.toMatch(/900|text-white|bg-white/);
+      expect(tokens.iconClass).not.toMatch(/900|text-white|bg-white/);
+    }
   });
 });

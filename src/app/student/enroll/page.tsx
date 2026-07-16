@@ -250,13 +250,13 @@ export default function EnrollPage(): React.ReactElement {
     const fieldId = `enroll-${slugifyLabel(opts.label)}`;
     return (
       <div className="mb-4">
-        <label htmlFor={fieldId} className="mb-1.5 block text-sm font-medium text-white">
+        <label htmlFor={fieldId} className="mb-1.5 block text-sm font-medium text-cata-text">
           {opts.label}
           {opts.required && <span className="ml-0.5 text-cata-red">*</span>}
         </label>
         <div className="relative">
           {opts.icon && (
-            <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/65">
+            <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65">
               {opts.icon}
             </span>
           )}
@@ -290,16 +290,16 @@ export default function EnrollPage(): React.ReactElement {
     const fieldId = `enroll-${slugifyLabel(opts.label)}`;
     return (
       <div className="mb-4">
-        <label htmlFor={fieldId} className="mb-1.5 block text-sm font-medium text-white">
+        <label htmlFor={fieldId} className="mb-1.5 block text-sm font-medium text-cata-text">
           {opts.label}
           {opts.required && <span className="ml-0.5 text-cata-red">*</span>}
           {!opts.required && (
-            <span className="ml-1 text-white/45">(opcional)</span>
+            <span className="ml-1 text-cata-text/45">(opcional)</span>
           )}
         </label>
         <div className="relative">
           {opts.icon && (
-            <span className="pointer-events-none absolute left-3.5 top-3 text-white/65">
+            <span className="pointer-events-none absolute left-3.5 top-3 text-cata-text/65">
               {opts.icon}
             </span>
           )}
@@ -323,7 +323,7 @@ export default function EnrollPage(): React.ReactElement {
   function renderTypeStep(): React.ReactElement {
     return (
       <div className="space-y-4">
-        <p className="text-sm leading-relaxed text-white/65">
+        <p className="text-sm leading-relaxed text-cata-text/65">
           Seleccione el tipo de inscripción que desea realizar:
         </p>
 
@@ -335,16 +335,16 @@ export default function EnrollPage(): React.ReactElement {
             className={`rounded-xl border-2 p-5 text-left transition-all duration-200 ${
               formData.enrollmentType === "self"
                 ? "border-cata-red/40 bg-cata-red/10 ring-1 ring-cata-red/20"
-                : "border-white/10 bg-cata-dark-elevated hover:border-white/15 hover:shadow-soft"
+                : "border-cata-border bg-cata-surface hover:border-cata-red/20 hover:shadow-soft"
             }`}
           >
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-cata-red/15">
               <GraduationCap size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
             </div>
-            <h3 className="mb-1 font-semibold text-white">
+            <h3 className="mb-1 font-semibold text-cata-text">
               Jugador
             </h3>
-            <p className="text-xs leading-relaxed text-white/65">
+            <p className="text-xs leading-relaxed text-cata-text/65">
               Quiero inscribirme yo al club. Soy mayor de edad y gestiono mi
               propia cuenta como alumno.
             </p>
@@ -363,16 +363,16 @@ export default function EnrollPage(): React.ReactElement {
             className={`rounded-xl border-2 p-5 text-left transition-all duration-200 ${
               formData.enrollmentType === "child"
                 ? "border-cata-red/40 bg-cata-red/10 ring-1 ring-cata-red/20"
-                : "border-white/10 bg-cata-dark-elevated hover:border-white/15 hover:shadow-soft"
+                : "border-cata-border bg-cata-surface hover:border-cata-red/20 hover:shadow-soft"
             }`}
           >
-            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-900/20">
-              <Baby size={20} strokeWidth={1.5} className="text-blue-400" aria-hidden="true" />
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
+              <Baby size={20} strokeWidth={1.5} className="text-blue-700" aria-hidden="true" />
             </div>
-            <h3 className="mb-1 font-semibold text-white">
+            <h3 className="mb-1 font-semibold text-cata-text">
               Representante
             </h3>
-            <p className="text-xs leading-relaxed text-white/65">
+            <p className="text-xs leading-relaxed text-cata-text/65">
               Quiero gestionar la inscripción de un hijo/dependiente.
               El alumno es distinto de mi cuenta.
             </p>
@@ -392,7 +392,7 @@ export default function EnrollPage(): React.ReactElement {
               <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
               Inscripción de dependiente
             </p>
-            <p className="mt-1 text-amber-400/80">
+            <p className="mt-1 text-amber-700/80">
               Como representante, usted será el responsable de pago de este alumno.
               Los datos del alumno se registrarán por separado de su cuenta.
               Complete los datos del representante para identificar al adulto
@@ -407,7 +407,7 @@ export default function EnrollPage(): React.ReactElement {
               <CheckCircle size={12} strokeWidth={2} aria-hidden="true" />
               Inscripción como jugador
             </p>
-            <p className="mt-1 text-emerald-400/80">
+            <p className="mt-1 text-emerald-700/80">
               Usted será el alumno titular de la cuenta. No se requieren datos
               de representante.
             </p>
@@ -420,7 +420,7 @@ export default function EnrollPage(): React.ReactElement {
   function renderPersonalStep(): React.ReactElement {
     return (
       <div className="space-y-1">
-        <p className="mb-4 text-sm leading-relaxed text-white/65">
+        <p className="mb-4 text-sm leading-relaxed text-cata-text/65">
           {formData.enrollmentType === "self" &&
             "Ingrese sus datos personales:"}
           {formData.enrollmentType === "child" &&
@@ -472,14 +472,14 @@ export default function EnrollPage(): React.ReactElement {
           const age = calculateAge(formData.fechaNacimiento);
           const ageValid = !isNaN(age);
           return (
-            <div className="rounded-xl bg-cata-dark-surface p-3 text-xs text-white/65">
+            <div className="rounded-xl bg-cata-bg p-3 text-xs text-cata-text/65">
               Edad calculada:{" "}
-              <span className="font-medium text-white">
+              <span className="font-medium text-cata-text">
                 {ageValid ? `${age} años` : "—"}
               </span>
               {ageValid && age < 18 &&
                 formData.enrollmentType === "self" && (
-                  <span className="ml-1 text-amber-400">
+                  <span className="ml-1 text-amber-700">
                     — Los menores de edad requieren un representante.
                   </span>
                 )}
@@ -490,16 +490,16 @@ export default function EnrollPage(): React.ReactElement {
         {/* Representante fields — shown for child enrollment */}
         {formData.enrollmentType === "child" && (
           <>
-            <div className="my-8 h-px bg-white/5" />
+            <div className="my-8 h-px bg-cata-border" />
 
             <div>
               <div className="mb-4 flex items-center gap-2">
                 <UserPlus size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                <h3 className="text-sm font-semibold text-white">
+                <h3 className="text-sm font-semibold text-cata-text">
                   Datos del Representante
                 </h3>
               </div>
-              <p className="mb-4 text-xs leading-relaxed text-white/65">
+              <p className="mb-4 text-xs leading-relaxed text-cata-text/65">
                 Identifique al adulto responsable de pago y representante legal
                 del alumno:
               </p>
@@ -525,12 +525,12 @@ export default function EnrollPage(): React.ReactElement {
                 inputMode: "numeric",
               })}
 
-              <div className="rounded-xl border border-purple-500/30 bg-purple-900/20 p-3 text-xs text-purple-400">
+              <div className="rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs text-purple-700">
                 <p className="flex items-center gap-1.5 font-medium">
                   <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
                   Representante mayor de edad
                 </p>
-                <p className="mt-1 text-purple-400/80">
+                <p className="mt-1 text-purple-700/80">
                   El representante debe ser mayor de edad (18+). Al inscribir a
                   un dependiente, usted confirma que es legalmente responsable
                   del menor.
@@ -546,18 +546,18 @@ export default function EnrollPage(): React.ReactElement {
   function renderClubStep(): React.ReactElement {
     return (
       <div className="space-y-1">
-        <p className="mb-4 text-sm leading-relaxed text-white/65">
+        <p className="mb-4 text-sm leading-relaxed text-cata-text/65">
           Información administrativa del alumno en Cata Club:
         </p>
 
-        <div className="mb-4 rounded-xl border border-white/8 bg-cata-dark-surface p-4 text-sm text-white/65">
+        <div className="mb-4 rounded-xl border border-cata-border bg-cata-bg p-4 text-sm text-cata-text/65">
           <div className="mb-2 flex items-center gap-2">
             <GraduationCap size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <p className="font-medium text-white">
+            <p className="font-medium text-cata-text">
               Nivel técnico pendiente de evaluación
             </p>
           </div>
-          <p className="text-xs leading-relaxed text-white/45">
+          <p className="text-xs leading-relaxed text-cata-text/45">
             El estudiante no selecciona su nivel. Un entrenador lo asignará
             después de observarlo en el club.
           </p>
@@ -573,17 +573,17 @@ export default function EnrollPage(): React.ReactElement {
         })}
 
         <div className="mb-4">
-          <label className="mb-2 flex items-center gap-2 text-sm font-medium text-white">
+          <label className="mb-2 flex items-center gap-2 text-sm font-medium text-cata-text">
             <input
               type="checkbox"
               checked={formData.activo}
               onChange={(e) => updateField("activo", e.target.checked)}
               disabled={submitting}
-              className="h-4 w-4 rounded border-white/15 text-cata-red focus:ring-cata-red/30"
+              className="h-4 w-4 rounded border-cata-border text-cata-red focus:ring-cata-red/30"
             />
             Alumno activo desde el inicio
           </label>
-          <p className="ml-6 text-xs text-white/40">
+          <p className="ml-6 text-xs text-cata-text/40">
             Si está marcado, el alumno comienza a entrenar inmediatamente. Si no,
             se registrará como inactivo hasta que un administrador lo active.
           </p>
@@ -595,7 +595,7 @@ export default function EnrollPage(): React.ReactElement {
   function renderHealthStep(): React.ReactElement {
     return (
       <div className="space-y-1">
-        <p className="mb-4 text-sm leading-relaxed text-white/65">
+        <p className="mb-4 text-sm leading-relaxed text-cata-text/65">
           Información que el club necesita conocer para la seguridad del alumno:
         </p>
 
@@ -619,11 +619,11 @@ export default function EnrollPage(): React.ReactElement {
           rows: 2,
         })}
 
-        <div className="my-8 h-px bg-white/5" />
+        <div className="my-8 h-px bg-cata-border" />
 
         <div className="mb-3 flex items-center gap-2">
           <Phone size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-          <p className="text-xs font-semibold uppercase tracking-wider text-white/45">
+          <p className="text-xs font-semibold uppercase tracking-wider text-cata-text/45">
             Contacto de Emergencia
           </p>
         </div>
@@ -664,7 +664,7 @@ export default function EnrollPage(): React.ReactElement {
             <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
             Demo — Sin almacenamiento real
           </p>
-          <p className="mt-1 text-amber-400/80">
+          <p className="mt-1 text-amber-700/80">
             Esta información se recoge únicamente para la demostración del flujo
             de inscripción. En producción, los datos médicos se manejarían de forma
             segura conforme a la normativa de protección de datos.
@@ -680,7 +680,7 @@ export default function EnrollPage(): React.ReactElement {
       : null;
     return (
       <div className="space-y-4">
-        <p className="text-sm leading-relaxed text-white/65">
+        <p className="text-sm leading-relaxed text-cata-text/65">
           Revise la información antes de confirmar la inscripción:
         </p>
 
@@ -688,7 +688,7 @@ export default function EnrollPage(): React.ReactElement {
         <div className="card-hover p-4">
           <div className="mb-3 flex items-center gap-2">
             <GraduationCap size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-white/45">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-cata-text/45">
               Tipo de Inscripción
             </h3>
           </div>
@@ -701,7 +701,7 @@ export default function EnrollPage(): React.ReactElement {
             )}
             {formData.enrollmentType === "child" && (
               <>
-                <Baby size={16} strokeWidth={1.5} className="text-blue-400" aria-hidden="true" />
+                <Baby size={16} strokeWidth={1.5} className="text-blue-700" aria-hidden="true" />
                 <span>Representante — Inscripción de dependiente gestionada por un adulto</span>
               </>
             )}
@@ -712,24 +712,24 @@ export default function EnrollPage(): React.ReactElement {
         <div className="card-hover p-4">
           <div className="mb-3 flex items-center gap-2">
             <User size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-white/45">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-cata-text/45">
               Datos del Alumno
             </h3>
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <dt className="text-white/65">Nombres</dt>
-            <dd className="font-medium text-white">{formData.nombres}</dd>
-            <dt className="text-white/65">Apellidos</dt>
-            <dd className="font-medium text-white">{formData.apellidos}</dd>
-            <dt className="text-white/65">Fecha de Nacimiento</dt>
-            <dd className="font-medium text-white">
+            <dt className="text-cata-text/65">Nombres</dt>
+            <dd className="font-medium text-cata-text">{formData.nombres}</dd>
+            <dt className="text-cata-text/65">Apellidos</dt>
+            <dd className="font-medium text-cata-text">{formData.apellidos}</dd>
+            <dt className="text-cata-text/65">Fecha de Nacimiento</dt>
+            <dd className="font-medium text-cata-text">
               {formData.fechaNacimiento}
               {age !== null && (
-                <span className="ml-2 text-white/45">({age} años)</span>
+                <span className="ml-2 text-cata-text/45">({age} años)</span>
               )}
             </dd>
-            <dt className="text-white/65">Cédula</dt>
-            <dd className="font-medium text-white">{formData.cedula}</dd>
+            <dt className="text-cata-text/65">Cédula</dt>
+            <dd className="font-medium text-cata-text">{formData.cedula}</dd>
           </dl>
         </div>
 
@@ -738,21 +738,21 @@ export default function EnrollPage(): React.ReactElement {
           <div className="card-hover p-4">
             <div className="mb-3 flex items-center gap-2">
               <UserPlus size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-white/45">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-cata-text/45">
                 Datos del Representante
               </h3>
             </div>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-              <dt className="text-white/65">Nombres</dt>
-              <dd className="font-medium text-white">
+              <dt className="text-cata-text/65">Nombres</dt>
+              <dd className="font-medium text-cata-text">
                 {formData.nombreRepresentante || (
-                  <span className="text-white/45">—</span>
+                  <span className="text-cata-text/45">—</span>
                 )}
               </dd>
-              <dt className="text-white/65">Cédula</dt>
-              <dd className="font-medium text-white">
+              <dt className="text-cata-text/65">Cédula</dt>
+              <dd className="font-medium text-cata-text">
                 {formData.cedulaRepresentante || (
-                  <span className="text-white/45">—</span>
+                  <span className="text-cata-text/45">—</span>
                 )}
               </dd>
             </dl>
@@ -763,19 +763,19 @@ export default function EnrollPage(): React.ReactElement {
         <div className="card-hover p-4">
           <div className="mb-3 flex items-center gap-2">
             <GraduationCap size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-white/45">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-cata-text/45">
               Información del Club
             </h3>
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <dt className="text-white/65">Evaluación Técnica</dt>
-            <dd className="font-medium text-white">
+            <dt className="text-cata-text/65">Evaluación Técnica</dt>
+            <dd className="font-medium text-cata-text">
               La asignará un entrenador después de observar al alumno
             </dd>
-            <dt className="text-white/65">Fecha de Inicio</dt>
-            <dd className="font-medium text-white">{formData.fechaInicio}</dd>
-            <dt className="text-white/65">Estado</dt>
-            <dd className="font-medium text-white">
+            <dt className="text-cata-text/65">Fecha de Inicio</dt>
+            <dd className="font-medium text-cata-text">{formData.fechaInicio}</dd>
+            <dt className="text-cata-text/65">Estado</dt>
+            <dd className="font-medium text-cata-text">
               {formData.activo ? "Activo" : "Inactivo"}
             </dd>
           </dl>
@@ -785,35 +785,35 @@ export default function EnrollPage(): React.ReactElement {
         <div className="card-hover p-4">
           <div className="mb-3 flex items-center gap-2">
             <Heart size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-white/45">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-cata-text/45">
               Salud y Emergencia
             </h3>
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <dt className="text-white/65">Condiciones de Salud</dt>
-            <dd className="font-medium text-white">
+            <dt className="text-cata-text/65">Condiciones de Salud</dt>
+            <dd className="font-medium text-cata-text">
               {formData.condicionesSalud || (
-                <span className="text-white/45">Ninguna reportada</span>
+                <span className="text-cata-text/45">Ninguna reportada</span>
               )}
             </dd>
-            <dt className="text-white/65">Alergias</dt>
-            <dd className="font-medium text-white">
+            <dt className="text-cata-text/65">Alergias</dt>
+            <dd className="font-medium text-cata-text">
               {formData.alergias || (
-                <span className="text-white/45">Ninguna reportada</span>
+                <span className="text-cata-text/45">Ninguna reportada</span>
               )}
             </dd>
-            <dt className="text-white/65">Contacto de Emergencia</dt>
-            <dd className="font-medium text-white">
+            <dt className="text-cata-text/65">Contacto de Emergencia</dt>
+            <dd className="font-medium text-cata-text">
               {formData.contactoEmergencia}
             </dd>
-            <dt className="text-white/65">Teléfono de Emergencia</dt>
-            <dd className="font-medium text-white">
+            <dt className="text-cata-text/65">Teléfono de Emergencia</dt>
+            <dd className="font-medium text-cata-text">
               {formData.telefonoEmergencia}
             </dd>
             {formData.observaciones && (
               <>
-                <dt className="text-white/65">Observaciones</dt>
-                <dd className="font-medium text-white">
+                <dt className="text-cata-text/65">Observaciones</dt>
+                <dd className="font-medium text-cata-text">
                   {formData.observaciones}
                 </dd>
               </>
@@ -821,7 +821,7 @@ export default function EnrollPage(): React.ReactElement {
           </dl>
         </div>
 
-        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-900/20 p-4 text-sm text-emerald-400">
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
           <input
             type="checkbox"
             checked={summaryReviewed}
@@ -829,7 +829,7 @@ export default function EnrollPage(): React.ReactElement {
               setSummaryReviewed(e.target.checked);
               setFormErrors([]);
             }}
-            className="mt-0.5 h-4 w-4 rounded border-emerald-500/30 text-emerald-400 focus:ring-emerald-500/30"
+            className="mt-0.5 h-4 w-4 rounded border-emerald-200 text-emerald-700 focus:ring-emerald-200"
           />
           <span>
             Revisé el resumen y confirmo que la información está correcta.
@@ -849,19 +849,19 @@ export default function EnrollPage(): React.ReactElement {
       {confirmed ? (
         <div className="flex min-h-[75vh] items-center justify-center py-12">
           <div className="w-full max-w-lg text-center">
-            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-900/30">
-              <CheckCircle size={32} className="text-emerald-400" strokeWidth={1.5} aria-hidden="true" />
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-cata-state-ok/10">
+              <CheckCircle size={32} className="text-cata-state-ok" strokeWidth={1.5} aria-hidden="true" />
             </div>
-            <h1 className="mb-3 text-2xl font-bold tracking-tight text-white">
+            <h1 className="mb-3 text-2xl font-bold tracking-tight text-cata-text">
               Inscripción Completada
             </h1>
-            <p className="mb-2 text-sm leading-relaxed text-white/65">
-              <strong className="text-white">
+            <p className="mb-2 text-sm leading-relaxed text-cata-text/65">
+              <strong className="text-cata-text">
                 {formData.nombres} {formData.apellidos}
               </strong>{" "}
               ha sido registrado como alumno de Cata Club.
             </p>
-            <p className="mb-8 text-xs leading-relaxed text-white/40">
+            <p className="mb-8 text-xs leading-relaxed text-cata-text/40">
               {formData.enrollmentType === "self" &&
                 "Usted es el titular de la cuenta y el alumno."}
               {formData.enrollmentType === "child" &&
@@ -882,24 +882,24 @@ export default function EnrollPage(): React.ReactElement {
 
         <div className="py-8">
           {/* Hero Banner */}
-          <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,33,40,0.08),transparent_50%)]" />
+          <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.05),transparent_50%)]" />
             <div className="relative z-10 flex items-start justify-between">
               <div>
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
                   <UserPlus size={14} strokeWidth={2} aria-hidden="true" />
                   Inscripción
                 </div>
-                <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+                <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
                   Inscripción de Alumno
                 </h1>
-                <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
+                <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
                   Complete los pasos para inscribir a un alumno en Cata Club.
                   {formData.enrollmentType === "self" && " Inscripción como jugador."}
                   {formData.enrollmentType === "child" && " Usted actúa como representante."}
                 </p>
               </div>
-              <span className="hidden rounded-full bg-amber-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 sm:inline-block">
+              <span className="hidden rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700 sm:inline-block">
                 Demo
               </span>
             </div>
@@ -907,13 +907,13 @@ export default function EnrollPage(): React.ReactElement {
 
           {/* Progress bar */}
           <div className="mb-8">
-            <div className="mb-2 flex items-center justify-between text-xs text-white/45">
+            <div className="mb-2 flex items-center justify-between text-xs text-cata-text/45">
               <span>
                 Paso {currentIndex + 1} de {STEP_ORDER.length}
               </span>
               <span>{STEP_LABELS[step]}</span>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+            <div className="h-1.5 overflow-hidden rounded-full bg-cata-border">
               <div
                 className="h-full rounded-full bg-cata-red transition-all duration-400 ease-out"
                 style={{ width: `${progress}%` }}
@@ -922,28 +922,28 @@ export default function EnrollPage(): React.ReactElement {
           </div>
 
           {/* Demo helper — quick-fill for testing convenience (not part of production flow) */}
-          <div className="mb-6 rounded-xl border border-dashed border-white/10 bg-amber-900/20 p-3">
+          <div className="mb-6 rounded-xl border border-dashed border-cata-border bg-cata-bg p-3">
             <div className="mb-2 flex items-center gap-2">
-              <AlertTriangle size={14} strokeWidth={1.5} className="text-amber-400" aria-hidden="true" />
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
+              <AlertTriangle size={14} strokeWidth={1.5} className="text-amber-700" aria-hidden="true" />
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-cata-text/45">
                 Rellenar datos de prueba (solo desarrollo)
               </p>
             </div>
-            <p className="mb-2 text-[10px] leading-relaxed text-white/40">
+            <p className="mb-2 text-[10px] leading-relaxed text-cata-text/40">
               Llena los campos automáticamente pero no salta la validación — los pasos deben completarse uno por uno.
             </p>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => fillDemoData("self")}
-                className="rounded-lg border border-white/10 bg-cata-dark-elevated px-3 py-1.5 text-xs font-medium text-white transition-all hover:border-white/15 hover:shadow-soft"
+                className="rounded-lg border border-cata-border bg-cata-surface px-3 py-1.5 text-xs font-medium text-cata-text transition-all hover:border-cata-red/20 hover:shadow-soft"
               >
                 Jugador
               </button>
               <button
                 type="button"
                 onClick={() => fillDemoData("child")}
-                className="rounded-lg border border-white/10 bg-cata-dark-elevated px-3 py-1.5 text-xs font-medium text-white transition-all hover:border-white/15 hover:shadow-soft"
+                className="rounded-lg border border-cata-border bg-cata-surface px-3 py-1.5 text-xs font-medium text-cata-text transition-all hover:border-cata-red/20 hover:shadow-soft"
               >
                 Representante
               </button>
@@ -958,7 +958,7 @@ export default function EnrollPage(): React.ReactElement {
               {step === "club" && <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
               {step === "health" && <Heart size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
               {step === "summary" && <FileText size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
-              <h2 className="text-lg font-semibold text-white">
+              <h2 className="text-lg font-semibold text-cata-text">
                 {STEP_LABELS[step]}
               </h2>
             </div>
@@ -974,7 +974,7 @@ export default function EnrollPage(): React.ReactElement {
               {/* Validation errors */}
               {formErrors.length > 0 && (
                 <div
-                  className="mt-4 rounded-lg border border-red-500/30 bg-red-900/20 p-3"
+                  className="mt-4 rounded-lg border border-cata-red/30 bg-cata-red/5 p-3"
                   role="alert"
                 >
                   <ul className="list-inside list-disc space-y-1 text-xs text-cata-red">
@@ -1033,7 +1033,7 @@ export default function EnrollPage(): React.ReactElement {
           </div>
 
           {/* Navigation link */}
-          <p className="mt-6 text-center text-sm text-white/65">
+          <p className="mt-6 text-center text-sm text-cata-text/65">
             <Link
               href="/student"
               className="font-medium text-cata-red transition-colors hover:text-cata-red-light"
@@ -1043,7 +1043,7 @@ export default function EnrollPage(): React.ReactElement {
           </p>
 
           {/* Demo note */}
-          <p className="mt-4 text-center text-xs text-white/30">
+          <p className="mt-4 text-center text-xs text-cata-text/30">
             Prototipo de demostración interactivo. No se almacena ningún dato real.
             Datos ficticios para fines de presentación.
           </p>

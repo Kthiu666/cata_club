@@ -157,22 +157,28 @@ describe("LEVEL_BADGE", () => {
 // ---------------------------------------------------------------------------
 
 describe("getLevelBadgeClass", () => {
-  it('returns principiante class for "principiante"', () => {
+  it('returns a cata-* token class for "principiante" (B3 — no hardcoded hex/rgba)', () => {
     const result = getLevelBadgeClass("principiante");
-    expect(result).toContain("green");
+    expect(result).toContain("cata-state-ok");
     expect(result).toContain("bg-");
+    expect(result).not.toMatch(/#[0-9a-fA-F]{3,8}/);
+    expect(result).not.toContain("rgba(");
   });
 
-  it('returns intermedio class for "intermedio"', () => {
+  it('returns a cata-* token class for "intermedio" (B3 — no hardcoded hex/rgba)', () => {
     const result = getLevelBadgeClass("intermedio");
-    expect(result).toContain("amber");
+    expect(result).toContain("cata-navy");
     expect(result).toContain("bg-");
+    expect(result).not.toMatch(/#[0-9a-fA-F]{3,8}/);
+    expect(result).not.toContain("rgba(");
   });
 
-  it('returns avanzado class for "avanzado"', () => {
+  it('returns a cata-* token class for "avanzado" (B3 — no hardcoded hex/rgba)', () => {
     const result = getLevelBadgeClass("avanzado");
-    expect(result).toContain("red");
+    expect(result).toContain("cata-red");
     expect(result).toContain("bg-");
+    expect(result).not.toMatch(/#[0-9a-fA-F]{3,8}/);
+    expect(result).not.toContain("rgba(");
   });
 
   it("returns fallback class for unknown level", () => {
@@ -189,6 +195,31 @@ describe("getLevelBadgeClass", () => {
 // ---------------------------------------------------------------------------
 // getCapacityBarColor
 // ---------------------------------------------------------------------------
+
+describe("getCapacityBarColor — B3 regression guard (Fase 2 light-theme migration)", () => {
+  it("byte-identical thresholds/colors across the full domain — MUST NOT change while groups/page.tsx and LEVEL_BADGE are migrated to light tokens in this phase", () => {
+    // Approval test: captures the exact current contract of getCapacityBarColor.
+    // Capacity-bar colors are explicitly OUT OF SCOPE for the B3 fix (theme-agnostic
+    // red/amber/emerald severity signal) — this asserts the same fixture table used
+    // by the granular tests below, in one place, so any accidental touch to
+    // CAPACITY_THRESHOLDS during the LEVEL_BADGE edit is caught immediately.
+    const fixtures: Array<[number, string]> = [
+      [100, "bg-red-500"],
+      [95, "bg-red-500"],
+      [90, "bg-red-500"],
+      [89, "bg-amber-500"],
+      [75, "bg-amber-500"],
+      [70, "bg-amber-500"],
+      [69, "bg-emerald-500"],
+      [40, "bg-emerald-500"],
+      [0, "bg-emerald-500"],
+      [-5, "bg-emerald-500"],
+    ];
+    for (const [percent, expectedColor] of fixtures) {
+      expect(getCapacityBarColor(percent)).toBe(expectedColor);
+    }
+  });
+});
 
 describe("getCapacityBarColor", () => {
   it('returns red for 100%', () => {

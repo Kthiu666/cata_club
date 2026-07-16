@@ -118,6 +118,42 @@ describe("Header", (): void => {
     expect(screen.queryByRole("link", { name: /Iniciar Sesi\u00f3n/i })).not.toBeInTheDocument();
   });
 
+  // --- Institutional Header (landing page) ---
+
+  it("shows institutional links on landing page", () => {
+    mockPathname.mockReturnValue("/");
+    render(<Header />);
+
+    // Brand shows "Cata Club" + "Tenis de Mesa"
+    expect(screen.getByText("Cata Club")).toBeInTheDocument();
+    expect(screen.getByText("Tenis de Mesa")).toBeInTheDocument();
+
+    // Institutional navigation
+    expect(screen.getByRole("link", { name: /Inicio/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Nosotros/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Formaci\u00f3n/i })).toBeInTheDocument();
+
+    // Login button for unauthenticated users
+    expect(
+      screen.getByRole("link", { name: /Iniciar sesi\u00f3n/i }),
+    ).toBeInTheDocument();
+
+    // No app-specific elements
+    expect(screen.queryByText("Demo")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Cerrar Sesi\u00f3n/i })).not.toBeInTheDocument();
+  });
+
+  it("shows institutional mobile menu on landing", () => {
+    mockPathname.mockReturnValue("/");
+    render(<Header />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Abrir men\u00fa/i }));
+
+    // Mobile menu has institutional links
+    expect(screen.getAllByRole("link", { name: /Inicio/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: /Iniciar sesi\u00f3n/i }).length).toBeGreaterThan(0);
+  });
+
   // --- Unauthenticated ---
 
   it("shows Inicio and Iniciar Sesión when not authenticated", (): void => {

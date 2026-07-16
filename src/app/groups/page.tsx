@@ -84,13 +84,13 @@ function CapacityBar({ percent, total }: CapacityBarProps): React.ReactElement {
       aria-valuemax={100}
       aria-label={`Capacidad utilizada: ${percent}% de ${total}`}
     >
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-cata-border">
         <div
           className={`h-full rounded-full transition-all ${getCapacityBarColor(percent)}`}
           style={{ width: `${Math.min(percent, 100)}%` }}
         />
       </div>
-      <span className="text-[11px] font-medium text-white/65" aria-hidden="true">
+      <span className="text-[11px] font-medium text-cata-text/65" aria-hidden="true">
         {percent}%
       </span>
     </div>
@@ -160,17 +160,17 @@ export default function GroupsPage(): React.ReactElement {
     <ProtectedRoute allowedRoles={["admin"]}>
       <div>
         {/* Hero Banner */}
-        <div className="relative mb-10 overflow-hidden rounded-3xl bg-cata-navy px-6 py-10 sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,33,40,0.08),transparent_50%)]" />
+        <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(139,26,26,0.05),transparent_50%)]" />
           <div className="relative z-10">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red-light/70">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
               <Users size={14} strokeWidth={2} aria-hidden="true" />
               Grupos de Entrenamiento
             </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
               Gestión de Grupos
             </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60">
+            <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
               Grupos de entrenamiento, asignación de alumnos y horarios. El nivel técnico
               pertenece al grupo, no al alumno.
             </p>
@@ -179,10 +179,10 @@ export default function GroupsPage(): React.ReactElement {
 
         {/* Demo badge */}
         <div className="mb-6 flex items-center gap-2">
-          <span className="rounded-full bg-amber-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400">
+          <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">
             Demo
           </span>
-          <span className="text-xs text-white/40">
+          <span className="text-xs text-cata-text/40">
             Las asignaciones son simuladas en memoria
           </span>
         </div>
@@ -192,8 +192,8 @@ export default function GroupsPage(): React.ReactElement {
           <div
             className={`mb-4 flex items-center gap-2 rounded-xl px-4 py-3 text-sm ${
               notification.type === "success"
-                ? "border border-emerald-500/30 bg-emerald-900/20 text-emerald-400"
-                : "border border-red-500/30 bg-red-900/20 text-red-400"
+                ? "border border-cata-state-ok/30 bg-cata-state-ok/10 text-cata-state-ok"
+                : "border border-cata-red/30 bg-cata-red/10 text-cata-red"
             }`}
             role="alert"
           >
@@ -224,7 +224,7 @@ export default function GroupsPage(): React.ReactElement {
           <div className="space-y-4 lg:col-span-2">
             <div className="mb-5 flex items-center gap-2">
               <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-              <h2 className="text-lg font-bold text-white">
+              <h2 className="text-lg font-bold text-cata-text">
                 Grupos ({cardData.length})
               </h2>
             </div>
@@ -265,7 +265,7 @@ export default function GroupsPage(): React.ReactElement {
                             <GraduationCap size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                           </div>
                           <div>
-                            <h3 className="font-semibold text-white">
+                            <h3 className="font-semibold text-cata-text">
                               {card.name}
                             </h3>
                             <LevelBadge level={card.level} />
@@ -274,7 +274,7 @@ export default function GroupsPage(): React.ReactElement {
                       </div>
 
                       {/* Student count */}
-                      <div className="mb-2 flex items-center gap-1.5 text-xs text-white/65">
+                      <div className="mb-2 flex items-center gap-1.5 text-xs text-cata-text/65">
                         <Users size={12} strokeWidth={1.5} aria-hidden="true" />
                         {card.studentCount} alumno
                         {card.studentCount !== 1 ? "s" : ""}
@@ -294,7 +294,7 @@ export default function GroupsPage(): React.ReactElement {
                           linkedSchedules.slice(0, 3).map((sched) => (
                             <div
                               key={sched.id}
-                              className="flex items-center gap-1.5 text-[11px] text-white/45"
+                              className="flex items-center gap-1.5 text-[11px] text-cata-text/45"
                             >
                               <Calendar
                                 size={10}
@@ -306,19 +306,19 @@ export default function GroupsPage(): React.ReactElement {
                                 {sched.horaInicio} &middot; {sched.cancha}
                               </span>
                               {!sched.activo && (
-                                <span className="rounded bg-white/5 px-1 py-0.5 text-[9px] font-medium text-white/45">
+                                <span className="rounded bg-cata-bg px-1 py-0.5 text-[9px] font-medium text-cata-text/45">
                                   Inactivo
                                 </span>
                               )}
                             </div>
                           ))
                         ) : (
-                          <span className="text-[11px] text-white/45">
+                          <span className="text-[11px] text-cata-text/45">
                             Sin horarios asignados
                           </span>
                         )}
                         {linkedSchedules.length > 3 && (
-                          <span className="text-[11px] text-white/45">
+                          <span className="text-[11px] text-cata-text/45">
                             +{linkedSchedules.length - 3} más
                           </span>
                         )}
@@ -343,10 +343,10 @@ export default function GroupsPage(): React.ReactElement {
                 <Users
                   size={32}
                   strokeWidth={1.5}
-                  className="mb-3 text-white/20"
+                  className="mb-3 text-cata-text/20"
                   aria-hidden="true"
                 />
-                <p className="text-sm text-white/50">
+                <p className="text-sm text-cata-text/50">
                   No hay grupos configurados.
                 </p>
               </div>
@@ -356,7 +356,7 @@ export default function GroupsPage(): React.ReactElement {
             <div className="card p-5">
               <div className="mb-4 flex items-center gap-2">
                 <UserPlus size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                <h3 className="text-sm font-bold text-white">
+                <h3 className="text-sm font-bold text-cata-text">
                   Alumnos sin grupo ({unassigned.length})
                 </h3>
               </div>
@@ -369,19 +369,19 @@ export default function GroupsPage(): React.ReactElement {
                       className="card-hover flex items-center justify-between px-4 py-3"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-900/20">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50">
                           <UserPlus
                             size={16}
                             strokeWidth={1.5}
-                            className="text-amber-400"
+                            className="text-amber-700"
                             aria-hidden="true"
                           />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-white">
+                          <p className="text-sm font-medium text-cata-text">
                             {student.nombres} {student.apellidos}
                           </p>
-                          <p className="text-[11px] text-amber-400">
+                          <p className="text-[11px] text-amber-700">
                             Sin grupo &middot; Sin nivel técnico asignado
                           </p>
                         </div>
@@ -395,7 +395,7 @@ export default function GroupsPage(): React.ReactElement {
                             onClick={() =>
                               handleAssignStudent(student.id, g.id)
                             }
-                            className="rounded-lg border border-white/5 px-2 py-1 text-[10px] font-medium transition-colors hover:bg-cata-red/15 hover:text-cata-red whitespace-nowrap"
+                            className="rounded-lg border border-cata-border px-2 py-1 text-[10px] font-medium transition-colors hover:bg-cata-red/15 hover:text-cata-red whitespace-nowrap"
                             title={`Asignar a ${g.nombre}`}
                           >
                             {g.nombre}
@@ -407,8 +407,8 @@ export default function GroupsPage(): React.ReactElement {
                 </div>
               ) : (
                 <div className="flex items-center gap-2 py-4">
-                  <CheckCircle2 size={14} strokeWidth={1.5} className="text-emerald-400" aria-hidden="true" />
-                  <p className="text-xs text-white/40">
+                  <CheckCircle2 size={14} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />
+                  <p className="text-xs text-cata-text/40">
                     Todos los alumnos tienen un grupo asignado.
                   </p>
                 </div>
@@ -424,19 +424,19 @@ export default function GroupsPage(): React.ReactElement {
                 <div className="card p-5">
                   <div className="mb-4 flex items-center gap-2">
                     <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                    <h3 className="text-sm font-bold text-white">
+                    <h3 className="text-sm font-bold text-cata-text">
                       {selectedGrupo.nombre}
                     </h3>
                   </div>
 
-                  <div className="mb-4 space-y-2 text-sm text-white/65">
+                  <div className="mb-4 space-y-2 text-sm text-cata-text/65">
                     <div className="flex items-center justify-between">
                       <span>Nivel técnico</span>
                       <LevelBadge level={selectedGrupo.nivel} />
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Alumnos asignados</span>
-                      <span className="font-medium text-white">
+                      <span className="font-medium text-cata-text">
                         {selectedGrupo.alumnosIds.length}
                       </span>
                     </div>
@@ -446,7 +446,7 @@ export default function GroupsPage(): React.ReactElement {
                   <div>
                     <div className="mb-3 flex items-center gap-2">
                       <Users size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                      <p className="text-xs font-medium uppercase tracking-wider text-white/45">
+                      <p className="text-xs font-medium uppercase tracking-wider text-cata-text/45">
                         Alumnos
                       </p>
                     </div>
@@ -455,9 +455,9 @@ export default function GroupsPage(): React.ReactElement {
                         {assignedStudentsForSelected.map((s) => (
                           <div
                             key={s.id}
-                            className="flex items-center justify-between rounded-lg bg-cata-dark-surface/50 px-3 py-2"
+                            className="flex items-center justify-between rounded-lg bg-cata-bg px-3 py-2"
                           >
-                            <span className="text-sm text-white">
+                            <span className="text-sm text-cata-text">
                               {s.nombres} {s.apellidos}
                             </span>
                             <button
@@ -465,7 +465,7 @@ export default function GroupsPage(): React.ReactElement {
                               onClick={() =>
                                 handleClearAssignment(s.id)
                               }
-                              className="text-white/45 transition-colors hover:text-cata-red"
+                              className="text-cata-text/45 transition-colors hover:text-cata-red"
                               title="Remover del grupo"
                               aria-label={`Remover a ${s.nombres} del grupo`}
                             >
@@ -480,8 +480,8 @@ export default function GroupsPage(): React.ReactElement {
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 py-3">
-                        <Users size={14} strokeWidth={1.5} className="text-white/20" aria-hidden="true" />
-                        <p className="text-xs text-white/40">
+                        <Users size={14} strokeWidth={1.5} className="text-cata-text/20" aria-hidden="true" />
+                        <p className="text-xs text-cata-text/40">
                           Sin alumnos asignados.
                         </p>
                       </div>
@@ -493,7 +493,7 @@ export default function GroupsPage(): React.ReactElement {
                 <div className="card p-5">
                   <div className="mb-4 flex items-center gap-2">
                     <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                    <h3 className="text-sm font-bold text-white">
+                    <h3 className="text-sm font-bold text-cata-text">
                       Horarios vinculados
                     </h3>
                   </div>
@@ -509,16 +509,16 @@ export default function GroupsPage(): React.ReactElement {
                             <Calendar size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                           </div>
                           <div className="flex-1">
-                            <div className="flex items-center gap-1.5 text-sm font-medium text-white">
+                            <div className="flex items-center gap-1.5 text-sm font-medium text-cata-text">
                               {sched.diaSemana.slice(0, 3).replace(".", "")}{" "}
                               {sched.horaInicio} — {sched.horaFin}
                               {!sched.activo && (
-                                <span className="ml-auto rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-white/45">
+                                <span className="ml-auto rounded bg-cata-bg px-1.5 py-0.5 text-[10px] font-medium text-cata-text/45">
                                   Inactivo
                                 </span>
                               )}
                             </div>
-                            <div className="mt-1 flex items-center gap-1.5 text-xs text-white/45">
+                            <div className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/45">
                               <MapPin
                                 size={10}
                                 strokeWidth={1.5}
@@ -526,7 +526,7 @@ export default function GroupsPage(): React.ReactElement {
                               />
                               {sched.cancha}
                             </div>
-                            <div className="mt-1 flex items-center gap-1.5 text-xs text-white/45">
+                            <div className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/45">
                               <Users
                                 size={10}
                                 strokeWidth={1.5}
@@ -540,8 +540,8 @@ export default function GroupsPage(): React.ReactElement {
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 py-3">
-                      <Calendar size={14} strokeWidth={1.5} className="text-white/20" aria-hidden="true" />
-                      <p className="text-xs text-white/40">
+                      <Calendar size={14} strokeWidth={1.5} className="text-cata-text/20" aria-hidden="true" />
+                      <p className="text-xs text-cata-text/40">
                         Sin horarios vinculados. Los horarios se asignan desde la
                         configuración del grupo.
                       </p>
@@ -554,7 +554,7 @@ export default function GroupsPage(): React.ReactElement {
                   <div className="card p-5">
                     <div className="mb-3 flex items-center gap-2">
                       <UserPlus size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                      <h3 className="text-sm font-bold text-white">
+                      <h3 className="text-sm font-bold text-cata-text">
                         Asignar alumno sin grupo
                       </h3>
                     </div>
@@ -566,7 +566,7 @@ export default function GroupsPage(): React.ReactElement {
                           onClick={() => handleAssignStudent(s.id, selectedGrupo.id)}
                           className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-cata-red/15"
                         >
-                          <span className="text-white">
+                          <span className="text-cata-text">
                             {s.nombres} {s.apellidos}
                           </span>
                           <UserPlus
@@ -578,7 +578,7 @@ export default function GroupsPage(): React.ReactElement {
                         </button>
                       ))}
                       {unassigned.length > 5 && (
-                        <p className="text-xs text-white/45">
+                        <p className="text-xs text-cata-text/45">
                           +{unassigned.length - 5} más sin grupo
                         </p>
                       )}
@@ -592,13 +592,13 @@ export default function GroupsPage(): React.ReactElement {
                 <Users
                   size={32}
                   strokeWidth={1.5}
-                  className="mb-3 text-white/20"
+                  className="mb-3 text-cata-text/20"
                   aria-hidden="true"
                 />
-                <p className="text-sm font-medium text-white">
+                <p className="text-sm font-medium text-cata-text">
                   Seleccioná un grupo
                 </p>
-                <p className="mt-1 text-xs text-white/50">
+                <p className="mt-1 text-xs text-cata-text/50">
                   Hacé clic en un grupo para ver su detalle
                   y gestionar la asignación de alumnos.
                 </p>
@@ -608,23 +608,23 @@ export default function GroupsPage(): React.ReactElement {
         </div>
 
         {/* Domain info card */}
-        <div className="mt-8 rounded-2xl border border-white/8 bg-cata-dark-elevated p-6">
+        <div className="card mt-8 p-6">
           <div className="mb-3 flex items-center gap-2">
             <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <h3 className="text-sm font-bold text-white">Modelo de dominio (Demo)</h3>
+            <h3 className="text-sm font-bold text-cata-text">Modelo de dominio (Demo)</h3>
           </div>
-          <p className="text-sm leading-relaxed text-white/65">
-            El <strong className="text-white">nivel técnico</strong> pertenece al grupo, no al alumno.
+          <p className="text-sm leading-relaxed text-cata-text/65">
+            El <strong className="text-cata-text">nivel técnico</strong> pertenece al grupo, no al alumno.
             Un alumno adquiere su nivel al ser asignado a un grupo.
             Los alumnos sin grupo asignado no tienen nivel técnico — está
             pendiente de evaluación por el entrenador.
-            Los <strong className="text-white">horarios</strong> se vinculan al grupo, y la{" "}
-            <strong className="text-white">asistencia</strong> se registra por sesión (grupo + horario).
+            Los <strong className="text-cata-text">horarios</strong> se vinculan al grupo, y la{" "}
+            <strong className="text-cata-text">asistencia</strong> se registra por sesión (grupo + horario).
           </p>
         </div>
 
         {/* Demo footer */}
-        <p className="mt-8 text-center text-xs text-white/30">
+        <p className="mt-8 text-center text-xs text-cata-text/30">
           Los datos de grupos, alumnos y horarios son de demostración.
           Las asignaciones se simulan en memoria y se reinician al recargar.
         </p>

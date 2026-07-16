@@ -7,9 +7,9 @@ const config: Config = {
     extend: {
       colors: {
         cata: {
-          red: "#D92128",
-          "red-light": "#EF3E45",
-          "red-dark": "#A11D22",
+          red: "#8B1A1A",
+          "red-light": "#B22222",
+          "red-dark": "#5E1111",
           yellow: "#FFD600",
           "yellow-soft": "#FFEF9E",
           amber: "#F4B41A",
@@ -29,8 +29,12 @@ const config: Config = {
           "dark-surface": "#1E1E2E",
           "text-primary": "#FFFFFF",
           "text-secondary": "rgba(255,255,255,0.65)",
-          border: "rgba(255,255,255,0.08)",
+          border: "#E5E7EB",
           "border-hover": "rgba(255,255,255,0.15)",
+          bg: "#F9FAFB",
+          surface: "#FFFFFF",
+          text: "#1F2937",
+          "state-ok": "#15803D",
         },
       },
       fontFamily: {

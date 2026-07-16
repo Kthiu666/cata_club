@@ -96,10 +96,10 @@ export default function RegisterPage() {
           <p className="mb-1 text-xs font-bold uppercase tracking-[0.2em] text-cata-red/80">
             Cata Club — Tenis de Mesa
           </p>
-          <h1 className="text-2xl font-bold tracking-tight text-white">
+          <h1 className="text-2xl font-bold tracking-tight text-cata-text">
             Crear su cuenta
           </h1>
-          <p className="mt-1.5 text-sm text-white/65">
+          <p className="mt-1.5 text-sm text-cata-text/65">
             Regístrese en el sistema administrativo
           </p>
         </div>
@@ -108,25 +108,25 @@ export default function RegisterPage() {
         <div className="card p-8 sm:p-9">
           {demoSuccess ? (
             <div className="text-center">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-900/30">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-cata-state-ok/10">
                 <CheckCircle
                   size={28}
-                  className="text-emerald-400"
+                  className="text-cata-state-ok"
                   aria-hidden="true"
                 />
               </div>
-              <h2 className="mb-2 text-lg font-semibold text-white">
+              <h2 className="mb-2 text-lg font-semibold text-cata-text">
                 Registro de Demostración Completado
               </h2>
-              <p className="mb-6 text-sm leading-relaxed text-white/65">
+              <p className="mb-6 text-sm leading-relaxed text-cata-text/65">
                 No se almacenó ningún dato. Esto es una demostración de IU — cuando el
                 backend esté conectado, se crearía su cuenta. Para continuar el
                 recorrido, se abrirá la sesión de preinscripción automáticamente.
               </p>
               {formError && (
-                <p className="mb-4 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-cata-red">
+                <div className="alert-error mb-4 justify-center" role="alert">
                   {formError}
-                </p>
+                </div>
               )}
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
                 <button
@@ -156,7 +156,7 @@ export default function RegisterPage() {
             <form className="space-y-6" onSubmit={handleSubmit}>
               {/* -- Account -- */}
               <fieldset>
-                <legend className="mb-4 text-xs font-semibold uppercase tracking-widest text-white/45">
+                <legend className="mb-4 text-xs font-semibold uppercase tracking-widest text-cata-text/45">
                   Cuenta
                 </legend>
 
@@ -164,7 +164,7 @@ export default function RegisterPage() {
                 <div className="mb-4">
                   <label
                     htmlFor="email"
-                    className="mb-1.5 block text-sm font-medium text-white"
+                    className="mb-1.5 block text-sm font-medium text-cata-text"
                   >
                     Correo electrónico
                   </label>
@@ -172,7 +172,7 @@ export default function RegisterPage() {
                     <Mail
                       size={16}
                       strokeWidth={1.5}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/65"
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
                       aria-hidden="true"
                     />
                     <input
@@ -191,7 +191,7 @@ export default function RegisterPage() {
                 <div className="mb-4">
                   <label
                     htmlFor="password"
-                    className="mb-1.5 block text-sm font-medium text-white"
+                    className="mb-1.5 block text-sm font-medium text-cata-text"
                   >
                     Contraseña
                   </label>
@@ -199,7 +199,7 @@ export default function RegisterPage() {
                     <Lock
                       size={16}
                       strokeWidth={1.5}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/65"
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
                       aria-hidden="true"
                     />
                     <input
@@ -215,7 +215,7 @@ export default function RegisterPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/65 hover:text-white"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-cata-text/65 hover:text-cata-text"
                       aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                     >
                       {showPassword ? (
@@ -231,7 +231,7 @@ export default function RegisterPage() {
                 <div>
                   <label
                     htmlFor="confirmPassword"
-                    className="mb-1.5 block text-sm font-medium text-white"
+                    className="mb-1.5 block text-sm font-medium text-cata-text"
                   >
                     Confirmar Contraseña
                   </label>
@@ -239,7 +239,7 @@ export default function RegisterPage() {
                     <Lock
                       size={16}
                       strokeWidth={1.5}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/65"
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
                       aria-hidden="true"
                     />
                     <input
@@ -256,7 +256,7 @@ export default function RegisterPage() {
                       onClick={() =>
                         setShowConfirmPassword(!showConfirmPassword)
                       }
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/65 hover:text-white"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-cata-text/65 hover:text-cata-text"
                       aria-label={
                         showConfirmPassword ? "Ocultar contraseña" : "Mostrar contraseña"
                       }
@@ -272,9 +272,9 @@ export default function RegisterPage() {
               </fieldset>
 
               {/* -- Personal Information -- */}
-              <hr className="border-white/10" />
+              <hr className="border-cata-border" />
               <fieldset>
-                <legend className="mb-4 text-xs font-semibold uppercase tracking-widest text-white/45">
+                <legend className="mb-4 text-xs font-semibold uppercase tracking-widest text-cata-text/45">
                   Información Personal
                 </legend>
 
@@ -282,7 +282,7 @@ export default function RegisterPage() {
                 <div className="mb-4">
                   <label
                     htmlFor="firstName"
-                    className="mb-1.5 block text-sm font-medium text-white"
+                    className="mb-1.5 block text-sm font-medium text-cata-text"
                   >
                     Nombres
                   </label>
@@ -290,7 +290,7 @@ export default function RegisterPage() {
                     <User
                       size={16}
                       strokeWidth={1.5}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/65"
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
                       aria-hidden="true"
                     />
                     <input
@@ -309,7 +309,7 @@ export default function RegisterPage() {
                 <div className="mb-4">
                   <label
                     htmlFor="lastName"
-                    className="mb-1.5 block text-sm font-medium text-white"
+                    className="mb-1.5 block text-sm font-medium text-cata-text"
                   >
                     Apellidos
                   </label>
@@ -317,7 +317,7 @@ export default function RegisterPage() {
                     <User
                       size={16}
                       strokeWidth={1.5}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/65"
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
                       aria-hidden="true"
                     />
                     <input
@@ -336,7 +336,7 @@ export default function RegisterPage() {
                 <div className="mb-4">
                   <label
                     htmlFor="nationalId"
-                    className="mb-1.5 block text-sm font-medium text-white"
+                    className="mb-1.5 block text-sm font-medium text-cata-text"
                   >
                     Cédula de Identidad
                   </label>
@@ -344,7 +344,7 @@ export default function RegisterPage() {
                     <Hash
                       size={16}
                       strokeWidth={1.5}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/65"
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
                       aria-hidden="true"
                     />
                     <input
@@ -367,7 +367,7 @@ export default function RegisterPage() {
                 <div className="mb-4">
                   <label
                     htmlFor="birthDate"
-                    className="mb-1.5 block text-sm font-medium text-white"
+                    className="mb-1.5 block text-sm font-medium text-cata-text"
                   >
                     Fecha de Nacimiento
                   </label>
@@ -375,7 +375,7 @@ export default function RegisterPage() {
                     <Calendar
                       size={16}
                       strokeWidth={1.5}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/65"
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
                       aria-hidden="true"
                     />
                     <input
@@ -393,7 +393,7 @@ export default function RegisterPage() {
                 <div className="mb-4">
                   <label
                     htmlFor="phone"
-                    className="mb-1.5 block text-sm font-medium text-white"
+                    className="mb-1.5 block text-sm font-medium text-cata-text"
                   >
                     Teléfono Celular
                   </label>
@@ -401,7 +401,7 @@ export default function RegisterPage() {
                     <Phone
                       size={16}
                       strokeWidth={1.5}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/65"
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
                       aria-hidden="true"
                     />
                     <input
@@ -420,16 +420,16 @@ export default function RegisterPage() {
                 <div>
                   <label
                     htmlFor="contactPhone"
-                    className="mb-1.5 block text-sm font-medium text-white"
+                    className="mb-1.5 block text-sm font-medium text-cata-text"
                   >
                     Teléfono de Contacto{" "}
-                    <span className="text-white/45">(opcional)</span>
+                    <span className="text-cata-text/45">(opcional)</span>
                   </label>
                   <div className="relative">
                     <Phone
                       size={16}
                       strokeWidth={1.5}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/65"
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
                       aria-hidden="true"
                     />
                     <input
@@ -450,9 +450,9 @@ export default function RegisterPage() {
 
               {/* Validation error */}
               {formError && (
-                <p className="text-sm text-cata-red" role="alert">
+                <div className="alert-error" role="alert">
                   {formError}
-                </p>
+                </div>
               )}
 
               {/* Submit */}
@@ -468,7 +468,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Sign in link */}
-        <p className="mt-8 text-center text-sm text-white/65">
+        <p className="mt-8 text-center text-sm text-cata-text/65">
           ¿Ya tiene una cuenta?{" "}
           <Link
             href="/login"
@@ -479,7 +479,7 @@ export default function RegisterPage() {
         </p>
 
         {/* Demo mode note */}
-        <p className="mt-6 text-center text-xs text-white/30">
+        <p className="mt-6 text-center text-xs text-cata-text/30">
           La interfaz de registro es un placeholder de demostración. No se envía ni almacena
           ningún dato. La creación de cuentas se habilitará cuando el servicio de autenticación
           del backend esté conectado.

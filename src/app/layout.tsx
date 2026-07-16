@@ -33,7 +33,7 @@ export default function RootLayout({
 }: RootLayoutProps): React.ReactElement {
   return (
     <html lang="es" className={inter.variable}>
-      <body className="min-h-screen bg-cata-dark font-sans text-white antialiased">
+      <body className="min-h-screen bg-cata-bg font-sans text-cata-text antialiased">
         <AuthProviderWrapper>
           <Header hideOnLanding />
           <main className="app-main mx-auto max-w-8xl px-4 py-10 sm:px-8 lg:px-12">

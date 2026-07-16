@@ -79,6 +79,46 @@ export const ATTENDANCE_LABELS: Record<EstadoAsistencia, string> = {
   justified: "Justificado",
 };
 
+// ---------------------------------------------------------------------------
+// Badge color tokens (Fase 3b — B4 light-theme migration)
+// ---------------------------------------------------------------------------
+
+/** Badge/icon color classes for a given attendance state. */
+export interface AttendanceBadgeTokens {
+  badgeClass: string;
+  iconClass: string;
+}
+
+/**
+ * Light-theme color tokens for each attendance badge state.
+ * `present` reuses the shared `cata-state-ok` success token (B4); the rest
+ * follow the same `-50`/`-700` Tailwind semantic-scale pairing already
+ * established for payments' status badges, for text+color distinguishability
+ * (WCAG AA — see admin-light-theme spec).
+ */
+export const ATTENDANCE_BADGE_TOKENS: Record<EstadoAsistencia, AttendanceBadgeTokens> = {
+  present: { badgeClass: "bg-cata-state-ok/10 text-cata-state-ok", iconClass: "text-cata-state-ok" },
+  absent: { badgeClass: "bg-red-50 text-red-700", iconClass: "text-red-700" },
+  late: { badgeClass: "bg-amber-50 text-amber-700", iconClass: "text-amber-700" },
+  justified: { badgeClass: "bg-blue-50 text-blue-700", iconClass: "text-blue-700" },
+};
+
+/** Neutral fallback tokens for an unrecognized estado value at runtime. */
+const FALLBACK_BADGE_TOKENS: AttendanceBadgeTokens = {
+  badgeClass: "bg-cata-border/40 text-cata-text/65",
+  iconClass: "text-cata-text/65",
+};
+
+/**
+ * Get the light-theme badge/icon color classes for an attendance estado.
+ *
+ * Returns a neutral fallback for unknown/unexpected estado values — never
+ * throws, avoids rendering an unstyled badge for bad runtime data.
+ */
+export function getAttendanceBadgeTokens(estado: string): AttendanceBadgeTokens {
+  return ATTENDANCE_BADGE_TOKENS[estado as EstadoAsistencia] ?? FALLBACK_BADGE_TOKENS;
+}
+
 // Mock data has moved to src/mocks/attendance.ts.
 // Import MOCK_SCHEDULES and MOCK_ATTENDANCE_RECORDS from @/mocks/attendance.
 

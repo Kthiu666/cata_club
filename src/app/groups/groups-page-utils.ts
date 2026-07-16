@@ -55,11 +55,19 @@ export function buildStudentRefs(
 // Level badge configuration
 // ---------------------------------------------------------------------------
 
-/** CSS class sets for each technical level badge. */
+/**
+ * CSS class sets for each technical level badge — B3 fix: `cata-*` brand
+ * tokens only, no hardcoded hex/rgba. `principiante` reuses the `state-ok`
+ * success token; `avanzado` reuses the brand red. There is no dedicated
+ * "warning" hue declared in the `cata-*` namespace (same gap noted for the
+ * Fase 1 demo-role chips), so `intermedio` reuses `cata-navy` as the third
+ * distinct brand hue available, distinguished from the other two levels by
+ * hue alone (red/green/navy are visually distinct).
+ */
 export const LEVEL_BADGE: Record<string, string> = {
-  principiante: "bg-green-50 text-green-700 ring-1 ring-green-200",
-  intermedio: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
-  avanzado: "bg-red-50 text-red-700 ring-1 ring-red-200",
+  principiante: "bg-cata-state-ok/10 text-cata-state-ok ring-1 ring-cata-state-ok/30",
+  intermedio: "bg-cata-navy/10 text-cata-navy ring-1 ring-cata-navy/20",
+  avanzado: "bg-cata-red/10 text-cata-red ring-1 ring-cata-red/30",
 };
 
 /**
