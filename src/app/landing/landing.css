@@ -131,7 +131,7 @@
 
 .landing-location { background: var(--landing-background); }
 .landing-location-row { align-items: stretch; }
-.landing-map { z-index: 1; min-width: 0; height: 348px; flex: 1; border: 3px solid var(--landing-surface); border-radius: 14px; box-shadow: 0 4px 18px color-mix(in srgb, var(--landing-brand-black) 12%, transparent); }
+.landing-map { z-index: 1; min-width: 0; min-height: 348px; flex: 1; border: 3px solid var(--landing-surface); border-radius: 14px; box-shadow: 0 4px 18px color-mix(in srgb, var(--landing-brand-black) 12%, transparent); }
 .landing-map-loading { display: grid; place-items: center; color: var(--landing-text); background: var(--landing-border); }
 .landing-contact { width: 420px; height: fit-content; display: flex; flex: none; flex-direction: column; gap: 18px; padding: 32px; border: 1px solid var(--landing-border); border-radius: 18px; background: var(--landing-surface); box-shadow: 0 2px 14px color-mix(in srgb, var(--landing-brand-black) 6%, transparent); }
 .landing-contact h3 { font-size: 17px; }
