@@ -354,6 +354,10 @@ export default function MembersPage(): React.ReactElement {
         </div>
 
         {/* Stats grid */}
+        <div className="mb-6 flex items-center gap-2">
+          <ShieldCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          <h2 className="text-lg font-bold text-cata-text">Resumen</h2>
+        </div>
         <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             icon={<Users size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}

@@ -973,11 +973,9 @@ export default function EnrollPage(): React.ReactElement {
 
               {/* Validation errors */}
               {formErrors.length > 0 && (
-                <div
-                  className="mt-4 rounded-lg border border-cata-red/30 bg-cata-red/5 p-3"
-                  role="alert"
-                >
-                  <ul className="list-inside list-disc space-y-1 text-xs text-cata-red">
+                <div className="alert-error mt-4 items-start" role="alert">
+                  <AlertTriangle size={14} strokeWidth={1.5} className="mt-0.5 shrink-0" aria-hidden="true" />
+                  <ul className="list-inside list-disc space-y-1">
                     {formErrors.map((err, i) => (
                       <li key={i}>{err}</li>
                     ))}
