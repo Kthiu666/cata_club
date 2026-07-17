@@ -17,6 +17,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
+  enrollStudent,
   fetchPaymentValidations,
   updatePaymentValidation,
 } from "../api";
@@ -65,6 +66,14 @@ function errorResponse(
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function getFetchHeaders(): Headers {
+  const call = vi.mocked(global.fetch).mock.calls[0];
+  if (!call) throw new Error("Expected fetch to be called.");
+  const options = call[1];
+  if (!options?.headers) throw new Error("Expected fetch options to include headers.");
+  return new Headers(options.headers);
 }
 
 // ---------------------------------------------------------------------------
@@ -146,6 +155,30 @@ describe("fetchPaymentValidations", () => {
   });
 });
 
+describe("enrollStudent", () => {
+  it("accepts the minimal safe enrollment response", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(okResponse({ enrolled: true }, { status: 201 }));
+
+    await expect(enrollStudent({
+      alumno: { nombres: "Ana", apellidos: "Pérez", cedula: "1712345678", fechaNacimiento: "2000-01-15", telefono: "0991234567" },
+      credencialesAlumno: { correo: "ana@example.com", contrasenia: "password8" },
+      fichaMedica: { tipoSangre: "O_POSITIVO", condicionesSalud: "", alergias: "", contactoEmergencia: "María", telefonoEmergencia: "0997654321" },
+    })).resolves.toEqual({ enrolled: true });
+  });
+
+  it("rejects enrollment responses with unexpected sensitive fields", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      okResponse({ enrolled: true, accessToken: "unsafe" }, { status: 201 }),
+    );
+
+    await expect(enrollStudent({
+      alumno: { nombres: "Ana", apellidos: "Pérez", cedula: "1712345678", fechaNacimiento: "2000-01-15", telefono: "0991234567" },
+      credencialesAlumno: { correo: "ana@example.com", contrasenia: "password8" },
+      fichaMedica: { tipoSangre: "O_POSITIVO", condicionesSalud: "", alergias: "", contactoEmergencia: "María", telefonoEmergencia: "0997654321" },
+    })).rejects.toThrow("La respuesta de inscripción no es válida.");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Non-2xx error handling
 // ---------------------------------------------------------------------------
@@ -202,10 +235,9 @@ describe("header merging", () => {
 
     await fetchPaymentValidations();
 
-    const [, options] = vi.mocked(global.fetch).mock.calls[0];
-    const headers = options!.headers as Record<string, string>;
+    const headers = getFetchHeaders();
 
-    expect(headers["content-type"]).toBe("application/json");
+    expect(headers.get("content-type")).toBe("application/json");
   });
 
   it("merges caller-provided headers without dropping Content-Type", async () => {
@@ -213,11 +245,10 @@ describe("header merging", () => {
 
     await updatePaymentValidation("pv-001", { action: "approved" });
 
-    const [, options] = vi.mocked(global.fetch).mock.calls[0];
-    const headers = options!.headers as Record<string, string>;
+    const headers = getFetchHeaders();
 
     // The explicit Content-Type should be present
-    expect(headers["content-type"]).toBe("application/json");
+    expect(headers.get("content-type")).toBe("application/json");
   });
 });
 
@@ -258,7 +289,8 @@ describe("timeout / abort", () => {
 
       // The signal should have been aborted by the timeout
       expect(capturedSignal).toBeDefined();
-      expect(capturedSignal!.aborted).toBe(true);
+      if (!capturedSignal) throw new Error("Expected fetch to receive an AbortSignal.");
+      expect(capturedSignal.aborted).toBe(true);
 
       await expect(promise).rejects.toThrow(/aborted/i);
     } finally {
@@ -391,10 +423,9 @@ describe("updatePaymentValidation — mock role header", () => {
 
     await updatePaymentValidation("pv-001", { action: "approved" });
 
-    const [, options] = vi.mocked(global.fetch).mock.calls[0];
-    const headers = options!.headers as Record<string, string>;
-    expect(headers["x-mock-role"]).toBe("admin");
-    expect(headers["content-type"]).toBe("application/json");
+    const headers = getFetchHeaders();
+    expect(headers.get("x-mock-role")).toBe("admin");
+    expect(headers.get("content-type")).toBe("application/json");
   });
 
   it("does not send x-mock-role when localStorage has no session", async () => {
@@ -405,10 +436,9 @@ describe("updatePaymentValidation — mock role header", () => {
 
     await updatePaymentValidation("pv-001", { action: "approved" });
 
-    const [, options] = vi.mocked(global.fetch).mock.calls[0];
-    const headers = options!.headers as Record<string, string>;
-    expect(headers["x-mock-role"]).toBeUndefined();
-    expect(headers["content-type"]).toBe("application/json");
+    const headers = getFetchHeaders();
+    expect(headers.get("x-mock-role")).toBeNull();
+    expect(headers.get("content-type")).toBe("application/json");
   });
 
   it("does not log console.error when localStorage is unavailable and omits x-mock-role", async () => {
@@ -425,9 +455,8 @@ describe("updatePaymentValidation — mock role header", () => {
 
     expect(errorSpy).not.toHaveBeenCalled();
 
-    const [, options] = vi.mocked(global.fetch).mock.calls[0];
-    const headers = options!.headers as Record<string, string>;
-    expect(headers["x-mock-role"]).toBeUndefined();
+    const headers = getFetchHeaders();
+    expect(headers.get("x-mock-role")).toBeNull();
 
     errorSpy.mockRestore();
   });
@@ -450,9 +479,8 @@ describe("updatePaymentValidation — mock role header", () => {
 
     await updatePaymentValidation("pv-001", { action: "approved" });
 
-    const [, options] = vi.mocked(global.fetch).mock.calls[0];
-    const headers = options!.headers as Record<string, string>;
-    expect(headers["x-mock-role"]).toBeUndefined();
-    expect(headers["content-type"]).toBe("application/json");
+    const headers = getFetchHeaders();
+    expect(headers.get("x-mock-role")).toBeNull();
+    expect(headers.get("content-type")).toBe("application/json");
   });
 });

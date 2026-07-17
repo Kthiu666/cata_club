@@ -18,7 +18,9 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import ProtectedRoute from "@/components/ProtectedRoute";
+import { enrollStudent } from "@/services/api";
+import { clearLegacyEnrollmentSession } from "@/lib/enrollment-session";
+import { BLOOD_TYPES } from "@/types/enrollment";
 import {
   User,
   UserPlus,
@@ -36,7 +38,11 @@ import {
 } from "lucide-react";
 import {
   calculateAge,
+  buildEnrollmentRequest,
+  ENROLLMENT_TYPES,
+  getEnrollmentErrorMessage,
   validateEnrollStep,
+  validateEnrollment,
   STEP_ORDER,
   STEP_LABELS,
   initialFormData,
@@ -78,22 +84,12 @@ export default function EnrollPage(): React.ReactElement {
   const [confirmed, setConfirmed] = useState(false);
   const [summaryReviewed, setSummaryReviewed] = useState(false);
   const [formErrors, setFormErrors] = useState<string[]>([]);
-  const confirmInFlightRef = useRef(false);
-  const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queryAppliedRef = useRef(false);
 
   const currentIndex = STEP_ORDER.indexOf(step);
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === STEP_ORDER.length - 1;
   const progress = ((currentIndex + 1) / STEP_ORDER.length) * 100;
-
-  useEffect(() => {
-    return () => {
-      if (confirmTimeoutRef.current) {
-        clearTimeout(confirmTimeoutRef.current);
-      }
-    };
-  }, []);
 
   // Support ?type=self/?type=player or ?type=child/?type=representative
   // to preselect the enrollment flow from external CTAs.
@@ -103,20 +99,17 @@ export default function EnrollPage(): React.ReactElement {
     const params = new URLSearchParams(window.location.search);
     const type = params.get("type");
     if (type === "self" || type === "player") {
-      setFormData((prev) => ({ ...prev, enrollmentType: "self" }));
+      setFormData((prev) => ({ ...prev, enrollmentType: ENROLLMENT_TYPES.SELF }));
     } else if (type === "child" || type === "representative") {
-      setFormData((prev) => ({ ...prev, enrollmentType: "child" }));
+      setFormData((prev) => ({ ...prev, enrollmentType: ENROLLMENT_TYPES.CHILD }));
     }
   }, []);
 
-  // ---- Helpers ----
+  useEffect(() => {
+    clearLegacyEnrollmentSession();
+  }, []);
 
-  function clearConfirmTimeout(): void {
-    if (confirmTimeoutRef.current) {
-      clearTimeout(confirmTimeoutRef.current);
-      confirmTimeoutRef.current = null;
-    }
-  }
+  // ---- Helpers ----
 
   function updateField<K extends keyof EnrollFormData>(
     key: K,
@@ -149,9 +142,9 @@ export default function EnrollPage(): React.ReactElement {
     }
   }
 
-  function handleConfirm(e: FormEvent<HTMLFormElement>): void {
+  async function handleConfirm(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
-    if (confirmInFlightRef.current || submitting || confirmed) return;
+    if (submitting || confirmed) return;
     if (step !== "summary") {
       handleNext();
       return;
@@ -160,30 +153,30 @@ export default function EnrollPage(): React.ReactElement {
       setFormErrors(["Revise y confirme el resumen antes de finalizar la inscripción."]);
       return;
     }
-    const errors = validateEnrollStep(step, formData);
+    const errors = validateEnrollment(formData);
     if (errors.length > 0) {
       setFormErrors(errors);
       return;
     }
-    confirmInFlightRef.current = true;
     setSubmitting(true);
-    // Simulate submission
-    clearConfirmTimeout();
-    confirmTimeoutRef.current = setTimeout(() => {
-      confirmTimeoutRef.current = null;
-      confirmInFlightRef.current = false;
+    try {
+      const response = await enrollStudent(buildEnrollmentRequest(formData));
+      if (!response.enrolled) {
+        throw new Error("No se pudo completar la inscripción.");
+      }
       setSubmitting(false);
       setConfirmed(true);
-    }, 1200);
+    } catch (error: unknown) {
+      setSubmitting(false);
+      setFormErrors([getEnrollmentErrorMessage(error)]);
+    }
   }
 
   function handleReset(): void {
-    clearConfirmTimeout();
     setFormData(initialFormData);
     setStep("type");
     setConfirmed(false);
     setSubmitting(false);
-    confirmInFlightRef.current = false;
     setSummaryReviewed(false);
     setFormErrors([]);
   }
@@ -191,34 +184,43 @@ export default function EnrollPage(): React.ReactElement {
   // ---- Demo helper — quick-fill for testing convenience ----
 
   function fillDemoData(type: EnrollmentType): void {
-    clearConfirmTimeout();
     const base: Partial<EnrollFormData> = {
       contactoEmergencia: "Carlos Martinez",
       telefonoEmergencia: "0998765432",
+      tipoSangre: BLOOD_TYPES.O_POSITIVO,
     };
 
     switch (type) {
       case "self":
         setFormData({
           ...initialFormData,
-          enrollmentType: "self",
+          enrollmentType: ENROLLMENT_TYPES.SELF,
           nombres: "Sofia",
           apellidos: "Martinez",
           fechaNacimiento: "1990-05-20",
           cedula: "1712345678",
+          telefono: "0991234567",
+          correo: "sofia@example.com",
+          contrasenia: "password8",
           ...base,
         });
         break;
       case "child":
         setFormData({
           ...initialFormData,
-          enrollmentType: "child",
+          enrollmentType: ENROLLMENT_TYPES.CHILD,
           nombres: "Lucas",
           apellidos: "Martinez",
           fechaNacimiento: "2015-06-15",
           cedula: "1723456789",
-          nombreRepresentante: "Sofia Martinez",
+          telefono: "0991234567",
+          nombreRepresentante: "Sofia",
+          apellidosRepresentante: "Martinez",
           cedulaRepresentante: "1712345678",
+          fechaNacimientoRepresentante: "1990-05-20",
+          telefonoRepresentante: "0991234567",
+          correoRepresentante: "sofia@example.com",
+          contraseniaRepresentante: "password8",
           ...base,
         });
         break;
@@ -228,7 +230,6 @@ export default function EnrollPage(): React.ReactElement {
     setConfirmed(false);
     setSummaryReviewed(false);
     setSubmitting(false);
-    confirmInFlightRef.current = false;
   }
 
   // ---- Render helpers ----
@@ -467,6 +468,16 @@ export default function EnrollPage(): React.ReactElement {
           })}
         </div>
 
+        {renderInput({
+          label: "Teléfono",
+          value: formData.telefono,
+          onChange: (v) => updateField("telefono", v),
+          placeholder: "p. ej. 0991234567",
+          required: true,
+          icon: <Phone size={16} strokeWidth={1.5} aria-hidden="true" />,
+          inputMode: "tel",
+        })}
+
         {formData.fechaNacimiento && (() => {
           const age = calculateAge(formData.fechaNacimiento);
           const ageValid = !isNaN(age);
@@ -543,50 +554,28 @@ export default function EnrollPage(): React.ReactElement {
   }
 
   function renderClubStep(): React.ReactElement {
+    const isSelfEnrollment = formData.enrollmentType === ENROLLMENT_TYPES.SELF;
     return (
       <div className="space-y-1">
         <p className="mb-4 text-sm leading-relaxed text-cata-text/65">
-          Información administrativa del estudiante en Cata Club:
+          {isSelfEnrollment
+            ? "Cree las credenciales para acceder a su cuenta de estudiante:"
+            : "Complete los datos de contacto y acceso del representante:"}
         </p>
-
-        <div className="mb-4 rounded-xl border border-cata-border bg-cata-bg p-4 text-sm text-cata-text/65">
-          <div className="mb-2 flex items-center gap-2">
-            <GraduationCap size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <p className="font-medium text-cata-text">
-              Nivel técnico pendiente de evaluación
-            </p>
-          </div>
-          <p className="text-xs leading-relaxed text-cata-text/45">
-            El estudiante no selecciona su nivel. Un entrenador lo asignará
-            después de observarlo en el club.
-          </p>
-        </div>
-
-        {renderInput({
-          label: "Fecha de Inicio en el Club",
-          value: formData.fechaInicio,
-          onChange: (v) => updateField("fechaInicio", v),
-          type: "date",
-          required: true,
-          icon: <Calendar size={16} strokeWidth={1.5} aria-hidden="true" />,
-        })}
-
-        <div className="mb-4">
-          <label className="mb-2 flex items-center gap-2 text-sm font-medium text-cata-text">
-            <input
-              type="checkbox"
-              checked={formData.activo}
-              onChange={(e) => updateField("activo", e.target.checked)}
-              disabled={submitting}
-              className="h-4 w-4 rounded border-cata-border text-cata-red focus:ring-cata-red/30"
-            />
-            Estudiante activo desde el inicio
-          </label>
-          <p className="ml-6 text-xs text-cata-text/40">
-            Si está marcado, el estudiante comienza a entrenar inmediatamente. Si no,
-            se registrará como inactivo hasta que un administrador lo active.
-          </p>
-        </div>
+        {isSelfEnrollment ? (
+          <>
+            {renderInput({ label: "Correo electrónico", value: formData.correo, onChange: (v) => updateField("correo", v), type: "email", required: true })}
+            {renderInput({ label: "Contraseña", value: formData.contrasenia, onChange: (v) => updateField("contrasenia", v), type: "password", required: true })}
+          </>
+        ) : (
+          <>
+            {renderInput({ label: "Apellidos del Representante", value: formData.apellidosRepresentante, onChange: (v) => updateField("apellidosRepresentante", v), required: true })}
+            {renderInput({ label: "Fecha de Nacimiento del Representante", value: formData.fechaNacimientoRepresentante, onChange: (v) => updateField("fechaNacimientoRepresentante", v), type: "date", required: true })}
+            {renderInput({ label: "Teléfono del Representante", value: formData.telefonoRepresentante, onChange: (v) => updateField("telefonoRepresentante", v), inputMode: "tel", required: true })}
+            {renderInput({ label: "Correo electrónico del Representante", value: formData.correoRepresentante, onChange: (v) => updateField("correoRepresentante", v), type: "email", required: true })}
+            {renderInput({ label: "Contraseña del Representante", value: formData.contraseniaRepresentante, onChange: (v) => updateField("contraseniaRepresentante", v), type: "password", required: true })}
+          </>
+        )}
       </div>
     );
   }
@@ -597,6 +586,23 @@ export default function EnrollPage(): React.ReactElement {
         <p className="mb-4 text-sm leading-relaxed text-cata-text/65">
           Información que el club necesita conocer para la seguridad del estudiante:
         </p>
+
+        <div className="mb-4">
+          <label htmlFor="enroll-tipo-de-sangre" className="mb-1.5 block text-sm font-medium text-cata-text">
+            Tipo de Sangre <span className="ml-0.5 text-cata-red">*</span>
+          </label>
+          <select
+            id="enroll-tipo-de-sangre"
+            value={formData.tipoSangre}
+            onChange={(e) => updateField("tipoSangre", e.target.value as EnrollFormData["tipoSangre"])}
+            required
+            disabled={submitting}
+            className="input-field"
+          >
+            <option value="">Seleccione una opción</option>
+            {Object.values(BLOOD_TYPES).map((bloodType) => <option key={bloodType} value={bloodType}>{bloodType.replace("_", " ")}</option>)}
+          </select>
+        </div>
 
         {renderTextarea({
           label: "Condiciones de Salud",
@@ -729,6 +735,8 @@ export default function EnrollPage(): React.ReactElement {
             </dd>
             <dt className="text-cata-text/65">Cédula</dt>
             <dd className="font-medium text-cata-text">{formData.cedula}</dd>
+            <dt className="text-cata-text/65">Teléfono</dt>
+            <dd className="font-medium text-cata-text">{formData.telefono}</dd>
           </dl>
         </div>
 
@@ -754,31 +762,13 @@ export default function EnrollPage(): React.ReactElement {
                   <span className="text-cata-text/45">—</span>
                 )}
               </dd>
+              <dt className="text-cata-text/65">Contacto</dt>
+              <dd className="font-medium text-cata-text">{formData.telefonoRepresentante}</dd>
+              <dt className="text-cata-text/65">Correo</dt>
+              <dd className="font-medium text-cata-text">{formData.correoRepresentante}</dd>
             </dl>
           </div>
         )}
-
-        {/* Club info */}
-        <div className="card-hover p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <GraduationCap size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-cata-text/45">
-              Información del Club
-            </h3>
-          </div>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <dt className="text-cata-text/65">Evaluación Técnica</dt>
-            <dd className="font-medium text-cata-text">
-              La asignará un entrenador después de observar al estudiante
-            </dd>
-            <dt className="text-cata-text/65">Fecha de Inicio</dt>
-            <dd className="font-medium text-cata-text">{formData.fechaInicio}</dd>
-            <dt className="text-cata-text/65">Estado</dt>
-            <dd className="font-medium text-cata-text">
-              {formData.activo ? "Activo" : "Inactivo"}
-            </dd>
-          </dl>
-        </div>
 
         {/* Health */}
         <div className="card-hover p-4">
@@ -801,6 +791,8 @@ export default function EnrollPage(): React.ReactElement {
                 <span className="text-cata-text/45">Ninguna reportada</span>
               )}
             </dd>
+            <dt className="text-cata-text/65">Tipo de Sangre</dt>
+            <dd className="font-medium text-cata-text">{formData.tipoSangre.replace("_", " ")}</dd>
             <dt className="text-cata-text/65">Contacto de Emergencia</dt>
             <dd className="font-medium text-cata-text">
               {formData.contactoEmergencia}
@@ -844,7 +836,7 @@ export default function EnrollPage(): React.ReactElement {
   // ---- Render ----
 
   return (
-    <ProtectedRoute allowedRoles={["representante", "estudiante"]}>
+    <>
       {confirmed ? (
         <div className="flex min-h-[75vh] items-center justify-center py-12">
           <div className="w-full max-w-lg text-center">
@@ -865,7 +857,7 @@ export default function EnrollPage(): React.ReactElement {
                 "Usted es el titular de la cuenta y el estudiante."}
               {formData.enrollmentType === "child" &&
                 "Usted es el representante / responsable de pago de este estudiante."}{" "}
-              No se almacenó ningún dato real — esto es una demostración de IU.
+               Sus credenciales fueron creadas de forma segura.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
               <Link href="/student" className="btn-primary">
@@ -1046,6 +1038,6 @@ export default function EnrollPage(): React.ReactElement {
           </p>
         </div>
       )}
-    </ProtectedRoute>
+    </>
   );
 }

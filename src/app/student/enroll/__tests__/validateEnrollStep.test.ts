@@ -13,6 +13,7 @@ import {
   type EnrollFormData,
   type WizardStep,
 } from "../enroll-utils";
+import { BLOOD_TYPES } from "@/types/enrollment";
 
 /** Build a valid-enough form data for a given enrollment type. */
 function validForm(overrides: Partial<EnrollFormData> = {}): EnrollFormData {
@@ -22,7 +23,10 @@ function validForm(overrides: Partial<EnrollFormData> = {}): EnrollFormData {
     apellidos: "Pérez",
     fechaNacimiento: "2000-01-15",
     cedula: "1712345678",
-    fechaInicio: "2026-07-01",
+    telefono: "0991234567",
+    correo: "juan@example.com",
+    contrasenia: "password8",
+    tipoSangre: BLOOD_TYPES.O_POSITIVO,
     contactoEmergencia: "María Pérez",
     telefonoEmergencia: "0991234567",
     ...overrides,
@@ -144,14 +148,9 @@ describe("validateEnrollStep — personal step", () => {
   });
 
   it("allows self-enrollment for exactly 18-year-olds", () => {
-    // Birth date exactly 18 years ago from today
+    // Build the local calendar date directly to avoid UTC timezone shifts.
     const now = new Date();
-    const birth = new Date(
-      now.getFullYear() - 18,
-      now.getMonth(),
-      now.getDate(),
-    );
-    const iso = birth.toISOString().slice(0, 10);
+    const iso = `${now.getFullYear() - 18}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     const errors = validateEnrollStep(
       "personal",
       validForm({
@@ -166,30 +165,30 @@ describe("validateEnrollStep — personal step", () => {
 
   it("requires nombre representante for child enrollment", () => {
     const errors = validateEnrollStep(
-      "personal",
+      "club",
       validForm({
         enrollmentType: "child",
         nombreRepresentante: "",
       }),
     );
-    expect(errors).toContain("El nombre del representante es obligatorio.");
+    expect(errors).toContain("Los nombres del representante son obligatorios.");
   });
 
   it("requires cedula representante for child enrollment", () => {
     const errors = validateEnrollStep(
-      "personal",
+      "club",
       validForm({
         enrollmentType: "child",
         nombreRepresentante: "María Rodríguez",
         cedulaRepresentante: "",
       }),
     );
-    expect(errors).toContain("La cédula del representante es obligatoria.");
+    expect(errors).toContain("La cédula del representante debe tener 10 dígitos.");
   });
 
   it("validates cedula representante has 10 digits for child enrollment", () => {
     const errors = validateEnrollStep(
-      "personal",
+      "club",
       validForm({
         enrollmentType: "child",
         nombreRepresentante: "María Rodríguez",
@@ -201,11 +200,16 @@ describe("validateEnrollStep — personal step", () => {
 
   it("passes validation with valid representante data for child enrollment", () => {
     const errors = validateEnrollStep(
-      "personal",
+      "club",
       validForm({
         enrollmentType: "child",
         nombreRepresentante: "María Rodríguez",
+        apellidosRepresentante: "Rodríguez",
         cedulaRepresentante: "0998765432",
+        fechaNacimientoRepresentante: "1980-01-15",
+        telefonoRepresentante: "0991234567",
+        correoRepresentante: "maria@example.com",
+        contraseniaRepresentante: "password8",
       }),
     );
     expect(errors).toEqual([]);
@@ -213,7 +217,7 @@ describe("validateEnrollStep — personal step", () => {
 
   it("does NOT require representante fields for self enrollment", () => {
     const errors = validateEnrollStep(
-      "personal",
+      "club",
       validForm({
         enrollmentType: "self",
         nombreRepresentante: "",
@@ -239,15 +243,15 @@ describe("validateEnrollStep — personal step", () => {
 
   it("represents absent representante with whitespace correctly", () => {
     const errors = validateEnrollStep(
-      "personal",
+      "club",
       validForm({
         enrollmentType: "child",
         nombreRepresentante: "   ",
         cedulaRepresentante: "   ",
       }),
     );
-    expect(errors).toContain("El nombre del representante es obligatorio.");
-    expect(errors).toContain("La cédula del representante es obligatoria.");
+    expect(errors).toContain("Los nombres del representante son obligatorios.");
+    expect(errors).toContain("La cédula del representante debe tener 10 dígitos.");
   });
 });
 
@@ -255,20 +259,18 @@ describe("validateEnrollStep — personal step", () => {
 // Step: club
 // ---------------------------------------------------------------------------
 
-describe("validateEnrollStep — club step", () => {
-  it("returns no errors when fechaInicio is set", () => {
+describe("validateEnrollStep — account step", () => {
+  it("accepts self enrollment credentials", () => {
     const errors = validateEnrollStep("club", validForm());
     expect(errors).toEqual([]);
   });
 
-  it("requires fechaInicio", () => {
-    const errors = validateEnrollStep("club", validForm({ fechaInicio: "" }));
-    expect(errors).toContain("La fecha de inicio es obligatoria.");
+  it("requires a valid self enrollment email", () => {
+    const errors = validateEnrollStep("club", validForm({ correo: "" }));
+    expect(errors).toContain("El correo electrónico no es válido.");
   });
 
-  it("does NOT validate nivel — trainer assigns level after enrollment", () => {
-    // The form data no longer carries a nivel field. Even if an unknown
-    // extra field were present, the club step only checks fechaInicio.
+  it("does NOT collect a technical level", () => {
     const errors = validateEnrollStep("club", validForm());
     expect(errors).toEqual([]);
     // No error related to technical level should appear

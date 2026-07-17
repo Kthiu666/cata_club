@@ -18,6 +18,9 @@
  *          timeout instead — so provide one if you need timeout guarantees.
  */
 
+import type { UserRole } from "@/types/domain";
+import type { EnrollmentRequest, EnrollmentResponse } from "@/types/enrollment";
+
 // ---------------------------------------------------------------------------
 // Types — Membership Payment Validation (CU012)
 // ---------------------------------------------------------------------------
@@ -178,11 +181,11 @@ function getMockRoleHeader(): Record<string, string> {
   try {
     const raw = localStorage.getItem("cata-club-auth-session");
     if (!raw) return {};
-    const session = JSON.parse(raw);
-    const role = session?.user?.role;
-    if (role) return { "x-mock-role": role };
-  } catch (e) {
-    console.error("Failed to read mock role from localStorage:", e);
+    const session: unknown = JSON.parse(raw);
+    if (isMockRoleSession(session)) {
+      return { "x-mock-role": session.user.role };
+    }
+  } catch {
     return {};
   }
   return {};
@@ -230,8 +233,10 @@ async function request<T>(
     if (!response.ok) {
       let message = `Request failed with status ${response.status}`;
       try {
-        const errorBody = await response.json();
-        message = errorBody.message || message;
+        const errorBody: unknown = await response.json();
+        if (isApiErrorBody(errorBody)) {
+          message = errorBody.detail ?? errorBody.message ?? message;
+        }
       } catch {
         // ignore parse errors — use default message
       }
@@ -276,4 +281,38 @@ export async function updatePaymentValidation(
     body: JSON.stringify(data),
     headers: mockHeaders,
   });
+}
+
+/** Submit one public, backend-transactional enrollment request. */
+export async function enrollStudent(data: EnrollmentRequest): Promise<EnrollmentResponse> {
+  const response: unknown = await request<unknown>(apiEndpoint("/enrollment/"), {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  if (!isEnrollmentResponse(response)) {
+    throw new ApiClientError("La respuesta de inscripción no es válida.", 502);
+  }
+  return { enrolled: true };
+}
+
+function isApiErrorBody(value: unknown): value is { message?: string; detail?: string } {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const body = value as Record<string, unknown>;
+  return (typeof body.message === "string" && body.message.length > 0) ||
+    (typeof body.detail === "string" && body.detail.length > 0);
+}
+
+function isMockRoleSession(value: unknown): value is { user: { role: UserRole } } {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const session = value as Record<string, unknown>;
+  const user = session.user;
+  if (typeof user !== "object" || user === null || Array.isArray(user)) return false;
+  const role = (user as Record<string, unknown>).role;
+  return role === "admin" || role === "trainer" || role === "representante" || role === "estudiante";
+}
+
+function isEnrollmentResponse(value: unknown): value is EnrollmentResponse {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const response = value as Record<string, unknown>;
+  return Object.keys(response).length === 1 && response.enrolled === true;
 }
