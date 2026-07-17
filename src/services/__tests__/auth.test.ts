@@ -91,17 +91,17 @@ describe("login — success", () => {
     expect(session!.user.name).toBe("Carlos Entrenador");
   });
 
-  it("returns a session for representative (responsable_pago) credentials", () => {
+  it("returns a session for representante credentials", () => {
     const session = authService.login("representante@cataclub.com", "rep123");
     expect(session).not.toBeNull();
-    expect(session!.user.role).toBe("responsable_pago");
+    expect(session!.user.role).toBe("representante");
     expect(session!.user.name).toBe("Carlos Martinez");
   });
 
-  it("returns a session for self-managed student (responsable_pago) credentials", () => {
+  it("returns a session for self-managed (estudiante) student credentials", () => {
     const session = authService.login("autogestionado@cataclub.com", "self123");
     expect(session).not.toBeNull();
-    expect(session!.user.role).toBe("responsable_pago");
+    expect(session!.user.role).toBe("estudiante");
     expect(session!.user.name).toBe("Sofia Martinez (Autogestionado)");
   });
 

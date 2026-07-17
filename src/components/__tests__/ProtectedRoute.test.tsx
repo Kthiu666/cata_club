@@ -110,9 +110,9 @@ describe("ProtectedRoute", () => {
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
   });
 
-  it("redirects responsable_pago to /student when page requires admin", () => {
+  it("redirects estudiante to /student when page requires admin", () => {
     mockUseAuth.mockReturnValue(
-      createAuthenticatedAuth("responsable_pago"),
+      createAuthenticatedAuth("estudiante"),
     );
 
     render(

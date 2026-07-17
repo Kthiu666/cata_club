@@ -27,9 +27,9 @@ import { getDefaultRoute } from "@/lib/auth-utils";
 const demoAccounts = [
   { email: "admin@cataclub.com", password: "admin123", role: "admin" as const, label: "Administrador", icon: ShieldCheck, color: "bg-cata-red/10 text-cata-red border-cata-red/20" },
   { email: "entrenador@cataclub.com", password: "trainer123", role: "trainer" as const, label: "Entrenador", icon: GraduationCap, color: "bg-cata-state-ok/10 text-cata-state-ok border-cata-state-ok/20" },
-  { email: "representante@cataclub.com", password: "rep123", role: "responsable_pago" as const, label: "Representante", icon: UserCircle, color: "bg-cata-navy/8 text-cata-navy border-cata-navy/20" },
-  { email: "autogestionado@cataclub.com", password: "self123", role: "responsable_pago" as const, label: "Autogestionado", icon: UserCircle, color: "bg-cata-red-light/10 text-cata-red-light border-cata-red-light/25" },
-  { email: "natural@cataclub.com", password: "natural123", role: "responsable_pago" as const, label: "Natural (Pre-inscripción)", icon: UserPlus, color: "bg-cata-gray-light/15 text-cata-charcoal border-cata-gray-light/35" },
+  { email: "representante@cataclub.com", password: "rep123", role: "representante" as const, label: "Representante", icon: UserCircle, color: "bg-cata-navy/8 text-cata-navy border-cata-navy/20" },
+  { email: "autogestionado@cataclub.com", password: "self123", role: "estudiante" as const, label: "Autogestionado", icon: UserCircle, color: "bg-cata-red-light/10 text-cata-red-light border-cata-red-light/25" },
+  { email: "natural@cataclub.com", password: "natural123", role: "representante" as const, label: "Natural (Pre-inscripción)", icon: UserPlus, color: "bg-cata-gray-light/15 text-cata-charcoal border-cata-gray-light/35" },
 ];
 
 export default function LoginPage() {

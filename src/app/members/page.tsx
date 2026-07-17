@@ -261,7 +261,7 @@ function AccountRow({
         <td className="px-4 py-3.5">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cata-red/15">
-              {account.tipo === "representante" ? (
+              {account.role === "representante" ? (
                 <Building2 size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
               ) : (
                 <GraduationCap size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
@@ -272,7 +272,7 @@ function AccountRow({
                 {account.nombres} {account.apellidos}
               </p>
               <p className="text-xs text-cata-text/65">
-                {PAYER_TYPE_LABELS[account.tipo]}
+                {PAYER_TYPE_LABELS[account.role as "representante" | "estudiante"]}
               </p>
             </div>
           </div>

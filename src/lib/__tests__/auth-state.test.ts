@@ -24,6 +24,7 @@ const mockSession: AuthSession = {
     name: "Admin",
     email: "admin@cataclub.com",
     role: "admin",
+    representanteId: null,
     createdAt: "2026-01-01T00:00:00Z",
   },
   token: "demo-token-user-admin-1-1234567890",

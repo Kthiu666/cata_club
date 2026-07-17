@@ -17,24 +17,46 @@
 /**
  * The actor roles in the Cata Club system.
  *
- * Notes on domain correction (2026-07):
- *  - `"responsable_pago"` replaces the old `"student"` and `"representative"`
- *    roles. The login identity is always an account owner / responsible payer,
- *    not the student themself. An account owner may be an external representative
- *    (managing one or more students) or a self-managed adult student.
- *  - See `TipoResponsable` and `ResponsablePago` for the subtype distinction.
+ * Backend alignment (2026-07): the backend models a single `Persona` entity
+ * with a `role` field (`ADMINISTRADOR`, `ENTRENADOR`, `TESORERO`, `ALUMNO`)
+ * and a self-referencing `representante_id` (a Persona pointing to the adult
+ * who manages them — e.g. a parent). `TESORERO` is out of scope for now.
+ *
+ * `"representante"` is NOT a role the backend sends as a literal string —
+ * it is DERIVED at the data-adapter layer: a Persona with no
+ * `representante_id` of its own, but that other Personas reference via
+ * THEIR `representante_id`, and with no `ALUMNO` role itself. It's kept as
+ * an explicit frontend `UserRole` value so switch-based routing/nav logic
+ * stays exhaustive.
  */
-export type UserRole = "admin" | "trainer" | "responsable_pago";
+export type UserRole = "admin" | "trainer" | "representante" | "estudiante";
 
-/** Core user account — identity shared by all roles. */
-export interface Usuario {
+interface UsuarioBase {
   id: string;
   name: string;
   email: string;
-  role: UserRole;
+  /** Self-ref: when set, this account is managed by another Usuario (e.g. a parent). */
+  representanteId: string | null;
   avatarUrl?: string;
   createdAt?: string;
 }
+
+/** Account with an active student profile — replaces old Alumno + ResponsablePago(tipo="autogestionado"). */
+export interface UsuarioEstudiante extends UsuarioBase {
+  role: "estudiante";
+  fechaNacimiento?: string;
+  telefono?: string;
+  /** The group this student is assigned to (if any). Technical level is carried by the group, not the student. */
+  grupoId: string | null;
+  activo: boolean;
+}
+
+/** Staff account, or a pure representante account with no student profile of its own. */
+export interface UsuarioStaff extends UsuarioBase {
+  role: "admin" | "trainer" | "representante";
+}
+
+export type Usuario = UsuarioEstudiante | UsuarioStaff;
 
 // ---------------------------------------------------------------------------
 // Actors (role-specific profiles)
@@ -42,86 +64,6 @@ export interface Usuario {
 
 /** Training level / technical category for students. */
 export type NivelTecnico = "principiante" | "intermedio" | "avanzado";
-
-/**
- * Account owner type.
- *
- * - `"representante"`: external representative (parent/guardian) managing
- *   one or more minor students.
- * - `"autogestionado"`: adult student who manages their own account and
- *   pays for their own membership.
- */
-export type TipoResponsable = "representante" | "autogestionado";
-
-/**
- * Account owner / responsible payer — the person who holds the account
- * and is financially responsible for one or more students.
- *
- * Every login maps to one ResponsablePago (or an admin/trainer account).
- * This replaces the old assumption that every account is either a "student"
- * or a "representative".
- */
-export interface ResponsablePago {
-  id: string;
-  usuarioId: string;
-  tipo: TipoResponsable;
-  nombres: string;
-  apellidos: string;
-  telefono: string;
-  email: string;
-  /** IDs of the students this account owner manages. */
-  alumnosIds: string[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
- * Student (Alumno) — a person who trains at the club.
- *
- * A student is always managed by a ResponsablePago (account owner).
- * - For minor students: the responsible party is an external representative
- *   (parent/guardian).
- * - For adult self-managed students: the responsible party is the student
- *   themself (reflected by `responsablePagoId` pointing to a
- *   ResponsablePago with `tipo: "autogestionado"`).
- *
- * Domain correction (2026-07): Students do NOT carry technical level (nivel)
- * directly. Technical level belongs to the group (Grupo) the student is
- * assigned to. See `Grupo.nivel`.
- */
-export interface Alumno {
-  id: string;
-  usuarioId: string;
-  nombres: string;
-  apellidos: string;
-  fechaNacimiento?: string;
-  telefono?: string;
-  /** The account owner responsible for this student's membership payments. */
-  responsablePagoId: string;
-  /** The group this student is assigned to (if any). Technical level is carried by the group, not the student. */
-  grupoId: string | null;
-  activo: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
- * Representative (Representante) — a specific subtype of account owner.
- *
- * @deprecated Use `ResponsablePago` with `tipo: "representante"` instead.
- * Kept for backward compatibility with existing mock data.
- */
-export interface Representante {
-  id: string;
-  usuarioId: string;
-  nombres: string;
-  apellidos: string;
-  telefono: string;
-  email: string;
-  alumnosIds: string[];
-  createdAt: string;
-  updatedAt: string;
-}
 
 /** Trainer (Entrenador) — leads training sessions. */
 export interface Entrenador {
@@ -282,7 +224,7 @@ export interface Horario {
 /**
  * Medical & emergency contact information for a student (Ficha Médica).
  *
- * Collected during enrollment and linked to an Alumno. This represents the
+ * Collected during enrollment and linked to a student. This represents the
  * health-related data the club needs for student safety — separate from
  * account registration data (which is minimal by design).
  */
@@ -318,31 +260,13 @@ export interface Asistencia {
 // Domain Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Check whether a responsible payer is a self-managed adult student.
- */
-export function isSelfManaged(tipo: TipoResponsable): boolean {
-  return tipo === "autogestionado";
-}
-
-/**
- * Human-readable label for a responsible payer type, in Spanish.
- */
-export function getTipoResponsableLabel(tipo: TipoResponsable): string {
-  switch (tipo) {
-    case "representante":
-      return "Representante";
-    case "autogestionado":
-      return "Alumno autogestionado";
-  }
-}
-
-/**
- * Check whether the given responsible payer manages a specific student.
- */
-export function canManageStudent(
-  responsable: ResponsablePago,
-  alumnoId: string,
-): boolean {
-  return responsable.alumnosIds.includes(alumnoId);
+/** Students managed by the given account (via `representanteId`). */
+export function getManagedAccounts(
+  usuarioId: string,
+  allUsuarios: Usuario[],
+): UsuarioEstudiante[] {
+  return allUsuarios.filter(
+    (u): u is UsuarioEstudiante =>
+      u.role === "estudiante" && u.representanteId === usuarioId,
+  );
 }

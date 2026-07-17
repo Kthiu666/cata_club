@@ -71,7 +71,7 @@ describe("buildMemberStats", () => {
     const accounts: MemberAccount[] = [
       {
         id: "rp-empty-students",
-        tipo: "representante",
+        role: "representante",
         nombres: "Test",
         apellidos: "User",
         email: "test@test.com",
@@ -214,8 +214,8 @@ describe("getPayerTypeLabel", () => {
     expect(getPayerTypeLabel("representante")).toBe("Representante");
   });
 
-  it('returns "Alumno autogestionado" for autogestionado', () => {
-    expect(getPayerTypeLabel("autogestionado")).toBe("Alumno autogestionado");
+  it('returns "Alumno autogestionado" for estudiante', () => {
+    expect(getPayerTypeLabel("estudiante")).toBe("Alumno autogestionado");
   });
 });
 
@@ -261,7 +261,7 @@ describe("countActiveStudents", () => {
   it("returns 0 for an account with no students", () => {
     const emptyAccount: MemberAccount = {
       id: "rp-empty",
-      tipo: "representante",
+      role: "representante",
       nombres: "Empty",
       apellidos: "Account",
       email: "empty@test.com",
@@ -307,7 +307,7 @@ describe("getAccountStatusBadge", () => {
   it("handles accounts with empty alumnos", () => {
     const emptyAccount: MemberAccount = {
       id: "rp-empty",
-      tipo: "representante",
+      role: "representante",
       nombres: "Empty",
       apellidos: "Account",
       email: "empty@test.com",
@@ -448,7 +448,7 @@ describe("MOCK_MEMBER_ACCOUNTS", () => {
       expect(account.apellidos).toBeTruthy();
       expect(account.email).toBeTruthy();
       expect(account.telefono).toBeTruthy();
-      expect(["representante", "autogestionado"] as const).toContain(account.tipo);
+      expect(["representante", "estudiante"] as const).toContain(account.role);
     }
   });
 

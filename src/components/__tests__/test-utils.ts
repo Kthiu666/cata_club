@@ -6,7 +6,7 @@
  */
 
 import type { AuthSession } from "@/services/auth";
-import type { UserRole } from "@/types/domain";
+import type { UserRole, Usuario } from "@/types/domain";
 import type { AuthContextValue } from "@/contexts/AuthContext";
 import { vi } from "vitest";
 
@@ -27,12 +27,31 @@ export function createMockSession(
       name: "Test User",
       email: "test@cataclub.com",
       role: "admin",
+      representanteId: null,
       createdAt: "2026-01-01T00:00:00Z",
     },
     token: "demo-token-test-1234567890",
     loggedInAt: "2026-07-01T12:00:00Z",
     ...overrides,
   };
+}
+
+/**
+ * Build a `Usuario` for the given role — handles the discriminated union so
+ * callers don't need to know that "estudiante" carries extra required fields.
+ */
+function buildUser(role: UserRole, id: string, name: string, email: string): Usuario {
+  const base = {
+    id,
+    name,
+    email,
+    representanteId: null,
+    createdAt: "2026-01-01T00:00:00Z",
+  };
+  if (role === "estudiante") {
+    return { ...base, role, grupoId: null, activo: true };
+  }
+  return { ...base, role };
 }
 
 // ---------------------------------------------------------------------------
@@ -63,13 +82,7 @@ export function createAuthenticatedAuth(
   overrides?: Partial<AuthContextValue>,
 ): AuthContextValue {
   const session = createMockSession({
-    user: {
-      id: `user-${role}-1`,
-      name,
-      email: `${role}@cataclub.com`,
-      role,
-      createdAt: "2026-01-01T00:00:00Z",
-    },
+    user: buildUser(role, `user-${role}-1`, name, `${role}@cataclub.com`),
   });
 
   return {

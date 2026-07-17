@@ -844,7 +844,7 @@ export default function EnrollPage(): React.ReactElement {
   // ---- Render ----
 
   return (
-    <ProtectedRoute allowedRoles={["responsable_pago"]}>
+    <ProtectedRoute allowedRoles={["representante", "estudiante"]}>
       {confirmed ? (
         <div className="flex min-h-[75vh] items-center justify-center py-12">
           <div className="w-full max-w-lg text-center">

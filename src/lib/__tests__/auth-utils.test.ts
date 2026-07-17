@@ -9,11 +9,11 @@ import {
   canAccess,
   getDefaultRoute,
   getRoleLabel,
-  isSelfManaged,
-  getTipoResponsableLabel,
   getNavLinksForRole,
 } from "../auth-utils";
 import type { UserRole } from "@/types/domain";
+
+const ALL_ROLES: UserRole[] = ["admin", "trainer", "representante", "estudiante"];
 
 // ---------------------------------------------------------------------------
 // canAccess
@@ -23,29 +23,28 @@ describe("canAccess", () => {
   it("allows access when role is in allowedRoles", () => {
     expect(canAccess("admin", ["admin"])).toBe(true);
     expect(canAccess("admin", ["admin", "trainer"])).toBe(true);
-    expect(canAccess("trainer", ["admin", "trainer", "responsable_pago"])).toBe(true);
+    expect(canAccess("trainer", ["admin", "trainer", "estudiante"])).toBe(true);
   });
 
   it("denies access when role is not in allowedRoles", () => {
-    expect(canAccess("responsable_pago", ["admin"])).toBe(false);
-    expect(canAccess("trainer", ["responsable_pago"])).toBe(false);
+    expect(canAccess("estudiante", ["admin"])).toBe(false);
+    expect(canAccess("trainer", ["estudiante"])).toBe(false);
   });
 
   it("denies access when role is null (unauthenticated)", () => {
     expect(canAccess(null, ["admin"])).toBe(false);
-    expect(canAccess(null, ["admin", "trainer", "responsable_pago"])).toBe(false);
+    expect(canAccess(null, ["admin", "trainer", "estudiante"])).toBe(false);
     expect(canAccess(null, [])).toBe(false);
   });
 
   it("denies access when allowedRoles is empty", () => {
     expect(canAccess("admin", [])).toBe(false);
-    expect(canAccess("responsable_pago", [])).toBe(false);
+    expect(canAccess("estudiante", [])).toBe(false);
   });
 
   it("covers every role", () => {
-    const allRoles: UserRole[] = ["admin", "trainer", "responsable_pago"];
-    for (const role of allRoles) {
-      expect(canAccess(role, allRoles)).toBe(true);
+    for (const role of ALL_ROLES) {
+      expect(canAccess(role, ALL_ROLES)).toBe(true);
     }
   });
 });
@@ -63,13 +62,16 @@ describe("getDefaultRoute", () => {
     expect(getDefaultRoute("trainer")).toBe("/trainer");
   });
 
-  it('returns "/student" for responsable_pago', () => {
-    expect(getDefaultRoute("responsable_pago")).toBe("/student");
+  it('returns "/student" for representante', () => {
+    expect(getDefaultRoute("representante")).toBe("/student");
+  });
+
+  it('returns "/student" for estudiante', () => {
+    expect(getDefaultRoute("estudiante")).toBe("/student");
   });
 
   it("returns a valid path for every role", () => {
-    const allRoles: UserRole[] = ["admin", "trainer", "responsable_pago"];
-    for (const role of allRoles) {
+    for (const role of ALL_ROLES) {
       const route = getDefaultRoute(role);
       expect(route).toMatch(/^\//);
       expect(route.length).toBeGreaterThan(0);
@@ -90,36 +92,12 @@ describe("getRoleLabel", () => {
     expect(getRoleLabel("trainer")).toBe("Entrenador");
   });
 
-  it('returns "Responsable de pago" for responsable_pago', () => {
-    expect(getRoleLabel("responsable_pago")).toBe("Responsable de pago");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// isSelfManaged
-// ---------------------------------------------------------------------------
-
-describe("isSelfManaged", () => {
-  it("returns true for autogestionado", () => {
-    expect(isSelfManaged("autogestionado")).toBe(true);
+  it('returns "Representante" for representante', () => {
+    expect(getRoleLabel("representante")).toBe("Representante");
   });
 
-  it("returns false for representante", () => {
-    expect(isSelfManaged("representante")).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// getTipoResponsableLabel
-// ---------------------------------------------------------------------------
-
-describe("getTipoResponsableLabel", () => {
-  it('returns "Representante" (domain subtype, not compound UI label)', () => {
-    expect(getTipoResponsableLabel("representante")).toBe("Representante");
-  });
-
-  it('returns "Alumno autogestionado" for autogestionado', () => {
-    expect(getTipoResponsableLabel("autogestionado")).toBe("Alumno autogestionado");
+  it('returns "Alumno" for estudiante', () => {
+    expect(getRoleLabel("estudiante")).toBe("Alumno");
   });
 });
 
@@ -153,16 +131,22 @@ describe("getNavLinksForRole", () => {
     expect(links[1]).toEqual({ href: "/trainer", label: "Entrenador" });
   });
 
-  it("returns responsable_pago link to Mi Cuenta", () => {
-    const links = getNavLinksForRole("responsable_pago");
+  it("returns representante link to Mi Cuenta", () => {
+    const links = getNavLinksForRole("representante");
+    expect(links).toHaveLength(2);
+    expect(links[0]).toEqual({ href: "/", label: "Inicio" });
+    expect(links[1]).toEqual({ href: "/student", label: "Mi Cuenta" });
+  });
+
+  it("returns estudiante link to Mi Cuenta", () => {
+    const links = getNavLinksForRole("estudiante");
     expect(links).toHaveLength(2);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
     expect(links[1]).toEqual({ href: "/student", label: "Mi Cuenta" });
   });
 
   it("every role gets Inicio as first link and at least one role-specific link", () => {
-    const allRoles: UserRole[] = ["admin", "trainer", "responsable_pago"];
-    for (const role of allRoles) {
+    for (const role of ALL_ROLES) {
       const links = getNavLinksForRole(role);
       expect(links.length).toBeGreaterThanOrEqual(2);
       expect(links[0].href).toBe("/");

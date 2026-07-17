@@ -174,7 +174,7 @@ const sessionsByStudent: Record<string, UpcomingSession[]> = {
     { date: "Lun, 30 Jun", time: "18:30 — 20:00", court: "Cancha 3", group: "Avanzados" },
     { date: "Mié, 2 Jul", time: "18:30 — 20:00", court: "Cancha 3", group: "Avanzados" },
   ],
-  // Self-managed adult student (distinct from the children managed by representative)
+  // Self-managed adult student (representanteId: null — distinct from the children managed by a representante)
   "student-self-1": [
     { date: "Lun, 30 Jun", time: "18:30 — 20:00", court: "Cancha 2", group: "Intermedios" },
     { date: "Mié, 2 Jul", time: "18:30 — 20:00", court: "Cancha 2", group: "Intermedios" },
@@ -256,11 +256,12 @@ const membershipPlans: MembershipPlan[] = [
 ];
 
 /**
- * Demo students managed by the representative persona.
- * The self-managed persona only manages themselves.
+ * Demo students managed by the representante persona (their `representanteId`
+ * points to this account). The self-managed persona has `representanteId:
+ * null` and manages only themselves.
  */
 const demoStudentsByAccount: Record<string, DemoStudentInfo[]> = {
-  // Representative managing multiple students
+  // Representante managing multiple students
   "user-rep-1": [
     {
       id: "student-sofia",
@@ -284,7 +285,7 @@ const demoStudentsByAccount: Record<string, DemoStudentInfo[]> = {
       upcomingSessions: [...sessionsByStudent["student-valentina"]],
     },
   ],
-  // Self-managed adult student (manages only themself — distinct identity from minors)
+  // Self-managed adult student (representanteId: null — manages only themself)
   "user-self-1": [
     {
       id: "student-self-1",
@@ -341,13 +342,15 @@ export default function StudentPage(): React.ReactElement {
 
   /**
    * Determine portal mode based on which demo user is logged in.
-   * - user-rep-1 (representante@cataclub.com): external representative managing multiple students.
-   * - user-self-1 (autogestionado@cataclub.com): self-managed adult student.
+   * - user-rep-1 (representante@cataclub.com): role "representante" — manages
+   *   other Usuarios whose `representanteId` points to this account.
+   * - user-self-1 (autogestionado@cataclub.com): role "estudiante" with
+   *   `representanteId: null` (self-managed adult student).
    */
   const isRepresentative = userId === "user-rep-1";
   const isPreEnrollment = userId === "user-natural-1";
   const accountLabel = isRepresentative
-    ? "Representante / Responsable de pago"
+    ? "Representante"
     : isPreEnrollment
       ? "Pre‑inscripción"
       : userId === "user-self-1"
@@ -475,7 +478,7 @@ export default function StudentPage(): React.ReactElement {
   }
 
   return (
-    <ProtectedRoute allowedRoles={["responsable_pago"]}>
+    <ProtectedRoute allowedRoles={["representante", "estudiante"]}>
       <div>
         {/* Hero Banner */}
         <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
@@ -921,9 +924,10 @@ export default function StudentPage(): React.ReactElement {
           <p className="text-sm leading-relaxed text-cata-text/65">
             {isRepresentative ? (
               <>
-                Este portal corresponde a un <strong className="text-cata-text">responsable de pago tipo representante</strong>.
+                Este portal corresponde a una cuenta con rol <strong className="text-cata-text">representante</strong>.
                 Una misma persona (ej. un padre/madre) puede gestionar las membresías y pagos
-                de <strong className="text-cata-text">varios alumnos</strong>. Cada alumno tiene su membresía, sesiones y
+                de <strong className="text-cata-text">varios alumnos</strong> — cada uno es una cuenta propia cuyo
+                `representanteId` apunta a esta cuenta. Cada alumno tiene su membresía, sesiones y
                 comprobantes asociados.
               </>
             ) : isPreEnrollment ? (

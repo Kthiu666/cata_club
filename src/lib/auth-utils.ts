@@ -9,15 +9,6 @@
 import type { UserRole } from "@/types/domain";
 
 // ---------------------------------------------------------------------------
-// Re-exports from domain.ts (single source of truth — no duplication)
-// ---------------------------------------------------------------------------
-
-export {
-  isSelfManaged,
-  getTipoResponsableLabel,
-} from "@/types/domain";
-
-// ---------------------------------------------------------------------------
 // Pure navigation link data (no icon components — use at UI layer)
 // ---------------------------------------------------------------------------
 
@@ -61,7 +52,8 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
     case "trainer":
       links.push({ href: "/trainer", label: "Entrenador" });
       break;
-    case "responsable_pago":
+    case "representante":
+    case "estudiante":
       links.push({ href: "/student", label: "Mi Cuenta" });
       break;
   }
@@ -104,7 +96,8 @@ export function getDefaultRoute(role: UserRole): string {
       return "/dashboard";
     case "trainer":
       return "/trainer";
-    case "responsable_pago":
+    case "representante":
+    case "estudiante":
       return "/student";
   }
 }
@@ -118,7 +111,9 @@ export function getRoleLabel(role: UserRole): string {
       return "Administrador";
     case "trainer":
       return "Entrenador";
-    case "responsable_pago":
-      return "Responsable de pago";
+    case "representante":
+      return "Representante";
+    case "estudiante":
+      return "Alumno";
   }
 }

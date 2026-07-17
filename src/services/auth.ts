@@ -36,7 +36,8 @@ export interface AuthSession {
 const VALID_ROLES: readonly UserRole[] = [
   "admin",
   "trainer",
-  "responsable_pago",
+  "representante",
+  "estudiante",
 ] as const;
 
 /**
@@ -123,11 +124,12 @@ const safeStorage = {
  *
  * These are the ONLY credentials the mock auth service accepts.
  *
- * Domain model (2026-07 correction):
- *  - `"responsable_pago"` replaces the old `"student"` and `"representative"`
- *    roles. An account owner may be an external representative (managing
- *    multiple students) or a self-managed adult student.
- *  - See DEMO_PERSONAS below for examples of both subtypes.
+ * Domain model (2026-07 backend alignment):
+ *  - `"representante"` and `"estudiante"` replace the old `"responsable_pago"`
+ *    role. An account owner may be a pure representative (parent/guardian
+ *    managing one or more students, no student profile of its own) or a
+ *    self-managed adult student (`representanteId: null`).
+ *  - See DEMO_PERSONAS below for examples of both.
  */
 export const DEMO_PERSONAS: DemoPersona[] = [
   {
@@ -138,6 +140,7 @@ export const DEMO_PERSONAS: DemoPersona[] = [
       name: "Admin Cata Club",
       email: "admin@cataclub.com",
       role: "admin",
+      representanteId: null,
       createdAt: "2026-01-01T00:00:00Z",
     },
   },
@@ -149,6 +152,7 @@ export const DEMO_PERSONAS: DemoPersona[] = [
       name: "Carlos Entrenador",
       email: "entrenador@cataclub.com",
       role: "trainer",
+      representanteId: null,
       createdAt: "2026-01-15T00:00:00Z",
     },
   },
@@ -159,7 +163,8 @@ export const DEMO_PERSONAS: DemoPersona[] = [
       id: "user-rep-1",
       name: "Carlos Martinez",
       email: "representante@cataclub.com",
-      role: "responsable_pago",
+      role: "representante",
+      representanteId: null,
       createdAt: "2026-02-01T00:00:00Z",
     },
   },
@@ -170,7 +175,10 @@ export const DEMO_PERSONAS: DemoPersona[] = [
       id: "user-self-1",
       name: "Sofia Martinez (Autogestionado)",
       email: "autogestionado@cataclub.com",
-      role: "responsable_pago",
+      role: "estudiante",
+      representanteId: null,
+      grupoId: null,
+      activo: true,
       createdAt: "2026-02-01T00:00:00Z",
     },
   },
@@ -181,7 +189,12 @@ export const DEMO_PERSONAS: DemoPersona[] = [
       id: "user-natural-1",
       name: "Usuario Natural",
       email: "natural@cataclub.com",
-      role: "responsable_pago",
+      // Pre-enrollment persona: hasn't chosen self/child enrollment yet, so
+      // there's no student profile to attach. Modeled as a representante
+      // with nothing managed yet — /student still renders their pre-
+      // enrollment view (see student/page.tsx isPreEnrollment check).
+      role: "representante",
+      representanteId: null,
       createdAt: "2026-02-01T00:00:00Z",
     },
   },

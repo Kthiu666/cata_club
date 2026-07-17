@@ -7,7 +7,7 @@
 
 import type {
   Grupo,
-  TipoResponsable,
+  UserRole,
   TipoMembresia,
   EstadoMembresia,
 } from "@/types/domain";
@@ -27,6 +27,7 @@ export interface MemberStudentSummary {
   id: string;
   nombres: string;
   apellidos: string;
+  email: string;
   /** The group this student belongs to (if assigned). Technical level is carried by the group, not the student. */
   grupoId: string | null;
   fechaNacimiento?: string;
@@ -46,10 +47,16 @@ export interface MemberStudentSummary {
   } | null;
 }
 
-/** A responsible payer / account owner with their managed students. */
+/**
+ * An account-owner row — a `Usuario` with `role: "representante"` or a
+ * self-managed `role: "estudiante"` (`representanteId: null`) — with its
+ * managed students. `alumnos` is the derived list of `UsuarioEstudiante`
+ * accounts whose `representanteId` points to this account (self-managed
+ * accounts include themselves).
+ */
 export interface MemberAccount {
   id: string;
-  tipo: TipoResponsable;
+  role: UserRole;
   nombres: string;
   apellidos: string;
   email: string;
@@ -96,9 +103,9 @@ export const PAYMENT_STATUS_BADGE: Record<PaymentStatus, string> = {
   rechazado: "badge-error",
 };
 
-export const PAYER_TYPE_LABELS: Record<TipoResponsable, string> = {
+export const PAYER_TYPE_LABELS: Record<"representante" | "estudiante", string> = {
   representante: "Representante",
-  autogestionado: "Alumno autogestionado",
+  estudiante: "Alumno autogestionado",
 };
 
 export const MEMBERSHIP_TYPE_LABELS: Record<TipoMembresia, string> = {
@@ -225,10 +232,10 @@ export function formatMembershipPeriod(
 }
 
 /**
- * Get the full display name for a responsible payer type.
+ * Get the full display name for an account owner's role.
  */
-export function getPayerTypeLabel(tipo: TipoResponsable): string {
-  return PAYER_TYPE_LABELS[tipo];
+export function getPayerTypeLabel(role: "representante" | "estudiante"): string {
+  return PAYER_TYPE_LABELS[role];
 }
 
 /**

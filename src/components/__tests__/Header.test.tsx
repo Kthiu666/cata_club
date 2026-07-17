@@ -226,11 +226,11 @@ describe("Header", (): void => {
     expect(screen.getByText("Carlos Entrenador")).toBeInTheDocument();
   });
 
-  // --- Authenticated — responsable_pago ---
+  // --- Authenticated — representante ---
 
-  it("shows responsable_pago nav link", (): void => {
+  it("shows representante nav link", (): void => {
     mockUseAuth.mockReturnValue(
-      createAuthenticatedAuth("responsable_pago", "Carlos Martinez"),
+      createAuthenticatedAuth("representante", "Carlos Martinez"),
     );
 
     render(<Header />);
