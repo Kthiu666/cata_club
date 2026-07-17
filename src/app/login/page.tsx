@@ -15,13 +15,13 @@ import { type FormEvent, useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Lock, Mail, AlertCircle, ShieldCheck, GraduationCap, UserCircle, UserPlus } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, AlertCircle, ShieldCheck, GraduationCap, UserCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getDefaultRoute } from "@/lib/auth-utils";
 
 // Demo-role chip colors are constrained to the declared `cata-*` brand
 // namespace only (fix B1). The namespace has 3 genuinely distinct hues
-// (red, state-ok green, navy); 2 of the 5 roles reuse a red shade
+// (red, state-ok green, navy); 2 of the 4 roles reuse a red shade
 // differentiated by bold label text + a unique icon rather than an
 // off-palette hue.
 const demoAccounts = [
@@ -29,7 +29,6 @@ const demoAccounts = [
   { email: "entrenador@cataclub.com", password: "trainer123", role: "trainer" as const, label: "Entrenador", icon: GraduationCap, color: "bg-cata-state-ok/10 text-cata-state-ok border-cata-state-ok/20" },
   { email: "representante@cataclub.com", password: "rep123", role: "representante" as const, label: "Representante", icon: UserCircle, color: "bg-cata-navy/8 text-cata-navy border-cata-navy/20" },
   { email: "autogestionado@cataclub.com", password: "self123", role: "estudiante" as const, label: "Autogestionado", icon: UserCircle, color: "bg-cata-red-light/10 text-cata-red-light border-cata-red-light/25" },
-  { email: "natural@cataclub.com", password: "natural123", role: "representante" as const, label: "Natural (Pre-inscripción)", icon: UserPlus, color: "bg-cata-gray-light/15 text-cata-charcoal border-cata-gray-light/35" },
 ];
 
 export default function LoginPage() {
