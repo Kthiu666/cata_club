@@ -44,7 +44,7 @@ import {
   MEMBERSHIP_STATUS_BADGE,
   PAYMENT_STATUS_LABELS,
   PAYMENT_STATUS_BADGE,
-  PAYER_TYPE_LABELS,
+  getPayerTypeLabel,
   MEMBERSHIP_TYPE_LABELS,
   type MemberAccount,
   type MemberStudentSummary,
@@ -272,7 +272,7 @@ function AccountRow({
                 {account.nombres} {account.apellidos}
               </p>
               <p className="text-xs text-cata-text/65">
-                {PAYER_TYPE_LABELS[account.role as "representante" | "estudiante"]}
+                {getPayerTypeLabel(account.role)}
               </p>
             </div>
           </div>

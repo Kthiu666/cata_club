@@ -7,7 +7,6 @@
 
 import type {
   Grupo,
-  UserRole,
   TipoMembresia,
   EstadoMembresia,
 } from "@/types/domain";
@@ -21,6 +20,13 @@ export type PaymentStatus =
   | "pendiente_validacion"
   | "aprobado"
   | "rechazado";
+
+/**
+ * Account-owner roles that can appear in the members list — a narrow subset
+ * of `UserRole` (admin/trainer never own a member row here), so the compiler
+ * rejects any value `PAYER_TYPE_LABELS` doesn't have a label for.
+ */
+export type PayerType = "representante" | "estudiante";
 
 /** A student summary visible in the admin members list. */
 export interface MemberStudentSummary {
@@ -56,7 +62,7 @@ export interface MemberStudentSummary {
  */
 export interface MemberAccount {
   id: string;
-  role: UserRole;
+  role: PayerType;
   nombres: string;
   apellidos: string;
   email: string;
@@ -103,7 +109,7 @@ export const PAYMENT_STATUS_BADGE: Record<PaymentStatus, string> = {
   rechazado: "badge-error",
 };
 
-export const PAYER_TYPE_LABELS: Record<"representante" | "estudiante", string> = {
+export const PAYER_TYPE_LABELS: Record<PayerType, string> = {
   representante: "Representante",
   estudiante: "Alumno autogestionado",
 };
@@ -234,7 +240,7 @@ export function formatMembershipPeriod(
 /**
  * Get the full display name for an account owner's role.
  */
-export function getPayerTypeLabel(role: "representante" | "estudiante"): string {
+export function getPayerTypeLabel(role: PayerType): string {
   return PAYER_TYPE_LABELS[role];
 }
 
