@@ -138,7 +138,7 @@ export function getLevelBadgeTokens(levelLabel: string): string {
  * first. Returns the updated grupos array (immutable — no mutation).
  */
 export function assignStudentToGroup(
-  alumnoId: string,
+  estudianteId: string,
   targetGrupoId: string,
   grupos: Grupo[],
 ): AssignmentResult {
@@ -152,30 +152,30 @@ export function assignStudentToGroup(
   }
 
   // Student already in target?
-  if (grupos[targetIdx].alumnosIds.includes(alumnoId)) {
+  if (grupos[targetIdx].estudiantesIds.includes(estudianteId)) {
     return {
       updatedGrupos: grupos,
       success: false,
-      message: "El alumno ya pertenece a este grupo.",
+      message: "El estudiante ya pertenece a este grupo.",
     };
   }
 
   // Remove from all groups, add to target (immutable)
   const working = grupos.map((g) => ({
     ...g,
-    alumnosIds: g.alumnosIds.filter((id) => id !== alumnoId),
+    estudiantesIds: g.estudiantesIds.filter((id) => id !== estudianteId),
   }));
 
   const updatedGrupos = working.map((g) =>
     g.id === targetGrupoId
-      ? { ...g, alumnosIds: [...g.alumnosIds, alumnoId] }
+      ? { ...g, estudiantesIds: [...g.estudiantesIds, estudianteId] }
       : g,
   );
 
   return {
     updatedGrupos,
     success: true,
-    message: "Alumno asignado al grupo correctamente.",
+    message: "Estudiante asignado al grupo correctamente.",
   };
 }
 
@@ -184,12 +184,12 @@ export function assignStudentToGroup(
  * Returns the updated grupos array (immutable).
  */
 export function removeStudentFromAllGroups(
-  alumnoId: string,
+  estudianteId: string,
   grupos: Grupo[],
 ): Grupo[] {
   return grupos.map((g) => ({
     ...g,
-    alumnosIds: g.alumnosIds.filter((id) => id !== alumnoId),
+    estudiantesIds: g.estudiantesIds.filter((id) => id !== estudianteId),
   }));
 }
 
@@ -200,7 +200,7 @@ export function getStudentsByGroup(
   grupo: Grupo,
   allStudents: StudentRef[],
 ): StudentRef[] {
-  return allStudents.filter((s) => grupo.alumnosIds.includes(s.id));
+  return allStudents.filter((s) => grupo.estudiantesIds.includes(s.id));
 }
 
 /**
@@ -260,7 +260,7 @@ export function getGroupCapacity(
     groupSchedules.length > 0
       ? Math.min(...groupSchedules.map((s) => s.cupoMaximo))
       : 0;
-  const assigned = grupo.alumnosIds.length;
+  const assigned = grupo.estudiantesIds.length;
   const available = total - assigned;
   const percent = total > 0 ? Math.round((assigned / total) * 100) : 0;
   return { total, available, percent };
@@ -282,7 +282,7 @@ export function buildGroupCards(
       name: grupo.nombre,
       level: grupo.nivel,
       levelLabel: getLevelLabel(grupo.nivel),
-      studentCount: grupo.alumnosIds.length,
+      studentCount: grupo.estudiantesIds.length,
       capacity: total,
       capacityPercent: percent,
       scheduleCount: groupSchedules.length,
@@ -298,10 +298,10 @@ export function buildGroupCards(
  * Derive training sessions from group + schedule data.
  *
  * This replaces the hardcoded AVAILABLE_SESSIONS in the trainer attendance
- * flow, tying session rosters to Grupo.alumnosIds so the relationship is
+ * flow, tying session rosters to Grupo.estudiantesIds so the relationship is
  * explicit and tested.
  *
- * @param grupos — All groups with alumnosIds linking them to students.
+ * @param grupos — All groups with estudiantesIds linking them to students.
  * @param schedules — All schedule slots (Horario), keyed by id.
  * @param studentNameMap — A map of studentId → display name, built from
  *   the mock member accounts or any student list.
@@ -334,10 +334,10 @@ export function buildTrainingSessions(
       const diaLabel = DIA_SEMANA_LABELS[schedule.diaSemana] ?? schedule.diaSemana;
       const shortDia = diaLabel.slice(0, 3); // "Lun", "Mar", etc.
 
-      // Derive roster from grupo.alumnosIds
-      const students: SessionStudent[] = grupo.alumnosIds.map((alumnoId) => ({
-        id: alumnoId,
-        name: studentNameMap[alumnoId] ?? `Alumno ${alumnoId}`,
+      // Derive roster from grupo.estudiantesIds
+      const students: SessionStudent[] = grupo.estudiantesIds.map((estudianteId) => ({
+        id: estudianteId,
+        name: studentNameMap[estudianteId] ?? `Estudiante ${estudianteId}`,
         attendance: "absent" as EstadoAsistencia,
       }));
 

@@ -99,10 +99,10 @@ describe("login — success", () => {
   });
 
   it("returns a session for self-managed (estudiante) student credentials", () => {
-    const session = authService.login("autogestionado@cataclub.com", "self123");
+    const session = authService.login("estudiante@cataclub.com", "self123");
     expect(session).not.toBeNull();
     expect(session!.user.role).toBe("estudiante");
-    expect(session!.user.name).toBe("Sofia Martinez (Autogestionado)");
+    expect(session!.user.name).toBe("Sofia Martinez");
   });
 
   it("persists the session to localStorage", () => {

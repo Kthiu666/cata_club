@@ -11,7 +11,7 @@
  *   - Horario/session is NOT owned by one trainer.
  *   - Any trainer can register attendance in any available session.
  *   - The system records which trainer took the attendance.
- *   - Attendance is tied to a specific session/horario and specific alumnos.
+ *   - Attendance is tied to a specific session/horario and specific estudiantes.
  *
  * No data is persisted — this is a UI prototype akin to a Figma mockup.
  * All labels and copy are in Spanish per app convention.
@@ -427,7 +427,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
           </div>
           <p className="mt-1 text-xs text-cata-state-ok/80">
             {trainerName} será registrado como el entrenador que tomó la asistencia
-            de {students.length} alumnos en esta sesión.
+            de {students.length} estudiantes en esta sesión.
           </p>
         </div>
 
@@ -469,7 +469,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
             <p className="mb-2 text-sm leading-relaxed text-cata-text/65">
               <strong className="text-cata-text">{trainerName}</strong> figura como
               el entrenador que tomó la asistencia de{" "}
-              <strong className="text-cata-text">{students.length} alumnos</strong>.
+              <strong className="text-cata-text">{students.length} estudiantes</strong>.
             </p>
             {students.length > 0 && (
               <p className="mb-8 text-xs text-cata-text/40">
@@ -503,7 +503,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
                 </h1>
                 <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
                   {step === "select-session" && "Seleccione la sesión en la que desea registrar asistencia."}
-                  {step === "mark-attendance" && "Marque la asistencia de cada alumno en la sesión seleccionada."}
+                  {step === "mark-attendance" && "Marque la asistencia de cada estudiante en la sesión seleccionada."}
                   {step === "confirm" && "Revise y confirme el registro de asistencia."}
                 </p>
               </div>

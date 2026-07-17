@@ -345,7 +345,7 @@ export default function EnrollPage(): React.ReactElement {
             </h3>
             <p className="text-xs leading-relaxed text-cata-text/65">
               Quiero inscribirme yo al club. Soy mayor de edad y gestiono mi
-              propia cuenta como alumno.
+              propia cuenta como estudiante.
             </p>
             {formData.enrollmentType === "self" && (
               <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-cata-red">
@@ -373,7 +373,7 @@ export default function EnrollPage(): React.ReactElement {
             </h3>
             <p className="text-xs leading-relaxed text-cata-text/65">
               Quiero gestionar la inscripción de un hijo/dependiente.
-              El alumno es distinto de mi cuenta.
+              El estudiante es distinto de mi cuenta.
             </p>
             {formData.enrollmentType === "child" && (
               <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-cata-red">
@@ -392,8 +392,8 @@ export default function EnrollPage(): React.ReactElement {
               Inscripción de dependiente
             </p>
             <p className="mt-1 text-amber-700/80">
-              Como representante, usted será el responsable de pago de este alumno.
-              Los datos del alumno se registrarán por separado de su cuenta.
+              Como representante, usted será el responsable de pago de este estudiante.
+              Los datos del estudiante se registrarán por separado de su cuenta.
               Complete los datos del representante para identificar al adulto
               responsable.
             </p>
@@ -407,7 +407,7 @@ export default function EnrollPage(): React.ReactElement {
               Inscripción como jugador
             </p>
             <p className="mt-1 text-emerald-700/80">
-              Usted será el alumno titular de la cuenta. No se requieren datos
+              Usted será el estudiante titular de la cuenta. No se requieren datos
               de representante.
             </p>
           </div>
@@ -423,7 +423,7 @@ export default function EnrollPage(): React.ReactElement {
           {formData.enrollmentType === "self" &&
             "Ingrese sus datos personales:"}
           {formData.enrollmentType === "child" &&
-            "Ingrese los datos personales del alumno a inscribir:"}
+            "Ingrese los datos personales del estudiante a inscribir:"}
         </p>
 
         {renderInput({
@@ -500,7 +500,7 @@ export default function EnrollPage(): React.ReactElement {
               </div>
               <p className="mb-4 text-xs leading-relaxed text-cata-text/65">
                 Identifique al adulto responsable de pago y representante legal
-                del alumno:
+                del estudiante:
               </p>
 
               {renderInput({
@@ -546,7 +546,7 @@ export default function EnrollPage(): React.ReactElement {
     return (
       <div className="space-y-1">
         <p className="mb-4 text-sm leading-relaxed text-cata-text/65">
-          Información administrativa del alumno en Cata Club:
+          Información administrativa del estudiante en Cata Club:
         </p>
 
         <div className="mb-4 rounded-xl border border-cata-border bg-cata-bg p-4 text-sm text-cata-text/65">
@@ -580,10 +580,10 @@ export default function EnrollPage(): React.ReactElement {
               disabled={submitting}
               className="h-4 w-4 rounded border-cata-border text-cata-red focus:ring-cata-red/30"
             />
-            Alumno activo desde el inicio
+            Estudiante activo desde el inicio
           </label>
           <p className="ml-6 text-xs text-cata-text/40">
-            Si está marcado, el alumno comienza a entrenar inmediatamente. Si no,
+            Si está marcado, el estudiante comienza a entrenar inmediatamente. Si no,
             se registrará como inactivo hasta que un administrador lo active.
           </p>
         </div>
@@ -595,7 +595,7 @@ export default function EnrollPage(): React.ReactElement {
     return (
       <div className="space-y-1">
         <p className="mb-4 text-sm leading-relaxed text-cata-text/65">
-          Información que el club necesita conocer para la seguridad del alumno:
+          Información que el club necesita conocer para la seguridad del estudiante:
         </p>
 
         {renderTextarea({
@@ -695,7 +695,7 @@ export default function EnrollPage(): React.ReactElement {
             {formData.enrollmentType === "self" && (
               <>
                 <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                <span>Jugador — El alumno es el titular de la cuenta</span>
+                <span>Jugador — El estudiante es el titular de la cuenta</span>
               </>
             )}
             {formData.enrollmentType === "child" && (
@@ -712,7 +712,7 @@ export default function EnrollPage(): React.ReactElement {
           <div className="mb-3 flex items-center gap-2">
             <User size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
             <h3 className="text-xs font-semibold uppercase tracking-wider text-cata-text/45">
-              Datos del Alumno
+              Datos del Estudiante
             </h3>
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
@@ -769,7 +769,7 @@ export default function EnrollPage(): React.ReactElement {
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <dt className="text-cata-text/65">Evaluación Técnica</dt>
             <dd className="font-medium text-cata-text">
-              La asignará un entrenador después de observar al alumno
+              La asignará un entrenador después de observar al estudiante
             </dd>
             <dt className="text-cata-text/65">Fecha de Inicio</dt>
             <dd className="font-medium text-cata-text">{formData.fechaInicio}</dd>
@@ -858,13 +858,13 @@ export default function EnrollPage(): React.ReactElement {
               <strong className="text-cata-text">
                 {formData.nombres} {formData.apellidos}
               </strong>{" "}
-              ha sido registrado como alumno de Cata Club.
+              ha sido registrado como estudiante de Cata Club.
             </p>
             <p className="mb-8 text-xs leading-relaxed text-cata-text/40">
               {formData.enrollmentType === "self" &&
-                "Usted es el titular de la cuenta y el alumno."}
+                "Usted es el titular de la cuenta y el estudiante."}
               {formData.enrollmentType === "child" &&
-                "Usted es el representante / responsable de pago de este alumno."}{" "}
+                "Usted es el representante / responsable de pago de este estudiante."}{" "}
               No se almacenó ningún dato real — esto es una demostración de IU.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
@@ -890,10 +890,10 @@ export default function EnrollPage(): React.ReactElement {
                   Inscripción
                 </div>
                 <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
-                  Inscripción de Alumno
+                  Inscripción de Estudiante
                 </h1>
                 <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-                  Complete los pasos para inscribir a un alumno en Cata Club.
+                  Complete los pasos para inscribir a un estudiante en Cata Club.
                   {formData.enrollmentType === "self" && " Inscripción como jugador."}
                   {formData.enrollmentType === "child" && " Usted actúa como representante."}
                 </p>

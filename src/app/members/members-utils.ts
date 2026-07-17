@@ -56,7 +56,7 @@ export interface MemberStudentSummary {
 /**
  * An account-owner row — a `Usuario` with `role: "representante"` or a
  * self-managed `role: "estudiante"` (`representanteId: null`) — with its
- * managed students. `alumnos` is the derived list of `UsuarioEstudiante`
+ * managed students. `estudiantes` is the derived list of `UsuarioEstudiante`
  * accounts whose `representanteId` points to this account (self-managed
  * accounts include themselves).
  */
@@ -67,7 +67,7 @@ export interface MemberAccount {
   apellidos: string;
   email: string;
   telefono: string;
-  alumnos: MemberStudentSummary[];
+  estudiantes: MemberStudentSummary[];
 }
 
 /** Aggregate statistics for the members overview. */
@@ -111,7 +111,7 @@ export const PAYMENT_STATUS_BADGE: Record<PaymentStatus, string> = {
 
 export const PAYER_TYPE_LABELS: Record<PayerType, string> = {
   representante: "Representante",
-  estudiante: "Alumno autogestionado",
+  estudiante: "Estudiante",
 };
 
 export const MEMBERSHIP_TYPE_LABELS: Record<TipoMembresia, string> = {
@@ -191,12 +191,12 @@ export function buildMemberStats(accounts: MemberAccount[]): MemberStats {
   let pendingPayments = 0;
 
   for (const account of accounts) {
-    for (const alumno of account.alumnos) {
+    for (const estudiante of account.estudiantes) {
       totalStudents++;
-      if (alumno.membresia?.estado === "activa") {
+      if (estudiante.membresia?.estado === "activa") {
         activeMemberships++;
       }
-      if (alumno.ultimoPago?.estado === "pendiente_validacion") {
+      if (estudiante.ultimoPago?.estado === "pendiente_validacion") {
         pendingPayments++;
       }
     }
@@ -284,7 +284,7 @@ export function filterAccounts(
     if (normalizeText(account.email).includes(term)) {
       return true;
     }
-    return account.alumnos.some((a) =>
+    return account.estudiantes.some((a) =>
       normalizeText(`${a.nombres} ${a.apellidos}`).includes(term),
     );
   });
@@ -294,7 +294,7 @@ export function filterAccounts(
  * Count the number of students with active membership for a given account.
  */
 export function countActiveStudents(account: MemberAccount): number {
-  return account.alumnos.filter(
+  return account.estudiantes.filter(
     (a) => a.membresia?.estado === "activa",
   ).length;
 }
@@ -317,7 +317,7 @@ export function getAccountStatusBadge(account: MemberAccount): {
     return { label: "Activo", className: "badge-success" };
   }
   if (
-    account.alumnos.some(
+    account.estudiantes.some(
       (a) => a.ultimoPago?.estado === "pendiente_validacion",
     )
   ) {

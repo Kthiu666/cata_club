@@ -114,6 +114,6 @@ export function getRoleLabel(role: UserRole): string {
     case "representante":
       return "Representante";
     case "estudiante":
-      return "Alumno";
+      return "Estudiante";
   }
 }

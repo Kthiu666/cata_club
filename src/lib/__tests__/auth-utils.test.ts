@@ -96,8 +96,8 @@ describe("getRoleLabel", () => {
     expect(getRoleLabel("representante")).toBe("Representante");
   });
 
-  it('returns "Alumno" for estudiante', () => {
-    expect(getRoleLabel("estudiante")).toBe("Alumno");
+  it('returns "Estudiante" for estudiante', () => {
+    expect(getRoleLabel("estudiante")).toBe("Estudiante");
   });
 });
 

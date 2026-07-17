@@ -46,7 +46,7 @@ describe("buildMemberStats", () => {
     expect(stats.totalStudents).toBeGreaterThan(0);
     // Validate counts are consistent: every student is counted once
     const expectedStudents = MOCK_MEMBER_ACCOUNTS.reduce(
-      (acc, a) => acc + a.alumnos.length,
+      (acc, a) => acc + a.estudiantes.length,
       0,
     );
     expect(stats.totalStudents).toBe(expectedStudents);
@@ -67,7 +67,7 @@ describe("buildMemberStats", () => {
     expect(stats.pendingPayments).toBe(3);
   });
 
-  it("handles accounts with empty alumnos arrays", () => {
+  it("handles accounts with empty estudiantes arrays", () => {
     const accounts: MemberAccount[] = [
       {
         id: "rp-empty-students",
@@ -76,7 +76,7 @@ describe("buildMemberStats", () => {
         apellidos: "User",
         email: "test@test.com",
         telefono: "+593 00 000 0000",
-        alumnos: [],
+        estudiantes: [],
       },
       ...MOCK_MEMBER_ACCOUNTS,
     ];
@@ -214,8 +214,8 @@ describe("getPayerTypeLabel", () => {
     expect(getPayerTypeLabel("representante")).toBe("Representante");
   });
 
-  it('returns "Alumno autogestionado" for estudiante', () => {
-    expect(getPayerTypeLabel("estudiante")).toBe("Alumno autogestionado");
+  it('returns "Estudiante" for estudiante', () => {
+    expect(getPayerTypeLabel("estudiante")).toBe("Estudiante");
   });
 });
 
@@ -266,7 +266,7 @@ describe("countActiveStudents", () => {
       apellidos: "Account",
       email: "empty@test.com",
       telefono: "+593 00 000 0000",
-      alumnos: [],
+      estudiantes: [],
     };
     expect(countActiveStudents(emptyAccount)).toBe(0);
   });
@@ -304,7 +304,7 @@ describe("getAccountStatusBadge", () => {
     });
   });
 
-  it("handles accounts with empty alumnos", () => {
+  it("handles accounts with empty estudiantes", () => {
     const emptyAccount: MemberAccount = {
       id: "rp-empty",
       role: "representante",
@@ -312,7 +312,7 @@ describe("getAccountStatusBadge", () => {
       apellidos: "Account",
       email: "empty@test.com",
       telefono: "+593 00 000 0000",
-      alumnos: [],
+      estudiantes: [],
     };
     expect(getAccountStatusBadge(emptyAccount)).toEqual({
       label: "Requiere atención",
@@ -454,15 +454,15 @@ describe("MOCK_MEMBER_ACCOUNTS", () => {
 
   it("every student has required fields", () => {
     for (const account of MOCK_MEMBER_ACCOUNTS) {
-      for (const alumno of account.alumnos) {
-        expect(alumno.id).toBeTruthy();
-        expect(alumno.nombres).toBeTruthy();
-        expect(alumno.apellidos).toBeTruthy();
+      for (const estudiante of account.estudiantes) {
+        expect(estudiante.id).toBeTruthy();
+        expect(estudiante.nombres).toBeTruthy();
+        expect(estudiante.apellidos).toBeTruthy();
         // grupoId is either a valid group reference or null (unassigned)
-        expect(alumno.grupoId).toBeDefined();
-        if (alumno.grupoId !== null) {
-          expect(typeof alumno.grupoId).toBe("string");
-          expect(alumno.grupoId.length).toBeGreaterThan(0);
+        expect(estudiante.grupoId).toBeDefined();
+        if (estudiante.grupoId !== null) {
+          expect(typeof estudiante.grupoId).toBe("string");
+          expect(estudiante.grupoId.length).toBeGreaterThan(0);
         }
       }
     }
@@ -470,15 +470,15 @@ describe("MOCK_MEMBER_ACCOUNTS", () => {
 
   it("every account has at least one student", () => {
     for (const account of MOCK_MEMBER_ACCOUNTS) {
-      expect(account.alumnos.length).toBeGreaterThan(0);
+      expect(account.estudiantes.length).toBeGreaterThan(0);
     }
   });
 
   it("students do not own nivel directly — nivel comes from group context", () => {
     for (const account of MOCK_MEMBER_ACCOUNTS) {
-      for (const alumno of account.alumnos) {
+      for (const estudiante of account.estudiantes) {
         // The MemberStudentSummary type uses grupoId, not nivel
-        expect("nivel" in alumno).toBe(false);
+        expect("nivel" in estudiante).toBe(false);
       }
     }
   });
@@ -486,9 +486,9 @@ describe("MOCK_MEMBER_ACCOUNTS", () => {
   it("every grupoId references a known group", () => {
     const knownIds = new Set(MOCK_GRUPOS.map((g) => g.id));
     for (const account of MOCK_MEMBER_ACCOUNTS) {
-      for (const alumno of account.alumnos) {
-        if (alumno.grupoId !== null) {
-          expect(knownIds.has(alumno.grupoId)).toBe(true);
+      for (const estudiante of account.estudiantes) {
+        if (estudiante.grupoId !== null) {
+          expect(knownIds.has(estudiante.grupoId)).toBe(true);
         }
       }
     }
@@ -511,7 +511,7 @@ describe("MOCK_GRUPOS", () => {
       expect(["principiante", "intermedio", "avanzado"] as const).toContain(
         grupo.nivel,
       );
-      expect(grupo.alumnosIds.length).toBeGreaterThan(0);
+      expect(grupo.estudiantesIds.length).toBeGreaterThan(0);
     }
   });
 });

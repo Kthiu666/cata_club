@@ -41,7 +41,7 @@ interface UsuarioBase {
   createdAt?: string;
 }
 
-/** Account with an active student profile — replaces old Alumno + ResponsablePago(tipo="autogestionado"). */
+/** Account with an active student profile. */
 export interface UsuarioEstudiante extends UsuarioBase {
   role: "estudiante";
   fechaNacimiento?: string;
@@ -105,7 +105,7 @@ export type EstadoMembresia =
 /** A membership (Membresía) held by a student. */
 export interface Membresia {
   id: string;
-  alumnoId: string;
+  estudianteId: string;
   tipo: TipoMembresia;
   fechaInicio: string;
   fechaFin: string;
@@ -130,7 +130,7 @@ export type MetodoPago =
  */
 export interface Pago {
   id: string;
-  alumnoId: string;
+  estudianteId: string;
   membresiaId: string;
   /** The account owner who paid for this membership. */
   responsablePagoId: string;
@@ -184,7 +184,7 @@ export interface Grupo {
   id: string;
   nombre: string;
   nivel: NivelTecnico;
-  alumnosIds: string[];
+  estudiantesIds: string[];
   horariosIds?: string[];
   activo: boolean;
   createdAt: string;
@@ -249,7 +249,7 @@ export interface Asistencia {
   id: string;
   horarioId: string;
   entrenadorId: string;
-  alumnoId: string;
+  estudianteId: string;
   fecha: string;  // ISO date
   estado: EstadoAsistencia;
   observacion?: string;

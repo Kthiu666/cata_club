@@ -313,7 +313,7 @@ export default function AttendancePage(): React.ReactElement {
                   <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
                     <th className="px-4 py-3 font-medium">Fecha</th>
                     <th className="px-4 py-3 font-medium">Horario</th>
-                    <th className="px-4 py-3 font-medium">Alumno</th>
+                    <th className="px-4 py-3 font-medium">Estudiante</th>
                     <th className="px-4 py-3 font-medium">Estado</th>
                     <th className="px-4 py-3 font-medium">Registrado por</th>
                   </tr>
@@ -328,7 +328,7 @@ export default function AttendancePage(): React.ReactElement {
                         {record.horario}
                       </td>
                       <td className="px-4 py-3 text-sm font-medium text-cata-text">
-                        {record.alumno}
+                        {record.estudiante}
                       </td>
                       <td className="px-4 py-3">
                         <AttendanceBadge estado={record.estado} />
@@ -357,7 +357,7 @@ export default function AttendancePage(): React.ReactElement {
             Los <strong className="text-cata-text">horarios</strong> son slots de entrenamiento disponibles.
             NO pertenecen a un entrenador específico. El registro de{" "}
             <strong className="text-cata-text">asistencia</strong> almacena qué entrenador registró la
-            asistencia de cada alumno en una sesión determinada. Cualquier
+            asistencia de cada estudiante en una sesión determinada. Cualquier
             entrenador puede registrar asistencia en cualquier horario disponible.
           </p>
         </div>

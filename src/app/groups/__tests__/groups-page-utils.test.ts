@@ -65,7 +65,7 @@ describe("buildStudentRefs", () => {
   it("builds a flat list of all students from member accounts", () => {
     const refs = buildStudentRefs(MOCK_GRUPOS, MOCK_MEMBER_ACCOUNTS);
     const expectedCount = MOCK_MEMBER_ACCOUNTS.reduce(
-      (acc, a) => acc + a.alumnos.length,
+      (acc, a) => acc + a.estudiantes.length,
       0,
     );
     expect(refs).toHaveLength(expectedCount);
@@ -105,10 +105,10 @@ describe("buildStudentRefs", () => {
     // Simulate moving stu-001 from grupo-001 to grupo-002
     const modifiedGrupos: Grupo[] = MOCK_GRUPOS.map((g) => {
       if (g.id === "grupo-001") {
-        return { ...g, alumnosIds: g.alumnosIds.filter((id) => id !== "stu-001") };
+        return { ...g, estudiantesIds: g.estudiantesIds.filter((id) => id !== "stu-001") };
       }
       if (g.id === "grupo-002") {
-        return { ...g, alumnosIds: [...g.alumnosIds, "stu-001"] };
+        return { ...g, estudiantesIds: [...g.estudiantesIds, "stu-001"] };
       }
       return g;
     });
@@ -120,7 +120,7 @@ describe("buildStudentRefs", () => {
   it("re-derives grupoId when student is removed from all groups", () => {
     const modifiedGrupos: Grupo[] = MOCK_GRUPOS.map((g) => ({
       ...g,
-      alumnosIds: g.alumnosIds.filter((id) => id !== "stu-001"),
+      estudiantesIds: g.estudiantesIds.filter((id) => id !== "stu-001"),
     }));
     const refs = buildStudentRefs(modifiedGrupos, MOCK_MEMBER_ACCOUNTS);
     const sofia = refs.find((r) => r.id === "stu-001");
@@ -130,9 +130,9 @@ describe("buildStudentRefs", () => {
   it("preserves activo flag from member accounts", () => {
     const refs = buildStudentRefs(MOCK_GRUPOS, MOCK_MEMBER_ACCOUNTS);
     for (const account of MOCK_MEMBER_ACCOUNTS) {
-      for (const alumno of account.alumnos) {
-        const ref = refs.find((r) => r.id === alumno.id);
-        expect(ref?.activo).toBe(alumno.activo);
+      for (const estudiante of account.estudiantes) {
+        const ref = refs.find((r) => r.id === estudiante.id);
+        expect(ref?.activo).toBe(estudiante.activo);
       }
     }
   });

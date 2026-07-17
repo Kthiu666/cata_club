@@ -55,7 +55,7 @@ describe("buildAttendanceStats", () => {
         id: "a1",
         fecha: "2026-07-01",
         horario: "Test",
-        alumno: "Student A",
+        estudiante: "Student A",
         estado: "present",
         entrenador: "Trainer X",
       },
@@ -63,7 +63,7 @@ describe("buildAttendanceStats", () => {
         id: "a2",
         fecha: "2026-07-01",
         horario: "Test",
-        alumno: "Student B",
+        estudiante: "Student B",
         estado: "present",
         entrenador: "Trainer X",
       },
@@ -76,10 +76,10 @@ describe("buildAttendanceStats", () => {
 
   it("handles mixed states correctly", () => {
     const records: AttendanceRecord[] = [
-      { id: "a1", fecha: "2026-07-01", horario: "T1", alumno: "S1", estado: "present", entrenador: "T" },
-      { id: "a2", fecha: "2026-07-01", horario: "T1", alumno: "S2", estado: "absent", entrenador: "T" },
-      { id: "a3", fecha: "2026-07-01", horario: "T1", alumno: "S3", estado: "late", entrenador: "T" },
-      { id: "a4", fecha: "2026-07-01", horario: "T1", alumno: "S4", estado: "justified", entrenador: "T" },
+      { id: "a1", fecha: "2026-07-01", horario: "T1", estudiante: "S1", estado: "present", entrenador: "T" },
+      { id: "a2", fecha: "2026-07-01", horario: "T1", estudiante: "S2", estado: "absent", entrenador: "T" },
+      { id: "a3", fecha: "2026-07-01", horario: "T1", estudiante: "S3", estado: "late", entrenador: "T" },
+      { id: "a4", fecha: "2026-07-01", horario: "T1", estudiante: "S4", estado: "justified", entrenador: "T" },
     ];
     const stats = buildAttendanceStats(records);
     expect(stats.totalPresent).toBe(1);
@@ -92,9 +92,9 @@ describe("buildAttendanceStats", () => {
 
   it("counts unknown estados separately — defensive against bad runtime data", () => {
     const records: AttendanceRecord[] = [
-      { id: "u1", fecha: "2026-07-01", horario: "T1", alumno: "S1", estado: "present" as EstadoAsistencia, entrenador: "T" },
-      { id: "u2", fecha: "2026-07-01", horario: "T1", alumno: "S2", estado: "unknown_value" as EstadoAsistencia, entrenador: "T" },
-      { id: "u3", fecha: "2026-07-01", horario: "T1", alumno: "S3", estado: "" as EstadoAsistencia, entrenador: "T" },
+      { id: "u1", fecha: "2026-07-01", horario: "T1", estudiante: "S1", estado: "present" as EstadoAsistencia, entrenador: "T" },
+      { id: "u2", fecha: "2026-07-01", horario: "T1", estudiante: "S2", estado: "unknown_value" as EstadoAsistencia, entrenador: "T" },
+      { id: "u3", fecha: "2026-07-01", horario: "T1", estudiante: "S3", estado: "" as EstadoAsistencia, entrenador: "T" },
     ];
     const stats = buildAttendanceStats(records);
     expect(stats.totalPresent).toBe(1);
@@ -217,7 +217,7 @@ describe("MOCK_ATTENDANCE_RECORDS", () => {
       expect(r.id).toBeTruthy();
       expect(r.fecha).toBeTruthy();
       expect(r.horario).toBeTruthy();
-      expect(r.alumno).toBeTruthy();
+      expect(r.estudiante).toBeTruthy();
       expect(r.entrenador).toBeTruthy();
       expect(["present", "absent", "late", "justified"] as const).toContain(r.estado);
     }
@@ -239,7 +239,7 @@ describe("buildScheduleGroupMap", () => {
       id: "g-001",
       nombre: "Principiantes",
       nivel: "principiante" as NivelTecnico,
-      alumnosIds: [],
+      estudiantesIds: [],
       horariosIds: ["hor-a", "hor-b"],
       activo: true,
       createdAt: "2026-01-01T00:00:00Z",
@@ -249,7 +249,7 @@ describe("buildScheduleGroupMap", () => {
       id: "g-002",
       nombre: "Intermedios",
       nivel: "intermedio" as NivelTecnico,
-      alumnosIds: [],
+      estudiantesIds: [],
       horariosIds: ["hor-b", "hor-c"],
       activo: true,
       createdAt: "2026-01-01T00:00:00Z",
@@ -259,7 +259,7 @@ describe("buildScheduleGroupMap", () => {
       id: "g-003",
       nombre: "Sin Horarios",
       nivel: "principiante" as NivelTecnico,
-      alumnosIds: [],
+      estudiantesIds: [],
       activo: true,
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
@@ -303,7 +303,7 @@ describe("getScheduleLevelLabel", () => {
       id: "g-001",
       nombre: "Principiantes",
       nivel: "principiante" as NivelTecnico,
-      alumnosIds: [],
+      estudiantesIds: [],
       horariosIds: ["sched-p1", "sched-shared"],
       activo: true,
       createdAt: "2026-01-01T00:00:00Z",
@@ -313,7 +313,7 @@ describe("getScheduleLevelLabel", () => {
       id: "g-002",
       nombre: "Intermedios",
       nivel: "intermedio" as NivelTecnico,
-      alumnosIds: [],
+      estudiantesIds: [],
       horariosIds: ["sched-shared"],
       activo: true,
       createdAt: "2026-01-01T00:00:00Z",

@@ -3,7 +3,7 @@
  *
  * Extracted from page.tsx for testability — no React dependencies.
  *
- * Domain (2026-07): Session rosters are now DERIVED from Grupo.alumnosIds
+ * Domain (2026-07): Session rosters are now DERIVED from Grupo.estudiantesIds
  * via the shared buildTrainingSessions() helper in groups-utils.ts. The old
  * hardcoded AVAILABLE_SESSIONS is replaced by DERIVED_SESSIONS, which
  * reconciles mock data from src/mocks/members (MOCK_GRUPOS, MOCK_MEMBER_ACCOUNTS)
@@ -43,7 +43,7 @@ export interface TrainingSession {
 // Derive training sessions from canonical mock data
 //
 // Domain rule: sessions are NOT owned by one trainer. Any trainer may register
-// attendance in any available session. The roster comes from Grupo.alumnosIds
+// attendance in any available session. The roster comes from Grupo.estudiantesIds
 // so it stays consistent with group membership changes.
 // ---------------------------------------------------------------------------
 
@@ -53,8 +53,8 @@ export interface TrainingSession {
 function buildStudentNameMap(): Record<string, string> {
   const map: Record<string, string> = {};
   for (const account of MOCK_MEMBER_ACCOUNTS) {
-    for (const alumno of account.alumnos) {
-      map[alumno.id] = `${alumno.nombres} ${alumno.apellidos}`;
+    for (const estudiante of account.estudiantes) {
+      map[estudiante.id] = `${estudiante.nombres} ${estudiante.apellidos}`;
     }
   }
   return map;

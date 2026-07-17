@@ -32,7 +32,7 @@ const MOCK_GRUPOS: Grupo[] = [
     id: "grupo-001",
     nombre: "Principiantes",
     nivel: "principiante",
-    alumnosIds: ["stu-001", "stu-002"],
+    estudiantesIds: ["stu-001", "stu-002"],
     horariosIds: ["hor-001", "hor-004"],
     activo: true,
     createdAt: "2026-01-01T00:00:00Z",
@@ -42,7 +42,7 @@ const MOCK_GRUPOS: Grupo[] = [
     id: "grupo-002",
     nombre: "Intermedios",
     nivel: "intermedio",
-    alumnosIds: ["stu-003"],
+    estudiantesIds: ["stu-003"],
     horariosIds: ["hor-002"],
     activo: true,
     createdAt: "2026-01-01T00:00:00Z",
@@ -52,7 +52,7 @@ const MOCK_GRUPOS: Grupo[] = [
     id: "grupo-003",
     nombre: "Avanzados",
     nivel: "avanzado",
-    alumnosIds: [],
+    estudiantesIds: [],
     horariosIds: [],
     activo: true,
     createdAt: "2026-01-01T00:00:00Z",
@@ -135,8 +135,8 @@ describe("assignStudentToGroup", () => {
     expect(result.message).toContain("asignado");
 
     const updated = result.updatedGrupos.find((g) => g.id === "grupo-001")!;
-    expect(updated.alumnosIds).toContain("stu-004");
-    expect(updated.alumnosIds).toContain("stu-001"); // existing kept
+    expect(updated.estudiantesIds).toContain("stu-004");
+    expect(updated.estudiantesIds).toContain("stu-001"); // existing kept
   });
 
   it("removes student from previous group when reassigning", () => {
@@ -146,8 +146,8 @@ describe("assignStudentToGroup", () => {
     const grupo1 = result.updatedGrupos.find((g) => g.id === "grupo-001")!;
     const grupo2 = result.updatedGrupos.find((g) => g.id === "grupo-002")!;
 
-    expect(grupo1.alumnosIds).not.toContain("stu-001");
-    expect(grupo2.alumnosIds).toContain("stu-001");
+    expect(grupo1.estudiantesIds).not.toContain("stu-001");
+    expect(grupo2.estudiantesIds).toContain("stu-001");
   });
 
   it("returns success=false when target group does not exist", () => {
@@ -162,25 +162,25 @@ describe("assignStudentToGroup", () => {
     expect(result.message).toContain("ya pertenece");
   });
 
-  it("makes student appear in exactly one group's alumnosIds after assignment", () => {
+  it("makes student appear in exactly one group's estudiantesIds after assignment", () => {
     // Simulates the C1 fix: after assigning a student, they should appear
-    // in exactly one group's alumnosIds, ensuring getUnassignedStudents
+    // in exactly one group's estudiantesIds, ensuring getUnassignedStudents
     // (which checks derived grupoId from grupos) would correctly exclude them.
     const result = assignStudentToGroup("stu-004", "grupo-001", MOCK_GRUPOS);
     expect(result.success).toBe(true);
 
     const groupsWithStudent = result.updatedGrupos.filter((g) =>
-      g.alumnosIds.includes("stu-004"),
+      g.estudiantesIds.includes("stu-004"),
     );
     expect(groupsWithStudent).toHaveLength(1);
     expect(groupsWithStudent[0].id).toBe("grupo-001");
   });
 
   it("does not mutate the original grupos array", () => {
-    const original = MOCK_GRUPOS.map((g) => ({ ...g, alumnosIds: [...g.alumnosIds] }));
+    const original = MOCK_GRUPOS.map((g) => ({ ...g, estudiantesIds: [...g.estudiantesIds] }));
     assignStudentToGroup("stu-004", "grupo-001", MOCK_GRUPOS);
 
-    expect(MOCK_GRUPOS[0].alumnosIds).toEqual(["stu-001", "stu-002"]);
+    expect(MOCK_GRUPOS[0].estudiantesIds).toEqual(["stu-001", "stu-002"]);
   });
 });
 
@@ -191,12 +191,12 @@ describe("assignStudentToGroup", () => {
 describe("removeStudentFromAllGroups", () => {
   it("removes student from all groups", () => {
     const updated = removeStudentFromAllGroups("stu-001", MOCK_GRUPOS);
-    expect(updated.every((g) => !g.alumnosIds.includes("stu-001"))).toBe(true);
+    expect(updated.every((g) => !g.estudiantesIds.includes("stu-001"))).toBe(true);
   });
 
   it("does not mutate the original", () => {
     removeStudentFromAllGroups("stu-001", MOCK_GRUPOS);
-    expect(MOCK_GRUPOS[0].alumnosIds).toContain("stu-001");
+    expect(MOCK_GRUPOS[0].estudiantesIds).toContain("stu-001");
   });
 
   it("returns unchanged array when student is not in any group", () => {
@@ -207,7 +207,7 @@ describe("removeStudentFromAllGroups", () => {
   it("removed student is present in zero groups (C1 — unassigned consistency)", () => {
     const updated = removeStudentFromAllGroups("stu-001", MOCK_GRUPOS);
     const inAnyGroup = updated.some((g) =>
-      g.alumnosIds.includes("stu-001"),
+      g.estudiantesIds.includes("stu-001"),
     );
     expect(inAnyGroup).toBe(false);
   });
@@ -246,7 +246,7 @@ describe("getSchedulesByGroup", () => {
       id: "g-empty",
       nombre: "Empty",
       nivel: "principiante",
-      alumnosIds: [],
+      estudiantesIds: [],
       activo: true,
       createdAt: "",
       updatedAt: "",
@@ -332,7 +332,7 @@ describe("getGroupCapacity", () => {
       id: "grupo-cap-test",
       nombre: "Capacidad Test",
       nivel: "principiante",
-      alumnosIds: ["stu-001"],
+      estudiantesIds: ["stu-001"],
       horariosIds: ["hor-001", "inactive-low-cap"],
       activo: true,
       createdAt: "",
@@ -366,7 +366,7 @@ describe("getGroupCapacity", () => {
       id: "grupo-mixed",
       nombre: "Mixed",
       nivel: "principiante",
-      alumnosIds: ["stu-001", "stu-002"],
+      estudiantesIds: ["stu-001", "stu-002"],
       horariosIds: ["hor-001", "lower-active"],
       activo: true,
       createdAt: "",

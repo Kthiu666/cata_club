@@ -54,7 +54,7 @@ export const STEP_ORDER: WizardStep[] = [
 /** Human-readable labels for each step, in Spanish. */
 export const STEP_LABELS: Record<WizardStep, string> = {
   type: "Tipo de Inscripción",
-  personal: "Datos del Alumno",
+  personal: "Datos del Estudiante",
   club: "Información del Club",
   health: "Salud y Emergencia",
   summary: "Resumen y Confirmación",

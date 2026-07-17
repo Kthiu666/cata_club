@@ -36,7 +36,7 @@ export interface AttendanceRecord {
   id: string;
   fecha: string;
   horario: string;
-  alumno: string;
+  estudiante: string;
   estado: EstadoAsistencia;
   entrenador: string;
 }

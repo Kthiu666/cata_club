@@ -22,8 +22,8 @@ import { MOCK_SCHEDULES } from "@/mocks/attendance";
 
 const studentNameMap: Record<string, string> = {};
 for (const account of MOCK_MEMBER_ACCOUNTS) {
-  for (const alumno of account.alumnos) {
-    studentNameMap[alumno.id] = `${alumno.nombres} ${alumno.apellidos}`;
+  for (const estudiante of account.estudiantes) {
+    studentNameMap[estudiante.id] = `${estudiante.nombres} ${estudiante.apellidos}`;
   }
 }
 

@@ -249,7 +249,7 @@ function AccountRow({
             className="mr-2 inline-flex items-center text-cata-text/65"
             aria-label={expanded ? "Contraer" : "Expandir"}
             aria-expanded={expanded}
-            aria-controls={account.alumnos.map((a) => `student-detail-${a.id}`).join(" ")}
+            aria-controls={account.estudiantes.map((a) => `student-detail-${a.id}`).join(" ")}
           >
             {expanded ? (
               <ChevronDown size={14} strokeWidth={1.5} />
@@ -289,7 +289,7 @@ function AccountRow({
         </td>
         <td className="px-4 py-3.5 text-center">
           <span className="text-sm font-medium text-cata-text">
-            {account.alumnos.length}
+            {account.estudiantes.length}
           </span>
         </td>
         <td className="px-4 py-3.5 text-center">
@@ -304,8 +304,8 @@ function AccountRow({
         </td>
       </tr>
       {expanded &&
-        account.alumnos.map((alumno) => (
-          <StudentRow key={alumno.id} student={alumno} />
+        account.estudiantes.map((estudiante) => (
+          <StudentRow key={estudiante.id} student={estudiante} />
         ))}
     </>
   );
@@ -337,7 +337,7 @@ export default function MembersPage(): React.ReactElement {
               Miembros del Club
             </h1>
             <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-              Responsables de pago, alumnos y resumen de membresías. Administre cuentas,
+              Responsables de pago, estudiantes y resumen de membresías. Administre cuentas,
               estudiantes y estados de membresía desde un solo lugar.
             </p>
           </div>
@@ -366,7 +366,7 @@ export default function MembersPage(): React.ReactElement {
           />
           <StatCard
             icon={<UserCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
-            label="Alumnos"
+            label="Estudiantes"
             value={stats.totalStudents}
           />
           <StatCard
@@ -411,7 +411,7 @@ export default function MembersPage(): React.ReactElement {
                     <th className="w-10 px-4 py-3 font-medium" />
                     <th className="px-4 py-3 font-medium">Responsable de pago</th>
                     <th className="px-4 py-3 font-medium">Contacto</th>
-                    <th className="px-4 py-3 text-center font-medium">Alumnos</th>
+                    <th className="px-4 py-3 text-center font-medium">Estudiantes</th>
                     <th className="px-4 py-3 text-center font-medium">Activos</th>
                     <th className="px-4 py-3 font-medium">Estado</th>
                   </tr>
@@ -462,9 +462,9 @@ export default function MembersPage(): React.ReactElement {
           </div>
           <p className="text-sm leading-relaxed text-cata-text/65">
             Cada <strong className="text-cata-text">responsable de pago</strong> (titular de cuenta) gestiona
-            uno o más alumnos. Un representante (ej. padre/madre) puede gestionar
-            varios alumnos. Un alumno autogestionado es su propio responsable de pago.
-            El <strong className="text-cata-text">nivel técnico</strong> lo lleva el grupo asignado, no el alumno.
+            uno o más estudiantes. Un representante (ej. padre/madre) puede gestionar
+            varios estudiantes. Un estudiante puede ser su propio responsable de pago.
+            El <strong className="text-cata-text">nivel técnico</strong> lo lleva el grupo asignado, no el estudiante.
             Los datos de membresía, grupos y pagos son simulados.
           </p>
         </div>

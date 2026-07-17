@@ -184,7 +184,7 @@ const sessionsByStudent: Record<string, UpcomingSession[]> = {
 };
 
 // ---------------------------------------------------------------------------
-// Membership plans — shown to pre‑enrollment (autogestionado) users
+// Membership plans — shown to pre‑enrollment (self-managed estudiante) users
 // ---------------------------------------------------------------------------
 
 interface MembershipPlan {
@@ -344,7 +344,7 @@ export default function StudentPage(): React.ReactElement {
    * Determine portal mode based on which demo user is logged in.
    * - user-rep-1 (representante@cataclub.com): role "representante" — manages
    *   other Usuarios whose `representanteId` points to this account.
-   * - user-self-1 (autogestionado@cataclub.com): role "estudiante" with
+   * - user-self-1 (estudiante@cataclub.com): role "estudiante" with
    *   `representanteId: null` (self-managed adult student).
    */
   const isRepresentative = userId === "user-rep-1";
@@ -354,7 +354,7 @@ export default function StudentPage(): React.ReactElement {
     : isPreEnrollment
       ? "Pre‑inscripción"
       : userId === "user-self-1"
-        ? "Alumno autogestionado"
+        ? "Estudiante"
         : "Portal de Cuenta";
 
   const students = userId ? demoStudentsByAccount[userId] ?? [] : [];
@@ -494,7 +494,7 @@ export default function StudentPage(): React.ReactElement {
               </h1>
               <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
                 {isPreEnrollment
-                  ? "Cuenta creada — aún no inscrito como alumno. Elija un plan y complete su registro."
+                  ? "Cuenta creada — aún no inscrito como estudiante. Elija un plan y complete su registro."
                   : `${selectedStudent?.nombre ?? ""} — membresía, pagos y horario`}
               </p>
             </div>
@@ -524,7 +524,7 @@ export default function StudentPage(): React.ReactElement {
           </span>
           {isRepresentative && (
             <span className="text-xs text-cata-text/65">
-              Gestiona {students.length} alumnos
+              Gestiona {students.length} estudiantes
             </span>
           )}
         </div>
@@ -532,7 +532,7 @@ export default function StudentPage(): React.ReactElement {
         {isRepresentative && students.length > 1 && (
           <div className="mb-4">
             <label htmlFor="student-select" className="text-xs font-medium text-cata-text/45">
-              Seleccionar alumno
+              Seleccionar estudiante
             </label>
             <div className="relative mt-1 inline-block">
               <select
@@ -608,7 +608,7 @@ export default function StudentPage(): React.ReactElement {
                 </h2>
               </div>
               <p className="text-sm leading-relaxed text-cata-text/65">
-                Su cuenta está creada pero aún no está inscrito como alumno.
+                Su cuenta está creada pero aún no está inscrito como estudiante.
                 Elija el plan de membresía que mejor se adapte a sus necesidades
                 y complete su inscripción para comenzar a entrenar.
               </p>
@@ -926,15 +926,15 @@ export default function StudentPage(): React.ReactElement {
               <>
                 Este portal corresponde a una cuenta con rol <strong className="text-cata-text">representante</strong>.
                 Una misma persona (ej. un padre/madre) puede gestionar las membresías y pagos
-                de <strong className="text-cata-text">varios alumnos</strong> — cada uno es una cuenta propia cuyo
-                `representanteId` apunta a esta cuenta. Cada alumno tiene su membresía, sesiones y
+                de <strong className="text-cata-text">varios estudiantes</strong> — cada uno es una cuenta propia cuyo
+                `representanteId` apunta a esta cuenta. Cada estudiante tiene su membresía, sesiones y
                 comprobantes asociados.
               </>
             ) : isPreEnrollment ? (
               <>
                 Esta cuenta está en estado de <strong className="text-cata-text">pre‑inscripción</strong>: la persona creó su
-                cuenta de acceso pero aún no se ha inscrito como alumno del club. Al completar la
-                inscripción, la misma persona será el titular de la cuenta y el alumno que entrena
+                cuenta de acceso pero aún no se ha inscrito como estudiante del club. Al completar la
+                inscripción, la misma persona será el titular de la cuenta y el estudiante que entrena
                 (<strong className="text-cata-text">jugador</strong>). Las membresías y pagos se gestionan
                 directamente desde el portal.
               </>

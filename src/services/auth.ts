@@ -169,12 +169,12 @@ export const DEMO_PERSONAS: DemoPersona[] = [
     },
   },
   {
-    email: "autogestionado@cataclub.com",
+    email: "estudiante@cataclub.com",
     password: "self123",
     user: {
       id: "user-self-1",
-      name: "Sofia Martinez (Autogestionado)",
-      email: "autogestionado@cataclub.com",
+      name: "Sofia Martinez",
+      email: "estudiante@cataclub.com",
       role: "estudiante",
       representanteId: null,
       grupoId: null,

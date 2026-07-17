@@ -20,7 +20,7 @@ export function findStudentGroupId(
   grupos: Grupo[],
 ): string | null {
   for (const g of grupos) {
-    if (g.alumnosIds.includes(studentId)) return g.id;
+    if (g.estudiantesIds.includes(studentId)) return g.id;
   }
   return null;
 }
@@ -33,18 +33,18 @@ export function findStudentGroupId(
  */
 export function buildStudentRefs(
   grupos: Grupo[],
-  memberAccounts: ReadonlyArray<{ alumnos: ReadonlyArray<{ id: string; nombres: string; apellidos: string; activo: boolean }> }>,
+  memberAccounts: ReadonlyArray<{ estudiantes: ReadonlyArray<{ id: string; nombres: string; apellidos: string; activo: boolean }> }>,
 ): StudentRef[] {
   const refs: StudentRef[] = [];
   for (const account of memberAccounts) {
-    for (const alumno of account.alumnos) {
-      const grupoId = findStudentGroupId(alumno.id, grupos);
+    for (const estudiante of account.estudiantes) {
+      const grupoId = findStudentGroupId(estudiante.id, grupos);
       refs.push({
-        id: alumno.id,
-        nombres: alumno.nombres,
-        apellidos: alumno.apellidos,
+        id: estudiante.id,
+        nombres: estudiante.nombres,
+        apellidos: estudiante.apellidos,
         grupoId,
-        activo: alumno.activo,
+        activo: estudiante.activo,
       });
     }
   }

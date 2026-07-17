@@ -70,7 +70,7 @@ const quickActions = [
     icon: UserPlus,
     label: "Gestionar Grupos",
     href: "/groups",
-    description: "Grupos de entrenamiento, niveles técnicos y asignación de alumnos",
+    description: "Grupos de entrenamiento, niveles técnicos y asignación de estudiantes",
   },
   {
     icon: Calendar,

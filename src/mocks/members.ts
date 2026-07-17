@@ -24,7 +24,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
     apellidos: "Martínez",
     email: "carlos.martinez@email.com",
     telefono: "+593 99 123 4567",
-    alumnos: [
+    estudiantes: [
       {
         id: "stu-001",
         nombres: "Sofía",
@@ -100,7 +100,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
     apellidos: "López",
     email: "ana.lopez@email.com",
     telefono: "+593 98 765 4321",
-    alumnos: [
+    estudiantes: [
       {
         id: "stu-004",
         nombres: "Valentina",
@@ -132,7 +132,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
     apellidos: "Flores",
     email: "diego.flores@email.com",
     telefono: "+593 97 654 3210",
-    alumnos: [
+    estudiantes: [
       {
         id: "stu-005",
         nombres: "Camila",
@@ -159,7 +159,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
     apellidos: "Acosta",
     email: "nicolas.acosta@email.com",
     telefono: "+593 96 543 2109",
-    alumnos: [
+    estudiantes: [
       {
         id: "stu-006",
         nombres: "Nicolás",
@@ -190,7 +190,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
     apellidos: "Ramírez",
     email: "carlos.ramirez@email.com",
     telefono: "+593 95 432 1098",
-    alumnos: [
+    estudiantes: [
       {
         id: "stu-007",
         nombres: "Santiago",
@@ -239,7 +239,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
     apellidos: "Mendoza",
     email: "lucia.mendoza@email.com",
     telefono: "+593 94 321 0987",
-    alumnos: [
+    estudiantes: [
       {
         id: "stu-009",
         nombres: "Joaquín",
@@ -264,7 +264,7 @@ export const MOCK_GRUPOS: Grupo[] = [
     id: "grupo-001",
     nombre: "Principiantes",
     nivel: "principiante",
-    alumnosIds: ["stu-001", "stu-003", "stu-005", "stu-007", "stu-008"],
+    estudiantesIds: ["stu-001", "stu-003", "stu-005", "stu-007", "stu-008"],
     horariosIds: ["hor-001", "hor-004", "hor-007"],
     activo: true,
     createdAt: "2026-01-01T00:00:00Z",
@@ -274,7 +274,7 @@ export const MOCK_GRUPOS: Grupo[] = [
     id: "grupo-002",
     nombre: "Intermedios",
     nivel: "intermedio",
-    alumnosIds: ["stu-002", "stu-006"],
+    estudiantesIds: ["stu-002", "stu-006"],
     horariosIds: ["hor-002", "hor-005"],
     activo: true,
     createdAt: "2026-01-01T00:00:00Z",
@@ -284,7 +284,7 @@ export const MOCK_GRUPOS: Grupo[] = [
     id: "grupo-003",
     nombre: "Avanzados",
     nivel: "avanzado",
-    alumnosIds: ["stu-004"],
+    estudiantesIds: ["stu-004"],
     horariosIds: ["hor-003", "hor-006", "hor-008"],
     activo: true,
     createdAt: "2026-01-01T00:00:00Z",

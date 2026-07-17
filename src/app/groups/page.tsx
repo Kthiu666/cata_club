@@ -103,7 +103,7 @@ function CapacityBar({ percent, total }: CapacityBarProps): React.ReactElement {
 
 export default function GroupsPage(): React.ReactElement {
   const [grupos, setGrupos] = useState(() =>
-    MOCK_GRUPOS.map((g) => ({ ...g, alumnosIds: [...g.alumnosIds] })),
+    MOCK_GRUPOS.map((g) => ({ ...g, estudiantesIds: [...g.estudiantesIds] })),
   );
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{
@@ -126,8 +126,8 @@ export default function GroupsPage(): React.ReactElement {
     [],
   );
 
-  function handleAssignStudent(alumnoId: string, targetGroupId: string): void {
-    const result = assignStudentToGroup(alumnoId, targetGroupId, grupos);
+  function handleAssignStudent(estudianteId: string, targetGroupId: string): void {
+    const result = assignStudentToGroup(estudianteId, targetGroupId, grupos);
     if (result.success) {
       setGrupos(result.updatedGrupos);
       showNotification("success", result.message);
@@ -136,14 +136,14 @@ export default function GroupsPage(): React.ReactElement {
     }
   }
 
-  function handleClearAssignment(alumnoId: string): void {
-    const updated = removeStudentFromAllGroups(alumnoId, grupos);
+  function handleClearAssignment(estudianteId: string): void {
+    const updated = removeStudentFromAllGroups(estudianteId, grupos);
     setGrupos(updated);
-    showNotification("success", "Alumno removido del grupo.");
+    showNotification("success", "Estudiante removido del grupo.");
   }
 
   function handleResetToMock(): void {
-    setGrupos(MOCK_GRUPOS.map((g) => ({ ...g, alumnosIds: [...g.alumnosIds] })));
+    setGrupos(MOCK_GRUPOS.map((g) => ({ ...g, estudiantesIds: [...g.estudiantesIds] })));
     setSelectedGroupId(null);
     showNotification("success", "Datos restablecidos a valores de demostración.");
   }
@@ -171,8 +171,8 @@ export default function GroupsPage(): React.ReactElement {
               Gestión de Grupos
             </h1>
             <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-              Grupos de entrenamiento, asignación de alumnos y horarios. El nivel técnico
-              pertenece al grupo, no al alumno.
+              Grupos de entrenamiento, asignación de estudiantes y horarios. El nivel técnico
+              pertenece al grupo, no al estudiante.
             </p>
           </div>
         </div>
@@ -247,7 +247,7 @@ export default function GroupsPage(): React.ReactElement {
                       key={card.id}
                       type="button"
                       aria-pressed={isSelected}
-                      aria-label={`${card.name} — ${card.levelLabel}, ${card.studentCount} alumnos, ${card.capacityPercent}% de capacidad`}
+                      aria-label={`${card.name} — ${card.levelLabel}, ${card.studentCount} estudiantes, ${card.capacityPercent}% de capacidad`}
                       onClick={() =>
                         setSelectedGroupId(
                           isSelected ? null : card.id,
@@ -276,7 +276,7 @@ export default function GroupsPage(): React.ReactElement {
                       {/* Student count */}
                       <div className="mb-2 flex items-center gap-1.5 text-xs text-cata-text/65">
                         <Users size={12} strokeWidth={1.5} aria-hidden="true" />
-                        {card.studentCount} alumno
+                        {card.studentCount} estudiante
                         {card.studentCount !== 1 ? "s" : ""}
                       </div>
 
@@ -331,7 +331,7 @@ export default function GroupsPage(): React.ReactElement {
                             strokeWidth={1.5}
                             aria-hidden="true"
                           />
-                          Gestionar alumnos
+                          Gestionar estudiantes
                         </div>
                       )}
                     </button>
@@ -357,7 +357,7 @@ export default function GroupsPage(): React.ReactElement {
               <div className="mb-4 flex items-center gap-2">
                 <UserPlus size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                 <h3 className="text-sm font-bold text-cata-text">
-                  Alumnos sin grupo ({unassigned.length})
+                  Estudiantes sin grupo ({unassigned.length})
                 </h3>
               </div>
 
@@ -409,7 +409,7 @@ export default function GroupsPage(): React.ReactElement {
                 <div className="flex items-center gap-2 py-4">
                   <CheckCircle2 size={14} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />
                   <p className="text-xs text-cata-text/40">
-                    Todos los alumnos tienen un grupo asignado.
+                    Todos los estudiantes tienen un grupo asignado.
                   </p>
                 </div>
               )}
@@ -435,9 +435,9 @@ export default function GroupsPage(): React.ReactElement {
                       <LevelBadge level={selectedGrupo.nivel} />
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>Alumnos asignados</span>
+                      <span>Estudiantes asignados</span>
                       <span className="font-medium text-cata-text">
-                        {selectedGrupo.alumnosIds.length}
+                        {selectedGrupo.estudiantesIds.length}
                       </span>
                     </div>
                   </div>
@@ -447,7 +447,7 @@ export default function GroupsPage(): React.ReactElement {
                     <div className="mb-3 flex items-center gap-2">
                       <Users size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                       <p className="text-xs font-medium uppercase tracking-wider text-cata-text/45">
-                        Alumnos
+                        Estudiantes
                       </p>
                     </div>
                     {assignedStudentsForSelected.length > 0 ? (
@@ -482,7 +482,7 @@ export default function GroupsPage(): React.ReactElement {
                       <div className="flex items-center gap-2 py-3">
                         <Users size={14} strokeWidth={1.5} className="text-cata-text/20" aria-hidden="true" />
                         <p className="text-xs text-cata-text/40">
-                          Sin alumnos asignados.
+                          Sin estudiantes asignados.
                         </p>
                       </div>
                     )}
@@ -555,7 +555,7 @@ export default function GroupsPage(): React.ReactElement {
                     <div className="mb-3 flex items-center gap-2">
                       <UserPlus size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                       <h3 className="text-sm font-bold text-cata-text">
-                        Asignar alumno sin grupo
+                        Asignar estudiante sin grupo
                       </h3>
                     </div>
                     <div className="space-y-1.5">
@@ -600,7 +600,7 @@ export default function GroupsPage(): React.ReactElement {
                 </p>
                 <p className="mt-1 text-xs text-cata-text/50">
                   Hacé clic en un grupo para ver su detalle
-                  y gestionar la asignación de alumnos.
+                  y gestionar la asignación de estudiantes.
                 </p>
               </div>
             )}
@@ -614,9 +614,9 @@ export default function GroupsPage(): React.ReactElement {
             <h3 className="text-sm font-bold text-cata-text">Modelo de dominio (Demo)</h3>
           </div>
           <p className="text-sm leading-relaxed text-cata-text/65">
-            El <strong className="text-cata-text">nivel técnico</strong> pertenece al grupo, no al alumno.
-            Un alumno adquiere su nivel al ser asignado a un grupo.
-            Los alumnos sin grupo asignado no tienen nivel técnico — está
+            El <strong className="text-cata-text">nivel técnico</strong> pertenece al grupo, no al estudiante.
+            Un estudiante adquiere su nivel al ser asignado a un grupo.
+            Los estudiantes sin grupo asignado no tienen nivel técnico — está
             pendiente de evaluación por el entrenador.
             Los <strong className="text-cata-text">horarios</strong> se vinculan al grupo, y la{" "}
             <strong className="text-cata-text">asistencia</strong> se registra por sesión (grupo + horario).
@@ -625,7 +625,7 @@ export default function GroupsPage(): React.ReactElement {
 
         {/* Demo footer */}
         <p className="mt-8 text-center text-xs text-cata-text/30">
-          Los datos de grupos, alumnos y horarios son de demostración.
+          Los datos de grupos, estudiantes y horarios son de demostración.
           Las asignaciones se simulan en memoria y se reinician al recargar.
         </p>
       </div>
