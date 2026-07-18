@@ -34,7 +34,7 @@ function sessionRequest(cookie: string): NextRequest {
   return new NextRequest("http://localhost/api/auth/session", { headers: { cookie } });
 }
 
-const meBody = { correo: "admin@cataclub.com", persona_id: 1, nombres: "Ana", apellidos: "Torres", roles: ["ADMINISTRADOR"] };
+const meBody = { correo: "admin@cataclub.com", personaId: 1, nombres: "Ana", apellidos: "Torres", roles: ["ADMINISTRADOR"] };
 
 beforeEach(() => {
   vi.spyOn(global, "fetch");

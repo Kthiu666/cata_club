@@ -167,7 +167,7 @@ describe("backendLogin", () => {
 describe("backendMe", () => {
   it("sends the Authorization bearer header", async () => {
     vi.mocked(global.fetch).mockResolvedValue(
-      jsonResponse({ correo: "a@a.com", persona_id: 1, nombres: "A", apellidos: "B", roles: ["ALUMNO"] }),
+      jsonResponse({ correo: "a@a.com", personaId: 1, nombres: "A", apellidos: "B", roles: ["ALUMNO"] }),
     );
 
     await backendMe("access-token-123");
@@ -350,7 +350,7 @@ describe("buildSession", () => {
   it("builds a token-free session for a staff role", () => {
     const session = buildSession({
       correo: "admin@cataclub.com",
-      persona_id: 42,
+      personaId: 42,
       nombres: "Ana",
       apellidos: "Torres",
       roles: ["ADMINISTRADOR"],
@@ -370,7 +370,7 @@ describe("buildSession", () => {
   it("builds an estudiante session with the extra discriminated fields", () => {
     const session = buildSession({
       correo: "alumno@cataclub.com",
-      persona_id: "7",
+      personaId: "7",
       nombres: "Luis",
       apellidos: "Perez",
       roles: ["ALUMNO"],
@@ -382,7 +382,7 @@ describe("buildSession", () => {
   it("builds a tesorero session", () => {
     const session = buildSession({
       correo: "tesorero@cataclub.com",
-      persona_id: "9",
+      personaId: "9",
       nombres: "Carla",
       apellidos: "Diaz",
       roles: ["TESORERO"],
@@ -395,7 +395,7 @@ describe("buildSession", () => {
   it('builds an "unsupported" session for an empty roles array, never "representante"', () => {
     const session = buildSession({
       correo: "ghost@cataclub.com",
-      persona_id: "10",
+      personaId: "10",
       nombres: "Nadie",
       apellidos: "Reconocido",
       roles: [],
@@ -408,7 +408,7 @@ describe("buildSession", () => {
   it('builds an "unsupported" session when only unrecognized roles are present', () => {
     const session = buildSession({
       correo: "ghost2@cataclub.com",
-      persona_id: "11",
+      personaId: "11",
       nombres: "Otro",
       apellidos: "Desconocido",
       roles: ["SUPERADMIN"],

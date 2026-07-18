@@ -26,7 +26,7 @@ function loginRequest(body: unknown): NextRequest {
   });
 }
 
-const meBody = { correo: "admin@cataclub.com", persona_id: 1, nombres: "Ana", apellidos: "Torres", roles: ["ADMINISTRADOR"] };
+const meBody = { correo: "admin@cataclub.com", personaId: 1, nombres: "Ana", apellidos: "Torres", roles: ["ADMINISTRADOR"] };
 
 beforeEach(() => {
   vi.spyOn(global, "fetch");

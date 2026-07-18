@@ -81,7 +81,7 @@ class Settings(BaseSettings):
 
     @property
     def result_backend_efectivo(self) -> str:
-        return self.celery_result_backend or f"db+{self.redis_url}"
+        return self.celery_result_backend or self.redis_url
 
     @property
     def cors_origenes(self) -> list[str]:

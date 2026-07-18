@@ -9,12 +9,16 @@
  * the only thing safe to send to the browser is the `ServerSession` shape
  * built by `buildSession()`, which never contains a token.
  *
- * Backend contract (2026-07, Phase 1 fix — verified against a real running
+ * Backend contract (2026-07, verified against a real docker-composed
  * backend, not just mocked tests — see project docs):
  *   POST /auth/login   — application/x-www-form-urlencoded { username, password }
  *                         -> { access_token, refresh_token, token_type }
+ *                         (raw OAuth2 dict, snake_case per RFC 6749 — no response_model)
  *   GET  /auth/me       — Authorization: Bearer <access_token>
- *                         -> { correo, persona_id, nombres, apellidos, roles }
+ *                         -> { correo, personaId, nombres, apellidos, roles }
+ *                         (camelCase — response_model=UsuarioMeResponseDTO
+ *                         inherits the project-wide snake_case->camelCase
+ *                         alias_generator; see backend base.py ResponseBase)
  *   POST /auth/refresh  — application/json { refresh_token } in the BODY, NOT
  *                         an Authorization header — a refresh token is
  *                         intentionally not a general bearer credential.
@@ -168,7 +172,12 @@ export interface BackendLoginResponse {
 
 export interface BackendMeResponse {
   correo: string;
-  persona_id: string | number;
+  // camelCase — unlike /auth/login and /auth/refresh (raw OAuth2 dicts, not
+  // run through a response_model), /auth/me is declared with
+  // response_model=UsuarioMeResponseDTO, which inherits ResponseBase's
+  // project-wide snake_case -> camelCase alias_generator (see backend
+  // app/presentacion/schemas/base.py).
+  personaId: string | number;
   nombres: string;
   apellidos: string;
   roles: string[];
@@ -194,7 +203,7 @@ function isBackendMeResponse(value: unknown): value is BackendMeResponse {
   const v = value as Record<string, unknown>;
   return (
     typeof v.correo === "string" && v.correo.length > 0 &&
-    (typeof v.persona_id === "string" || typeof v.persona_id === "number") &&
+    (typeof v.personaId === "string" || typeof v.personaId === "number") &&
     typeof v.nombres === "string" &&
     typeof v.apellidos === "string" &&
     Array.isArray(v.roles) && v.roles.every((r) => typeof r === "string")
@@ -446,7 +455,7 @@ export interface ServerSession {
 export function buildSession(me: BackendMeResponse): ServerSession {
   const role = mapBackendRoleToUserRole(me.roles);
   const base = {
-    id: String(me.persona_id),
+    id: String(me.personaId),
     name: `${me.nombres} ${me.apellidos}`.trim(),
     email: me.correo,
     // /auth/me doesn't return the representante_id graph — "representante"
