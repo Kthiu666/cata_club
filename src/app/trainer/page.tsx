@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/components/shell/AppShell";
 import {
   Calendar,
   Users,
   UserCheck,
-  GraduationCap,
+  Clock,
+  MapPin,
   TrendingUp,
   CheckCircle2,
   ClipboardList,
@@ -51,40 +53,36 @@ export default function TrainerPage(): React.ReactElement {
   );
   const presentPercent = totalStudents > 0 ? Math.round((totalPresent / totalStudents) * 100) : 0;
 
+  const todayLongLabel = new Date().toLocaleDateString("es-EC", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
   return (
     <ProtectedRoute allowedRoles={["trainer"]}>
-      <div>
-        {/* Hero Banner */}
-        <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-logo-glow" />
-          <div className="relative z-10 flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
-                <GraduationCap size={14} strokeWidth={2} aria-hidden="true" />
-                Área de Entrenadores
-              </div>
-              <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
-                Panel del Entrenador
-              </h1>
-              <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-                Resumen de entrenamiento de hoy — {new Date().toLocaleDateString("es-EC", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-              </p>
-            </div>
-            <span className="hidden rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700 sm:inline-block">
-              Demo
-            </span>
-          </div>
-        </div>
-
+      <AppShell
+        eyebrow="Área de entrenadores"
+        title="Panel del Entrenador"
+        subtitle={`Resumen de entrenamiento de hoy — ${todayLongLabel}.`}
+      >
         {/* Interactive Attendance CTA */}
         <div className="mb-6">
           <Link
             href="/trainer/attendance"
-            className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
+            className="flex items-center justify-between gap-3 rounded-2xl border border-cata-red/20 bg-cata-red/10 px-5 py-4 text-cata-red transition-colors hover:bg-cata-red/15"
           >
-            <ClipboardList size={16} strokeWidth={1.5} aria-hidden="true" />
-            Registrar Asistencia Interactiva
-            <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+            <span className="flex items-center gap-3">
+              <ClipboardList size={20} strokeWidth={1.5} aria-hidden="true" />
+              <span>
+                <span className="block text-sm font-bold">Registrar Asistencia Interactiva</span>
+                <span className="block text-xs text-cata-red/75">
+                  Tomá asistencia de las sesiones de hoy en unos pasos
+                </span>
+              </span>
+            </span>
+            <ArrowRight size={16} strokeWidth={1.5} aria-hidden="true" />
           </Link>
         </div>
 
@@ -121,19 +119,74 @@ export default function TrainerPage(): React.ReactElement {
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
                 <UserCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
               </div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-cata-state-ok/10 px-2 py-0.5 text-[10px] font-semibold text-cata-state-ok">
-                <TrendingUp size={10} strokeWidth={2} aria-hidden="true" />
-                {presentPercent}%
-              </span>
+              {totalPresent > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-cata-state-ok/10 px-2 py-0.5 text-[10px] font-semibold text-cata-state-ok">
+                  <TrendingUp size={10} strokeWidth={2} aria-hidden="true" />
+                  {presentPercent}%
+                </span>
+              )}
             </div>
             <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Presentes Hoy</p>
             <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">
               {totalPresent}/{totalStudents}
             </p>
+            {totalPresent === 0 && totalStudents > 0 && (
+              <p className="mt-1 text-xs text-cata-text/40">
+                Aún sin registrar — usá &quot;Registrar Asistencia&quot;
+              </p>
+            )}
           </div>
         </div>
 
-      </div>
+        {/* Today's sessions */}
+        <div className="mb-4 flex items-center gap-2">
+          <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          <h2 className="text-lg font-bold text-cata-text">Sesiones de Hoy</h2>
+        </div>
+        {todaySessions.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {todaySessions.map((session) => (
+              <div key={session.id} className="card-hover p-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                    <Users size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-cata-text">{session.groupName}</p>
+                    <p className="text-xs text-cata-text/65">{session.level}</p>
+                  </div>
+                </div>
+                <div className="space-y-1.5 text-xs text-cata-text/65">
+                  <p className="flex items-center gap-1.5">
+                    <Clock size={12} strokeWidth={1.5} aria-hidden="true" />
+                    {session.time}
+                  </p>
+                  <p className="flex items-center gap-1.5">
+                    <MapPin size={12} strokeWidth={1.5} aria-hidden="true" />
+                    {session.court}
+                  </p>
+                  <p className="flex items-center gap-1.5">
+                    <Users size={12} strokeWidth={1.5} aria-hidden="true" />
+                    {session.studentCount} estudiante{session.studentCount !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <Link
+                  href="/trainer/attendance"
+                  className="mt-3 flex items-center gap-1 text-xs font-medium text-cata-red hover:text-cata-red-light"
+                >
+                  Registrar asistencia
+                  <ArrowRight size={12} strokeWidth={1.5} aria-hidden="true" />
+                </Link>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="card flex flex-col items-center py-12 text-center">
+            <Calendar size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
+            <p className="text-sm text-cata-text/50">No hay sesiones programadas para hoy.</p>
+          </div>
+        )}
+      </AppShell>
     </ProtectedRoute>
   );
 }
