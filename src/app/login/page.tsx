@@ -5,18 +5,11 @@
  * a dark marketing panel (AuthShell) on the left and the form on the
  * right.
  *
- * Note: the "Acceso rápido (Demo)" chips below still reference the old
- * demo-persona credentials. Those accounts don't exist on the real FastAPI
- * backend, so clicking them will now surface a genuine "invalid_credentials"
- * error — left as-is since removing/replacing that UI is a product decision
- * outside this change's scope (Phase 2-4: BFF + real auth wiring).
- *
- * The mockup's fifth chip, "Natural (Pre-inscripción)", has no matching
- * login credential or UserRole in `src/types/domain.ts` — it reads as a
- * shortcut into the public enrollment flow for a person who hasn't
- * registered yet, not a login. It's wired to `/student/enroll` (already
- * public, see PUBLIC_EXCEPTIONS in `src/lib/middleware-utils.ts`) instead
- * of inventing a fifth demo account.
+ * The mockup's "Acceso rápido (Demo)" shortcuts (including the fifth
+ * "Natural (Pre-inscripción)" chip, which had no matching login
+ * credential or UserRole in `src/types/domain.ts` to begin with) are
+ * intentionally not implemented — real backend auth is wired up, so
+ * pre-filled demo credentials have no purpose here.
  */
 
 "use client";
@@ -47,33 +40,6 @@ function loginErrorMessage(error: AuthErrorKind): string {
   }
 }
 
-// NOT real credentials: these are inert, publicly-known placeholder
-// strings (e.g. "admin123") for the "Acceso rápido (demo)" shortcut
-// buttons rendered below. They don't correspond to any account on the
-// real FastAPI backend — clicking one calls the same `login()` used by
-// the manual form and surfaces a genuine "invalid_credentials" error
-// (see the file header). There is no secret here to leak; they exist
-// only as UI copy for a not-yet-removed demo affordance (out of scope
-// for this visual migration — see file header).
-//
-// Demo-role chip colors are constrained to the declared `cata-*` brand
-// namespace only. The namespace has 3 genuinely distinct hues (red,
-// state-ok green, navy); roles are differentiated by bold label text +
-// dot color rather than an off-palette hue.
-interface DemoLoginShortcut {
-  email: string;
-  placeholderPassword: string;
-  label: string;
-  dot: string;
-}
-
-const demoAccounts: DemoLoginShortcut[] = [
-  { email: "admin@cataclub.com", placeholderPassword: "admin123", label: "Administrador", dot: "bg-cata-red" },
-  { email: "entrenador@cataclub.com", placeholderPassword: "trainer123", label: "Entrenador", dot: "bg-cata-state-ok" },
-  { email: "representante@cataclub.com", placeholderPassword: "rep123", label: "Representante", dot: "bg-cata-navy" },
-  { email: "estudiante@cataclub.com", placeholderPassword: "self123", label: "Autogestionado", dot: "bg-cata-red-light" },
-];
-
 export default function LoginPage(): React.ReactElement {
   const router = useRouter();
   const { login, isAuthenticated, isLoading, session } = useAuth();
@@ -84,7 +50,7 @@ export default function LoginPage(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
 
   // Redirect to role-appropriate page if already authenticated
-  useEffect(() => {
+  useEffect((): void => {
     if (!isLoading && isAuthenticated && session) {
       router.replace(getDefaultRoute(session.user.role));
     }
@@ -104,16 +70,6 @@ export default function LoginPage(): React.ReactElement {
     }
 
     router.replace(getDefaultRoute(result.session.user.role));
-  }
-
-  async function handleDemoLogin(email: string, password: string): Promise<void> {
-    setError(null);
-    const result = await login(email, password);
-    if (result.ok) {
-      router.replace(getDefaultRoute(result.session.user.role));
-      return;
-    }
-    setError(loginErrorMessage(result.error));
   }
 
   // Show loading during session hydration
@@ -142,37 +98,6 @@ export default function LoginPage(): React.ReactElement {
       description="Estudiantes, pagos, asistencia y grupos del club, todo en un solo lugar — sin planillas sueltas."
       showBackToSite
     >
-      {/* Demo quick login */}
-      <div className="mb-6">
-        <p className="mb-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-cata-text/50">
-          Acceso rápido (demo)
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          {demoAccounts.map((acc): React.ReactElement => (
-            <button
-              key={acc.email}
-              type="button"
-              onClick={(): void => {
-                void handleDemoLogin(acc.email, acc.placeholderPassword);
-              }}
-              className="flex items-center gap-2 rounded-[11px] border border-cata-border bg-cata-surface px-2.5 py-2.5 text-left text-xs font-semibold text-cata-text transition-all hover:-translate-y-px hover:shadow-soft"
-            >
-              <span className={`h-2 w-2 shrink-0 rounded-full ${acc.dot}`} aria-hidden="true" />
-              {acc.label}
-            </button>
-          ))}
-          <Link
-            href="/student/enroll"
-            className="col-span-2 flex items-center gap-2 rounded-[11px] border border-cata-border bg-cata-surface px-2.5 py-2.5 text-left text-xs font-semibold text-cata-text transition-all hover:-translate-y-px hover:shadow-soft"
-          >
-            <span className="h-2 w-2 shrink-0 rounded-full bg-cata-gray-light" aria-hidden="true" />
-            Natural (Pre-inscripción)
-          </Link>
-        </div>
-      </div>
-
-      <div className="mb-6 h-px bg-cata-border" />
-
       {/* Form card */}
       <form className="space-y-5" onSubmit={handleSubmit}>
         <div>

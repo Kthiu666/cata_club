@@ -34,9 +34,9 @@ export default function ForgotPasswordPage(): React.ReactElement {
           Próximamente
         </h2>
         <p className="text-sm leading-relaxed text-cata-text/65">
-          La recuperación de contraseña estará disponible cuando el
-          servicio de autenticación del backend esté conectado. Por ahora,
-          use una de las cuentas de demostración para iniciar sesión.
+          La recuperación de contraseña todavía no está disponible. Por
+          ahora, contacte al administrador del club si olvidó su
+          contraseña.
         </p>
       </div>
 
