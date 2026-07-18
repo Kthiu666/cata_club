@@ -1,26 +1,28 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.infraestructura.db import obtener_sesion
 from app.presentacion.schemas.auth_schemas import (
-    RegistroUsuarioDTO, RefreshTokenDTO, RefreshResponseDTO, LoginResponseDTO,
-    UsuarioMeResponseDTO, LogoutResponseDTO,
+    RegistroUsuarioDTO, RefreshTokenDTO, UsuarioMeResponseDTO, LogoutResponseDTO,
     SolicitarRecuperacionDTO, SolicitarRecuperacionResponseDTO, RestablecerContraseniaDTO,
 )
 from app.seguridad.gestor_auth import GestorAutenticacion
 from app.servicios_negocio.auth_servicio import AuthServicio
+from app.soporte_transversal.rate_limit import limiter
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
 
-@router.post("/login", response_model=LoginResponseDTO)
-async def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(obtener_sesion)):
+@router.post("/login")
+@limiter.limit("5/minute")
+async def login(request: Request, form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(obtener_sesion)):
     return AuthServicio(db).login(form.username, form.password)
 
 
 @router.post("/registro", status_code=status.HTTP_201_CREATED)
-async def registro(datos: RegistroUsuarioDTO, db: Session = Depends(obtener_sesion)):
+@limiter.limit("3/minute")
+async def registro(request: Request, datos: RegistroUsuarioDTO, db: Session = Depends(obtener_sesion)):
     """
     Endpoint público: crea el `Usuario` (credenciales) para una `Persona` que
     ya existe. NO crea Persona — el alta de Persona sigue siendo exclusiva
@@ -44,8 +46,9 @@ async def obtener_perfil(
     }
 
 
-@router.post("/refresh", response_model=RefreshResponseDTO)
-async def refrescar(datos: RefreshTokenDTO, db: Session = Depends(obtener_sesion)):
+@router.post("/refresh")
+@limiter.limit("10/minute")
+async def refrescar(request: Request, datos: RefreshTokenDTO, db: Session = Depends(obtener_sesion)):
     """
     Recibe un refresh token en el BODY (no en header Authorization, porque
     el refresh token no es un bearer token de autenticación general). Devuelve
@@ -73,10 +76,12 @@ async def logout():
 
 # --- E01-RF003: recuperación de contraseña -----------------------------------
 @router.post("/recuperar-contrasenia", response_model=SolicitarRecuperacionResponseDTO)
-async def solicitar_recuperacion(datos: SolicitarRecuperacionDTO, db: Session = Depends(obtener_sesion)):
+@limiter.limit("3/minute")
+async def solicitar_recuperacion(request: Request, datos: SolicitarRecuperacionDTO, db: Session = Depends(obtener_sesion)):
     return AuthServicio(db).solicitar_recuperacion(datos.correo)
 
 
 @router.post("/restablecer-contrasenia", status_code=status.HTTP_204_NO_CONTENT)
-async def restablecer_contrasenia(datos: RestablecerContraseniaDTO, db: Session = Depends(obtener_sesion)):
+@limiter.limit("5/minute")
+async def restablecer_contrasenia(request: Request, datos: RestablecerContraseniaDTO, db: Session = Depends(obtener_sesion)):
     AuthServicio(db).restablecer_contrasenia(datos.token, datos.nueva_contrasenia)

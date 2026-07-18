@@ -1,9 +1,10 @@
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, Field, model_validator
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
 from app.dominio.enums import EstadoMembresia, TipoModalidad, EstadoPago, TipoPago
+from app.presentacion.schemas.base import ResponseBase
 
 
 # --- TipoMembresia ---
@@ -14,29 +15,24 @@ class TipoMembresiaCreateDTO(BaseModel):
     modalidad: TipoModalidad
 
 
-class TipoMembresiaResponseDTO(TipoMembresiaCreateDTO):
+class TipoMembresiaResponseDTO(ResponseBase, TipoMembresiaCreateDTO):
     id: int
-    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Membresia ---
-# El `estado` y `fecha_activacion` NO se exponen al cliente: la máquina de
-# estados de Membresia requiere flujo por Pago (INACTIVA -> ACTIVA al aprobar
-# un pago). Permitir setearlos desde el payload era un bypass (B-12).
 class MembresiaCreateDTO(BaseModel):
     monto_aplicado: Decimal = Field(..., gt=0)
     persona_id: int
     tipo_membresia_id: int
 
 
-class MembresiaResponseDTO(BaseModel):
+class MembresiaResponseDTO(ResponseBase, BaseModel):
     id: int
     estado: EstadoMembresia
     monto_aplicado: Decimal
     fecha_activacion: datetime
     persona_id: int
     tipo_membresia_id: int
-    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Pago ---
@@ -60,7 +56,7 @@ class PagoValidarDTO(BaseModel):
     motivo_rechazo: Optional[str] = Field(None, max_length=255)
 
 
-class PagoResponseDTO(BaseModel):
+class PagoResponseDTO(ResponseBase, BaseModel):
     id: int
     monto: Decimal
     motivo_rechazo: Optional[str] = None
@@ -75,45 +71,34 @@ class PagoResponseDTO(BaseModel):
     voucher_url: Optional[str] = None
     voucher_formato: Optional[str] = None
     voucher_fecha_carga: Optional[datetime] = None
-    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Listado / cola de validación (GET /membresias/pagos) -------------------
-# Gap identificado en la integración con el frontend: no existía forma de
-# listar pagos (ej. la cola "pendientes de validación" que ve el
-# Administrador). PagoResponseDTO no alcanza porque el frontend necesita el
-# nombre de la persona sin tener que pedirlo aparte por cada fila.
-class PagoListItemDTO(BaseModel):
-    id: int
-    monto: Decimal
-    estado_pago: EstadoPago
-    tipo_pago: TipoPago
-    fecha_registro: datetime
-    fecha_validacion: Optional[datetime] = None
-    fecha_inicio: date
-    fecha_fin: date
-    persona_id: int
-    persona_nombre_completo: str
-    membresia_id: int
-    voucher_url: Optional[str] = None
-    voucher_formato: Optional[str] = None
-    model_config = ConfigDict(from_attributes=True)
+class PagoListItemDTO(ResponseBase, BaseModel):
+    id: int = Field(..., examples=[1])
+    monto: Decimal = Field(..., examples=["50.00"])
+    estado_pago: EstadoPago = Field(..., examples=["APROBADO"])
+    tipo_pago: TipoPago = Field(..., examples=["TRANSFERENCIA"])
+    fecha_registro: datetime = Field(..., examples=["2024-06-01T09:00:00Z"])
+    fecha_validacion: Optional[datetime] = Field(default=None, examples=["2024-06-02T14:30:00Z"])
+    fecha_inicio: date = Field(..., examples=["2024-06-01"])
+    fecha_fin: date = Field(..., examples=["2024-12-31"])
+    persona_id: int = Field(..., examples=[1])
+    persona_nombre_completo: str = Field(..., examples=["Juan Carlos Pérez López"])
+    membresia_id: int = Field(..., examples=[1])
+    voucher_url: Optional[str] = Field(default=None, examples=["https://res.cloudinary.com/..."])
+    voucher_formato: Optional[str] = Field(default=None, examples=["image/jpeg"])
 
 
 # --- ComprobantePago ---
-# `pago_id` NO va aquí: viene del path del endpoint
-# (`POST /membresias/pagos/{pago_id}/comprobante`). Lo quitamos del DTO para
-# evitar el `TypeError: got multiple values for keyword 'pago_id'` que ocurre
-# al expandir `datos.model_dump()` y luego pasar `pago_id=pago_id`.
 class ComprobantePagoCreateDTO(BaseModel):
     archivo_url: str
     formato_archivo: str
 
 
-class ComprobantePagoResponseDTO(BaseModel):
+class ComprobantePagoResponseDTO(ResponseBase, BaseModel):
     id: int
     archivo_url: str
     formato_archivo: str
     fecha_carga: datetime
     pago_id: int
-    model_config = ConfigDict(from_attributes=True)

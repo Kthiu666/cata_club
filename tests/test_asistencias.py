@@ -55,8 +55,8 @@ def test_crear_horario_con_entrenador_valido(client, db_session):
         },
     )
     assert resp.status_code == 201
-    assert resp.json()["dia_semana"] == "LUNES"
-    assert resp.json()["entrenador_id"] == entrenador["id"]
+    assert resp.json()["diaSemana"] == "LUNES"
+    assert resp.json()["entrenadorId"] == entrenador["id"]
 
 
 def test_asistencia_permite_entrenador_sustituto_distinto_al_titular(client, db_session):
@@ -86,5 +86,5 @@ def test_asistencia_permite_entrenador_sustituto_distinto_al_titular(client, db_
         },
     )
     assert resp.status_code == 201
-    assert resp.json()["entrenador_id"] == sustituto["id"]
-    assert resp.json()["entrenador_id"] != horario["entrenador_id"]
+    assert resp.json()["entrenadorId"] == sustituto["id"]
+    assert resp.json()["entrenadorId"] != horario["entrenadorId"]

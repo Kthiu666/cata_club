@@ -92,9 +92,9 @@ def test_subir_voucher_jpg_a_pago_pendiente_devuelve_201(_mock_cloudinary, clien
 
     assert resp.status_code == 201, resp.text
     body = resp.json()
-    assert body["voucher_url"] == _FAKE_URL_JPG
-    assert body["voucher_formato"] == "image/jpeg"
-    assert body["voucher_fecha_carga"] is not None
+    assert body["voucherUrl"] == _FAKE_URL_JPG
+    assert body["voucherFormato"] == "image/jpeg"
+    assert body["voucherFechaCarga"] is not None
 
 
 @patch(
@@ -116,7 +116,7 @@ def test_subir_voucher_pdf_a_pago_pendiente_devuelve_201(_mock_cloudinary, clien
     )
 
     assert resp.status_code == 201, resp.text
-    assert resp.json()["voucher_formato"] == "application/pdf"
+    assert resp.json()["voucherFormato"] == "application/pdf"
 
 
 def test_subir_voucher_a_pago_no_pendiente_da_400(client):

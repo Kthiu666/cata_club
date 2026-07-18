@@ -1,8 +1,9 @@
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.soporte_transversal.configuracion import settings
+from app.soporte_transversal.rate_limit import limiter
 from app.presentacion.routers import (
     auth_router,
     personas_router,
@@ -13,6 +14,7 @@ from app.presentacion.routers import (
     geografia_router,
     ranking_router,
     tesoreria_router,
+    enrollment_router,
 )
 from app.dominio.excepciones import (
     EntidadNoEncontrada, EntidadDuplicada, OperacionInvalida,
@@ -21,9 +23,23 @@ from app.dominio.excepciones import (
 
 app = FastAPI(title=settings.app_nombre, version=settings.app_version)
 
+# --- Rate limiting -----------------------------------------------------------
+# Se deshabilita en ambiente de test (limiter es NoOpLimiter, ver rate_limit.py).
+if settings.ambiente != "test":
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# --- Respuesta de error consistente para frontend + backend -----------------
+# El frontend (Next.js) espera `message`; el backend original usa `detail`.
+# Devolvemos ambos para compatibilidad sin romper contratos existentes.
+def _respuesta_error(codigo: int, mensaje: str) -> JSONResponse:
+    return JSONResponse(status_code=codigo, content={"detail": mensaje, "message": mensaje})
+
+
 # --- Manejadores globales: traducen excepciones de dominio a códigos HTTP ---
-# Así los routers y servicios_negocio nunca importan HTTPException; la capa
-# de presentación es la única que conoce el protocolo HTTP.
 _MAPA_EXCEPCIONES = {
     EntidadNoEncontrada: status.HTTP_404_NOT_FOUND,
     EntidadDuplicada: status.HTTP_400_BAD_REQUEST,
@@ -35,9 +51,15 @@ _MAPA_EXCEPCIONES = {
 for _excepcion, _codigo in _MAPA_EXCEPCIONES.items():
     def _crear_handler(codigo):
         async def _handler(request: Request, exc):
-            return JSONResponse(status_code=codigo, content={"detail": exc.mensaje})
+            return _respuesta_error(codigo, exc.mensaje)
         return _handler
     app.add_exception_handler(_excepcion, _crear_handler(_codigo))
+
+
+# --- HTTPException de FastAPI también devuelve {detail, message} ------------
+@app.exception_handler(HTTPException)
+async def _http_exception_handler(request: Request, exc: HTTPException):
+    return _respuesta_error(exc.status_code, str(exc.detail))
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,6 +78,7 @@ app.include_router(clases_extra_router.router, prefix="/api/v1")
 app.include_router(geografia_router.router, prefix="/api/v1")
 app.include_router(ranking_router.router, prefix="/api/v1")
 app.include_router(tesoreria_router.router, prefix="/api/v1")
+app.include_router(enrollment_router.router, prefix="/api/v1")
 
 
 @app.get("/", tags=["Salud"])

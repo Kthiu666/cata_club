@@ -174,7 +174,7 @@ def test_beca_reduce_automaticamente_el_monto_al_aprobar_pago(client):
     assert resp.status_code == 200
 
     membresia_actualizada = client.get(f"/api/v1/membresias/{membresia['id']}").json()
-    assert membresia_actualizada["monto_aplicado"] == "20.00"
+    assert membresia_actualizada["montoAplicado"] == "20.00"
 
 
 # --- Prioridad municipal + reportes (E01-RF009/RF010) -----------------------
@@ -206,7 +206,7 @@ def test_crear_antecedentes_club_con_mano_dominante(client):
         },
     )
     assert resp.status_code == 201
-    assert resp.json()["mano_dominante"] == "ZURDO"
+    assert resp.json()["manoDominante"] == "ZURDO"
 
 
 def test_antecedentes_club_duplicado_falla(client):

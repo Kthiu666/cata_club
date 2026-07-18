@@ -1,9 +1,10 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field
 from datetime import date
 from decimal import Decimal
 from typing import Optional, List
 
 from app.dominio.enums import TipoMovimientoEvento
+from app.presentacion.schemas.base import ResponseBase
 
 
 # --- Eventos de recaudación (E04-RF010) --------------------------------------
@@ -15,14 +16,13 @@ class EventoRecaudacionCreateDTO(BaseModel):
     meta_monto: Optional[Decimal] = Field(default=None, gt=0)
 
 
-class EventoRecaudacionResponseDTO(BaseModel):
+class EventoRecaudacionResponseDTO(ResponseBase, BaseModel):
     id: int
     nombre: str
     descripcion: Optional[str] = None
     fecha_inicio: date
     fecha_fin: Optional[date] = None
     meta_monto: Optional[Decimal] = None
-    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Movimientos de un evento (E04-RF011) ------------------------------------
@@ -33,7 +33,7 @@ class MovimientoEventoCreateDTO(BaseModel):
     fecha: date
 
 
-class MovimientoEventoResponseDTO(BaseModel):
+class MovimientoEventoResponseDTO(ResponseBase, BaseModel):
     id: int
     tipo: TipoMovimientoEvento
     monto: Decimal
@@ -41,10 +41,9 @@ class MovimientoEventoResponseDTO(BaseModel):
     fecha: date
     evento_id: int
     registrado_por_id: int
-    model_config = ConfigDict(from_attributes=True)
 
 
-class BalanceEventoResponseDTO(BaseModel):
+class BalanceEventoResponseDTO(ResponseBase, BaseModel):
     evento_id: int
     nombre: str
     total_ingresos: Decimal
@@ -61,18 +60,17 @@ class EgresoCreateDTO(BaseModel):
     fecha: date
 
 
-class EgresoResponseDTO(BaseModel):
+class EgresoResponseDTO(ResponseBase, BaseModel):
     id: int
     concepto: str
     categoria: str
     monto: Decimal
     fecha: date
     registrado_por_id: int
-    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Balance general del club (E04-RF012 / E04-RF013) ------------------------
-class BalanceGeneralResponseDTO(BaseModel):
+class BalanceGeneralResponseDTO(ResponseBase, BaseModel):
     total_ingresos_membresias: Decimal
     total_ingresos_eventos: Decimal
     total_egresos_eventos: Decimal

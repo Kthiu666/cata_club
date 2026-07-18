@@ -23,6 +23,8 @@ dependencies = [
     "reportlab>=4.2.0",
     # --- Almacenamiento de archivos en la nube ---
     "cloudinary>=1.41.0",
+    # --- Rate limiting ---
+    "slowapi>=0.1.9",
 ]
 
 [tool.uv]

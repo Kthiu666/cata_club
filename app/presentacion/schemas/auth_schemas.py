@@ -6,8 +6,10 @@ Patrón de nomenclatura consistente con el resto de schemas del proyecto:
   - Sufijo `ResponseDTO` para respuestas, con `model_config = ConfigDict(from_attributes=True)`
     cuando la respuesta se mapea directamente desde un modelo ORM.
 """
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field
 from typing import List
+
+from app.presentacion.schemas.base import ResponseBase
 
 
 class RegistroUsuarioDTO(BaseModel):
@@ -22,9 +24,9 @@ class RegistroUsuarioDTO(BaseModel):
     contrasenia: str = Field(..., min_length=8)
 
 
-class LoginResponseDTO(BaseModel):
-    access_token: str
-    refresh_token: str
+class LoginResponseDTO(ResponseBase, BaseModel):
+    access_token: str = Field(..., examples=["eyJhbGciOiJIUzI1NiIs..."])
+    refresh_token: str = Field(..., examples=["dGhpcyBpcyBhIHJlZnJlc2g..."])
     token_type: str = "bearer"
 
 
@@ -32,21 +34,15 @@ class RefreshTokenDTO(BaseModel):
     refresh_token: str
 
 
-class RefreshResponseDTO(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-
-
-class UsuarioMeResponseDTO(BaseModel):
+class UsuarioMeResponseDTO(ResponseBase, BaseModel):
     correo: str
     persona_id: int
     nombres: str
     apellidos: str
     roles: List[str]
-    model_config = ConfigDict(from_attributes=True)
 
 
-class LogoutResponseDTO(BaseModel):
+class LogoutResponseDTO(ResponseBase, BaseModel):
     mensaje: str
 
 
@@ -55,7 +51,7 @@ class SolicitarRecuperacionDTO(BaseModel):
     correo: EmailStr
 
 
-class SolicitarRecuperacionResponseDTO(BaseModel):
+class SolicitarRecuperacionResponseDTO(ResponseBase, BaseModel):
     mensaje: str
 
 

@@ -29,6 +29,14 @@ class PagoRepositorio:
         stmt = stmt.order_by(Pago.fecha_registro.desc()).offset(skip).limit(limit)
         return list(self.db.execute(stmt).scalars().all())
 
+    def contar(self, estado_pago: Optional[EstadoPago] = None) -> int:
+        """Cuenta el total de pagos (opcionalmente filtrados por estado)."""
+        from sqlalchemy import func
+        stmt = select(func.count()).select_from(Pago)
+        if estado_pago is not None:
+            stmt = stmt.where(Pago.estado_pago == estado_pago)
+        return self.db.execute(stmt).scalar_one()
+
     def crear(self, pago: Pago) -> Pago:
         self.db.add(pago)
         self.db.commit()

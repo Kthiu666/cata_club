@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     """
     app_nombre: str = "API Cata Club - UNL"
     app_version: str = "1.3.0"
+    ambiente: str = "production"
 
     database_url: str = "postgresql+psycopg://usuario:password@localhost:5432/cataclub_db"
 
