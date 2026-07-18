@@ -618,3 +618,20 @@ export interface StudentPortalSummary {
 export async function fetchStudentPortal(personaId: string): Promise<StudentPortalSummary> {
   return request<StudentPortalSummary>(apiEndpoint(`/student?personaId=${encodeURIComponent(personaId)}`));
 }
+
+// ---------------------------------------------------------------------------
+// Dashboard API Methods (Fase 7)
+// ---------------------------------------------------------------------------
+
+/** Aggregate counts for the admin overview — see src/app/api/dashboard/route.ts for how each is composed. */
+export interface DashboardStats {
+  totalPersonas: number;
+  activeMemberships: number;
+  pendingPayments: number;
+  todaySchedules: number;
+}
+
+/** Fetch aggregate dashboard stats, composed server-side from `/personas`, `/membresias/pagos*` and `/asistencias/horarios` — `GET /api/dashboard`. */
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+  return request<DashboardStats>(apiEndpoint("/dashboard"));
+}
