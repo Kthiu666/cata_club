@@ -1,0 +1,99 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: usuario
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: cataclub_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - cataclub_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U usuario -d cataclub_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment: &backend_env
+      DATABASE_URL: postgresql+psycopg://usuario:password@db:5432/cataclub_db
+      REDIS_URL: redis://redis:6379/0
+      # Dev-only secret — never reuse this value outside local docker-compose.
+      JWT_SECRET_KEY: dev-only-insecure-secret-do-not-use-in-production-000000
+      JWT_ALGORITMO: HS256
+      JWT_EXPIRA_MINUTOS: 60
+      JWT_REFRESH_EXPIRA_DIAS: 7
+      CORS_ORIGENES: http://localhost:3000
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      CLOUDINARY_CARPETA_COMPROBANTES: cataclub/comprobantes
+      CLOUDINARY_CARPETA_VOUCHERS: cataclub/vouchers
+      CELERY_HORA_AUTOMATIZACIONES: "02:30"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: >
+      sh -c "uv run python -c 'from app.infraestructura.db import crear_tablas; crear_tablas()' &&
+             uv run python scripts/seed_dev_admin.py &&
+             uv run uvicorn main:app --host 0.0.0.0 --port 8000"
+
+  celery-worker:
+    build: ./backend
+    restart: unless-stopped
+    environment: *backend_env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      backend:
+        condition: service_started
+    command: uv run celery -A app.infraestructura.tareas.celery_app worker --loglevel=info
+
+  celery-beat:
+    build: ./backend
+    restart: unless-stopped
+    environment: *backend_env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      backend:
+        condition: service_started
+    command: uv run celery -A app.infraestructura.tareas.celery_app beat --loglevel=info
+
+  frontend:
+    restart: unless-stopped
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+        NEXT_PUBLIC_APP_NAME: Cata Club Admin
+        NEXT_PUBLIC_USE_MOCKS: "false"
+    ports:
+      - "3000:3000"
+    environment:
+      # Server-only — the Next.js BFF (src/app/api/auth/**) calls FastAPI directly
+      # over the compose network, not through localhost.
+      BACKEND_API_URL: http://backend:8000/api/v1
+    depends_on:
+      - backend
+
+volumes:
+  cataclub_db_data:
