@@ -33,13 +33,27 @@ export interface MemberStudentSummary {
   id: string;
   nombres: string;
   apellidos: string;
-  email: string;
+  /**
+   * Optional: `PersonaResponseDTO` (backend) has no `email` field — email
+   * lives on `Usuario` (login credentials), and there is no bulk endpoint
+   * to resolve it per Persona. Omitted (not fabricated) when unavailable.
+   */
+  email?: string;
   /** The group this student belongs to (if assigned). Technical level is carried by the group, not the student. */
   grupoId: string | null;
   fechaNacimiento?: string;
   activo: boolean;
   membresia: {
-    tipo: TipoMembresia;
+    /**
+     * Display label for the membership plan. Was `TipoMembresia` (a strict
+     * "mensual"|"trimestral"|"semestral"|"anual" union) — the real backend
+     * `TipoMembresia` model has no such field (only `categoria` free text +
+     * `modalidad`: "PERSONALIZADA"|"MENSUAL"), so this is now a plain
+     * display string built server-side (see members-adapter.ts) instead of
+     * guessing a mapping into the old union. Mock fixtures still use the
+     * old literal values ("mensual", etc.) — those remain valid strings.
+     */
+    tipo: string;
     estado: EstadoMembresia;
     fechaInicio: string;
     fechaFin: string;
@@ -65,7 +79,8 @@ export interface MemberAccount {
   role: PayerType;
   nombres: string;
   apellidos: string;
-  email: string;
+  /** Optional — see `MemberStudentSummary.email`'s doc comment for why. */
+  email?: string;
   telefono: string;
   estudiantes: MemberStudentSummary[];
 }
@@ -281,7 +296,7 @@ export function filterAccounts(
     if (normalizeText(`${account.nombres} ${account.apellidos}`).includes(term)) {
       return true;
     }
-    if (normalizeText(account.email).includes(term)) {
+    if (account.email && normalizeText(account.email).includes(term)) {
       return true;
     }
     return account.estudiantes.some((a) =>

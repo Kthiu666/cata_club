@@ -5,13 +5,16 @@
  * with their associated students. Shows membership status, payment summary,
  * and contact/identity information for each.
  *
- * Frontend-only mock — no backend integration. Data resets on server restart.
- * Pattern follows the existing payments/page.tsx and student/page.tsx.
+ * Connected to the real backend (Fase 4): `GET /api/members` aggregates
+ * `/personas`, `/membresias/pagos*` and `/ranking/niveles*` server-side —
+ * see src/lib/server/members-adapter.ts for the DTO translation and the
+ * backend gaps found while building it (no `email`/`roles`/account-active
+ * flag exposed on Persona).
  */
 
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import {
   Users,
@@ -28,11 +31,10 @@ import {
   CheckCircle2,
   XCircle,
   Building2,
+  AlertTriangle,
 } from "lucide-react";
-import {
-  MOCK_MEMBER_ACCOUNTS,
-  MOCK_GRUPOS,
-} from "@/mocks/members";
+import { fetchMembers, fetchNivelesConOcupacion } from "@/services/api";
+import { nivelToGrupo } from "@/app/groups/groups-page-utils";
 import {
   buildMemberStats,
   formatMembershipPeriod,
@@ -45,11 +47,11 @@ import {
   PAYMENT_STATUS_LABELS,
   PAYMENT_STATUS_BADGE,
   getPayerTypeLabel,
-  MEMBERSHIP_TYPE_LABELS,
   type MemberAccount,
   type MemberStudentSummary,
   type PaymentStatus,
 } from "./members-utils";
+import type { Grupo } from "@/types/domain";
 import { formatCurrency, formatDate } from "@/lib/format-utils";
 
 // ---------------------------------------------------------------------------
@@ -105,9 +107,10 @@ function StatCard({ icon, label, value }: StatCardProps): React.ReactElement {
 
 interface StudentRowProps {
   student: MemberStudentSummary;
+  grupos: Grupo[];
 }
 
-function StudentRow({ student }: StudentRowProps): React.ReactElement {
+function StudentRow({ student, grupos }: StudentRowProps): React.ReactElement {
   const membershipLabel = student.membresia
     ? MEMBERSHIP_STATUS_LABELS[student.membresia.estado]
     : "Sin membresía";
@@ -122,7 +125,7 @@ function StudentRow({ student }: StudentRowProps): React.ReactElement {
     ? PAYMENT_STATUS_BADGE[student.ultimoPago.estado]
     : "badge-neutral";
 
-  const nivelDisplay = getNivelLabelFromGrupo(student.grupoId, MOCK_GRUPOS);
+  const nivelDisplay = getNivelLabelFromGrupo(student.grupoId, grupos);
 
   return (
     <tr id={`student-detail-${student.id}`} className="border-t border-cata-border bg-cata-bg/60">
@@ -162,7 +165,7 @@ function StudentRow({ student }: StudentRowProps): React.ReactElement {
               <>
                 <span className={membershipBadge}>{membershipLabel}</span>
                 <p className="mt-1 text-xs text-cata-text/65">
-                  {MEMBERSHIP_TYPE_LABELS[student.membresia.tipo]}{" "}
+                  {student.membresia.tipo}{" "}
                   &middot;{" "}
                   {formatMembershipPeriod(
                     student.membresia.fechaInicio,
@@ -226,11 +229,13 @@ function StudentRow({ student }: StudentRowProps): React.ReactElement {
 interface AccountRowProps {
   account: MemberAccount;
   defaultOpen: boolean;
+  grupos: Grupo[];
 }
 
 function AccountRow({
   account,
   defaultOpen,
+  grupos,
 }: AccountRowProps): React.ReactElement {
   const [expanded, setExpanded] = useState(defaultOpen);
   const activeCount = countActiveStudents(account);
@@ -278,10 +283,12 @@ function AccountRow({
           </div>
         </td>
         <td className="px-4 py-3.5 text-xs text-cata-text/65">
-          <div className="flex items-center gap-1.5">
-            <Mail size={11} strokeWidth={1.5} aria-hidden="true" />
-            {account.email}
-          </div>
+          {account.email && (
+            <div className="flex items-center gap-1.5">
+              <Mail size={11} strokeWidth={1.5} aria-hidden="true" />
+              {account.email}
+            </div>
+          )}
           <div className="mt-0.5 flex items-center gap-1.5">
             <Phone size={11} strokeWidth={1.5} aria-hidden="true" />
             {account.telefono}
@@ -305,7 +312,7 @@ function AccountRow({
       </tr>
       {expanded &&
         account.estudiantes.map((estudiante) => (
-          <StudentRow key={estudiante.id} student={estudiante} />
+          <StudentRow key={estudiante.id} student={estudiante} grupos={grupos} />
         ))}
     </>
   );
@@ -317,9 +324,30 @@ function AccountRow({
 
 export default function MembersPage(): React.ReactElement {
   const [searchTerm, setSearchTerm] = useState("");
-  const accounts = MOCK_MEMBER_ACCOUNTS;
-  const stats = buildMemberStats(accounts);
+  const [accounts, setAccounts] = useState<MemberAccount[]>([]);
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  const loadMembers = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [membersData, niveles] = await Promise.all([fetchMembers(), fetchNivelesConOcupacion()]);
+      setAccounts(membersData);
+      setGrupos(niveles.map(nivelToGrupo));
+    } catch {
+      setError("No se pudieron cargar los miembros. Intente nuevamente.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadMembers();
+  }, [loadMembers]);
+
+  const stats = buildMemberStats(accounts);
   const filteredAccounts = filterAccounts(accounts, searchTerm);
 
   return (
@@ -343,15 +371,18 @@ export default function MembersPage(): React.ReactElement {
           </div>
         </div>
 
-        {/* Demo badge */}
-        <div className="mb-6 flex items-center gap-2">
-          <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">
-            Demo
-          </span>
-          <span className="text-xs text-cata-text/40">
-            Los datos de miembros son simulados con información local en memoria
-          </span>
-        </div>
+        {error && (
+          <div
+            className="mb-6 flex items-center gap-2 rounded-xl border border-cata-red/30 bg-cata-red/10 px-4 py-3 text-sm text-cata-red"
+            role="alert"
+          >
+            <AlertTriangle size={14} strokeWidth={2} aria-hidden="true" />
+            {error}
+            <button type="button" onClick={() => void loadMembers()} className="btn-ghost ml-auto text-xs">
+              Reintentar
+            </button>
+          </div>
+        )}
 
         {/* Stats grid */}
         <div className="mb-6 flex items-center gap-2">
@@ -402,7 +433,11 @@ export default function MembersPage(): React.ReactElement {
         </div>
 
         {/* Members table */}
-        {filteredAccounts.length > 0 ? (
+        {loading ? (
+          <div className="card flex flex-col items-center py-16 text-center">
+            <p className="text-sm text-cata-text/50">Cargando miembros…</p>
+          </div>
+        ) : filteredAccounts.length > 0 ? (
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
@@ -422,6 +457,7 @@ export default function MembersPage(): React.ReactElement {
                       key={account.id}
                       account={account}
                       defaultOpen={index === 0 && filteredAccounts.length === 1}
+                      grupos={grupos}
                     />
                   ))}
                 </tbody>
@@ -458,22 +494,15 @@ export default function MembersPage(): React.ReactElement {
         <div className="card mt-8 p-6">
           <div className="mb-3 flex items-center gap-2">
             <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <h3 className="text-sm font-bold text-cata-text">Modelo de dominio (Demo)</h3>
+            <h3 className="text-sm font-bold text-cata-text">Modelo de dominio</h3>
           </div>
           <p className="text-sm leading-relaxed text-cata-text/65">
             Cada <strong className="text-cata-text">responsable de pago</strong> (titular de cuenta) gestiona
             uno o más estudiantes. Un representante (ej. padre/madre) puede gestionar
             varios estudiantes. Un estudiante puede ser su propio responsable de pago.
             El <strong className="text-cata-text">nivel técnico</strong> lo lleva el grupo asignado, no el estudiante.
-            Los datos de membresía, grupos y pagos son simulados.
           </p>
         </div>
-
-        {/* Demo footer */}
-        <p className="mt-8 text-center text-xs text-cata-text/30">
-          Los datos de miembros son de demostración. No se almacenan registros reales.
-          Listo para la integración con la API del backend.
-        </p>
       </div>
     </ProtectedRoute>
   );

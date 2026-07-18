@@ -6,7 +6,9 @@
  */
 
 import type { Grupo } from "@/types/domain";
-import type { StudentRef } from "@/lib/groups-utils";
+import type { StudentRef, GroupCardData } from "@/lib/groups-utils";
+import { getLevelLabel } from "@/lib/groups-utils";
+import type { NivelConOcupacion } from "@/services/api";
 
 // ---------------------------------------------------------------------------
 // Student group resolution
@@ -101,4 +103,55 @@ export function getCapacityBarColor(percent: number): string {
     if (percent >= threshold.min) return threshold.color;
   }
   return "bg-emerald-500";
+}
+
+// ---------------------------------------------------------------------------
+// NivelRanking → Grupo adapter (Fase 4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Map a real `NivelRanking` (backend's "Grupo" — see ranking_schemas.py's
+ * module docstring) into the frontend `Grupo` domain shape. `estudiantesIds`
+ * is left empty here — occupancy/roster comes from a separate call
+ * (`GET /ranking/niveles/{id}/tabla`, already proxied at
+ * /api/ranking/niveles/[id]/tabla) since `NivelRankingConOcupacionDTO` only
+ * carries counts, not the member list.
+ *
+ * `horariosIds` is always empty and `activo` always `true`: the backend has
+ * no schedule↔nivel link (documented gap, see attendance-adapter.ts) and no
+ * `activo` flag on `NivelRanking` — not fabricated, just absent.
+ */
+export function nivelToGrupo(nivel: NivelConOcupacion): Grupo {
+  return {
+    id: String(nivel.id),
+    nombre: nivel.nombre ?? `Nivel ${nivel.numeroNivel}`,
+    nivel: nivel.nivelCategoria,
+    estudiantesIds: [],
+    horariosIds: [],
+    activo: true,
+    createdAt: "",
+    updatedAt: "",
+  };
+}
+
+/**
+ * Build `GroupCardData` directly from real occupancy data
+ * (`capacidadMaxima`/`personasActuales`) instead of the mock-era
+ * schedule-derived capacity (`getGroupCapacity` in lib/groups-utils.ts,
+ * which needs a schedule↔nivel link that doesn't exist in the real API —
+ * see the gap noted on `nivelToGrupo` above). `scheduleCount`/
+ * `scheduleLabels` are always empty for the same reason.
+ */
+export function buildGroupCardsFromNiveles(niveles: NivelConOcupacion[]): GroupCardData[] {
+  return niveles.map((nivel) => ({
+    id: String(nivel.id),
+    name: nivel.nombre ?? `Nivel ${nivel.numeroNivel}`,
+    level: nivel.nivelCategoria,
+    levelLabel: getLevelLabel(nivel.nivelCategoria),
+    studentCount: nivel.personasActuales,
+    capacity: nivel.capacidadMaxima,
+    capacityPercent: nivel.capacidadMaxima > 0 ? Math.round((nivel.personasActuales / nivel.capacidadMaxima) * 100) : 0,
+    scheduleCount: 0,
+    scheduleLabels: [],
+  }));
 }

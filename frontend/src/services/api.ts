@@ -20,6 +20,7 @@
 import type { UserRole, EstadoAsistencia } from "@/types/domain";
 import type { EnrollmentRequest, EnrollmentResponse } from "@/types/enrollment";
 import type { AttendanceRecord, TrainingSchedule } from "@/app/attendance/attendance-utils";
+import type { MemberAccount } from "@/app/members/members-utils";
 
 // ---------------------------------------------------------------------------
 // Types — Membership Payment Validation (CU012)
@@ -493,6 +494,37 @@ export async function registerAttendance(data: RegisterAttendanceRequest): Promi
   return request<RegisterAttendanceResult>(apiEndpoint("/attendance/records"), {
     method: "POST",
     body: JSON.stringify(data),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Members & Groups API Methods (Fase 4)
+// ---------------------------------------------------------------------------
+
+/** List every account (responsible payer + managed students), aggregated server-side — see src/lib/server/members-adapter.ts. */
+export async function fetchMembers(): Promise<MemberAccount[]> {
+  return request<MemberAccount[]>(apiEndpoint("/members"));
+}
+
+/**
+ * Assign a student with no prior nivel/group (`grupoId === null`) to one —
+ * `POST /ranking/asignar-nivel-inicial`. Backend-role-restricted to
+ * ENTRENADOR; an admin caller gets a real 403 here (see
+ * src/app/api/groups/assign/route.ts's doc comment) — this is not a client
+ * bug, it reflects the actual backend authorization rule.
+ */
+export async function assignStudentToNivel(personaId: number, nivelRankingId: number): Promise<void> {
+  await request<unknown>(apiEndpoint("/groups/assign"), {
+    method: "POST",
+    body: JSON.stringify({ personaId, nivelRankingId }),
+  });
+}
+
+/** Move an already-ranked student to a different nivel/group — `PATCH /ranking/{id}/mover-de-nivel`. Works for admin and entrenador. */
+export async function moveStudentToNivel(personaId: number, nivelRankingId: number): Promise<void> {
+  await request<unknown>(apiEndpoint("/groups/move"), {
+    method: "PATCH",
+    body: JSON.stringify({ personaId, nivelRankingId }),
   });
 }
 

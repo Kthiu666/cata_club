@@ -29,7 +29,7 @@ const VALIDATION_STATUS_BY_ESTADO_PAGO: Record<BackendEstadoPago, ValidationStat
 // closest to "vencida" (needs a payment to become current) for this queue.
 // Exported: src/lib/server/members-adapter.ts reuses this exact mapping —
 // `EstadoMembresia` (domain.ts) is the same 3-value union as `MembershipStatus`.
-const MEMBERSHIP_STATUS_BY_ESTADO: Record<BackendEstadoMembresia, MembershipStatus> = {
+export const MEMBERSHIP_STATUS_BY_ESTADO: Record<BackendEstadoMembresia, MembershipStatus> = {
   ACTIVA: "activa",
   VENCIDA: "vencida",
   INACTIVA: "vencida",

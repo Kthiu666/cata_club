@@ -1,21 +1,37 @@
 /**
  * Gestión de Grupos — Admin page for managing group membership.
  *
- * Displays all training groups (Grupo) with their technical level, assigned
- * students, linked schedules, and capacity. Shows unassigned students and
- * allows frontend-only group assignment.
+ * Displays all training groups (`NivelRanking`, the backend's "Grupo" —
+ * see ranking_schemas.py's module docstring) with their technical level,
+ * assigned students, and capacity. Shows unassigned students and lets an
+ * admin assign/move students between groups.
  *
  * Domain: Technical level (NivelTecnico) belongs to the group, NOT to the
  * student. A student's level is determined by which group they belong to.
  * Students with no group assignment have no technical level yet — pending
  * trainer evaluation.
  *
- * Frontend-only mock — no backend integration. Data resets on server restart.
+ * Connected to the real backend (Fase 4): `GET /api/ranking/niveles` (list),
+ * `GET /api/members` (student roster + current group, flattened) and two
+ * new mutation routes, `POST /api/groups/assign` and `PATCH
+ * /api/groups/move` — see src/app/groups/groups-page-utils.ts for the
+ * `NivelRanking → Grupo` adapter.
+ *
+ * Two real backend gaps affect this page (do not work around either —
+ * documented at the source instead of guessed here):
+ *  - No API exposes which `Horario` belongs to which `NivelRanking` (see
+ *    src/lib/server/attendance-adapter.ts) — the "Horarios vinculados"
+ *    panel always shows the empty state.
+ *  - Initial group assignment (`POST /ranking/asignar-nivel-inicial`) is
+ *    backend-restricted to ENTRENADOR — an ADMINISTRADOR gets a real 403
+ *    (see src/app/api/groups/assign/route.ts). Moving an already-assigned
+ *    student works fine for admins. Removing a student from a group
+ *    entirely has no backend endpoint at all, so that action is disabled.
  */
 
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import {
   Users,
@@ -27,28 +43,11 @@ import {
   CheckCircle2,
   MapPin,
   ArrowRight,
-  RefreshCw,
 } from "lucide-react";
-import {
-  MOCK_MEMBER_ACCOUNTS,
-  MOCK_GRUPOS,
-} from "@/mocks/members";
-import { MOCK_SCHEDULES } from "@/mocks/attendance";
-import {
-  assignStudentToGroup,
-  removeStudentFromAllGroups,
-  getStudentsByGroup,
-  getSchedulesByGroup,
-  getUnassignedStudents,
-  buildGroupCards,
-  getLevelLabel,
-  type GroupCardData,
-} from "@/lib/groups-utils";
-import {
-  buildStudentRefs,
-  getLevelBadgeClass,
-  getCapacityBarColor,
-} from "./groups-page-utils";
+import { fetchMembers, fetchNivelesConOcupacion, assignStudentToNivel, moveStudentToNivel, ApiClientError } from "@/services/api";
+import type { NivelConOcupacion } from "@/services/api";
+import { getUnassignedStudents, getLevelLabel, type StudentRef, type GroupCardData } from "@/lib/groups-utils";
+import { buildGroupCardsFromNiveles, getLevelBadgeClass, getCapacityBarColor } from "./groups-page-utils";
 
 interface LevelBadgeProps {
   level: string;
@@ -101,60 +100,79 @@ function CapacityBar({ percent, total }: CapacityBarProps): React.ReactElement {
 // Page component
 // ---------------------------------------------------------------------------
 
+function extractErrorMessage(err: unknown, fallback: string): string {
+  return err instanceof ApiClientError ? err.message : fallback;
+}
+
 export default function GroupsPage(): React.ReactElement {
-  const [grupos, setGrupos] = useState(() =>
-    MOCK_GRUPOS.map((g) => ({ ...g, estudiantesIds: [...g.estudiantesIds] })),
-  );
+  const [niveles, setNiveles] = useState<NivelConOcupacion[]>([]);
+  const [allStudents, setAllStudents] = useState<StudentRef[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [actionPending, setActionPending] = useState(false);
   const [notification, setNotification] = useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
 
-  const allStudents = buildStudentRefs(grupos, MOCK_MEMBER_ACCOUNTS);
+  const loadData = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [nivelesData, members] = await Promise.all([fetchNivelesConOcupacion(), fetchMembers()]);
+      setNiveles(nivelesData);
+      const students: StudentRef[] = members.flatMap((account) =>
+        account.estudiantes.map((estudiante) => ({
+          id: estudiante.id,
+          nombres: estudiante.nombres,
+          apellidos: estudiante.apellidos,
+          grupoId: estudiante.grupoId,
+          activo: estudiante.activo,
+        })),
+      );
+      setAllStudents(students);
+    } catch {
+      setLoadError("No se pudieron cargar los grupos. Intente nuevamente.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
   const unassigned = getUnassignedStudents(allStudents);
-  const cardData = buildGroupCards(grupos, MOCK_SCHEDULES);
-  const selectedGrupo = selectedGroupId
-    ? grupos.find((g) => g.id === selectedGroupId) ?? null
-    : null;
+  const cardData = buildGroupCardsFromNiveles(niveles);
+  const selectedNivel = selectedGroupId ? niveles.find((n) => String(n.id) === selectedGroupId) ?? null : null;
+  const assignedStudentsForSelected = selectedGroupId
+    ? allStudents.filter((s) => s.grupoId === selectedGroupId)
+    : [];
 
-  const showNotification = useCallback(
-    (type: "success" | "error", message: string): void => {
-      setNotification({ type, message });
-      setTimeout(() => setNotification(null), 4000);
-    },
-    [],
-  );
+  const showNotification = useCallback((type: "success" | "error", message: string): void => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 4000);
+  }, []);
 
-  function handleAssignStudent(estudianteId: string, targetGroupId: string): void {
-    const result = assignStudentToGroup(estudianteId, targetGroupId, grupos);
-    if (result.success) {
-      setGrupos(result.updatedGrupos);
-      showNotification("success", result.message);
-    } else {
-      showNotification("error", result.message);
+  async function handleAssignStudent(estudianteId: string, targetGroupId: string): Promise<void> {
+    const student = allStudents.find((s) => s.id === estudianteId);
+    if (!student) return;
+    setActionPending(true);
+    try {
+      if (student.grupoId === null) {
+        await assignStudentToNivel(Number(estudianteId), Number(targetGroupId));
+      } else {
+        await moveStudentToNivel(Number(estudianteId), Number(targetGroupId));
+      }
+      showNotification("success", "Estudiante asignado al grupo correctamente.");
+      await loadData();
+    } catch (err) {
+      showNotification("error", extractErrorMessage(err, "No se pudo asignar el estudiante al grupo."));
+    } finally {
+      setActionPending(false);
     }
   }
-
-  function handleClearAssignment(estudianteId: string): void {
-    const updated = removeStudentFromAllGroups(estudianteId, grupos);
-    setGrupos(updated);
-    showNotification("success", "Estudiante removido del grupo.");
-  }
-
-  function handleResetToMock(): void {
-    setGrupos(MOCK_GRUPOS.map((g) => ({ ...g, estudiantesIds: [...g.estudiantesIds] })));
-    setSelectedGroupId(null);
-    showNotification("success", "Datos restablecidos a valores de demostración.");
-  }
-
-  const assignedStudentsForSelected = selectedGrupo
-    ? getStudentsByGroup(selectedGrupo, allStudents)
-    : [];
-
-  const schedulesForSelected = selectedGrupo
-    ? getSchedulesByGroup(selectedGrupo, MOCK_SCHEDULES)
-    : [];
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
@@ -177,15 +195,18 @@ export default function GroupsPage(): React.ReactElement {
           </div>
         </div>
 
-        {/* Demo badge */}
-        <div className="mb-6 flex items-center gap-2">
-          <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">
-            Demo
-          </span>
-          <span className="text-xs text-cata-text/40">
-            Las asignaciones son simuladas en memoria
-          </span>
-        </div>
+        {loadError && (
+          <div
+            className="mb-4 flex items-center gap-2 rounded-xl border border-cata-red/30 bg-cata-red/10 px-4 py-3 text-sm text-cata-red"
+            role="alert"
+          >
+            <AlertTriangle size={14} strokeWidth={2} aria-hidden="true" />
+            {loadError}
+            <button type="button" onClick={() => void loadData()} className="btn-ghost ml-auto text-xs">
+              Reintentar
+            </button>
+          </div>
+        )}
 
         {/* Notification */}
         {notification && (
@@ -206,18 +227,6 @@ export default function GroupsPage(): React.ReactElement {
           </div>
         )}
 
-        {/* Reset button */}
-        <div className="mb-4 flex justify-end">
-          <button
-            type="button"
-            onClick={handleResetToMock}
-            className="btn-ghost text-xs"
-          >
-            <RefreshCw size={12} strokeWidth={1.5} aria-hidden="true" />
-            Restablecer datos demo
-          </button>
-        </div>
-
         {/* Two-column layout */}
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Left column: Group cards */}
@@ -229,18 +238,14 @@ export default function GroupsPage(): React.ReactElement {
               </h2>
             </div>
 
-            {cardData.length > 0 ? (
+            {loading ? (
+              <div className="card flex flex-col items-center py-12 text-center">
+                <p className="text-sm text-cata-text/50">Cargando grupos…</p>
+              </div>
+            ) : cardData.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2">
                 {cardData.map((card) => {
                   const isSelected = selectedGroupId === card.id;
-                  const grupo = grupos.find((g) => g.id === card.id);
-                  if (!grupo) {
-                    return null;
-                  }
-                  const linkedSchedules = getSchedulesByGroup(
-                    grupo,
-                    MOCK_SCHEDULES,
-                  );
 
                   return (
                     <button
@@ -288,41 +293,10 @@ export default function GroupsPage(): React.ReactElement {
                         />
                       </div>
 
-                      {/* Schedules */}
-                      <div className="space-y-1">
-                        {linkedSchedules.length > 0 ? (
-                          linkedSchedules.slice(0, 3).map((sched) => (
-                            <div
-                              key={sched.id}
-                              className="flex items-center gap-1.5 text-[11px] text-cata-text/45"
-                            >
-                              <Calendar
-                                size={10}
-                                strokeWidth={1.5}
-                                aria-hidden="true"
-                              />
-                              <span>
-                                {sched.diaSemana.slice(0, 3).replace(".", "")}{" "}
-                                {sched.horaInicio} &middot; {sched.cancha}
-                              </span>
-                              {!sched.activo && (
-                                <span className="rounded bg-cata-bg px-1 py-0.5 text-[9px] font-medium text-cata-text/45">
-                                  Inactivo
-                                </span>
-                              )}
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-[11px] text-cata-text/45">
-                            Sin horarios asignados
-                          </span>
-                        )}
-                        {linkedSchedules.length > 3 && (
-                          <span className="text-[11px] text-cata-text/45">
-                            +{linkedSchedules.length - 3} más
-                          </span>
-                        )}
-                      </div>
+                      {/* Schedules — backend gap: no API links Horario to NivelRanking */}
+                      <span className="text-[11px] text-cata-text/45">
+                        Horarios no disponibles
+                      </span>
 
                       {isSelected && (
                         <div className="mt-3 flex items-center gap-1 text-xs font-medium text-cata-red">
@@ -388,17 +362,18 @@ export default function GroupsPage(): React.ReactElement {
                       </div>
 
                       <div className="flex gap-1.5">
-                        {grupos.map((g) => (
+                        {niveles.map((nivel) => (
                           <button
-                            key={g.id}
+                            key={nivel.id}
                             type="button"
+                            disabled={actionPending}
                             onClick={() =>
-                              handleAssignStudent(student.id, g.id)
+                              void handleAssignStudent(student.id, String(nivel.id))
                             }
-                            className="rounded-lg border border-cata-border px-2 py-1 text-[10px] font-medium transition-colors hover:bg-cata-red/15 hover:text-cata-red whitespace-nowrap"
-                            title={`Asignar a ${g.nombre}`}
+                            className="rounded-lg border border-cata-border px-2 py-1 text-[10px] font-medium transition-colors hover:bg-cata-red/15 hover:text-cata-red disabled:opacity-50 whitespace-nowrap"
+                            title={`Asignar a ${nivel.nombre ?? `Nivel ${nivel.numeroNivel}`}`}
                           >
-                            {g.nombre}
+                            {nivel.nombre ?? `Nivel ${nivel.numeroNivel}`}
                           </button>
                         ))}
                       </div>
@@ -418,26 +393,32 @@ export default function GroupsPage(): React.ReactElement {
 
           {/* Right column: Group detail panel */}
           <div className="space-y-4">
-            {selectedGrupo ? (
+            {selectedNivel ? (
               <>
                 {/* Group detail */}
                 <div className="card p-5">
                   <div className="mb-4 flex items-center gap-2">
                     <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                     <h3 className="text-sm font-bold text-cata-text">
-                      {selectedGrupo.nombre}
+                      {selectedNivel.nombre ?? `Nivel ${selectedNivel.numeroNivel}`}
                     </h3>
                   </div>
 
                   <div className="mb-4 space-y-2 text-sm text-cata-text/65">
                     <div className="flex items-center justify-between">
                       <span>Nivel técnico</span>
-                      <LevelBadge level={selectedGrupo.nivel} />
+                      <LevelBadge level={selectedNivel.nivelCategoria} />
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Estudiantes asignados</span>
                       <span className="font-medium text-cata-text">
-                        {selectedGrupo.estudiantesIds.length}
+                        {assignedStudentsForSelected.length}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Capacidad</span>
+                      <span className="font-medium text-cata-text">
+                        {selectedNivel.capacidadMinima}–{selectedNivel.capacidadMaxima}
                       </span>
                     </div>
                   </div>
@@ -462,12 +443,10 @@ export default function GroupsPage(): React.ReactElement {
                             </span>
                             <button
                               type="button"
-                              onClick={() =>
-                                handleClearAssignment(s.id)
-                              }
-                              className="text-cata-text/45 transition-colors hover:text-cata-red"
-                              title="Remover del grupo"
-                              aria-label={`Remover a ${s.nombres} del grupo`}
+                              disabled
+                              className="text-cata-text/25"
+                              title="No disponible: el backend no permite remover a un estudiante de su nivel sin reasignarlo a otro."
+                              aria-label={`Remover a ${s.nombres} del grupo (no disponible)`}
                             >
                               <UserMinus
                                 size={13}
@@ -489,7 +468,7 @@ export default function GroupsPage(): React.ReactElement {
                   </div>
                 </div>
 
-                {/* Linked schedules */}
+                {/* Linked schedules — backend gap, see file header */}
                 <div className="card p-5">
                   <div className="mb-4 flex items-center gap-2">
                     <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
@@ -498,55 +477,12 @@ export default function GroupsPage(): React.ReactElement {
                     </h3>
                   </div>
 
-                  {schedulesForSelected.length > 0 ? (
-                    <div className="space-y-2">
-                      {schedulesForSelected.map((sched) => (
-                        <div
-                          key={sched.id}
-                          className="card-hover flex items-start gap-3 p-3"
-                        >
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cata-red/15">
-                            <Calendar size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-1.5 text-sm font-medium text-cata-text">
-                              {sched.diaSemana.slice(0, 3).replace(".", "")}{" "}
-                              {sched.horaInicio} — {sched.horaFin}
-                              {!sched.activo && (
-                                <span className="ml-auto rounded bg-cata-bg px-1.5 py-0.5 text-[10px] font-medium text-cata-text/45">
-                                  Inactivo
-                                </span>
-                              )}
-                            </div>
-                            <div className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/45">
-                              <MapPin
-                                size={10}
-                                strokeWidth={1.5}
-                                aria-hidden="true"
-                              />
-                              {sched.cancha}
-                            </div>
-                            <div className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/45">
-                              <Users
-                                size={10}
-                                strokeWidth={1.5}
-                                aria-hidden="true"
-                              />
-                              Cupo: {sched.cupoMaximo} personas
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 py-3">
-                      <Calendar size={14} strokeWidth={1.5} className="text-cata-text/20" aria-hidden="true" />
-                      <p className="text-xs text-cata-text/40">
-                        Sin horarios vinculados. Los horarios se asignan desde la
-                        configuración del grupo.
-                      </p>
-                    </div>
-                  )}
+                  <div className="flex items-start gap-2 py-3">
+                    <MapPin size={14} strokeWidth={1.5} className="mt-0.5 shrink-0 text-cata-text/20" aria-hidden="true" />
+                    <p className="text-xs text-cata-text/40">
+                      No disponible: el backend aún no expone la relación entre horarios y niveles/grupos.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Quick assign from unassigned */}
@@ -563,8 +499,9 @@ export default function GroupsPage(): React.ReactElement {
                         <button
                           key={s.id}
                           type="button"
-                          onClick={() => handleAssignStudent(s.id, selectedGrupo.id)}
-                          className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-cata-red/15"
+                          disabled={actionPending}
+                          onClick={() => void handleAssignStudent(s.id, selectedNivel ? String(selectedNivel.id) : "")}
+                          className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-cata-red/15 disabled:opacity-50"
                         >
                           <span className="text-cata-text">
                             {s.nombres} {s.apellidos}
@@ -611,23 +548,17 @@ export default function GroupsPage(): React.ReactElement {
         <div className="card mt-8 p-6">
           <div className="mb-3 flex items-center gap-2">
             <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <h3 className="text-sm font-bold text-cata-text">Modelo de dominio (Demo)</h3>
+            <h3 className="text-sm font-bold text-cata-text">Modelo de dominio</h3>
           </div>
           <p className="text-sm leading-relaxed text-cata-text/65">
             El <strong className="text-cata-text">nivel técnico</strong> pertenece al grupo, no al estudiante.
             Un estudiante adquiere su nivel al ser asignado a un grupo.
             Los estudiantes sin grupo asignado no tienen nivel técnico — está
-            pendiente de evaluación por el entrenador.
-            Los <strong className="text-cata-text">horarios</strong> se vinculan al grupo, y la{" "}
-            <strong className="text-cata-text">asistencia</strong> se registra por sesión (grupo + horario).
+            pendiente de evaluación por el entrenador. La asignación inicial de un
+            estudiante a un grupo requiere un rol de Entrenador (regla del backend);
+            un Administrador puede mover a un estudiante ya asignado entre grupos.
           </p>
         </div>
-
-        {/* Demo footer */}
-        <p className="mt-8 text-center text-xs text-cata-text/30">
-          Los datos de grupos, estudiantes y horarios son de demostración.
-          Las asignaciones se simulan en memoria y se reinician al recargar.
-        </p>
       </div>
     </ProtectedRoute>
   );

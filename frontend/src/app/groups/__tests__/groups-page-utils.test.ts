@@ -15,7 +15,10 @@ import {
   LEVEL_BADGE,
   getLevelBadgeClass,
   getCapacityBarColor,
+  nivelToGrupo,
+  buildGroupCardsFromNiveles,
 } from "../groups-page-utils";
+import type { NivelConOcupacion } from "@/services/api";
 
 // ---------------------------------------------------------------------------
 // findStudentGroupId
@@ -248,5 +251,52 @@ describe("getCapacityBarColor", () => {
 
   it('returns emerald for negative values (edge case)', () => {
     expect(getCapacityBarColor(-5)).toBe("bg-emerald-500");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// nivelToGrupo / buildGroupCardsFromNiveles (Fase 4 — NivelRanking → Grupo)
+// ---------------------------------------------------------------------------
+
+const nivelFixture: NivelConOcupacion = {
+  id: 1,
+  numeroNivel: 1,
+  nombre: "Principiantes",
+  capacidadMinima: 6,
+  capacidadMaxima: 10,
+  personasActuales: 3,
+  cuposDisponibles: 7,
+  necesitaRevision: false,
+  nivelCategoria: "principiante",
+};
+
+describe("nivelToGrupo", () => {
+  it("maps id, nombre and nivelCategoria into the Grupo shape", () => {
+    const grupo = nivelToGrupo(nivelFixture);
+    expect(grupo.id).toBe("1");
+    expect(grupo.nombre).toBe("Principiantes");
+    expect(grupo.nivel).toBe("principiante");
+    expect(grupo.estudiantesIds).toEqual([]);
+  });
+
+  it("falls back to 'Nivel {numeroNivel}' when nombre is null", () => {
+    const grupo = nivelToGrupo({ ...nivelFixture, nombre: null });
+    expect(grupo.nombre).toBe("Nivel 1");
+  });
+});
+
+describe("buildGroupCardsFromNiveles", () => {
+  it("derives capacity/percent from real occupancy, not from schedules", () => {
+    const [card] = buildGroupCardsFromNiveles([nivelFixture]);
+    expect(card.studentCount).toBe(3);
+    expect(card.capacity).toBe(10);
+    expect(card.capacityPercent).toBe(30);
+    expect(card.scheduleCount).toBe(0);
+    expect(card.scheduleLabels).toEqual([]);
+  });
+
+  it("returns 0% capacity when capacidadMaxima is 0 (avoids divide-by-zero)", () => {
+    const [card] = buildGroupCardsFromNiveles([{ ...nivelFixture, capacidadMaxima: 0, personasActuales: 0 }]);
+    expect(card.capacityPercent).toBe(0);
   });
 });
