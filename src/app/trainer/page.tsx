@@ -13,10 +13,12 @@ import {
   CheckCircle2,
   ClipboardList,
   ArrowRight,
+  CalendarDays,
 } from "lucide-react";
 import { buildTrainingSessions } from "@/lib/groups-utils";
 import { MOCK_GRUPOS, MOCK_MEMBER_ACCOUNTS } from "@/mocks/members";
 import { MOCK_SCHEDULES } from "@/mocks/attendance";
+import { landingConfig } from "@/app/landing/landing-config";
 
 // ---------------------------------------------------------------------------
 // Demo data — Trainer dashboard (frontend-only, no backend)
@@ -38,7 +40,7 @@ const allSessions = buildTrainingSessions(
 const jsDayToLabel = ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
 const todayLabel = jsDayToLabel[new Date().getDay()];
 
-const todaySessions = allSessions.filter((s) => {
+const todaySessions = allSessions.filter((s): boolean => {
   const dayPart = s.groupName.split(" — ")[1];
   if (!dayPart) return false;
   const shortDay = dayPart.split("/")[0];
@@ -46,9 +48,9 @@ const todaySessions = allSessions.filter((s) => {
 });
 
 export default function TrainerPage(): React.ReactElement {
-  const totalStudents = todaySessions.reduce((sum, s) => sum + s.studentCount, 0);
+  const totalStudents = todaySessions.reduce((sum, s): number => sum + s.studentCount, 0);
   const totalPresent = todaySessions.reduce(
-    (sum, s) => sum + s.students.filter((st) => st.attendance === "present").length,
+    (sum, s): number => sum + s.students.filter((st): boolean => st.attendance === "present").length,
     0,
   );
   const presentPercent = totalStudents > 0 ? Math.round((totalPresent / totalStudents) * 100) : 0;
@@ -138,14 +140,14 @@ export default function TrainerPage(): React.ReactElement {
           </div>
         </div>
 
-        {/* Today's sessions */}
+        {/* Today's sessions — real, derived from Grupo/Horario (NivelTecnico) */}
         <div className="mb-4 flex items-center gap-2">
           <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
           <h2 className="text-lg font-bold text-cata-text">Sesiones de Hoy</h2>
         </div>
         {todaySessions.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {todaySessions.map((session) => (
+          <div className="mb-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {todaySessions.map((session): React.ReactElement => (
               <div key={session.id} className="card-hover p-5">
                 <div className="mb-3 flex items-center gap-2">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
@@ -181,11 +183,54 @@ export default function TrainerPage(): React.ReactElement {
             ))}
           </div>
         ) : (
-          <div className="card flex flex-col items-center py-12 text-center">
+          <div className="mb-12 card flex flex-col items-center py-12 text-center">
             <Calendar size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
             <p className="text-sm text-cata-text/50">No hay sesiones programadas para hoy.</p>
           </div>
         )}
+
+        {/* Categorías del club — visual reference only, from the public landing
+            page config (src/app/landing/landing-config.ts). NOT derived from
+            or mapped to real Grupo/Horario sessions above: there is no field
+            connecting NivelTecnico (principiante/intermedio/avanzado) to
+            these 5 audience-based categories, so each real session's card
+            keeps showing its own group/level/court/student-count instead of
+            being bucketed into one of these. Same reason there's no per-card
+            "Registrar asistencia" action here — these aren't a specific,
+            attendance-taking session. */}
+        <div className="mb-4 flex items-center gap-2">
+          <CalendarDays size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          <h2 className="text-lg font-bold text-cata-text">Categorías del Club</h2>
+        </div>
+        <p className="mb-4 text-xs text-cata-text/45">
+          Programas públicos del club, tal como se presentan en la página principal — no
+          corresponden 1 a 1 con los grupos/sesiones reales de arriba.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {landingConfig.schedules.map((schedule): React.ReactElement => (
+            <div key={schedule.category} className="card p-5">
+              <div className="mb-3 flex items-center gap-2">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                  <Users size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-cata-text">{schedule.category}</p>
+                  <p className="text-xs text-cata-text/65">{schedule.audience}</p>
+                </div>
+              </div>
+              <div className="space-y-1.5 text-xs text-cata-text/65">
+                <p className="flex items-center gap-1.5">
+                  <Clock size={12} strokeWidth={1.5} aria-hidden="true" />
+                  {schedule.hours}
+                </p>
+                <p className="flex items-center gap-1.5">
+                  <CalendarDays size={12} strokeWidth={1.5} aria-hidden="true" />
+                  {schedule.days}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
       </AppShell>
     </ProtectedRoute>
   );
