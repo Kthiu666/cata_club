@@ -291,6 +291,43 @@ export function filterAccounts(
 }
 
 /**
+ * Quick-filter chips shown above the members table
+ * (design/admin-members-mockup-v1.html's `.chip-filters`).
+ */
+export type MemberFilterFlag = "all" | "vencida" | "pendiente" | "sin-grupo";
+
+/**
+ * Does this account have at least one student matching the given filter
+ * flag? "all" always matches. Used alongside `filterAccounts` (text
+ * search) — the two compose, they don't replace each other.
+ */
+export function accountMatchesFlag(
+  account: MemberAccount,
+  flag: MemberFilterFlag,
+): boolean {
+  switch (flag) {
+    case "all":
+      return true;
+    case "vencida":
+      return account.estudiantes.some((s) => s.membresia?.estado === "vencida");
+    case "pendiente":
+      return account.estudiantes.some((s) => s.ultimoPago?.estado === "pendiente_validacion");
+    case "sin-grupo":
+      return account.estudiantes.some((s) => !s.grupoId);
+  }
+}
+
+/**
+ * Count accounts matching a filter flag — powers the chip's count badge.
+ */
+export function countAccountsMatchingFlag(
+  accounts: MemberAccount[],
+  flag: MemberFilterFlag,
+): number {
+  return accounts.filter((account) => accountMatchesFlag(account, flag)).length;
+}
+
+/**
  * Count the number of students with active membership for a given account.
  */
 export function countActiveStudents(account: MemberAccount): number {

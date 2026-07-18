@@ -17,6 +17,7 @@
 
 import { useState, useCallback } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/components/shell/AppShell";
 import {
   Users,
   GraduationCap,
@@ -158,25 +159,11 @@ export default function GroupsPage(): React.ReactElement {
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
-      <div>
-        {/* Hero Banner */}
-        <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-logo-glow" />
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
-              <Users size={14} strokeWidth={2} aria-hidden="true" />
-              Grupos de Entrenamiento
-            </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
-              Gestión de Grupos
-            </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-              Grupos de entrenamiento, asignación de estudiantes y horarios. El nivel técnico
-              pertenece al grupo, no al estudiante.
-            </p>
-          </div>
-        </div>
-
+      <AppShell
+        eyebrow="Grupos de entrenamiento"
+        title="Gestión de Grupos"
+        subtitle="Asignación de estudiantes y horarios — el nivel técnico pertenece al grupo, no al estudiante."
+      >
         {/* Demo badge */}
         <div className="mb-6 flex items-center gap-2">
           <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">
@@ -628,7 +615,7 @@ export default function GroupsPage(): React.ReactElement {
           Los datos de grupos, estudiantes y horarios son de demostración.
           Las asignaciones se simulan en memoria y se reinician al recargar.
         </p>
-      </div>
+      </AppShell>
     </ProtectedRoute>
   );
 }

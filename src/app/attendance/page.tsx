@@ -14,6 +14,7 @@
 
 import { useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/components/shell/AppShell";
 import {
   Calendar,
   Clock,
@@ -40,6 +41,7 @@ import {
   buildScheduleGroupMap,
   getScheduleLevelLabel,
   getAttendanceBadgeTokens,
+  getAttendanceRatePercent,
   DIA_SEMANA_LABELS,
   ATTENDANCE_LABELS,
   type ScheduleSlot,
@@ -106,6 +108,7 @@ const DAY_OPTIONS = [
 export default function AttendancePage(): React.ReactElement {
   const [dayFilter, setDayFilter] = useState<string>("all");
   const todayStats = buildAttendanceStats(MOCK_ATTENDANCE_RECORDS);
+  const attendanceRate = getAttendanceRatePercent(todayStats);
 
   const filteredSchedules: ScheduleSlot[] =
     dayFilter === "all"
@@ -116,25 +119,11 @@ export default function AttendancePage(): React.ReactElement {
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
-      <div>
-        {/* Hero Banner */}
-        <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-logo-glow" />
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
-              <Calendar size={14} strokeWidth={2} aria-hidden="true" />
-              Asistencia y Horarios
-            </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
-              Horarios y Asistencia
-            </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-              Horarios de entrenamiento y registros de asistencia. Organice sesiones,
-              canchas y grupos de entrenamiento.
-            </p>
-          </div>
-        </div>
-
+      <AppShell
+        eyebrow="Asistencia y horarios"
+        title="Horarios y Asistencia"
+        subtitle="Sesiones de entrenamiento, canchas y registros de asistencia por grupo."
+      >
         {/* Demo badge */}
         <div className="mb-6 flex items-center gap-2">
           <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">
@@ -180,9 +169,7 @@ export default function AttendancePage(): React.ReactElement {
               </div>
               <span className="inline-flex items-center gap-1 rounded-full bg-cata-state-ok/10 px-2 py-0.5 text-[10px] font-semibold text-cata-state-ok">
                 <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" />
-                {todayStats.totalStudents > 0
-                  ? `${Math.round((todayStats.totalPresent / todayStats.totalStudents) * 100)}%`
-                  : "N/A"}
+                {todayStats.totalStudents > 0 ? `${attendanceRate}%` : "N/A"}
               </span>
             </div>
             <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Presentes</p>
@@ -190,9 +177,7 @@ export default function AttendancePage(): React.ReactElement {
               {todayStats.totalPresent}
             </p>
             <p className="mt-1 text-xs text-cata-text/40">
-              {todayStats.totalStudents > 0
-                ? `${Math.round((todayStats.totalPresent / todayStats.totalStudents) * 100)}% de asistencia`
-                : "sin datos"}
+              {todayStats.totalStudents > 0 ? `${attendanceRate}% de asistencia` : "sin datos"}
             </p>
           </div>
 
@@ -366,7 +351,7 @@ export default function AttendancePage(): React.ReactElement {
         <p className="mt-8 text-center text-xs text-cata-text/30">
           Datos de demostración. Los registros reales se cargarán desde el backend.
         </p>
-      </div>
+      </AppShell>
     </ProtectedRoute>
   );
 }

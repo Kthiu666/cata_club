@@ -20,6 +20,8 @@ import {
   getGrupoById,
   getNivelLabelFromGrupo,
   normalizeText,
+  accountMatchesFlag,
+  countAccountsMatchingFlag,
   MEMBERSHIP_TYPE_LABELS,
   type MemberAccount,
 } from "../members-utils";
@@ -592,5 +594,92 @@ describe("unassigned student (grupoId: null)", () => {
     //   {nivelDisplay ? <span>{nivelDisplay}</span> : <span>Sin grupo asignado</span>}
     const rendered = nivelDisplay ?? "Sin grupo asignado";
     expect(rendered).toBe("Sin grupo asignado");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// accountMatchesFlag / countAccountsMatchingFlag
+// ---------------------------------------------------------------------------
+
+describe("accountMatchesFlag", () => {
+  it('"all" matches every account', () => {
+    for (const account of MOCK_MEMBER_ACCOUNTS) {
+      expect(accountMatchesFlag(account, "all")).toBe(true);
+    }
+  });
+
+  it('"vencida" only matches accounts with at least one vencida membership', () => {
+    const account: MemberAccount = {
+      ...MOCK_MEMBER_ACCOUNTS[0],
+      estudiantes: [
+        {
+          ...MOCK_MEMBER_ACCOUNTS[0].estudiantes[0],
+          membresia: {
+            tipo: "mensual",
+            estado: "vencida",
+            fechaInicio: "2026-01-01",
+            fechaFin: "2026-02-01",
+            monto: 85,
+          },
+        },
+      ],
+    };
+    expect(accountMatchesFlag(account, "vencida")).toBe(true);
+
+    const noVencida: MemberAccount = {
+      ...account,
+      estudiantes: [{ ...account.estudiantes[0], membresia: null }],
+    };
+    expect(accountMatchesFlag(noVencida, "vencida")).toBe(false);
+  });
+
+  it('"pendiente" only matches accounts with at least one pending payment', () => {
+    const account: MemberAccount = {
+      ...MOCK_MEMBER_ACCOUNTS[0],
+      estudiantes: [
+        {
+          ...MOCK_MEMBER_ACCOUNTS[0].estudiantes[0],
+          ultimoPago: {
+            estado: "pendiente_validacion",
+            fechaPago: "2026-07-01",
+            monto: 85,
+            periodo: "Julio 2026",
+          },
+        },
+      ],
+    };
+    expect(accountMatchesFlag(account, "pendiente")).toBe(true);
+
+    const noPending: MemberAccount = {
+      ...account,
+      estudiantes: [{ ...account.estudiantes[0], ultimoPago: null }],
+    };
+    expect(accountMatchesFlag(noPending, "pendiente")).toBe(false);
+  });
+
+  it('"sin-grupo" only matches accounts with at least one student without a grupoId', () => {
+    const account: MemberAccount = {
+      ...MOCK_MEMBER_ACCOUNTS[0],
+      estudiantes: [{ ...MOCK_MEMBER_ACCOUNTS[0].estudiantes[0], grupoId: null }],
+    };
+    expect(accountMatchesFlag(account, "sin-grupo")).toBe(true);
+
+    const withGrupo: MemberAccount = {
+      ...account,
+      estudiantes: [{ ...account.estudiantes[0], grupoId: "grupo-1" }],
+    };
+    expect(accountMatchesFlag(withGrupo, "sin-grupo")).toBe(false);
+  });
+});
+
+describe("countAccountsMatchingFlag", () => {
+  it('"all" count equals the full account list length', () => {
+    expect(countAccountsMatchingFlag(MOCK_MEMBER_ACCOUNTS, "all")).toBe(
+      MOCK_MEMBER_ACCOUNTS.length,
+    );
+  });
+
+  it("returns 0 for an empty account list", () => {
+    expect(countAccountsMatchingFlag([], "vencida")).toBe(0);
   });
 });
