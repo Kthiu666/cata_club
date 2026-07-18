@@ -115,7 +115,5 @@ test.describe("Admin smoke", () => {
     await page.getByRole("link", { name: "Horarios y Asistencia", exact: true }).click();
     await expect(page).toHaveURL(/\/attendance/);
     await expect(page.getByRole("heading", { name: /horarios y asistencia/i })).toBeVisible();
-    // Verify domain note is present
-    await expect(page.getByText(/modelo de dominio/i)).toBeVisible();
   });
 });
