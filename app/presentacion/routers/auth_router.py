@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.infraestructura.db import obtener_sesion
 from app.presentacion.schemas.auth_schemas import (
-    RegistroUsuarioDTO, RefreshTokenDTO, UsuarioMeResponseDTO, LogoutResponseDTO,
+    RegistroUsuarioDTO, RefreshTokenDTO, RefreshResponseDTO, LoginResponseDTO,
+    UsuarioMeResponseDTO, LogoutResponseDTO,
     SolicitarRecuperacionDTO, SolicitarRecuperacionResponseDTO, RestablecerContraseniaDTO,
 )
 from app.seguridad.gestor_auth import GestorAutenticacion
@@ -13,7 +14,7 @@ from app.servicios_negocio.auth_servicio import AuthServicio
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
 
-@router.post("/login")
+@router.post("/login", response_model=LoginResponseDTO)
 async def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(obtener_sesion)):
     return AuthServicio(db).login(form.username, form.password)
 
@@ -43,7 +44,7 @@ async def obtener_perfil(
     }
 
 
-@router.post("/refresh")
+@router.post("/refresh", response_model=RefreshResponseDTO)
 async def refrescar(datos: RefreshTokenDTO, db: Session = Depends(obtener_sesion)):
     """
     Recibe un refresh token en el BODY (no en header Authorization, porque

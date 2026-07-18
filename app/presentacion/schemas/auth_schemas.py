@@ -32,6 +32,11 @@ class RefreshTokenDTO(BaseModel):
     refresh_token: str
 
 
+class RefreshResponseDTO(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
 class UsuarioMeResponseDTO(BaseModel):
     correo: str
     persona_id: int
