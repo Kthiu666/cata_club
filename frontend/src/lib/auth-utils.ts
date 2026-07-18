@@ -1,0 +1,135 @@
+/**
+ * Auth utility functions — pure, testable, no React dependencies.
+ *
+ * These helpers centralise role-checking, routing, and navigation logic so
+ * it can be unit-tested without mounting React components or mocking
+ * browser APIs.
+ */
+
+import type { UserRole } from "@/types/domain";
+
+// ---------------------------------------------------------------------------
+// Pure navigation link data (no icon components — use at UI layer)
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimal navigation link descriptor — href + label only.
+ * UI layers (Header, sidebar) add icon components from lucide-react.
+ */
+export interface NavLinkDef {
+  href: string;
+  label: string;
+}
+
+/**
+ * Role-aware navigation links for the main app header.
+ *
+ * Pure function — no React, no browser APIs. Returns the list of nav links
+ * that should be visible for a given role (or unauthenticated state).
+ *
+ * @param role — The current user's role, or null if unauthenticated.
+ */
+export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
+  if (!role) {
+    return [
+      { href: "/", label: "Inicio" },
+      { href: "/login", label: "Iniciar Sesión" },
+    ];
+  }
+
+  const links: NavLinkDef[] = [{ href: "/", label: "Inicio" }];
+
+  switch (role) {
+    case "admin":
+      links.push(
+        { href: "/dashboard", label: "Administración" },
+        { href: "/members", label: "Miembros" },
+        { href: "/groups", label: "Grupos" },
+        { href: "/payments", label: "Membresías y Pagos" },
+        { href: "/attendance", label: "Horarios y Asistencia" },
+      );
+      break;
+    case "trainer":
+      links.push({ href: "/trainer", label: "Entrenador" });
+      break;
+    case "tesorero":
+      links.push({ href: "/payments", label: "Membresías y Pagos" });
+      break;
+    case "representante":
+    case "estudiante":
+      links.push({ href: "/student", label: "Mi Cuenta" });
+      break;
+    case "unsupported":
+      // No role-specific links — this account has no recognized backend
+      // role. /unauthorized (their only reachable protected page) doesn't
+      // need a nav entry; Inicio is enough to navigate away.
+      break;
+  }
+
+  return links;
+}
+
+// ---------------------------------------------------------------------------
+// Role checking
+// ---------------------------------------------------------------------------
+
+/**
+ * Check whether a user role is permitted for a given set of allowed roles.
+ *
+ * @param role — The current user's role (null if unauthenticated).
+ * @param allowedRoles — Roles that are allowed to access a resource.
+ * @returns true if the role is in the allowed list and is not null.
+ */
+export function canAccess(
+  role: UserRole | null,
+  allowedRoles: UserRole[],
+): boolean {
+  if (!role) return false;
+  return allowedRoles.includes(role);
+}
+
+// ---------------------------------------------------------------------------
+// Routing & Labels
+// ---------------------------------------------------------------------------
+
+/**
+ * Get the default route for a given role after login.
+ *
+ * @param role — The authenticated user's role.
+ * @returns The path to redirect to.
+ */
+export function getDefaultRoute(role: UserRole): string {
+  switch (role) {
+    case "admin":
+      return "/dashboard";
+    case "trainer":
+      return "/trainer";
+    case "tesorero":
+      return "/payments";
+    case "representante":
+    case "estudiante":
+      return "/student";
+    case "unsupported":
+      return "/unauthorized";
+  }
+}
+
+/**
+ * Human-readable label for a role, in Spanish (matching existing UI).
+ */
+export function getRoleLabel(role: UserRole): string {
+  switch (role) {
+    case "admin":
+      return "Administrador";
+    case "trainer":
+      return "Entrenador";
+    case "tesorero":
+      return "Tesorero";
+    case "representante":
+      return "Representante";
+    case "estudiante":
+      return "Estudiante";
+    case "unsupported":
+      return "Rol no soportado";
+  }
+}
