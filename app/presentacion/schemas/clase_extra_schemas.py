@@ -1,9 +1,10 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
 from app.dominio.enums import EstadoSolicitudExtra
+from app.presentacion.schemas.base import ResponseBase
 
 
 class SolicitudClaseExtraCreateDTO(BaseModel):
@@ -24,7 +25,7 @@ class SolicitudClaseExtraResolverDTO(BaseModel):
     observaciones: Optional[str] = Field(None, max_length=255)
 
 
-class SolicitudClaseExtraResponseDTO(BaseModel):
+class SolicitudClaseExtraResponseDTO(ResponseBase, BaseModel):
     id: int
     fecha_clase_solicitada: date
     estado: EstadoSolicitudExtra
@@ -34,4 +35,3 @@ class SolicitudClaseExtraResponseDTO(BaseModel):
     persona_id: int
     membresia_id: int
     horario_id: int
-    model_config = ConfigDict(from_attributes=True)

@@ -108,4 +108,4 @@ def test_aprobar_clase_extra_requiere_costo_adicional(client, db_session):
     )
     assert resp.status_code == 200
     assert resp.json()["estado"] == "APROBADA"
-    assert resp.json()["costo_adicional"] == "8.50"
+    assert resp.json()["costoAdicional"] == "8.50"

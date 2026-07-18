@@ -10,6 +10,7 @@ from app.presentacion.schemas.membresia_pago_schemas import (
     ComprobantePagoCreateDTO, ComprobantePagoResponseDTO,
     TipoMembresiaCreateDTO, TipoMembresiaResponseDTO,
 )
+from app.presentacion.schemas.base import PaginatedResponse
 from app.seguridad.gestor_auth import GestorAutenticacion
 from app.servicios_negocio.membresia_pago_servicio import MembresiaServicio, PagoServicio
 from app.servicios_negocio.gestor_permisos import GestorPermisos
@@ -57,7 +58,7 @@ async def crear_membresia(datos: MembresiaCreateDTO, db: Session = Depends(obten
 # historial completo, no solo pendientes.
 @router.get(
     "/pagos",
-    response_model=List[PagoListItemDTO],
+    response_model=PaginatedResponse[PagoListItemDTO],
     dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
 )
 async def listar_pagos(
@@ -66,7 +67,8 @@ async def listar_pagos(
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(obtener_sesion),
 ):
-    return PagoServicio(db).listar_pagos(estado_pago=estado_pago, skip=skip, limit=limit)
+    items, total = PagoServicio(db).listar_pagos(estado_pago=estado_pago, skip=skip, limit=limit)
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 # --- Membresia ---

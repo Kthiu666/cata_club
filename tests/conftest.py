@@ -15,6 +15,9 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Deshabilitar rate limiting en tests
+os.environ.setdefault("AMBIENTE", "test")
+
 from app.dominio.modelos import Base
 from app.infraestructura.db import obtener_sesion
 from app.seguridad.gestor_auth import GestorAutenticacion

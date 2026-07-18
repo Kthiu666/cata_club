@@ -1,5 +1,7 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 from typing import Optional
+
+from app.presentacion.schemas.base import ResponseBase
 
 
 # --- Pais ---
@@ -7,16 +9,14 @@ class PaisCreateDTO(BaseModel):
     nombre: str = Field(..., max_length=100)
 
 
-class PaisResponseDTO(PaisCreateDTO):
+class PaisResponseDTO(ResponseBase, PaisCreateDTO):
     id: int
-    model_config = ConfigDict(from_attributes=True)
 
 
-class ProvinciaDTO(BaseModel):
+class ProvinciaDTO(ResponseBase, BaseModel):
     id: int
     nombre: str
     pais_id: int
-    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Provincia ---
@@ -25,9 +25,8 @@ class ProvinciaCreateDTO(BaseModel):
     pais_id: int
 
 
-class ProvinciaResponseDTO(ProvinciaCreateDTO):
+class ProvinciaResponseDTO(ResponseBase, ProvinciaCreateDTO):
     id: int
-    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Canton ---
@@ -36,9 +35,8 @@ class CantonCreateDTO(BaseModel):
     provincia_id: int
 
 
-class CantonResponseDTO(CantonCreateDTO):
+class CantonResponseDTO(ResponseBase, CantonCreateDTO):
     id: int
-    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Direccion ---
@@ -50,6 +48,5 @@ class DireccionCreateDTO(BaseModel):
     canton_id: int
 
 
-class DireccionResponseDTO(DireccionCreateDTO):
+class DireccionResponseDTO(ResponseBase, DireccionCreateDTO):
     id: int
-    model_config = ConfigDict(from_attributes=True)

@@ -39,8 +39,8 @@ def test_registrar_movimientos_y_balance_de_evento(client):
     resp = client.get(f"/api/v1/tesoreria/eventos/{evento['id']}/balance")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["total_ingresos"] == "300.00"
-    assert body["total_egresos"] == "50.00"
+    assert body["totalIngresos"] == "300.00"
+    assert body["totalEgresos"] == "50.00"
     assert body["balance"] == "250.00"
 
 
@@ -99,10 +99,10 @@ def test_balance_general_combina_pagos_eventos_y_egresos(client):
     resp = client.get("/api/v1/tesoreria/balance-general")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["total_ingresos_membresias"] == "40.00"
-    assert body["total_ingresos_eventos"] == "100.00"
-    assert body["total_egresos_generales"] == "20.00"
-    assert body["balance_neto"] == "120.00"
+    assert body["totalIngresosMembresias"] == "40.00"
+    assert body["totalIngresosEventos"] == "100.00"
+    assert body["totalEgresosGenerales"] == "20.00"
+    assert body["balanceNeto"] == "120.00"
 
 
 def test_balance_general_pdf_se_descarga(client):

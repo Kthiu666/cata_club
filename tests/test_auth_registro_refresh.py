@@ -150,7 +150,7 @@ def test_auth_me_devuelve_perfil_usuario(client, db_session):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["correo"] == "lucia@cataclub.com"
-    assert body["persona_id"] == persona.id
+    assert body["personaId"] == persona.id
     assert body["nombres"] == "Lucía"
     assert body["apellidos"] == "Torres"
     assert "ADMINISTRADOR" in body["roles"]

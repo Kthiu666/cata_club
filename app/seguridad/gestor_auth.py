@@ -75,22 +75,11 @@ class GestorAutenticacion:
 
     @staticmethod
     def decodificar_token(token: str = Depends(oauth2_scheme)) -> dict:
-        """Autentica endpoints protegidos (GET /auth/me, GestorPermisos, etc.).
-
-        Solo acepta `type=access`: un refresh token (o cualquier token sin el
-        claim `type`, o con otro valor) se rechaza con 401. El refresh token
-        existe únicamente para pedir un nuevo access token vía /auth/refresh
-        (que valida `type=refresh` por su cuenta en `AuthServicio.refrescar_sesion`,
-        sin pasar por esta función)."""
-        credenciales_invalidas = HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token inválido o expirado",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
         try:
-            payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algoritmo])
+            return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algoritmo])
         except jwt.PyJWTError:
-            raise credenciales_invalidas
-        if payload.get("type") != "access":
-            raise credenciales_invalidas
-        return payload
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token inválido o expirado",
+                headers={"WWW-Authenticate": "Bearer"},
+            )

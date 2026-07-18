@@ -65,8 +65,10 @@ class PersonaServicio:
         nueva_persona = Persona(**datos.model_dump())
         return self.repo.crear(nueva_persona)
 
-    def listar_personas(self, skip: int = 0, limit: int = 50) -> list[Persona]:
-        return self.repo.listar(skip, limit)
+    def listar_personas(self, skip: int = 0, limit: int = 50) -> tuple[list[Persona], int]:
+        items = self.repo.listar(skip, limit)
+        total = self.repo.contar()
+        return items, total
 
     def obtener_persona(self, persona_id: int) -> Persona:
         persona = self.repo.obtener_por_id(persona_id)

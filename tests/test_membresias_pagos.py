@@ -82,7 +82,7 @@ def test_pago_aprobado_activa_membresia(client):
             "persona_id": persona["id"], "membresia_id": membresia["id"],
         },
     ).json()
-    assert pago["estado_pago"] == "PENDIENTE_VALIDACION"
+    assert pago["estadoPago"] == "PENDIENTE_VALIDACION"
 
     resp = client.patch(
         f"/api/v1/membresias/pagos/{pago['id']}/validar",
@@ -147,10 +147,11 @@ def test_listar_pagos_incluye_nombre_de_persona(client):
 
     resp = client.get("/api/v1/membresias/pagos")
     assert resp.status_code == 200
-    items = resp.json()
-    assert len(items) == 1
-    assert items[0]["persona_nombre_completo"] == "Ana Torres"
-    assert items[0]["estado_pago"] == "PENDIENTE_VALIDACION"
+    body = resp.json()
+    assert body["total"] == 1
+    assert len(body["items"]) == 1
+    assert body["items"][0]["personaNombreCompleto"] == "Ana Torres"
+    assert body["items"][0]["estadoPago"] == "PENDIENTE_VALIDACION"
 
 
 def test_listar_pagos_filtra_por_estado(client):
@@ -175,10 +176,10 @@ def test_listar_pagos_filtra_por_estado(client):
 
     resp = client.get("/api/v1/membresias/pagos", params={"estado_pago": "PENDIENTE_VALIDACION"})
     assert resp.status_code == 200
-    assert resp.json() == []
+    assert resp.json()["items"] == []
 
     resp = client.get("/api/v1/membresias/pagos", params={"estado_pago": "APROBADO"})
-    assert len(resp.json()) == 1
+    assert resp.json()["total"] == 1
 
 
 def test_listar_pagos_requiere_admin(client_sin_permisos):

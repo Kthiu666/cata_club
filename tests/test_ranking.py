@@ -74,7 +74,7 @@ def test_listar_niveles_marca_necesita_revision_bajo_minimo(client):
     _crear_nivel(client, 1, "Elite")
     resp = client.get("/api/v1/ranking/niveles")
     assert resp.status_code == 200
-    assert resp.json()[0]["necesita_revision"] is True  # 0 personas < mínimo 6
+    assert resp.json()[0]["necesitaRevision"] is True  # 0 personas < mínimo 6
 
 
 def test_asignar_nivel_bloquea_al_llegar_a_capacidad_maxima(client):
@@ -119,15 +119,15 @@ def test_cierre_de_mes_calcula_puntos_y_posiciones(client):
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["personas_procesadas"] == 2
-    assert body["personas_eliminadas"] == []
+    assert body["personasProcesadas"] == 2
+    assert body["personasEliminadas"] == []
 
     tabla = client.get(f"/api/v1/ranking/niveles/{nivel['id']}/tabla").json()
-    tabla_por_persona = {f["persona_id"]: f for f in tabla}
-    assert tabla_por_persona[p1["id"]]["puntaje_acumulado"] == 90
-    assert tabla_por_persona[p1["id"]]["posicion_actual"] == 1
-    assert tabla_por_persona[p2["id"]]["puntaje_acumulado"] == 89
-    assert tabla_por_persona[p2["id"]]["posicion_actual"] == 2
+    tabla_por_persona = {f["personaId"]: f for f in tabla}
+    assert tabla_por_persona[p1["id"]]["puntajeAcumulado"] == 90
+    assert tabla_por_persona[p1["id"]]["posicionActual"] == 1
+    assert tabla_por_persona[p2["id"]]["puntajeAcumulado"] == 89
+    assert tabla_por_persona[p2["id"]]["posicionActual"] == 2
 
 
 def test_diferencia_no_participo_de_ultimo_lugar(client):
@@ -141,7 +141,7 @@ def test_diferencia_no_participo_de_ultimo_lugar(client):
     assert resp.status_code == 201
     body = resp.json()
     assert body["participo"] is False
-    assert body["puntos_obtenidos"] == 0
+    assert body["puntosObtenidos"] == 0
 
 
 def test_registrar_resultado_participo_sin_posicion_falla(client):
@@ -189,7 +189,7 @@ def test_eliminacion_automatica_tras_dos_meses_consecutivos_sin_justificar(clien
         f"/api/v1/ranking/niveles/{nivel['id']}/cerrar-mes", params={"anio": 2026, "mes": 7}
     )
     assert resp.status_code == 200
-    assert persona["id"] in resp.json()["personas_eliminadas"]
+    assert persona["id"] in resp.json()["personasEliminadas"]
 
     # El admin recién creado (persona_id=1, mismo que el token de `client`)
     # debe haber recibido la notificación previa a la eliminación.
@@ -275,7 +275,7 @@ def test_aprobar_justificativo_corrige_retroactivamente_la_ausencia(client):
     cierre = client.post(
         f"/api/v1/ranking/niveles/{nivel['id']}/cerrar-mes", params={"anio": 2026, "mes": 7}
     ).json()
-    assert persona["id"] not in cierre["personas_eliminadas"]
+    assert persona["id"] not in cierre["personasEliminadas"]
 
 
 def test_evaluar_justificativo_requiere_admin(client_sin_permisos):
@@ -320,7 +320,7 @@ def test_reingreso_ubica_en_el_nivel_mas_bajo(client):
 
     resp = client.post(f"/api/v1/ranking/{persona['id']}/reingresar")
     assert resp.status_code == 200
-    assert resp.json()["nivel_ranking_id"] == nivel_bajo["id"]
+    assert resp.json()["nivelRankingId"] == nivel_bajo["id"]
 
 
 # --- Selección oficial (RF011) -----------------------------------------------
@@ -334,8 +334,8 @@ def test_marcar_seleccion_oficial(client):
         json={"persona_ids": [persona["id"]], "anio": 2026},
     )
     assert resp.status_code == 200
-    assert resp.json()[0]["seleccion_oficial"] is True
-    assert resp.json()[0]["anio_seleccion"] == 2026
+    assert resp.json()[0]["seleccionOficial"] is True
+    assert resp.json()[0]["anioSeleccion"] == 2026
 
 
 # --- Perfil privado del alumno (E04-RF012) ----------------------------------
@@ -346,7 +346,7 @@ def test_perfil_ranking_visible_para_admin_o_entrenador(client):
 
     resp = client.get(f"/api/v1/ranking/{persona['id']}/perfil")
     assert resp.status_code == 200
-    assert resp.json()["nivel_ranking_nombre"] == "Elite"
+    assert resp.json()["nivelRankingNombre"] == "Elite"
 
 
 def test_perfil_ranking_ajeno_rechazado_para_alumno(client_sin_permisos):
