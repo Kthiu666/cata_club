@@ -1,256 +1,326 @@
-import type { Metadata } from "next";
+/**
+ * Admin Dashboard — layout follows design/admin-panel-mockup-v1.html:
+ * AppShell sidebar + stat cards, quick actions, recent activity, and a
+ * payments-to-review table.
+ *
+ * All figures are computed from the same typed mock data/services the
+ * sibling admin screens use (members-utils, attendance-utils,
+ * fetchPaymentValidations) rather than the mockup's hardcoded numbers —
+ * "Actividad reciente" and "Pagos por revisar" share one
+ * fetchPaymentValidations() call so the two panels never disagree.
+ */
+
+"use client";
+
+import { useEffect, useState, useCallback, useMemo } from "react";
+import Link from "next/link";
 import {
   Users,
   ShieldCheck,
   Calendar,
-  ClipboardList,
+  DollarSign,
   ArrowRight,
   Clock,
-  UserCheck,
-  TrendingUp,
   Activity,
   CheckCircle2,
   AlertTriangle,
-  Zap,
+  XCircle,
   UserPlus,
 } from "lucide-react";
-import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
-
-export const metadata: Metadata = {
-  title: "Panel de Control",
-};
-
-const stats = [
-  {
-    icon: Users,
-    label: "Miembros Activos",
-    value: "48",
-    sub: "12 nuevos este mes",
-    trend: "up",
-  },
-  {
-    icon: ShieldCheck,
-    label: "Pendientes de Validar",
-    value: "3",
-    sub: "Esperando revisión",
-    highlight: true,
-    trend: "alert",
-  },
-  {
-    icon: Calendar,
-    label: "Clases de Hoy",
-    value: "6",
-    sub: "4 canchas en uso",
-    trend: "up",
-  },
-  {
-    icon: Clock,
-    label: "Pagos Pendientes",
-    value: "2",
-    sub: "Requieren seguimiento",
-    trend: "alert",
-  },
-];
+import AppShell from "@/components/shell/AppShell";
+import { fetchPaymentValidations } from "@/services/api";
+import type { PaymentValidationRequest } from "@/services/api";
+import { formatCurrency, formatDateTime } from "@/lib/format-utils";
+import { buildMemberStats } from "@/app/members/members-utils";
+import { buildAttendanceStats, getAttendanceRatePercent } from "@/app/attendance/attendance-utils";
+import { MOCK_MEMBER_ACCOUNTS } from "@/mocks/members";
+import { MOCK_ATTENDANCE_RECORDS } from "@/mocks/attendance";
 
 const quickActions = [
   {
-    icon: ShieldCheck,
-    label: "Validar Pagos",
-    href: "/payments",
-    description: "Revisar y aprobar o rechazar comprobantes de pago de membresías",
-  },
-  {
-    icon: Users,
-    label: "Gestionar Miembros",
-    href: "/members",
-    description: "Estudiantes, representantes y perfiles de membresía",
-  },
-  {
     icon: UserPlus,
-    label: "Gestionar Grupos",
-    href: "/groups",
-    description: "Grupos de entrenamiento, niveles técnicos y asignación de estudiantes",
+    label: "Nuevo estudiante",
+    href: "/members",
+    description: "Alta de responsable o alumno",
+  },
+  {
+    icon: ShieldCheck,
+    label: "Registrar pago",
+    href: "/payments",
+    description: "Validar comprobante recibido",
   },
   {
     icon: Calendar,
-    label: "Horarios y Asistencia",
+    label: "Tomar asistencia",
     href: "/attendance",
-    description: "Horarios de entrenamiento y registros de asistencia",
+    description: "Registrar la sesión de hoy",
   },
 ];
 
-const recentActivity = [
-  { icon: CheckCircle2, text: "Sofía Martínez — pago validado", time: "Hace 10 min", color: "text-cata-state-ok", bg: "bg-cata-state-ok/10" },
-  { icon: AlertTriangle, text: "3 comprobantes pendientes de revisión", time: "Hace 1 h", color: "text-amber-700", bg: "bg-amber-50" },
-  { icon: Users, text: "Nuevo miembro: Mateo Rodríguez", time: "Hace 2 h", color: "text-cata-red", bg: "bg-cata-red/15" },
-  { icon: Activity, text: "Sesión de avanzados finalizada — Cancha 1", time: "Hace 3 h", color: "text-blue-700", bg: "bg-blue-50" },
-];
+/** One line of the "Actividad reciente" feed, derived from a real payment request. */
+interface ActivityItem {
+  id: string;
+  text: string;
+  time: string;
+  timestamp: string;
+  icon: typeof CheckCircle2;
+  color: string;
+  bg: string;
+}
+
+function buildActivityFeed(requests: PaymentValidationRequest[]): ActivityItem[] {
+  return requests
+    .map((r): ActivityItem => {
+      if (r.validationStatus === "validado") {
+        return {
+          id: r.id,
+          text: `Pago de ${r.studentName} validado`,
+          time: formatDateTime(r.validatedAt ?? r.uploadedAt),
+          timestamp: r.validatedAt ?? r.uploadedAt,
+          icon: CheckCircle2,
+          color: "text-cata-state-ok",
+          bg: "bg-cata-state-ok/10",
+        };
+      }
+      if (r.validationStatus === "rechazado") {
+        return {
+          id: r.id,
+          text: `Comprobante de ${r.studentName} rechazado`,
+          time: formatDateTime(r.validatedAt ?? r.uploadedAt),
+          timestamp: r.validatedAt ?? r.uploadedAt,
+          icon: XCircle,
+          color: "text-cata-red",
+          bg: "bg-cata-red/10",
+        };
+      }
+      return {
+        id: r.id,
+        text: `Comprobante de ${r.studentName} pendiente de validar`,
+        time: formatDateTime(r.uploadedAt),
+        timestamp: r.uploadedAt,
+        icon: AlertTriangle,
+        color: "text-amber-700",
+        bg: "bg-amber-50",
+      };
+    })
+    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+    .slice(0, 4);
+}
 
 export default function DashboardPage(): React.ReactElement {
+  const [requests, setRequests] = useState<PaymentValidationRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadRequests = useCallback(async (): Promise<void> => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchPaymentValidations();
+      setRequests(data);
+    } catch (err) {
+      console.error("[dashboard] fetchPaymentValidations failed", err);
+      setError("No se pudieron cargar los pagos. Intente nuevamente.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect((): void => {
+    void loadRequests();
+  }, [loadRequests]);
+
+  const memberStats = useMemo(() => buildMemberStats(MOCK_MEMBER_ACCOUNTS), []);
+  const attendanceStats = useMemo(() => buildAttendanceStats(MOCK_ATTENDANCE_RECORDS), []);
+  const attendanceRate = getAttendanceRatePercent(attendanceStats);
+
+  const pendingRequests = useMemo(
+    () => requests.filter((r) => r.validationStatus === "pendiente"),
+    [requests],
+  );
+  const validatedTotal = useMemo(
+    () =>
+      requests
+        .filter((r) => r.validationStatus === "validado")
+        .reduce((sum, r) => sum + r.expectedAmount, 0),
+    [requests],
+  );
+  const activityFeed = useMemo(() => buildActivityFeed(requests), [requests]);
+  const reviewQueue = useMemo(
+    () => [...requests].sort((a, b) => a.validationStatus.localeCompare(b.validationStatus)).slice(0, 4),
+    [requests],
+  );
+
+  const stats = [
+    {
+      icon: Users,
+      label: "Estudiantes activos",
+      value: String(memberStats.totalStudents),
+    },
+    {
+      icon: DollarSign,
+      label: "Ingresos validados",
+      value: loading ? "—" : formatCurrency(validatedTotal),
+    },
+    {
+      icon: Clock,
+      label: "Pagos pendientes",
+      value: loading ? "—" : String(pendingRequests.length),
+      alert: !loading && pendingRequests.length > 0,
+    },
+    {
+      icon: Activity,
+      label: "Asistencia promedio",
+      value: `${attendanceRate}%`,
+    },
+  ];
+
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
-      <div>
-        {/* Hero Banner */}
-        <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-logo-glow" />
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
-              <Zap size={14} strokeWidth={2} aria-hidden="true" />
-              Panel Administrativo
-            </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
-              Panel de Control
-            </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-              Cata Club — Resumen diario, métricas clave y acceso rápido a las funciones
-              administrativas del club.
-            </p>
-          </div>
-        </div>
-
+      <AppShell
+        title="Dashboard"
+        subtitle="Resumen de la actividad del club — estudiantes, pagos y asistencia de hoy."
+      >
         {/* Stats grid */}
-        <div className="mb-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => {
-            const isAlert = stat.trend === "alert";
-            return (
-              <div
-                key={stat.label}
-                className={
-                  isAlert
-                    ? "card border-2 border-cata-red/40 bg-cata-yellow/10 p-6 shadow-elevated sm:p-7"
-                    : "card p-5 sm:p-6"
-                }
-              >
-                <div className="mb-4 flex items-start justify-between">
-                  <div
-                    className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
-                      isAlert ? "bg-cata-yellow/25" : "bg-cata-red/15"
-                    }`}
-                  >
-                    <stat.icon
-                      size={22}
-                      strokeWidth={isAlert ? 2 : 1.5}
-                      className="text-cata-red"
-                      aria-hidden="true"
-                    />
-                  </div>
-                  {stat.trend === "up" && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-cata-state-ok/10 px-2 py-0.5 text-[10px] font-semibold text-cata-state-ok">
-                      <TrendingUp size={10} strokeWidth={2} aria-hidden="true" />
-                      Activo
-                    </span>
-                  )}
-                  {stat.trend === "alert" && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                      <AlertTriangle size={10} strokeWidth={2} aria-hidden="true" />
-                      Atención
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">{stat.label}</p>
-                <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">
-                  {stat.value}
-                </p>
-                <p className="mt-1 text-xs text-cata-text/40">{stat.sub}</p>
+        <div className="mb-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {stats.map((stat) => (
+            <div
+              key={stat.label}
+              className={stat.alert ? "card border-2 border-cata-red/30 p-5 sm:p-6" : "card p-5 sm:p-6"}
+            >
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-cata-red/15">
+                <stat.icon size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
               </div>
-            );
-          })}
+              <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">{stat.label}</p>
+              <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">{stat.value}</p>
+            </div>
+          ))}
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-3">
-          {/* Quick Actions */}
-          <div className="lg:col-span-2">
-            <div className="mb-6 flex items-center gap-2">
-              <Activity size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-              <h2 className="text-lg font-bold text-cata-text">Acciones Rápidas</h2>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {quickActions.map((action) => (
-                <Link key={action.href} href={action.href}>
-                  <div className="card-hover group flex items-start gap-4 p-5 sm:p-6">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-cata-red/15">
-                      <action.icon
-                        size={22}
-                        strokeWidth={1.5}
-                        className="text-cata-red"
-                        aria-hidden="true"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-bold text-cata-text">{action.label}</p>
-                      <p className="mt-0.5 text-sm text-cata-text/65">
-                        {action.description}
-                      </p>
-                    </div>
-                    <ArrowRight
-                      size={18}
-                      strokeWidth={1.5}
-                      className="mt-1 shrink-0 text-cata-text/30 transition-transform group-hover:translate-x-0.5"
-                      aria-hidden="true"
-                    />
-                  </div>
-                </Link>
-              ))}
-            </div>
-
-            {/* Modules reference */}
-            <div className="card mt-8 p-6">
-              <div className="mb-4 flex items-center gap-2">
-                <ClipboardList size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                <h3 className="text-sm font-bold text-cata-text">Módulos del Sistema</h3>
+        {/* Quick actions */}
+        <div className="mb-6 flex items-center gap-2">
+          <Activity size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          <h2 className="text-lg font-bold text-cata-text">Acciones rápidas</h2>
+        </div>
+        <div className="mb-12 grid gap-4 sm:grid-cols-3">
+          {quickActions.map((action) => (
+            <Link key={action.href} href={action.href}>
+              <div className="card-hover group flex items-start gap-4 p-5">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-cata-red/15">
+                  <action.icon size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-cata-text">{action.label}</p>
+                  <p className="mt-0.5 text-sm text-cata-text/65">{action.description}</p>
+                </div>
+                <ArrowRight
+                  size={16}
+                  strokeWidth={1.5}
+                  className="mt-1 shrink-0 text-cata-text/30 transition-transform group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
               </div>
-              <div className="grid gap-3 text-sm text-cata-text/65 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="flex items-center gap-2">
-                  <UserCheck size={14} strokeWidth={1.5} className="shrink-0 text-cata-red" aria-hidden="true" />
-                  <span>Acceso y Usuarios — inicio de sesión, cuentas, credenciales</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Calendar size={14} strokeWidth={1.5} className="shrink-0 text-cata-red" aria-hidden="true" />
-                  <span>Operaciones — horarios, registro de asistencia</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <ShieldCheck size={14} strokeWidth={1.5} className="shrink-0 text-cata-red" aria-hidden="true" />
-                  <span>Finanzas — membresías, validación de pagos</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <ClipboardList size={14} strokeWidth={1.5} className="shrink-0 text-cata-red" aria-hidden="true" />
-                  <span>Consultas — estado de horarios y membresías</span>
-                </div>
-              </div>
-            </div>
-          </div>
+            </Link>
+          ))}
+        </div>
 
-          {/* Activity sidebar */}
+        <div className="grid gap-8 lg:grid-cols-2">
+          {/* Recent activity */}
           <div>
-            <div className="mb-6 flex items-center gap-2">
-              <Clock size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-              <h2 className="text-lg font-bold text-cata-text">Actividad Reciente</h2>
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-cata-text">Actividad reciente</h2>
             </div>
             <div className="card p-5">
-              <div className="space-y-4">
-                {recentActivity.map((item, i) => (
-                  <div key={i} className="flex items-start gap-3">
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.bg}`}>
-                      <item.icon size={16} strokeWidth={1.5} className={item.color} aria-hidden="true" />
+              {loading && <p className="py-4 text-center text-sm text-cata-text/45">Cargando actividad…</p>}
+              {!loading && error && (
+                <p className="py-4 text-center text-sm text-cata-red" role="alert">
+                  {error}
+                </p>
+              )}
+              {!loading && !error && activityFeed.length === 0 && (
+                <p className="py-4 text-center text-sm text-cata-text/45">Sin actividad reciente.</p>
+              )}
+              {!loading && !error && activityFeed.length > 0 && (
+                <div className="space-y-4">
+                  {activityFeed.map((item) => (
+                    <div key={item.id} className="flex items-start gap-3">
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.bg}`}>
+                        <item.icon size={16} strokeWidth={1.5} className={item.color} aria-hidden="true" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm leading-snug text-cata-text">{item.text}</p>
+                        <p className="mt-0.5 text-xs text-cata-text/40">{item.time}</p>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm leading-snug text-cata-text">{item.text}</p>
-                      <p className="mt-0.5 text-xs text-cata-text/40">{item.time}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Payments to review */}
+          <div>
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-cata-text">Pagos por revisar</h2>
+              <Link href="/payments" className="text-sm font-medium text-cata-red hover:text-cata-red-light">
+                Ir a Pagos
+              </Link>
+            </div>
+            <div className="card overflow-hidden p-0">
+              {loading && <p className="p-5 text-center text-sm text-cata-text/45">Cargando pagos…</p>}
+              {!loading && error && (
+                <p className="p-5 text-center text-sm text-cata-red" role="alert">
+                  {error}
+                </p>
+              )}
+              {!loading && !error && reviewQueue.length === 0 && (
+                <p className="p-5 text-center text-sm text-cata-text/45">No hay pagos registrados.</p>
+              )}
+              {!loading && !error && reviewQueue.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-cata-border text-left text-xs uppercase tracking-wider text-cata-text/45">
+                        <th className="px-5 py-3 font-medium">Estudiante</th>
+                        <th className="px-5 py-3 font-medium">Estado</th>
+                        <th className="px-5 py-3 text-right font-medium">Monto</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reviewQueue.map((r) => (
+                        <tr key={r.id} className="border-b border-cata-border last:border-0">
+                          <td className="px-5 py-3 text-cata-text">{r.studentName}</td>
+                          <td className="px-5 py-3">
+                            {r.validationStatus === "pendiente" && (
+                              <span className="badge badge-warning">Pendiente</span>
+                            )}
+                            {r.validationStatus === "validado" && (
+                              <span className="badge badge-success">Pagado</span>
+                            )}
+                            {r.validationStatus === "rechazado" && (
+                              <span className="badge badge-error">Rechazado</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3 text-right font-medium text-cata-text">
+                            {formatCurrency(r.expectedAmount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Demo data note */}
         <p className="mt-10 text-center text-xs text-cata-text/30">
-          Las métricas del dashboard son datos de demostración. Los datos reales reemplazarán
-          estos una vez que la API del backend esté conectada.
+          Las métricas se calculan a partir de datos de demostración (miembros, pagos y
+          asistencia). Los datos reales reemplazarán estos una vez que la API del backend
+          esté conectada.
         </p>
-      </div>
+      </AppShell>
     </ProtectedRoute>
   );
 }

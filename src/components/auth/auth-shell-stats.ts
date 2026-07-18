@@ -11,7 +11,7 @@
  */
 
 import type { MemberStats } from "@/app/members/members-utils";
-import type { AttendanceDayStats } from "@/app/attendance/attendance-utils";
+import { getAttendanceRatePercent, type AttendanceDayStats } from "@/app/attendance/attendance-utils";
 
 export interface AuthBrandHighlights {
   /** Total enrolled students across all payer accounts. */
@@ -31,15 +31,8 @@ export function computeAuthBrandHighlights(
   memberStats: MemberStats,
   attendanceStats: AttendanceDayStats,
 ): AuthBrandHighlights {
-  const attendanceRatePercent =
-    attendanceStats.totalStudents === 0
-      ? 0
-      : Math.round(
-          (attendanceStats.totalPresent / attendanceStats.totalStudents) * 100,
-        );
-
   return {
     activeStudents: memberStats.totalStudents,
-    attendanceRatePercent,
+    attendanceRatePercent: getAttendanceRatePercent(attendanceStats),
   };
 }

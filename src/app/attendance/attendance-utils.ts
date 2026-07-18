@@ -172,6 +172,16 @@ export function buildAttendanceStats(
 }
 
 /**
+ * Share of attendance records marked "present", as a rounded 0-100 percent.
+ *
+ * Returns 0 (not NaN) when there are no records to derive a rate from.
+ */
+export function getAttendanceRatePercent(stats: AttendanceDayStats): number {
+  if (stats.totalStudents === 0) return 0;
+  return Math.round((stats.totalPresent / stats.totalStudents) * 100);
+}
+
+/**
  * Format a DiaSemana value into a human-readable Spanish day name.
  *
  * Returns a fallback string when the value is not a known day.

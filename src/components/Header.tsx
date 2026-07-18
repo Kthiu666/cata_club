@@ -46,7 +46,7 @@ interface NavLink {
  * Single source of truth for icon assignment — maps what getNavLinksForRole
  * returns to the UI layer.
  */
-const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
+export const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
   Omit<LucideProps, "ref"> & React.RefAttributes<SVGSVGElement>
 >> = {
   "/": House,
@@ -202,6 +202,24 @@ interface HeaderProps {
  */
 const AUTH_SHELL_ROUTES = new Set(["/login", "/register", "/forgot-password"]);
 
+/**
+ * Admin and trainer routes render their own sidebar shell (see
+ * `AppShell`), which already carries identity, navigation, and a logout
+ * control — the top header would duplicate that. `/student` and
+ * `/student/enroll` are intentionally NOT in this set: they keep the
+ * existing top-nav header per the implementation guide's student
+ * exception.
+ */
+const APP_SHELL_ROUTES = new Set([
+  "/dashboard",
+  "/members",
+  "/groups",
+  "/payments",
+  "/attendance",
+  "/trainer",
+  "/trainer/attendance",
+]);
+
 export default function Header({ hideOnLanding = false }: HeaderProps): React.ReactElement | null {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -212,7 +230,7 @@ export default function Header({ hideOnLanding = false }: HeaderProps): React.Re
     return null;
   }
 
-  if (AUTH_SHELL_ROUTES.has(pathname)) {
+  if (AUTH_SHELL_ROUTES.has(pathname) || APP_SHELL_ROUTES.has(pathname)) {
     return null;
   }
 

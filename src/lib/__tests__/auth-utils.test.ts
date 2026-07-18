@@ -10,6 +10,7 @@ import {
   getDefaultRoute,
   getRoleLabel,
   getNavLinksForRole,
+  getUserInitials,
 } from "../auth-utils";
 import type { UserRole } from "@/types/domain";
 
@@ -199,5 +200,36 @@ describe("getNavLinksForRole", () => {
       expect(links[0].href).toBe("/");
       expect(links[0].label).toBe("Inicio");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getUserInitials
+// ---------------------------------------------------------------------------
+
+describe("getUserInitials", (): void => {
+  it("takes the first letter of the first two words", (): void => {
+    expect(getUserInitials("Alejandro Padilla")).toBe("AP");
+  });
+
+  it("uppercases lowercase input", (): void => {
+    expect(getUserInitials("maría gómez")).toBe("MG");
+  });
+
+  it("returns a single letter for a one-word name", (): void => {
+    expect(getUserInitials("Admin")).toBe("A");
+  });
+
+  it("ignores a third+ word", (): void => {
+    expect(getUserInitials("Juan Carlos Pérez")).toBe("JC");
+  });
+
+  it("collapses repeated whitespace", (): void => {
+    expect(getUserInitials("  Ana   López  ")).toBe("AL");
+  });
+
+  it("returns \"?\" for an empty or blank name", (): void => {
+    expect(getUserInitials("")).toBe("?");
+    expect(getUserInitials("   ")).toBe("?");
   });
 });
