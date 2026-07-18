@@ -552,3 +552,69 @@ function isEnrollmentResponse(value: unknown): value is EnrollmentResponse {
   const response = value as Record<string, unknown>;
   return Object.keys(response).length === 1 && response.enrolled === true;
 }
+
+// ---------------------------------------------------------------------------
+// Types & API Methods — Student Portal (Fase 6)
+// ---------------------------------------------------------------------------
+
+/**
+ * Ranking profile for one student — `GET /ranking/{id}/perfil` is
+ * ownership-checked server-side (self, or ADMINISTRADOR/ENTRENADOR), so a
+ * representante viewing a represented child's profile legitimately gets
+ * `"unavailable"/"forbidden"` instead of data. See
+ * src/lib/server/student-adapter.ts for the full gap writeup.
+ */
+export type StudentRankingSummary =
+  | {
+      status: "available";
+      posicionActual: number | null;
+      puntajeAcumulado: number;
+      nivelNombre: string | null;
+      estaEnRanking: boolean;
+    }
+  | { status: "unavailable"; reason: "forbidden" | "error" };
+
+/** One real past attendance record — shown as "recent activity" in place of a future schedule the API can't derive per-student (see student-adapter.ts). */
+export interface StudentSessionSummary {
+  fecha: string;
+  horario: string;
+  estado: EstadoAsistencia;
+}
+
+/** One student's own profile — used both for the logged-in persona (`self`) and for each `representado`. */
+export interface StudentProfileSummary {
+  personaId: string;
+  nombres: string;
+  apellidos: string;
+  fechaNacimiento: string;
+  ranking: StudentRankingSummary;
+  recentSessions: StudentSessionSummary[];
+}
+
+/** A real `TipoMembresia` catalog entry (`GET /membresias/tipos`) — replaces the old hardcoded `membershipPlans` array. */
+export interface MembershipPlanSummary {
+  id: string;
+  nombre: string;
+  precio: number;
+  franjaHoraria: string;
+  modalidad: string;
+}
+
+/**
+ * Full `/student` portal payload for the logged-in persona.
+ *
+ * Deliberately has no per-student membership/payment field: no backend
+ * endpoint lets a student/representante read their own or their dependents'
+ * Membresia/Pago (see src/lib/server/student-adapter.ts) — the page renders
+ * an explicit "not available" card instead of a fabricated one.
+ */
+export interface StudentPortalSummary {
+  self: StudentProfileSummary | null;
+  representados: StudentProfileSummary[];
+  membershipPlans: MembershipPlanSummary[];
+}
+
+/** Fetch the logged-in persona's own portal data (profile, representados, ranking, recent attendance) — `GET /api/student`. */
+export async function fetchStudentPortal(personaId: string): Promise<StudentPortalSummary> {
+  return request<StudentPortalSummary>(apiEndpoint(`/student?personaId=${encodeURIComponent(personaId)}`));
+}
