@@ -111,7 +111,6 @@ describe("Header", (): void => {
 
     // Brand visible but as plain text, not a link
     expect(screen.getByText("Cata Club")).toBeInTheDocument();
-    expect(screen.getByText("Demo")).toBeInTheDocument();
 
     // No nav links rendered
     expect(screen.queryByRole("link", { name: /Inicio/i })).not.toBeInTheDocument();

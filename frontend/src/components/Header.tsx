@@ -217,9 +217,6 @@ export default function Header({ hideOnLanding = false }: HeaderProps): React.Re
           <div className="flex items-center gap-3 text-lg font-semibold tracking-tight text-white">
             <div className="h-8 w-8 animate-pulse rounded-lg bg-white/10" />
             <span className="hidden sm:inline">Cata Club</span>
-            <span className="ml-1.5 rounded-md bg-cata-yellow px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-cata-black">
-              Demo
-            </span>
           </div>
         </nav>
       </header>
@@ -245,9 +242,6 @@ export default function Header({ hideOnLanding = false }: HeaderProps): React.Re
             />
           </div>
           <span className="hidden sm:inline">Cata Club</span>
-          <span className="ml-1.5 rounded-md bg-cata-yellow px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-cata-black">
-            Demo
-          </span>
         </Link>
 
         {/* Desktop nav */}
