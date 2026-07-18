@@ -21,6 +21,9 @@ class PersonaRepositorio:
     def listar(self, skip: int = 0, limit: int = 50) -> List[Persona]:
         return self.db.query(Persona).offset(skip).limit(limit).all()
 
+    def contar(self) -> int:
+        return self.db.query(Persona).count()
+
     def crear(self, persona: Persona) -> Persona:
         self.db.add(persona)
         self.db.commit()

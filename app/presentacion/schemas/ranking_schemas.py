@@ -4,11 +4,12 @@ frontend. El "nivel de ranking" reemplaza al concepto de "Grupo" que se
 había explorado del lado frontend: aquí un nivel ES el grupo de
 entrenamiento (confirmado con el equipo), no dos cosas separadas.
 """
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, computed_field
 from datetime import datetime
 from typing import Optional, List
 
 from app.dominio.enums import EstadoJustificativoRanking, TipoNotificacion
+from app.presentacion.schemas.base import ResponseBase
 
 
 # --- NivelRanking (E03-RF001) ------------------------------------------------
@@ -17,13 +18,22 @@ class NivelRankingCreateDTO(BaseModel):
     nombre: Optional[str] = Field(default=None, max_length=80)
 
 
-class NivelRankingResponseDTO(BaseModel):
+class NivelRankingResponseDTO(ResponseBase, BaseModel):
     id: int
     numero_nivel: int
     nombre: Optional[str] = None
     capacidad_minima: int
     capacidad_maxima: int
-    model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def nivel_categoria(self) -> str:
+        """Categoría agrupada para el frontend: 1-3 principiante, 4-6 intermedio, 7-10 avanzado."""
+        if self.numero_nivel <= 3:
+            return "principiante"
+        elif self.numero_nivel <= 6:
+            return "intermedio"
+        return "avanzado"
 
 
 class NivelRankingConOcupacionDTO(NivelRankingResponseDTO):
@@ -43,21 +53,20 @@ class AsignarNivelInicialDTO(BaseModel):
 
 
 # --- Ranking (fila por persona) ---------------------------------------------
-class RankingResponseDTO(BaseModel):
-    id: int
-    persona_id: int
-    puntaje_acumulado: int
-    posicion_actual: Optional[int] = None
-    participo: bool
-    esta_en_ranking: bool
-    nivel_ranking_id: Optional[int] = None
-    meses_consecutivos_ausente: int
-    seleccion_oficial: bool
-    anio_seleccion: Optional[int] = None
-    model_config = ConfigDict(from_attributes=True)
+class RankingResponseDTO(ResponseBase, BaseModel):
+    id: int = Field(..., examples=[1])
+    persona_id: int = Field(..., examples=[1])
+    puntaje_acumulado: int = Field(..., examples=[150])
+    posicion_actual: Optional[int] = Field(default=None, examples=[1])
+    participo: bool = Field(..., examples=[True])
+    esta_en_ranking: bool = Field(..., examples=[True])
+    nivel_ranking_id: Optional[int] = Field(default=None, examples=[2])
+    meses_consecutivos_ausente: int = Field(..., examples=[0])
+    seleccion_oficial: bool = Field(..., examples=[False])
+    anio_seleccion: Optional[int] = Field(default=None, examples=[None])
 
 
-class TablaRankingItemDTO(BaseModel):
+class TablaRankingItemDTO(ResponseBase, BaseModel):
     """Fila de la tabla de un nivel (E03-RF010): posición + puntaje +
     identificación del alumno, sin exponer el resto del Ranking."""
     persona_id: int
@@ -69,10 +78,6 @@ class TablaRankingItemDTO(BaseModel):
 
 # --- Resultado mensual (E03-RF003) ------------------------------------------
 class ResultadoMensualRegistrarDTO(BaseModel):
-    """Registra el resultado de UNA persona en el ranking mensual de un
-    nivel. El cierre de mes (POST /ranking/niveles/{id}/cerrar-mes) primero
-    exige que ya se hayan registrado los resultados del período; por eso este
-    endpoint es independiente y se llama uno por participante antes de cerrar."""
     persona_id: int
     anio: int = Field(..., ge=2020)
     mes: int = Field(..., ge=1, le=12)
@@ -80,7 +85,7 @@ class ResultadoMensualRegistrarDTO(BaseModel):
     participo: bool
 
 
-class ResultadoMensualResponseDTO(BaseModel):
+class ResultadoMensualResponseDTO(ResponseBase, BaseModel):
     id: int
     persona_id: int
     nivel_ranking_id: int
@@ -90,7 +95,6 @@ class ResultadoMensualResponseDTO(BaseModel):
     puntos_obtenidos: int
     participo: bool
     ausencia_justificada: bool
-    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Cierre mensual (E03-RF004/RF005/RF007/RF009) ---------------------------
@@ -102,17 +106,12 @@ class SugerenciaMovimientoDTO(BaseModel):
     nivel_sugerido_id: int
 
 
-class CierreMensualResponseDTO(BaseModel):
-    """Resumen de lo que hizo el cierre manual del mes para un nivel:
-    puntos calculados, quiénes fueron eliminados por 2 meses consecutivos
-    de ausencia sin justificar, y las sugerencias de ascenso/descenso que el
-    Entrenador debe revisar y aplicar manualmente (RF009 dice "sugerir", no
-    "mover automáticamente")."""
+class CierreMensualResponseDTO(ResponseBase, BaseModel):
     nivel_ranking_id: int
     anio: int
     mes: int
     personas_procesadas: int
-    personas_eliminadas: List[int]  # persona_id de quienes se sacaron del ranking
+    personas_eliminadas: List[int]
     sugerencias: List[SugerenciaMovimientoDTO]
 
 
@@ -129,7 +128,7 @@ class JustificativoEvaluarDTO(BaseModel):
     motivo_rechazo: Optional[str] = Field(default=None, max_length=255)
 
 
-class JustificativoResponseDTO(BaseModel):
+class JustificativoResponseDTO(ResponseBase, BaseModel):
     id: int
     persona_id: int
     anio: int
@@ -141,11 +140,10 @@ class JustificativoResponseDTO(BaseModel):
     fecha_solicitud: datetime
     fecha_evaluacion: Optional[datetime] = None
     evaluado_por_id: Optional[int] = None
-    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Reingreso (E03-RF008) ---------------------------------------------------
-class ReingresoResponseDTO(BaseModel):
+class ReingresoResponseDTO(ResponseBase, BaseModel):
     persona_id: int
     nivel_ranking_id: int
     mensaje: str
@@ -158,7 +156,7 @@ class SeleccionOficialDTO(BaseModel):
 
 
 # --- Perfil del alumno (E04-RF012) ------------------------------------------
-class PerfilRankingAlumnoDTO(BaseModel):
+class PerfilRankingAlumnoDTO(ResponseBase, BaseModel):
     persona_id: int
     posicion_actual: Optional[int] = None
     puntaje_acumulado: int
@@ -168,11 +166,10 @@ class PerfilRankingAlumnoDTO(BaseModel):
 
 
 # --- Notificaciones -----------------------------------------------------------
-class NotificacionResponseDTO(BaseModel):
+class NotificacionResponseDTO(ResponseBase, BaseModel):
     id: int
     tipo: TipoNotificacion
     mensaje: str
     leida: bool
     fecha_creacion: datetime
     entidad_relacionada_id: Optional[int] = None
-    model_config = ConfigDict(from_attributes=True)

@@ -1,8 +1,9 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field
 from datetime import date, datetime
 from typing import Optional, List
 
 from app.dominio.enums import TipoEscuela, NivelTecnicoAlumno, TipoSangre, TipoManoDominante
+from app.presentacion.schemas.base import ResponseBase
 
 
 # --- Institucion ---
@@ -11,9 +12,8 @@ class InstitucionCreateDTO(BaseModel):
     tipo_escuela: TipoEscuela
 
 
-class InstitucionResponseDTO(InstitucionCreateDTO):
+class InstitucionResponseDTO(ResponseBase, InstitucionCreateDTO):
     id: int
-    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Persona ---
@@ -45,21 +45,20 @@ class PersonaUpdateDTO(BaseModel):
     motivo_beca: Optional[str] = Field(default=None, max_length=150)
 
 
-class PersonaResponseDTO(BaseModel):
-    id: int
-    nombres: str
-    apellidos: str
-    cedula: str
-    fecha_nacimiento: date
-    foto_url: Optional[str] = None
-    telefono: str
-    telefono_contacto: Optional[str] = None
-    representante_id: Optional[int] = None
-    prioridad_municipal: bool = False
-    porcentaje_beca: int = 0
-    motivo_beca: Optional[str] = None
-    fecha_registro: Optional[datetime] = None
-    model_config = ConfigDict(from_attributes=True)
+class PersonaResponseDTO(ResponseBase, BaseModel):
+    id: int = Field(..., examples=[1])
+    nombres: str = Field(..., examples=["Juan Carlos"])
+    apellidos: str = Field(..., examples=["Pérez López"])
+    cedula: str = Field(..., examples=["1710034065"])
+    fecha_nacimiento: date = Field(..., examples=["1990-05-14"])
+    foto_url: Optional[str] = Field(default=None, examples=["https://res.cloudinary.com/..."])
+    telefono: str = Field(..., examples=["0991234567"])
+    telefono_contacto: Optional[str] = Field(default=None, examples=["0998765432"])
+    representante_id: Optional[int] = Field(default=None, examples=[None])
+    prioridad_municipal: bool = Field(default=False, examples=[False])
+    porcentaje_beca: int = Field(default=0, examples=[0])
+    motivo_beca: Optional[str] = Field(default=None, examples=[None])
+    fecha_registro: Optional[datetime] = Field(default=None, examples=["2024-01-15T10:30:00Z"])
 
 
 # --- AntecedentesClub ---
@@ -75,9 +74,8 @@ class AntecedentesClubUpdateDTO(BaseModel):
     mano_dominante: Optional[TipoManoDominante] = None
 
 
-class AntecedentesClubResponseDTO(AntecedentesClubCreateDTO):
+class AntecedentesClubResponseDTO(ResponseBase, AntecedentesClubCreateDTO):
     id: int
-    model_config = ConfigDict(from_attributes=True)
 
 
 # --- FichaMedica / Enfermedades ---
@@ -85,9 +83,8 @@ class EnfermedadCreateDTO(BaseModel):
     nombre_enfermedad: str = Field(..., max_length=150)
 
 
-class EnfermedadResponseDTO(EnfermedadCreateDTO):
+class EnfermedadResponseDTO(ResponseBase, EnfermedadCreateDTO):
     id: int
-    model_config = ConfigDict(from_attributes=True)
 
 
 class FichaMedicaCreateDTO(BaseModel):
@@ -110,7 +107,7 @@ class FichaMedicaUpdateDTO(BaseModel):
     telefono_emergencia: Optional[str] = Field(default=None, max_length=15)
 
 
-class FichaMedicaResponseDTO(BaseModel):
+class FichaMedicaResponseDTO(ResponseBase, BaseModel):
     id: int
     tipo_sangre: TipoSangre
     persona_id: int
@@ -118,4 +115,3 @@ class FichaMedicaResponseDTO(BaseModel):
     alergias: Optional[str] = None
     contacto_emergencia: Optional[str] = None
     telefono_emergencia: Optional[str] = None
-    model_config = ConfigDict(from_attributes=True)

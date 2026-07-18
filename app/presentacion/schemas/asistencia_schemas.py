@@ -1,8 +1,9 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 from datetime import date, time, datetime
 from typing import Optional
 
 from app.dominio.enums import EstadoAsistencia, DiaSemana
+from app.presentacion.schemas.base import ResponseBase
 
 
 class HorarioCreateDTO(BaseModel):
@@ -12,9 +13,8 @@ class HorarioCreateDTO(BaseModel):
     entrenador_id: int
 
 
-class HorarioResponseDTO(HorarioCreateDTO):
+class HorarioResponseDTO(ResponseBase, HorarioCreateDTO):
     id: int
-    model_config = ConfigDict(from_attributes=True)
 
 
 class AsistenciaCreateDTO(BaseModel):
@@ -27,7 +27,7 @@ class AsistenciaCreateDTO(BaseModel):
     horario_id: int
 
 
-class AsistenciaResponseDTO(BaseModel):
+class AsistenciaResponseDTO(ResponseBase, BaseModel):
     id: int
     fecha_entrenamiento: date
     fecha_registro: datetime
@@ -37,4 +37,3 @@ class AsistenciaResponseDTO(BaseModel):
     persona_id: int
     entrenador_id: int
     horario_id: int
-    model_config = ConfigDict(from_attributes=True)

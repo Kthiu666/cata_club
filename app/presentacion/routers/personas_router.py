@@ -8,6 +8,7 @@ from app.presentacion.schemas.persona_schemas import (
     PersonaCreateDTO, PersonaResponseDTO, PersonaUpdateDTO,
     AntecedentesClubCreateDTO, AntecedentesClubUpdateDTO, AntecedentesClubResponseDTO,
 )
+from app.presentacion.schemas.base import PaginatedResponse
 from app.seguridad.gestor_auth import GestorAutenticacion
 from app.servicios_negocio.persona_servicio import PersonaServicio
 from app.servicios_negocio.antecedentes_club_servicio import AntecedentesClubServicio
@@ -15,6 +16,7 @@ from app.servicios_negocio.rol_servicio import RolServicio
 from app.servicios_negocio.gestor_permisos import GestorPermisos
 from app.dominio.enums import TipoRol
 from pydantic import BaseModel
+from app.presentacion.schemas.base import ResponseBase
 
 router = APIRouter(prefix="/personas", tags=["Personas"])
 
@@ -32,11 +34,12 @@ async def registrar_persona(persona_in: PersonaCreateDTO, db: Session = Depends(
 # sin autenticar. Lo protegemos en el router, no sólo en el servicio.
 @router.get(
     "/",
-    response_model=List[PersonaResponseDTO],
+    response_model=PaginatedResponse[PersonaResponseDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
 async def listar_personas(skip: int = 0, limit: int = 50, db: Session = Depends(obtener_sesion)):
-    return PersonaServicio(db).listar_personas(skip, limit)
+    items, total = PersonaServicio(db).listar_personas(skip, limit)
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 # --- Reportes (E01-RF010 / E04-RF014) ---------------------------------------
@@ -146,7 +149,7 @@ class RolAsignarDTO(BaseModel):
     tipo_rol: TipoRol
 
 
-class RolesResponseDTO(BaseModel):
+class RolesResponseDTO(ResponseBase, BaseModel):
     persona_id: int
     roles: List[str]
     activo: bool

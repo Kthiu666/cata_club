@@ -155,13 +155,14 @@ class PagoServicio:
         estado_pago: EstadoPago | None = None,
         skip: int = 0,
         limit: int = 50,
-    ) -> list[PagoListItemDTO]:
+    ) -> tuple[list[PagoListItemDTO], int]:
         """Cola de validación (Administrador). Construye PagoListItemDTO a mano
         (en vez de from_attributes directo) porque `persona_nombre_completo`
         no es una columna de Pago: se arma a partir de la relación cargada
         (ver joinedload en el repositorio, evita N+1 queries)."""
         pagos = self.repo.listar(estado_pago=estado_pago, skip=skip, limit=limit)
-        return [
+        total = self.repo.contar(estado_pago=estado_pago)
+        items = [
             PagoListItemDTO(
                 id=p.id,
                 monto=p.monto,
@@ -179,6 +180,7 @@ class PagoServicio:
             )
             for p in pagos
         ]
+        return items, total
 
     def validar_pago(self, pago_id: int, datos: PagoValidarDTO) -> Pago:
         """

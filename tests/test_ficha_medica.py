@@ -15,12 +15,12 @@ def test_crear_y_obtener_ficha_medica(client):
         json={"tipo_sangre": "O_POSITIVO", "persona_id": persona["id"], "enfermedades": ["Asma"]},
     )
     assert resp.status_code == 201
-    assert resp.json()["tipo_sangre"] == "O_POSITIVO"
-    assert [e["nombre_enfermedad"] for e in resp.json()["enfermedades"]] == ["Asma"]
+    assert resp.json()["tipoSangre"] == "O_POSITIVO"
+    assert [e["nombreEnfermedad"] for e in resp.json()["enfermedades"]] == ["Asma"]
 
     resp = client.get(f"/api/v1/fichas-medicas/persona/{persona['id']}")
     assert resp.status_code == 200
-    assert resp.json()["persona_id"] == persona["id"]
+    assert resp.json()["personaId"] == persona["id"]
 
 
 def test_actualizar_tipo_sangre(client):
@@ -36,7 +36,7 @@ def test_actualizar_tipo_sangre(client):
         json={"tipo_sangre": "AB_NEGATIVO"},
     )
     assert resp.status_code == 200
-    assert resp.json()["tipo_sangre"] == "AB_NEGATIVO"
+    assert resp.json()["tipoSangre"] == "AB_NEGATIVO"
 
 
 def test_actualizar_enfermedades_reemplaza_la_lista_completa(client):
@@ -51,12 +51,12 @@ def test_actualizar_enfermedades_reemplaza_la_lista_completa(client):
         json={"enfermedades": ["Diabetes", "Hipertensión"]},
     )
     assert resp.status_code == 200
-    nombres = sorted(e["nombre_enfermedad"] for e in resp.json()["enfermedades"])
+    nombres = sorted(e["nombreEnfermedad"] for e in resp.json()["enfermedades"])
     assert nombres == ["Diabetes", "Hipertensión"]
 
     # Confirma que "Asma" ya no quedó huérfana en la BD (cascade delete-orphan).
     resp = client.get(f"/api/v1/fichas-medicas/persona/{persona['id']}")
-    nombres = [e["nombre_enfermedad"] for e in resp.json()["enfermedades"]]
+    nombres = [e["nombreEnfermedad"] for e in resp.json()["enfermedades"]]
     assert "Asma" not in nombres
 
 
@@ -87,8 +87,8 @@ def test_crear_ficha_medica_con_datos_de_emergencia(client):
     assert resp.status_code == 201
     body = resp.json()
     assert body["alergias"] == "Penicilina"
-    assert body["contacto_emergencia"] == "María Torres"
-    assert body["telefono_emergencia"] == "0991112233"
+    assert body["contactoEmergencia"] == "María Torres"
+    assert body["telefonoEmergencia"] == "0991112233"
 
 
 def test_crear_ficha_medica_sin_datos_de_emergencia_son_opcionales(client):
@@ -100,8 +100,8 @@ def test_crear_ficha_medica_sin_datos_de_emergencia_son_opcionales(client):
     assert resp.status_code == 201
     body = resp.json()
     assert body["alergias"] is None
-    assert body["contacto_emergencia"] is None
-    assert body["telefono_emergencia"] is None
+    assert body["contactoEmergencia"] is None
+    assert body["telefonoEmergencia"] is None
 
 
 def test_actualizar_datos_de_emergencia_parcial(client):
@@ -121,7 +121,7 @@ def test_actualizar_datos_de_emergencia_parcial(client):
     assert resp.status_code == 200
     body = resp.json()
     # tipo_sangre y alergias no vinieron en el PATCH: deben quedar intactos.
-    assert body["tipo_sangre"] == "O_POSITIVO"
+    assert body["tipoSangre"] == "O_POSITIVO"
     assert body["alergias"] == "Ninguna"
-    assert body["contacto_emergencia"] == "Luis Pérez"
-    assert body["telefono_emergencia"] == "0987654321"
+    assert body["contactoEmergencia"] == "Luis Pérez"
+    assert body["telefonoEmergencia"] == "0987654321"
