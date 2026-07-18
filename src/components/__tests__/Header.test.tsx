@@ -95,12 +95,25 @@ describe("Header", (): void => {
   });
 
   it("shows the header on a non-landing route when landing hiding is requested", (): void => {
-    mockPathname.mockReturnValue("/login");
+    mockPathname.mockReturnValue("/dashboard");
 
     render(<Header hideOnLanding />);
 
     expect(screen.getByRole("banner")).toBeInTheDocument();
   });
+
+  // --- Auth shell routes (login, register, forgot-password) ---
+
+  it.each(["/login", "/register", "/forgot-password"])(
+    "hides the header on the %s auth-shell route",
+    (route): void => {
+      mockPathname.mockReturnValue(route);
+
+      render(<Header />);
+
+      expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+    },
+  );
 
   // --- Loading skeleton ---
 

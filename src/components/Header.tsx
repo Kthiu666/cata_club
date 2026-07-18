@@ -194,6 +194,14 @@ interface HeaderProps {
   hideOnLanding?: boolean;
 }
 
+/**
+ * Public auth screens (login, register, forgot-password) render their own
+ * full-bleed split-screen shell (see `AuthShell`) with a dark brand panel
+ * that already carries identity + a "volver al sitio" link — the app
+ * header would duplicate that and break the full-height layout.
+ */
+const AUTH_SHELL_ROUTES = new Set(["/login", "/register", "/forgot-password"]);
+
 export default function Header({ hideOnLanding = false }: HeaderProps): React.ReactElement | null {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -201,6 +209,10 @@ export default function Header({ hideOnLanding = false }: HeaderProps): React.Re
   const links = useNavLinks();
 
   if (hideOnLanding && pathname === "/") {
+    return null;
+  }
+
+  if (AUTH_SHELL_ROUTES.has(pathname)) {
     return null;
   }
 
