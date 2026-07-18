@@ -1,109 +1,126 @@
 /**
- * Mock Route Handler — PUT /api/payments/[id]
+ * PUT /api/payments/[id] — proxies FastAPI's payment validation endpoint.
  *
  * Approve or reject a membership payment validation request (CU012).
+ * Calls `PATCH /membresias/pagos/{id}/validar`, whose response
+ * (`PagoResponseDTO`) doesn't carry the student's name (only
+ * `PagoListItemDTO`, the queue list, denormalizes that) — so this handler
+ * also fetches the persona and membresia/tipo in parallel to rebuild the
+ * same `PaymentValidationRequest` shape the GET route returns (see
+ * src/lib/server/payments-adapter.ts).
  *
  * Request body (approve):
  *   { "action": "approved" }
- *
  * Request body (reject):
  *   { "action": "rejected", "rejectionReason": "string" }
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { setAuthCookies } from "@/lib/server/auth";
+import { backendFetchAuthed, passthroughBackendError } from "@/lib/server/backend-client";
 import {
-  getPaymentValidationById,
-  updatePaymentValidation,
-  validatePaymentValidationTransition,
-} from "@/services/mockStore";
+  buildPaymentValidationRequest,
+  personaFullName,
+  type BackendMembresia,
+  type BackendPagoCore,
+  type BackendPersona,
+  type BackendTipoMembresia,
+} from "@/lib/server/payments-adapter";
+
+type ParsedUpdateBody =
+  | { action: "approved" }
+  | { action: "rejected"; rejectionReason: string };
+
+/** Mirrors the `UpdatePaymentValidationDTO` contract `updatePaymentValidation()` in src/services/api.ts sends — do not change without updating that client. */
+function parseUpdateBody(value: unknown): ParsedUpdateBody | { error: string } {
+  if (typeof value !== "object" || value === null) {
+    return { error: "Acción inválida. Use 'approved' o 'rejected'." };
+  }
+  const body = value as Record<string, unknown>;
+
+  if (body.action === "approved") {
+    return { action: "approved" };
+  }
+
+  if (body.action === "rejected") {
+    const reason = body.rejectionReason;
+    if (typeof reason !== "string" || reason.trim().length === 0) {
+      return { error: "El motivo de rechazo es obligatorio y no debe estar vacío" };
+    }
+    return { action: "rejected", rejectionReason: reason.trim() };
+  }
+
+  return { error: "Acción inválida. Use 'approved' o 'rejected'." };
+}
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } },
-) {
-  const mockRole = request.headers.get("x-mock-role");
-  if (mockRole !== "admin") {
-    return NextResponse.json(
-      { message: "Solo administradores pueden validar pagos" },
-      { status: 403 },
-    );
-  }
-
-  const existing = getPaymentValidationById(params.id);
-
-  if (!existing) {
-    return NextResponse.json(
-      { message: "Solicitud de validación de pago no encontrada" },
-      { status: 404 },
-    );
-  }
-
+): Promise<NextResponse> {
+  let rawBody: unknown;
   try {
-    const body = await request.json();
-    const now = new Date().toISOString();
-
-    // --- Domain guard: only pending requests may transition ---
-    if (body.action === "approved" || body.action === "rejected") {
-      const verdict = validatePaymentValidationTransition(existing, body.action);
-      if (!verdict.valid) {
-        return NextResponse.json(
-          { message: verdict.message },
-          { status: 409 },
-        );
-      }
-    }
-
-    if (body.action === "approved") {
-      const updated = updatePaymentValidation(params.id, {
-        validationStatus: "validado",
-        currentMembershipStatus: "activa",
-        validatedAt: now,
-        validatedBy: "admin@cataclub.com",
-        rejectionReason: undefined,
-      });
-      return NextResponse.json(updated);
-    }
-
-    if (body.action === "rejected") {
-      if (
-        !body.rejectionReason ||
-        typeof body.rejectionReason !== "string" ||
-        body.rejectionReason.trim().length === 0
-      ) {
-        return NextResponse.json(
-          { message: "El motivo de rechazo es obligatorio y no debe estar vacío" },
-          { status: 400 },
-        );
-      }
-
-      const updated = updatePaymentValidation(params.id, {
-        validationStatus: "rechazado",
-        // Preserve current membership status — rejection of a renewal proof
-        // on an active membership should not force the membership to "vencida".
-        // Payment validation and membership lifecycle are separate concerns.
-        currentMembershipStatus: existing.currentMembershipStatus,
-        validatedAt: now,
-        validatedBy: "admin@cataclub.com",
-        rejectionReason: body.rejectionReason.trim(),
-      });
-      return NextResponse.json(updated);
-    }
-
-    return NextResponse.json(
-      { message: "Acción inválida. Use 'approved' o 'rejected'." },
-      { status: 400 },
-    );
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      return NextResponse.json(
-        { message: "JSON inválido en el cuerpo de la solicitud" },
-        { status: 400 },
-      );
-    }
-    console.error("Error interno en PUT /api/payments/[id]:", error);
-    return NextResponse.json(
-      { message: "Error interno del servidor" },
-      { status: 500 },
-    );
+    rawBody = await request.json();
+  } catch {
+    return NextResponse.json({ message: "JSON inválido en el cuerpo de la solicitud" }, { status: 400 });
   }
+
+  const parsed = parseUpdateBody(rawBody);
+  if ("error" in parsed) {
+    return NextResponse.json({ message: parsed.error }, { status: 400 });
+  }
+
+  const validarBody =
+    parsed.action === "approved"
+      ? { estado_pago: "APROBADO" }
+      : { estado_pago: "RECHAZADO", motivo_rechazo: parsed.rejectionReason };
+
+  const validarResult = await backendFetchAuthed(request, `/membresias/pagos/${params.id}/validar`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(validarBody),
+  });
+  if (!validarResult.ok) {
+    return NextResponse.json({ message: "No se pudo validar el pago." }, { status: validarResult.status });
+  }
+  if (!validarResult.response.ok) {
+    return passthroughBackendError(validarResult.response, "No se pudo validar el pago.");
+  }
+
+  const pago = (await validarResult.response.json()) as BackendPagoCore;
+
+  // `/membresias/tipos` is a small, rarely-changing catalog (see the N+1
+  // note in payments-adapter.ts) — fetching it in full alongside the two
+  // per-payment lookups is cheap and keeps this handler's shape consistent
+  // with GET /api/payments.
+  const [personaResult, membresiaResult, tiposResult] = await Promise.all([
+    backendFetchAuthed(request, `/personas/${pago.personaId}`),
+    backendFetchAuthed(request, `/membresias/${pago.membresiaId}`),
+    backendFetchAuthed(request, "/membresias/tipos"),
+  ]);
+
+  const persona: BackendPersona | undefined =
+    personaResult.ok && personaResult.response.ok ? await personaResult.response.json() : undefined;
+  const membresia: BackendMembresia =
+    membresiaResult.ok && membresiaResult.response.ok
+      ? await membresiaResult.response.json()
+      : { estado: "INACTIVA", tipoMembresiaId: 0 };
+  const tipos: BackendTipoMembresia[] =
+    tiposResult.ok && tiposResult.response.ok ? await tiposResult.response.json() : [];
+
+  const tipoMembresia = tipos.find((tipo) => tipo.id === membresia.tipoMembresiaId);
+  const item = buildPaymentValidationRequest(pago, personaFullName(persona), membresia, tipoMembresia);
+
+  const response = NextResponse.json(item);
+  // Any of the four calls above may have independently refreshed the token
+  // (each resolves/refreshes off the same request cookies) — propagate
+  // whichever one actually did, same as GET /api/payments.
+  const refreshedAccessToken =
+    validarResult.refreshedAccessToken ??
+    (personaResult.ok ? personaResult.refreshedAccessToken : undefined) ??
+    (membresiaResult.ok ? membresiaResult.refreshedAccessToken : undefined) ??
+    (tiposResult.ok ? tiposResult.refreshedAccessToken : undefined);
+  if (refreshedAccessToken) {
+    setAuthCookies(response, { accessToken: refreshedAccessToken });
+  }
+  return response;
 }

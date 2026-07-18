@@ -148,7 +148,7 @@ export default function PaymentsPage(): React.ReactElement {
         prev.map((r) => (r.id === updated.id ? updated : r)),
       );
       setSelectedRequest(updated);
-      setSuccessMessage("Demo — Pago aprobado. La membresía ahora está activa.");
+      setSuccessMessage("Pago aprobado. La membresía ahora está activa.");
     } catch (err) {
       console.error("[payments] approve failed", err);
       setActionError(
@@ -194,7 +194,7 @@ export default function PaymentsPage(): React.ReactElement {
       );
       setSelectedRequest(updated);
       setShowRejectForm(false);
-      setSuccessMessage("Demo — Pago rechazado. El estado de la membresía se mantiene sin cambios.");
+      setSuccessMessage("Pago rechazado. El estado de la membresía se mantiene sin cambios.");
     } catch (err) {
       console.error("[payments] reject failed", err);
       setActionError(
@@ -224,16 +224,6 @@ export default function PaymentsPage(): React.ReactElement {
               Revise, apruebe o rechace solicitudes con trazabilidad completa.
             </p>
           </div>
-        </div>
-
-        {/* Demo badge */}
-        <div className="mb-6 flex items-center gap-2">
-          <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">
-            Demo
-          </span>
-          <span className="text-xs text-cata-text/40">
-            Los datos de pagos son simulados con información local en memoria
-          </span>
         </div>
 
         {/* Stats cards */}
@@ -628,7 +618,7 @@ export default function PaymentsPage(): React.ReactElement {
 
                     <p className="mt-4 text-xs text-cata-text/40">
                       <Eye size={12} strokeWidth={1.5} className="inline-block -mt-0.5 mr-1" aria-hidden="true" />
-                      Vista previa del comprobante completo no disponible en modo demo.
+                      Vista previa no disponible para este tipo de comprobante.
                     </p>
                   </div>
                 </div>

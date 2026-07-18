@@ -9,7 +9,7 @@
  * this is server-only — import it only from Route Handlers.
  */
 
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import {
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
@@ -107,4 +107,26 @@ export async function backendFetchAuthed(
   }
 
   return { ok: true, response: result.data, refreshedAccessToken };
+}
+
+/**
+ * Relay a non-OK backend `Response` as a `NextResponse` with the same
+ * status, extracting whatever user-facing message the backend sent
+ * (`message` or FastAPI's `detail`) instead of leaking the raw body. Shared
+ * across every resource's Route Handler under `src/app/api/**` that proxies
+ * `backendFetchAuthed` — one place to fix if the backend's error shape ever
+ * changes.
+ */
+export async function passthroughBackendError(response: Response, fallback: string): Promise<NextResponse> {
+  let message = fallback;
+  try {
+    const body: unknown = await response.json();
+    if (typeof body === "object" && body !== null) {
+      const b = body as Record<string, unknown>;
+      message = (typeof b.message === "string" && b.message) || (typeof b.detail === "string" && b.detail) || fallback;
+    }
+  } catch {
+    // ignore parse errors — use fallback
+  }
+  return NextResponse.json({ message }, { status: response.status });
 }

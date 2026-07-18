@@ -4,30 +4,24 @@ Centralised layer for all external communication.
 
 | File | Purpose |
 |------|---------|
-| `api.ts` | HTTP client with mock/real backend switching |
-| `mockStore.ts` | In-memory mock data store for local development |
+| `api.ts` | HTTP client — every call goes same-origin to a Next.js Route Handler under `/api/*` |
 
 ### Rules
 
 - **No UI logic** in services — return plain data, never JSX.
 - **No direct `fetch()` calls** outside this directory.
-- **Mock switching** is transparent: consumers call the same function
-  regardless of `NEXT_PUBLIC_USE_MOCKS`.
 - **Error handling** happens here (wraps fetch, returns typed errors).
 
 ### API Path Convention
 
-The client uses `apiEndpoint(resource)` to resolve paths based on mode:
-
-| Mode | `NEXT_PUBLIC_USE_MOCKS` | Prefix | Example full URL |
-|------|-------------------------|--------|------------------|
-| Mock Route Handlers | unset or not `"false"` | `/api` + resource | `/api/payments` (Next.js local handler) |
-| Real backend | `"false"` | `NEXT_PUBLIC_API_URL` + resource | `http://localhost:8000/api/v1/payments` |
-
-Resource paths are always written without the `/api` prefix in source
-(e.g. `"/payments"`). The helper prepends `/api` only in mock mode.
-
-> **Default behavior:** when `.env.local` is missing or `NEXT_PUBLIC_USE_MOCKS` is not set, the client defaults to local mock Route Handlers. This keeps `pnpm dev` immediately functional for new contributors without configuration.
+The client always calls `apiEndpoint(resource)` -> `/api` + resource, same-origin
+(e.g. `"/payments"` -> `/api/payments`). There is no cross-origin "direct backend"
+mode anymore — the access/refresh tokens live in HttpOnly cookies invisible to
+browser JS, so only a server-side Route Handler can attach `Authorization: Bearer`
+(see `src/lib/server/backend-client.ts`). Each resource's Route Handler
+independently decides whether it still serves mock data or already proxies to
+the real FastAPI backend; `NEXT_PUBLIC_USE_MOCKS` only controls the `x-mock-role`
+header sent to handlers that are still mock-backed.
 
 ### Key Types
 

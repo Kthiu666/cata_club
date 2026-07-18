@@ -1,21 +1,59 @@
 /**
- * Mock Route Handler — GET /api/payments
+ * GET /api/payments — proxies FastAPI's admin payment-validation queue.
  *
- * Returns membership payment validation requests for local development.
- * Used when NEXT_PUBLIC_USE_MOCKS=true.
+ * BFF Route Handler: reads the session cookie server-side, calls the real
+ * backend (`GET /membresias/pagos`) with `Authorization: Bearer`, and
+ * translates the response into the `PaymentValidationRequest` shape
+ * `src/app/payments/page.tsx` already renders (see
+ * src/lib/server/payments-adapter.ts). Role enforcement (admin-only) is the
+ * backend's job via `GestorPermisos` — this handler just proxies whatever
+ * status it returns.
  */
 
-import { NextResponse } from "next/server";
-import { getPaymentValidations } from "@/services/mockStore";
+import { NextRequest, NextResponse } from "next/server";
+import { setAuthCookies } from "@/lib/server/auth";
+import { backendFetchAuthed, passthroughBackendError } from "@/lib/server/backend-client";
+import {
+  buildPaymentValidationRequest,
+  type BackendMembresia,
+  type BackendPagoListItem,
+  type BackendTipoMembresia,
+} from "@/lib/server/payments-adapter";
 
-export async function GET(request: Request) {
-  const mockRole = request.headers.get("x-mock-role");
-  if (mockRole !== "admin") {
-    return NextResponse.json(
-      { message: "Solo administradores pueden ver pagos" },
-      { status: 403 },
-    );
+interface PaginatedPagos {
+  items: BackendPagoListItem[];
+}
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const pagosResult = await backendFetchAuthed(request, "/membresias/pagos?limit=200");
+  if (!pagosResult.ok) {
+    return NextResponse.json({ message: "No se pudo cargar la cola de pagos." }, { status: pagosResult.status });
+  }
+  if (!pagosResult.response.ok) {
+    return passthroughBackendError(pagosResult.response, "No se pudo cargar la cola de pagos.");
   }
 
-  return NextResponse.json(getPaymentValidations());
+  const paginated = (await pagosResult.response.json()) as PaginatedPagos;
+
+  const tiposResult = await backendFetchAuthed(request, "/membresias/tipos");
+  const tipos: BackendTipoMembresia[] =
+    tiposResult.ok && tiposResult.response.ok ? await tiposResult.response.json() : [];
+  const tiposById = new Map(tipos.map((tipo) => [tipo.id, tipo]));
+
+  const items = await Promise.all(
+    paginated.items.map(async (pago) => {
+      const membresiaResult = await backendFetchAuthed(request, `/membresias/${pago.membresiaId}`);
+      const membresia: BackendMembresia =
+        membresiaResult.ok && membresiaResult.response.ok
+          ? await membresiaResult.response.json()
+          : { estado: "INACTIVA", tipoMembresiaId: 0 };
+      return buildPaymentValidationRequest(pago, pago.personaNombreCompleto, membresia, tiposById.get(membresia.tipoMembresiaId));
+    }),
+  );
+
+  const response = NextResponse.json(items);
+  if (pagosResult.refreshedAccessToken) {
+    setAuthCookies(response, { accessToken: pagosResult.refreshedAccessToken });
+  }
+  return response;
 }
