@@ -70,6 +70,7 @@ export function createUnauthenticatedAuth(
     isLoading,
     login: vi.fn(),
     logout: vi.fn(),
+    refreshSession: vi.fn(),
   };
 }
 
@@ -91,6 +92,7 @@ export function createAuthenticatedAuth(
     isLoading: false,
     login: vi.fn(),
     logout: vi.fn(),
+    refreshSession: vi.fn(),
     ...overrides,
   };
 }
@@ -105,5 +107,6 @@ export function createLoadingAuth(): AuthContextValue {
     isLoading: true,
     login: vi.fn(),
     logout: vi.fn(),
+    refreshSession: vi.fn(),
   };
 }

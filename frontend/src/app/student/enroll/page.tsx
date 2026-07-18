@@ -1,16 +1,16 @@
 /**
- * Student Enrollment Demo — Interactive Prototype
+ * Student Enrollment — public self-service wizard.
  *
- * Multi-step wizard for enrolling a student at Cata Club.
- * This is a frontend-only mock that demonstrates the full enrollment flow:
+ * Multi-step wizard for enrolling a student at Cata Club:
  *   - Enrollment type (self vs. child/dependent)
  *   - Student personal data
- *   - Birth date / age-relevant data
- *   - Club start date
+ *   - Account credentials / representative data
  *   - Health/medical notes & emergency contact
  *   - Summary & confirmation
  *
- * No data is persisted — this is a UI prototype akin to a Figma mockup.
+ * Submits to the backend's public POST /enrollment (via /api/enrollment —
+ * see src/app/api/enrollment/route.ts), which persists Persona/Usuario(/
+ * FichaMedica/AntecedentesClub) and auto-logs the new user in.
  * All labels and copy are in Spanish per app convention.
  */
 
@@ -19,6 +19,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { enrollStudent } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { clearLegacyEnrollmentSession } from "@/lib/enrollment-session";
 import { BLOOD_TYPES } from "@/types/enrollment";
 import {
@@ -78,6 +79,7 @@ function slugifyLabel(label: string): string {
 // ---------------------------------------------------------------------------
 
 export default function EnrollPage(): React.ReactElement {
+  const { refreshSession } = useAuth();
   const [step, setStep] = useState<WizardStep>("type");
   const [formData, setFormData] = useState<EnrollFormData>(initialFormData);
   const [submitting, setSubmitting] = useState(false);
@@ -164,6 +166,11 @@ export default function EnrollPage(): React.ReactElement {
       if (!response.enrolled) {
         throw new Error("No se pudo completar la inscripción.");
       }
+      // The backend auto-logs the new user in (HttpOnly cookies set by
+      // /api/enrollment); re-hydrate AuthContext now so "Ir a Mi Cuenta"
+      // below lands on an already-authenticated /student instead of bouncing
+      // through /login — AuthProvider otherwise only hydrates once on mount.
+      await refreshSession();
       setSubmitting(false);
       setConfirmed(true);
     } catch (error: unknown) {
@@ -667,12 +674,11 @@ export default function EnrollPage(): React.ReactElement {
         <div className="rounded-xl border border-amber-500/30 bg-amber-900/20 p-3 text-xs text-amber-400">
           <p className="flex items-center gap-1.5 font-medium">
             <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
-            Demo — Sin almacenamiento real
+            Datos sensibles
           </p>
           <p className="mt-1 text-amber-700/80">
-            Esta información se recoge únicamente para la demostración del flujo
-            de inscripción. En producción, los datos médicos se manejarían de forma
-            segura conforme a la normativa de protección de datos.
+            Esta información se maneja de forma segura conforme a la normativa
+            de protección de datos.
           </p>
         </div>
       </div>
@@ -890,9 +896,6 @@ export default function EnrollPage(): React.ReactElement {
                   {formData.enrollmentType === "child" && " Usted actúa como representante."}
                 </p>
               </div>
-              <span className="hidden rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700 sm:inline-block">
-                Demo
-              </span>
             </div>
           </div>
 
@@ -1029,12 +1032,6 @@ export default function EnrollPage(): React.ReactElement {
             >
               &larr; Volver a Mi Cuenta
             </Link>
-          </p>
-
-          {/* Demo note */}
-          <p className="mt-4 text-center text-xs text-cata-text/30">
-            Prototipo de demostración interactivo. No se almacena ningún dato real.
-            Datos ficticios para fines de presentación.
           </p>
         </div>
       )}

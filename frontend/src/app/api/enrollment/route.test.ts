@@ -1,12 +1,52 @@
-import { describe, expect, it } from "vitest";
+/**
+ * Tests for POST /api/enrollment — the BFF proxy to the backend's public,
+ * rate-limited POST /enrollment/.
+ *
+ * Mocks the backend via vi.spyOn(global, "fetch") — no live FastAPI needed.
+ * Covers: snake_case DTO translation, HttpOnly cookie attributes on
+ * auto-login, that tokens never appear in the JSON body, and validation /
+ * error passthrough.
+ *
+ * @vitest-environment node
+ */
+
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { BLOOD_TYPES } from "@/types/enrollment";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/server/auth";
 import { POST } from "./route";
 
-const validBody = { alumno: { nombres: "Ana", apellidos: "Pérez", cedula: "1712345678", fechaNacimiento: "2000-01-15", telefono: "0991234567" }, credencialesAlumno: { correo: "ana@example.com", contrasenia: "password8" }, fichaMedica: { tipoSangre: BLOOD_TYPES.O_POSITIVO, condicionesSalud: "", alergias: "", contactoEmergencia: "María", telefonoEmergencia: "0997654321" } };
+const validBody = {
+  alumno: { nombres: "Ana", apellidos: "Pérez", cedula: "1712345678", fechaNacimiento: "2000-01-15", telefono: "0991234567" },
+  credencialesAlumno: { correo: "ana@example.com", contrasenia: "password8" },
+  fichaMedica: { tipoSangre: BLOOD_TYPES.O_POSITIVO, condicionesSalud: "", alergias: "", contactoEmergencia: "María", telefonoEmergencia: "0997654321" },
+};
+
+const tokenBody = { access_token: "a", refresh_token: "r", token_type: "bearer", persona_id: 5 };
+
+function jsonResponse(body: unknown, status = 201): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+function enrollRequest(body: unknown, method = "POST"): Request {
+  return new Request("http://localhost/api/enrollment", { method, body: method === "POST" ? JSON.stringify(body) : undefined });
+}
+
+beforeEach(() => {
+  vi.spyOn(global, "fetch");
+  process.env.BACKEND_API_URL = "http://localhost:8000/api/v1";
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  delete process.env.BACKEND_API_URL;
+});
 
 describe("POST /api/enrollment", () => {
   it("accepts a public complete request without exposing credentials", async () => {
-    const response = await POST(new Request("http://localhost/api/enrollment", { method: "POST", body: JSON.stringify(validBody) }));
+    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse(tokenBody));
+
+    const response = await POST(enrollRequest(validBody));
+
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual({ enrolled: true });
     const cookie = response.headers.get("set-cookie");
@@ -15,14 +55,83 @@ describe("POST /api/enrollment", () => {
     expect(cookie).not.toContain(validBody.alumno.cedula);
   });
 
-  it("rejects an incomplete body", async () => {
-    const response = await POST(new Request("http://localhost/api/enrollment", { method: "POST", body: JSON.stringify({}) }));
+  it("never returns a token in the JSON body", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse({ ...tokenBody, access_token: "super-secret-a", refresh_token: "super-secret-r" }));
+
+    const response = await POST(enrollRequest(validBody));
+    const json = await response.json();
+
+    expect(JSON.stringify(json)).not.toMatch(/super-secret/);
+    expect(json).toEqual({ enrolled: true });
+  });
+
+  it("sets both cookies as HttpOnly, SameSite=Lax on success", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse(tokenBody));
+
+    const response = await POST(enrollRequest(validBody));
+
+    const access = response.cookies.get(ACCESS_TOKEN_COOKIE);
+    const refresh = response.cookies.get(REFRESH_TOKEN_COOKIE);
+    expect(access?.value).toBe("a");
+    expect(access?.httpOnly).toBe(true);
+    expect(access?.sameSite).toBe("lax");
+    expect(refresh?.value).toBe("r");
+    expect(refresh?.httpOnly).toBe(true);
+  });
+
+  it("translates the request into the backend's snake_case EnrollmentCreateDTO", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse(tokenBody));
+
+    await POST(enrollRequest(validBody));
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://localhost:8000/api/v1/enrollment/",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          alumno: { nombres: "Ana", apellidos: "Pérez", cedula: "1712345678", fecha_nacimiento: "2000-01-15", telefono: "0991234567" },
+          credenciales_alumno: { correo: "ana@example.com", contrasenia: "password8" },
+          ficha_medica: { tipo_sangre: "O_POSITIVO", enfermedades: [], contacto_emergencia: "María", telefono_emergencia: "0997654321" },
+        }),
+      }),
+    );
+  });
+
+  it("rejects an incomplete body without calling the backend", async () => {
+    const response = await POST(enrollRequest({}));
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual(expect.objectContaining({ detail: expect.any(String) }));
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("passes through the backend's validation error status and message", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse({ detail: "Ya existe una persona con la cédula 1712345678", message: "Ya existe una persona con la cédula 1712345678" }, 400));
+
+    const response = await POST(enrollRequest(validBody));
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.message).toMatch(/cédula/);
+  });
+
+  it("passes through a 429 rate-limit response from the backend", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse({ detail: "Rate limit exceeded" }, 429));
+
+    const response = await POST(enrollRequest(validBody));
+
+    expect(response.status).toBe(429);
+  });
+
+  it("returns 503 (not a raw error) when the backend is unreachable", async () => {
+    vi.mocked(global.fetch).mockRejectedValueOnce(new TypeError("fetch failed"));
+
+    const response = await POST(enrollRequest(validBody));
+
+    expect(response.status).toBe(503);
   });
 
   it("rejects a non-POST request when invoked directly", async () => {
-    const response = await POST(new Request("http://localhost/api/enrollment", { method: "GET" }));
+    const response = await POST(enrollRequest(undefined, "GET"));
     expect(response.status).toBe(405);
   });
 });

@@ -1,37 +1,68 @@
 import { NextResponse } from "next/server";
+import { backendFetch, setAuthCookies } from "@/lib/server/auth";
+import { passthroughBackendError } from "@/lib/server/backend-client";
+import { buildEnrollmentCreateDTO, isBackendEnrollmentResponse } from "@/lib/server/enrollment-adapter";
 import { BLOOD_TYPES, type EnrollmentRequest, type EnrollmentResponse } from "@/types/enrollment";
 
 type JsonRecord = Record<string, unknown>;
 
+/**
+ * POST /api/enrollment — BFF proxy to the backend's public (no auth),
+ * rate-limited (3/min) `POST /enrollment/`. That endpoint creates
+ * Persona+Usuario(+FichaMedica+AntecedentesClub) and returns JWTs for
+ * auto-login; this route sets them as HttpOnly cookies (setAuthCookies) —
+ * same pattern as src/app/api/auth/login/route.ts — and never echoes tokens
+ * into the JSON body sent back to client JS.
+ */
 export async function POST(request: Request): Promise<NextResponse> {
   if (request.method !== "POST") {
     return NextResponse.json({ detail: "Método no permitido." }, { status: 405 });
   }
-  try {
-    const body: unknown = await request.json();
-    if (!isEnrollmentRequest(body)) {
-      return NextResponse.json({ detail: "Los datos de inscripción son inválidos o están incompletos." }, { status: 400 });
-    }
 
-    // This mock mirrors the production cookie boundary without exposing tokens
-    // to client JavaScript. The backend owns real enrollment and authentication.
-    const response: EnrollmentResponse = {
-      enrolled: true,
-    };
-    const nextResponse = NextResponse.json(response, { status: 201 });
-    nextResponse.cookies.set("cata-club-enrollment-mock", crypto.randomUUID(), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-    });
-    return nextResponse;
-  } catch (error: unknown) {
-    if (error instanceof SyntaxError) {
-      return NextResponse.json({ detail: "JSON inválido en el cuerpo de la solicitud." }, { status: 400 });
-    }
-    return NextResponse.json({ detail: "Error interno del servidor." }, { status: 500 });
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ detail: "JSON inválido en el cuerpo de la solicitud." }, { status: 400 });
   }
+
+  if (!isEnrollmentRequest(body)) {
+    return NextResponse.json({ detail: "Los datos de inscripción son inválidos o están incompletos." }, { status: 400 });
+  }
+
+  const result = await backendFetch("/enrollment/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(buildEnrollmentCreateDTO(body)),
+  });
+
+  if (!result.ok) {
+    const status = result.error.code === "timeout" ? 504 : 503;
+    return NextResponse.json({ detail: result.error.message }, { status });
+  }
+
+  const response = result.data;
+  if (!response.ok) {
+    return passthroughBackendError(response, "No se pudo completar la inscripción.");
+  }
+
+  let json: unknown;
+  try {
+    json = await response.json();
+  } catch {
+    return NextResponse.json({ detail: "Respuesta de inscripción inválida." }, { status: 502 });
+  }
+  if (!isBackendEnrollmentResponse(json)) {
+    return NextResponse.json({ detail: "Respuesta de inscripción con forma inesperada." }, { status: 502 });
+  }
+
+  // Only { enrolled: true } ever reaches client JS — tokens live exclusively
+  // in the HttpOnly cookies set below (see isEnrollmentResponse's contract
+  // in src/services/api.ts, which rejects any extra field on this response).
+  const enrollmentResponse: EnrollmentResponse = { enrolled: true };
+  const nextResponse = NextResponse.json(enrollmentResponse, { status: 201 });
+  setAuthCookies(nextResponse, { accessToken: json.access_token, refreshToken: json.refresh_token });
+  return nextResponse;
 }
 
 function isEnrollmentRequest(value: unknown): value is EnrollmentRequest {

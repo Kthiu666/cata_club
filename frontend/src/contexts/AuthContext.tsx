@@ -50,6 +50,14 @@ export interface AuthContextValue {
   login: (email: string, password: string) => Promise<LoginResult>;
   /** Clear the current session (server cookies first, then local state). */
   logout: () => Promise<void>;
+  /**
+   * Re-hydrate the session from /api/auth/session without a full page
+   * reload — needed after a BFF route sets auth cookies outside the
+   * login form itself (e.g. auto-login on /student/enroll), since
+   * AuthProvider only mounts once at the root layout and otherwise keeps
+   * stale (null) session state across client-side navigation.
+   */
+  refreshSession: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -162,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading,
     login,
     logout,
+    refreshSession: revalidate,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
