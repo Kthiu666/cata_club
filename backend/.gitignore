@@ -1,0 +1,33 @@
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+build/
+dist/
+.eggs/
+.mypy_cache/
+.ruff_cache/
+*.log
+
+# --- Secretos ---
+.env
+.env.local
+*.pem
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# --- Tests / cache ---
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+.DS_Store
