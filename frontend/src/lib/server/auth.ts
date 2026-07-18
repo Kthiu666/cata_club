@@ -238,7 +238,15 @@ export type AuthResult<T> = { ok: true; data: T } | { ok: false; error: AuthErro
 
 const BACKEND_TIMEOUT_MS = 10_000;
 
-async function backendFetch(path: string, init: RequestInit): Promise<AuthResult<Response>> {
+/**
+ * Low-level authenticated-agnostic backend fetch — timeout handling and
+ * network-failure translation only, no cookies/tokens attached. Exported so
+ * `src/lib/server/backend-client.ts` can build the authenticated proxy used
+ * by every protected resource's Route Handler (payments, asistencias,
+ * personas, ranking, ...) on top of the same primitive `backendLogin`,
+ * `backendMe`, and `backendRefresh` already use.
+ */
+export async function backendFetch(path: string, init: RequestInit): Promise<AuthResult<Response>> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
   try {

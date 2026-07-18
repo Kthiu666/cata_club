@@ -83,13 +83,11 @@ function getFetchHeaders(): Headers {
 beforeEach(() => {
   vi.spyOn(global, "fetch");
   process.env.NEXT_PUBLIC_USE_MOCKS = "true";
-  delete process.env.NEXT_PUBLIC_API_URL;
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
   delete process.env.NEXT_PUBLIC_USE_MOCKS;
-  delete process.env.NEXT_PUBLIC_API_URL;
 });
 
 // ---------------------------------------------------------------------------
@@ -108,30 +106,18 @@ describe("fetchPaymentValidations", () => {
     expect(result).toEqual(items);
   });
 
-  it("calls the real backend URL when USE_MOCKS is off", async () => {
-    process.env.NEXT_PUBLIC_USE_MOCKS = "false";
-    process.env.NEXT_PUBLIC_API_URL = "https://api.example.com/v1";
-
-    vi.mocked(global.fetch).mockResolvedValue(okResponse([]));
-
-    await fetchPaymentValidations();
-
-    expect(global.fetch).toHaveBeenCalledWith(
-      "https://api.example.com/v1/payments",
-      expect.anything(),
-    );
-  });
-
-  it("defaults API_URL to localhost:8000 when USE_MOCKS is off and no URL is set", async () => {
+  it("still calls same-origin /api/payments when USE_MOCKS is false (no cross-origin mode)", async () => {
+    // src/services/api.ts always calls same-origin /api/* now — the access
+    // token lives in an HttpOnly cookie the browser can't attach to a
+    // cross-origin request, so a "direct backend" URL mode could never
+    // authenticate. NEXT_PUBLIC_USE_MOCKS only affects the x-mock-role
+    // header below, not which URL gets called.
     process.env.NEXT_PUBLIC_USE_MOCKS = "false";
     vi.mocked(global.fetch).mockResolvedValue(okResponse([]));
 
     await fetchPaymentValidations();
 
-    expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:8000/api/v1/payments",
-      expect.anything(),
-    );
+    expect(global.fetch).toHaveBeenCalledWith("/api/payments", expect.anything());
   });
 
   it("defaults to local mocks when NEXT_PUBLIC_USE_MOCKS is unset", async () => {
@@ -323,22 +309,6 @@ describe("updatePaymentValidation — approve", () => {
     );
   });
 
-  it("calls the real backend URL with no doubled /api prefix", async () => {
-    process.env.NEXT_PUBLIC_USE_MOCKS = "false";
-    process.env.NEXT_PUBLIC_API_URL = "https://api.example.com/v1";
-
-    vi.mocked(global.fetch).mockResolvedValue(
-      okResponse(makePaymentValidation({ validationStatus: "validado" })),
-    );
-
-    await updatePaymentValidation("pv-42", { action: "approved" });
-
-    expect(global.fetch).toHaveBeenCalledWith(
-      "https://api.example.com/v1/payments/pv-42",
-      expect.objectContaining({ method: "PUT" }),
-    );
-  });
-
   it("throws a typed error on a 404 response", async () => {
     vi.mocked(global.fetch).mockResolvedValue(
       errorResponse(404, { message: "Payment validation request not found" }),
@@ -463,7 +433,6 @@ describe("updatePaymentValidation — mock role header", () => {
 
   it("does not send x-mock-role when USE_MOCKS is false", async () => {
     process.env.NEXT_PUBLIC_USE_MOCKS = "false";
-    process.env.NEXT_PUBLIC_API_URL = "https://api.example.com/v1";
 
     vi.stubGlobal(
       "localStorage",

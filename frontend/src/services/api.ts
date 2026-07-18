@@ -1,17 +1,16 @@
 /**
  * API Client — Cata Club Admin Frontend
  *
- * Centralised HTTP client that switches between local mock Route Handlers
- * and the real Python backend based on environment variables.
+ * Centralised HTTP client. Every call goes same-origin to a Next.js Route
+ * Handler under /api/* (see `getBaseUrl`/`apiEndpoint` below for why this
+ * client never talks to the backend directly). Each resource's Route
+ * Handler independently decides whether it's still backed by mock data or
+ * already proxies to the real FastAPI backend — that's tracked per screen,
+ * not by a single global flag here anymore.
  *
- * Environment variables (NEXT_PUBLIC_*):
- *   NEXT_PUBLIC_USE_MOCKS  — Defaults to true (mocked) when unset.
- *                            Set to "false" explicitly to hit the real backend.
- *   NEXT_PUBLIC_API_URL    — Base URL of the real backend (used when mocks are off)
- *
- * IMPORTANT: NEXT_PUBLIC_* values are baked into the client bundle at
- *    build time. Changing them requires restarting the dev server or
- *    rebuilding for production. They are NOT read at runtime on the client.
+ * `NEXT_PUBLIC_USE_MOCKS` still exists only to pick the `x-mock-role`
+ * header (see `isMockMode`/`getMockRoleHeader`) for the Route Handlers that
+ * are still mock-backed. It no longer affects which URL this client calls.
  *
  * Timeout: every request aborts after 10 seconds by default (see `request`).
  *          If the caller provides their own `signal`, the caller manages
@@ -101,40 +100,29 @@ export interface ApiError {
 // ---------------------------------------------------------------------------
 
 /**
- * Resolve the API base URL at call time.
+ * Every request goes same-origin, to a Next.js Route Handler under /api/*
+ * — never directly to the backend from the browser.
  *
- * Using a function instead of a module-level constant makes the behaviour
- * predictable in test environments where env vars may be set per-test.
- *
- * NEXT_PUBLIC_* values are replaced at build time by Next.js. Changing
- * .env.local requires restarting `pnpm dev` or rebuilding for production.
- *
- * Mock default: when NEXT_PUBLIC_USE_MOCKS is unset, local dev defaults to
- * mocked Route Handlers. Only set it to "false" explicitly for real backend.
- * Any other value (including "true", undefined, "1", etc.) resolves to mocks.
+ * The access/refresh tokens live only in HttpOnly cookies set by the BFF
+ * (see src/lib/server/auth.ts). Those cookies are invisible to browser JS
+ * and scoped to this origin, so a cross-origin fetch straight to
+ * NEXT_PUBLIC_API_URL (the old "direct backend" mode this used to support)
+ * could never carry auth — it would 401/404 regardless of path. Protected
+ * data must be proxied server-side: the Route Handler reads the cookie and
+ * attaches `Authorization: Bearer` itself (see
+ * src/lib/server/backend-client.ts's `backendFetchAuthed`).
  */
 function getBaseUrl(): string {
-  const useMocks = process.env.NEXT_PUBLIC_USE_MOCKS !== "false";
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-  return useMocks ? "" : apiUrl;
+  return "";
 }
 
 /**
- * Resolve the correct endpoint for the current mode.
- *
- * In mock mode, Next.js Route Handlers live under /api/ so the full path
- * must start with /api/... In real backend mode, NEXT_PUBLIC_API_URL
- * already includes the /api/v1 prefix, so the resource path is appended
- * directly (e.g. "/payments").
- *
- * Mock default: when NEXT_PUBLIC_USE_MOCKS is unset, local dev defaults to
- * mocked Route Handlers. Only set it to "false" explicitly for real backend.
+ * Resolve the endpoint path — always a same-origin Route Handler under /api/.
  *
  * @param resource — the resource path, e.g. "/payments" or "/payments/:id"
  */
 function apiEndpoint(resource: string): string {
-  const useMocks = process.env.NEXT_PUBLIC_USE_MOCKS !== "false";
-  return useMocks ? `/api${resource}` : resource;
+  return `/api${resource}`;
 }
 
 // ---------------------------------------------------------------------------
