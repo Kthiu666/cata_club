@@ -3,10 +3,11 @@ from typing import Optional
 
 import jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 
 from app.soporte_transversal.configuracion import settings
+from app.dominio.excepciones import CredencialesInvalidas
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -64,7 +65,6 @@ class GestorAutenticacion:
         """Devuelve el correo asociado si el token es válido y de tipo
         reset_password. Lanza CredencialesInvalidas en cualquier otro caso
         (expirado, corrupto, o un access/refresh token reusado aquí)."""
-        from app.dominio.excepciones import CredencialesInvalidas
         try:
             payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algoritmo])
         except jwt.PyJWTError:
@@ -78,8 +78,4 @@ class GestorAutenticacion:
         try:
             return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algoritmo])
         except jwt.PyJWTError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token inválido o expirado",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            raise CredencialesInvalidas("Token inválido o expirado")

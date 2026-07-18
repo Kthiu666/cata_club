@@ -49,13 +49,6 @@ export type ProofFileType = "image" | "pdf";
  *
  * Maps to CU012: "Validar o rechazar comprobante de pago".
  */
-/**
- * PaymentValidationRequest — Represents a membership payment proof
- * submitted by a responsible payer (representative or self-managed student),
- * awaiting admin validation.
- *
- * Maps to CU012: "Validar o rechazar comprobante de pago".
- */
 export interface PaymentValidationRequest {
   id: string;
   studentName: string;
@@ -183,43 +176,9 @@ export function setCurrentMockRole(role: UserRole | null): void {
   currentMockRole = role;
 }
 
-function isMockRoleSession(value: unknown): value is { user: { role: UserRole } } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "user" in value &&
-    typeof (value as { user: unknown }).user === "object" &&
-    (value as { user: { role: unknown } }).user !== null &&
-    typeof (value as { user: { role: unknown } }).user.role === "string"
-  );
-}
-
-/**
- * Legacy fallback: before AuthContext started mirroring the current role via
- * `setCurrentMockRole` on every session change, this read a role snapshot
- * directly out of localStorage. Nothing writes that key anymore in the real
- * auth flow, so this branch is unreachable in practice — kept only so
- * pre-existing localStorage-stubbing tests keep exercising a defined code
- * path rather than being rewritten.
- */
-function legacyLocalStorageRoleHeader(): Record<string, string> {
-  if (typeof localStorage === "undefined") return {};
-  try {
-    const raw = localStorage.getItem("cata-club-auth-session");
-    if (!raw) return {};
-    const session: unknown = JSON.parse(raw);
-    if (isMockRoleSession(session)) {
-      return { "x-mock-role": session.user.role };
-    }
-  } catch {
-    return {};
-  }
-  return {};
-}
-
 function getMockRoleHeader(): Record<string, string> {
   if (currentMockRole) return { "x-mock-role": currentMockRole };
-  return legacyLocalStorageRoleHeader();
+  return {};
 }
 
 function isMockMode(): boolean {

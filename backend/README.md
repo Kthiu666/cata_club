@@ -1,4 +1,4 @@
-# Product Admin Backend - Cata Club
+# Cata Club Backend
 
 Arquitectura de software limpia por capas (Dominio, Infraestructura, Servicios de Negocio, Seguridad y Presentación), alineada al diagrama de clases UML del proyecto, con patrón **Repository + Service Layer**.
 

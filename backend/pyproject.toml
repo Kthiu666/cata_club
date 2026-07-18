@@ -1,6 +1,6 @@
 [project]
 name = "product-admin-backend"
-version = "1.2.0"
+version = "1.3.0"
 description = "API Cata Club - Sistema Integral de Administración (UNL - Diseño de Software)"
 requires-python = ">=3.13"
 dependencies = [

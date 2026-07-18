@@ -8,6 +8,8 @@ _PLACEHOLDERS_SECRETO = (
     "CAMBIAR",
     "CAMBIAR-POR",
     "genera-una-clave",
+    "dev-only",
+    "do-not-use-in-production",
 )
 
 

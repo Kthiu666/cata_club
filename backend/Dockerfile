@@ -1,6 +1,6 @@
-FROM python:3.13-slim
+FROM python:3.13.5-slim
 
-RUN pip install --no-cache-dir uv
+RUN pip install --no-cache-dir uv==0.8.3
 
 WORKDIR /app
 
@@ -11,6 +11,9 @@ RUN uv sync --frozen --no-install-project
 
 COPY . .
 RUN uv sync --frozen
+
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+USER appuser
 
 EXPOSE 8000
 

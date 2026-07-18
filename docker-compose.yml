@@ -3,15 +3,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: usuario
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: cataclub_db
+      POSTGRES_USER: ${POSTGRES_USER:-usuario}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-cataclub_db}
     ports:
       - "5433:5432"
     volumes:
       - cataclub_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U usuario -d cataclub_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-usuario} -d ${POSTGRES_DB:-cataclub_db}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -28,10 +28,11 @@ services:
     ports:
       - "8000:8000"
     environment: &backend_env
-      DATABASE_URL: postgresql+psycopg://usuario:password@db:5432/cataclub_db
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-usuario}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-cataclub_db}
       REDIS_URL: redis://redis:6379/0
-      # Dev-only secret — never reuse this value outside local docker-compose.
-      JWT_SECRET_KEY: dev-only-insecure-secret-do-not-use-in-production-000000
+      # JWT_SECRET_KEY: MUST be set in .env — the backend refuses to start
+      # if it detects a placeholder or missing secret (fail-fast validator).
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Error: define JWT_SECRET_KEY in .env (run: openssl rand -hex 32)}
       JWT_ALGORITMO: HS256
       JWT_EXPIRA_MINUTOS: 60
       JWT_REFRESH_EXPIRA_DIAS: 7
@@ -48,9 +49,14 @@ services:
       redis:
         condition: service_started
     command: >
-      sh -c "uv run python -c 'from app.infraestructura.db import crear_tablas; crear_tablas()' &&
-             uv run python scripts/seed_dev_admin.py &&
-             uv run uvicorn main:app --host 0.0.0.0 --port 8000"
+      sh -c "
+        if [ \"$${AMBIENTE:-production}\" = \"development\" ]; then
+          uv run python -c 'from app.infraestructura.db import crear_tablas; crear_tablas()' &&
+          uv run python scripts/seed_dev_admin.py;
+        fi &&
+        uv run alembic upgrade head &&
+        uv run uvicorn main:app --host 0.0.0.0 --port 8000
+      "
 
   celery-worker:
     build: ./backend
