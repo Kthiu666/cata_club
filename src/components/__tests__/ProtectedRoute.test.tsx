@@ -122,6 +122,51 @@ describe("ProtectedRoute", () => {
     expect(mockReplace).toHaveBeenCalledWith("/student");
   });
 
+  it("redirects tesorero to /payments when page requires admin", () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("tesorero"));
+
+    render(
+      <ProtectedRoute allowedRoles={["admin"]}>{CONTENT}</ProtectedRoute>,
+    );
+
+    expect(mockReplace).toHaveBeenCalledWith("/payments");
+  });
+
+  // --- Unsupported role: authenticated, but no recognized backend role ---
+
+  it("redirects a user with an unsupported role to /unauthorized instead of any real role's page", () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("unsupported"));
+
+    render(
+      <ProtectedRoute allowedRoles={["admin"]}>{CONTENT}</ProtectedRoute>,
+    );
+
+    expect(mockReplace).toHaveBeenCalledWith("/unauthorized");
+    expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+  });
+
+  it("the /unauthorized page itself renders for an unsupported-role user (terminates the redirect chain)", () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("unsupported"));
+
+    render(
+      <ProtectedRoute allowedRoles={["unsupported"]}>{CONTENT}</ProtectedRoute>,
+    );
+
+    expect(screen.getByText("Protected content")).toBeInTheDocument();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("a real-role user who navigates to /unauthorized directly is bounced to their own default route, not shown the forbidden page", () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("admin"));
+
+    render(
+      <ProtectedRoute allowedRoles={["unsupported"]}>{CONTENT}</ProtectedRoute>,
+    );
+
+    expect(mockReplace).toHaveBeenCalledWith("/dashboard");
+    expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+  });
+
   // --- Authorized ---
 
   it("renders children when the user has an allowed role", () => {

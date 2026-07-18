@@ -176,7 +176,43 @@ export class ApiClientError extends Error {
   }
 }
 
-function getMockRoleHeader(): Record<string, string> {
+/**
+ * Current auth role, mirrored here from AuthContext (see `setCurrentMockRole`)
+ * whenever the session changes. Replaces a prior localStorage-based read —
+ * nothing has persisted a session to localStorage since auth moved to the
+ * BFF/HttpOnly-cookie model, so that read always came back empty.
+ */
+let currentMockRole: UserRole | null = null;
+
+/**
+ * Called by AuthContext whenever its session changes, so the mock-mode
+ * `x-mock-role` header reflects the real, current auth session instead of a
+ * dead localStorage key.
+ */
+export function setCurrentMockRole(role: UserRole | null): void {
+  currentMockRole = role;
+}
+
+function isMockRoleSession(value: unknown): value is { user: { role: UserRole } } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "user" in value &&
+    typeof (value as { user: unknown }).user === "object" &&
+    (value as { user: { role: unknown } }).user !== null &&
+    typeof (value as { user: { role: unknown } }).user.role === "string"
+  );
+}
+
+/**
+ * Legacy fallback: before AuthContext started mirroring the current role via
+ * `setCurrentMockRole` on every session change, this read a role snapshot
+ * directly out of localStorage. Nothing writes that key anymore in the real
+ * auth flow, so this branch is unreachable in practice — kept only so
+ * pre-existing localStorage-stubbing tests keep exercising a defined code
+ * path rather than being rewritten.
+ */
+function legacyLocalStorageRoleHeader(): Record<string, string> {
   if (typeof localStorage === "undefined") return {};
   try {
     const raw = localStorage.getItem("cata-club-auth-session");
@@ -191,16 +227,92 @@ function getMockRoleHeader(): Record<string, string> {
   return {};
 }
 
+function getMockRoleHeader(): Record<string, string> {
+  if (currentMockRole) return { "x-mock-role": currentMockRole };
+  return legacyLocalStorageRoleHeader();
+}
+
 function isMockMode(): boolean {
   return process.env.NEXT_PUBLIC_USE_MOCKS !== "false";
 }
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
+// ---------------------------------------------------------------------------
+// 401 refresh-and-retry (Phase 4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Methods considered safe to silently retry after a refreshed access token.
+ * GET/HEAD have no side effects; PUT is idempotent by HTTP semantics (a full
+ * resource replace — repeating it is safe). POST/PATCH are NOT retried
+ * automatically since a generic client can't guarantee the original request
+ * had no side effect yet — replaying it could double it (e.g. resubmitting
+ * a payment action). A caller needing a retryable POST should special-case
+ * it explicitly rather than relying on this generic client.
+ */
+const RETRYABLE_METHODS = new Set(["GET", "HEAD", "PUT", "DELETE"]);
+
+function isRetryableMethod(method: string | undefined): boolean {
+  return RETRYABLE_METHODS.has((method ?? "GET").toUpperCase());
+}
+
+let refreshPromise: Promise<boolean> | null = null;
+let refreshController: AbortController | null = null;
+
+/**
+ * De-duplicated refresh: concurrent 401s across requests share one
+ * in-flight /api/auth/refresh call instead of each independently
+ * triggering a refresh (avoids a refresh storm).
+ */
+function refreshAccessToken(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshController = new AbortController();
+    refreshPromise = fetch("/api/auth/refresh", { method: "POST", signal: refreshController.signal })
+      .then((res) => res.ok)
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null;
+        refreshController = null;
+      });
+  }
+  return refreshPromise;
+}
+
+/**
+ * Abort any in-flight refresh so it can never land a Set-Cookie after an
+ * explicit logout has cleared the access-token cookie (Max-Age=0) — call
+ * this right before POSTing /api/auth/logout. This only closes the race on
+ * the client; a full server-side guarantee would need session versioning,
+ * which is out of scope here.
+ */
+export function discardInFlightRefresh(): void {
+  refreshController?.abort();
+  refreshPromise = null;
+}
+
+type AuthFailureListener = () => void;
+const authFailureListeners = new Set<AuthFailureListener>();
+
+/**
+ * Subscribe to "the session could not be recovered" notifications — used by
+ * AuthContext to clear local session state (trigger logout/redirect-to-login)
+ * when a refresh-and-retry ultimately fails. Returns an unsubscribe function.
+ */
+export function subscribeAuthFailure(listener: AuthFailureListener): () => void {
+  authFailureListeners.add(listener);
+  return () => authFailureListeners.delete(listener);
+}
+
+function notifyAuthFailure(): void {
+  authFailureListeners.forEach((listener) => listener());
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {},
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
+  isRetry = false,
 ): Promise<T> {
   const url = `${getBaseUrl()}${endpoint}`;
 
@@ -229,6 +341,23 @@ async function request<T>(
       signal,
       headers,
     });
+
+    if (response.status === 401) {
+      if (!isRetry) {
+        const refreshed = await refreshAccessToken();
+        if (refreshed && isRetryableMethod(options.method)) {
+          return request<T>(endpoint, options, timeoutMs, true);
+        }
+        if (!refreshed) {
+          notifyAuthFailure();
+        }
+        // else: refresh succeeded but this method isn't safe to auto-retry —
+        // let THIS call fail below; the session itself is fine going forward.
+      } else {
+        // Already retried once with a refreshed token and still 401 — give up.
+        notifyAuthFailure();
+      }
+    }
 
     if (!response.ok) {
       let message = `Request failed with status ${response.status}`;
@@ -300,15 +429,6 @@ function isApiErrorBody(value: unknown): value is { message?: string; detail?: s
   const body = value as Record<string, unknown>;
   return (typeof body.message === "string" && body.message.length > 0) ||
     (typeof body.detail === "string" && body.detail.length > 0);
-}
-
-function isMockRoleSession(value: unknown): value is { user: { role: UserRole } } {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const session = value as Record<string, unknown>;
-  const user = session.user;
-  if (typeof user !== "object" || user === null || Array.isArray(user)) return false;
-  const role = (user as Record<string, unknown>).role;
-  return role === "admin" || role === "trainer" || role === "representante" || role === "estudiante";
 }
 
 function isEnrollmentResponse(value: unknown): value is EnrollmentResponse {

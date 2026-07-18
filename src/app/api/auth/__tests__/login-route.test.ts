@@ -1,0 +1,140 @@
+/**
+ * Tests for POST /api/auth/login.
+ *
+ * Mocks the backend via vi.spyOn(global, "fetch") — no live FastAPI needed.
+ * Covers: form-encoding to the backend, HttpOnly cookie attributes, that
+ * tokens never appear in the JSON body, and distinct bad-credentials /
+ * backend-unreachable failure handling.
+ *
+ * @vitest-environment node
+ */
+
+import { NextRequest } from "next/server";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { POST } from "../login/route";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/server/auth";
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+function loginRequest(body: unknown): NextRequest {
+  return new NextRequest("http://localhost/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify(body),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+const meBody = { correo: "admin@cataclub.com", persona_id: 1, nombres: "Ana", apellidos: "Torres", roles: ["ADMINISTRADOR"] };
+
+beforeEach(() => {
+  vi.spyOn(global, "fetch");
+  process.env.BACKEND_API_URL = "http://localhost:8000/api/v1";
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  delete process.env.BACKEND_API_URL;
+});
+
+describe("POST /api/auth/login", () => {
+  it("re-encodes the JSON body as application/x-www-form-urlencoded for FastAPI", async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(jsonResponse({ access_token: "a", refresh_token: "r", token_type: "bearer" }))
+      .mockResolvedValueOnce(jsonResponse(meBody));
+
+    await POST(loginRequest({ email: "admin@cataclub.com", password: "admin123" }));
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:8000/api/v1/auth/login",
+      expect.objectContaining({
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "username=admin%40cataclub.com&password=admin123",
+      }),
+    );
+  });
+
+  it("sets both cookies as HttpOnly, SameSite=Lax on success", async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(jsonResponse({ access_token: "a", refresh_token: "r", token_type: "bearer" }))
+      .mockResolvedValueOnce(jsonResponse(meBody));
+
+    const response = await POST(loginRequest({ email: "admin@cataclub.com", password: "admin123" }));
+
+    expect(response.status).toBe(200);
+    const access = response.cookies.get(ACCESS_TOKEN_COOKIE);
+    const refresh = response.cookies.get(REFRESH_TOKEN_COOKIE);
+    expect(access?.value).toBe("a");
+    expect(access?.httpOnly).toBe(true);
+    expect(access?.sameSite).toBe("lax");
+    expect(refresh?.value).toBe("r");
+    expect(refresh?.httpOnly).toBe(true);
+  });
+
+  it("never returns a token in the JSON body", async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(jsonResponse({ access_token: "super-secret-a", refresh_token: "super-secret-r", token_type: "bearer" }))
+      .mockResolvedValueOnce(jsonResponse(meBody));
+
+    const response = await POST(loginRequest({ email: "admin@cataclub.com", password: "admin123" }));
+    const json = await response.json();
+
+    expect(JSON.stringify(json)).not.toMatch(/super-secret/);
+    expect(json).toEqual({
+      user: { id: "1", name: "Ana Torres", email: "admin@cataclub.com", role: "admin", representanteId: null },
+      roles: ["ADMINISTRADOR"],
+      loggedInAt: expect.any(String),
+    });
+  });
+
+  it("returns 401 with a controlled message on bad credentials", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse({ detail: "Incorrect username or password" }, 401));
+
+    const response = await POST(loginRequest({ email: "admin@cataclub.com", password: "wrong" }));
+    const json = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(json.error).toBe("invalid_credentials");
+    expect(JSON.stringify(json)).not.toMatch(/Incorrect username or password/);
+  });
+
+  it("returns 503 (not a raw error) when the backend is unreachable", async () => {
+    vi.mocked(global.fetch).mockRejectedValueOnce(new TypeError("fetch failed"));
+
+    const response = await POST(loginRequest({ email: "admin@cataclub.com", password: "admin123" }));
+    const json = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(json.error).toBe("backend_unavailable");
+  });
+
+  it("returns 400 when the request body is missing required fields", async () => {
+    const response = await POST(loginRequest({ email: "admin@cataclub.com" }));
+
+    expect(response.status).toBe(400);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when the request body is not valid JSON", async () => {
+    const request = new NextRequest("http://localhost/api/auth/login", {
+      method: "POST",
+      body: "not-json",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+  });
+
+  it("does not set cookies when login fails", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse({}, 401));
+
+    const response = await POST(loginRequest({ email: "admin@cataclub.com", password: "wrong" }));
+
+    expect(response.cookies.get(ACCESS_TOKEN_COOKIE)).toBeUndefined();
+    expect(response.cookies.get(REFRESH_TOKEN_COOKIE)).toBeUndefined();
+  });
+});

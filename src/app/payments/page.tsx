@@ -206,7 +206,7 @@ export default function PaymentsPage(): React.ReactElement {
   }
 
   return (
-    <ProtectedRoute allowedRoles={["admin"]}>
+    <ProtectedRoute allowedRoles={["admin", "tesorero"]}>
       <div>
         {/* Hero Banner */}
         <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">

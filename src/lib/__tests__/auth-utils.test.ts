@@ -13,7 +13,14 @@ import {
 } from "../auth-utils";
 import type { UserRole } from "@/types/domain";
 
-const ALL_ROLES: UserRole[] = ["admin", "trainer", "representante", "estudiante"];
+const ALL_ROLES: UserRole[] = [
+  "admin",
+  "trainer",
+  "tesorero",
+  "representante",
+  "estudiante",
+  "unsupported",
+];
 
 // ---------------------------------------------------------------------------
 // canAccess
@@ -62,12 +69,20 @@ describe("getDefaultRoute", () => {
     expect(getDefaultRoute("trainer")).toBe("/trainer");
   });
 
+  it('returns "/payments" for tesorero', () => {
+    expect(getDefaultRoute("tesorero")).toBe("/payments");
+  });
+
   it('returns "/student" for representante', () => {
     expect(getDefaultRoute("representante")).toBe("/student");
   });
 
   it('returns "/student" for estudiante', () => {
     expect(getDefaultRoute("estudiante")).toBe("/student");
+  });
+
+  it('returns "/unauthorized" for unsupported (never a real role\'s page, never a crash)', () => {
+    expect(getDefaultRoute("unsupported")).toBe("/unauthorized");
   });
 
   it("returns a valid path for every role", () => {
@@ -92,12 +107,22 @@ describe("getRoleLabel", () => {
     expect(getRoleLabel("trainer")).toBe("Entrenador");
   });
 
+  it('returns "Tesorero" for tesorero', () => {
+    expect(getRoleLabel("tesorero")).toBe("Tesorero");
+  });
+
   it('returns "Representante" for representante', () => {
     expect(getRoleLabel("representante")).toBe("Representante");
   });
 
   it('returns "Estudiante" for estudiante', () => {
     expect(getRoleLabel("estudiante")).toBe("Estudiante");
+  });
+
+  it('returns a distinct, non-empty label for unsupported (not miscategorized as a real role)', () => {
+    const label = getRoleLabel("unsupported");
+    expect(label.length).toBeGreaterThan(0);
+    expect(label).not.toBe(getRoleLabel("representante"));
   });
 });
 
@@ -131,6 +156,18 @@ describe("getNavLinksForRole", () => {
     expect(links[1]).toEqual({ href: "/trainer", label: "Entrenador" });
   });
 
+  it("returns tesorero link to Membresías y Pagos", () => {
+    const links = getNavLinksForRole("tesorero");
+    expect(links).toHaveLength(2);
+    expect(links[0]).toEqual({ href: "/", label: "Inicio" });
+    expect(links[1]).toEqual({ href: "/payments", label: "Membresías y Pagos" });
+  });
+
+  it("returns only Inicio for unsupported (no role-specific nav)", () => {
+    const links = getNavLinksForRole("unsupported");
+    expect(links).toEqual([{ href: "/", label: "Inicio" }]);
+  });
+
   it("returns representante link to Mi Cuenta", () => {
     const links = getNavLinksForRole("representante");
     expect(links).toHaveLength(2);
@@ -145,10 +182,20 @@ describe("getNavLinksForRole", () => {
     expect(links[1]).toEqual({ href: "/student", label: "Mi Cuenta" });
   });
 
-  it("every role gets Inicio as first link and at least one role-specific link", () => {
-    for (const role of ALL_ROLES) {
+  it("every recognized role gets Inicio as first link and at least one role-specific link", () => {
+    const rolesWithNav = ALL_ROLES.filter((role) => role !== "unsupported");
+    for (const role of rolesWithNav) {
       const links = getNavLinksForRole(role);
       expect(links.length).toBeGreaterThanOrEqual(2);
+      expect(links[0].href).toBe("/");
+      expect(links[0].label).toBe("Inicio");
+    }
+  });
+
+  it("every role (including unsupported) at least gets Inicio as first link", () => {
+    for (const role of ALL_ROLES) {
+      const links = getNavLinksForRole(role);
+      expect(links.length).toBeGreaterThanOrEqual(1);
       expect(links[0].href).toBe("/");
       expect(links[0].label).toBe("Inicio");
     }

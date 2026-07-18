@@ -20,16 +20,26 @@
  * Backend alignment (2026-07): the backend models a single `Persona` entity
  * with a `role` field (`ADMINISTRADOR`, `ENTRENADOR`, `TESORERO`, `ALUMNO`)
  * and a self-referencing `representante_id` (a Persona pointing to the adult
- * who manages them — e.g. a parent). `TESORERO` is out of scope for now.
+ * who manages them — e.g. a parent). All four backend roles now map to a
+ * frontend `UserRole` (see `mapBackendRoleToUserRole` in
+ * src/lib/server/auth.ts): `ADMINISTRADOR` -> `"admin"`, `ENTRENADOR` ->
+ * `"trainer"`, `TESORERO` -> `"tesorero"`, `ALUMNO` -> `"estudiante"`.
  *
  * `"representante"` is NOT a role the backend sends as a literal string —
  * it is DERIVED at the data-adapter layer: a Persona with no
  * `representante_id` of its own, but that other Personas reference via
  * THEIR `representante_id`, and with no `ALUMNO` role itself. It's kept as
  * an explicit frontend `UserRole` value so switch-based routing/nav logic
- * stays exhaustive.
+ * stays exhaustive. It is a relationship, not an authenticated backend
+ * role — never used as a fallback for unmapped/unknown backend roles.
+ *
+ * `"unsupported"` is the explicit landing state for an authenticated user
+ * whose backend `roles` array is empty or contains only strings this
+ * frontend doesn't recognize. It is a real `UserRole` (not a crash, not a
+ * silent redirect loop, not miscategorized as any of the roles above) —
+ * `getDefaultRoute` sends it to `/unauthorized`, a dedicated page.
  */
-export type UserRole = "admin" | "trainer" | "representante" | "estudiante";
+export type UserRole = "admin" | "trainer" | "tesorero" | "representante" | "estudiante" | "unsupported";
 
 interface UsuarioBase {
   id: string;
@@ -51,9 +61,9 @@ export interface UsuarioEstudiante extends UsuarioBase {
   activo: boolean;
 }
 
-/** Staff account, or a pure representante account with no student profile of its own. */
+/** Staff account, a pure representante account with no student profile of its own, or an authenticated-but-unsupported-role account. */
 export interface UsuarioStaff extends UsuarioBase {
-  role: "admin" | "trainer" | "representante";
+  role: "admin" | "trainer" | "tesorero" | "representante" | "unsupported";
 }
 
 export type Usuario = UsuarioEstudiante | UsuarioStaff;

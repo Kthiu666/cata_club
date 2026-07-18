@@ -1,23 +1,40 @@
 /**
- * Login Page — Mock authentication with demo personas.
+ * Login Page — real backend authentication via the BFF (/api/auth/login).
  *
- * Accepts one of the predefined demo credentials and creates a client-side
- * session. Redirects to the role-appropriate page on success.
- *
- * ⚠️ Demo only — no real authentication. Credentials are hardcoded and
- * visible in source. This is NOT secure and must be replaced with a real
- * backend auth flow for production.
+ * Note: the "Acceso rápido (Demo)" buttons below still reference the old
+ * demo-persona credentials. Those accounts don't exist on the real FastAPI
+ * backend, so clicking them will now surface a genuine "invalid_credentials"
+ * error — left as-is since removing/replacing that UI is a product decision
+ * outside this change's scope (Phase 2-4: BFF + real auth wiring).
  */
 
 "use client";
 
-import { type FormEvent, useState, useEffect, useRef } from "react";
+import { type FormEvent, useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, AlertCircle, ShieldCheck, GraduationCap, UserCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getDefaultRoute } from "@/lib/auth-utils";
+import type { AuthErrorKind } from "@/services/auth";
+
+/** Distinct, user-readable message per login failure kind. */
+function loginErrorMessage(error: AuthErrorKind): string {
+  switch (error) {
+    case "invalid_credentials":
+      return "Credenciales inválidas. Verifique su correo y contraseña.";
+    case "session_validation_failed":
+      return "No se pudo validar la sesión luego de iniciar sesión. Intente nuevamente.";
+    case "timeout":
+      return "La solicitud tardó demasiado en responder. Verifique su conexión e intente nuevamente.";
+    case "backend_unavailable":
+      return "No se pudo conectar con el servidor. Intente nuevamente en unos minutos.";
+    case "unknown":
+    default:
+      return "Ocurrió un error inesperado al iniciar sesión. Intente nuevamente.";
+  }
+}
 
 // Demo-role chip colors are constrained to the declared `cata-*` brand
 // namespace only (fix B1). The namespace has 3 genuinely distinct hues
@@ -31,7 +48,7 @@ const demoAccounts = [
   { email: "estudiante@cataclub.com", password: "self123", role: "estudiante" as const, label: "Estudiante", icon: UserCircle, color: "bg-cata-red-light/10 text-cata-red-light border-cata-red-light/25" },
 ];
 
-export default function LoginPage() {
+export default function LoginPage(): React.ReactElement {
   const router = useRouter();
   const { login, isAuthenticated, isLoading, session } = useAuth();
   const [email, setEmail] = useState("");
@@ -39,14 +56,6 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Clear pending timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
 
   // Redirect to role-appropriate page if already authenticated
   useEffect(() => {
@@ -55,36 +64,30 @@ export default function LoginPage() {
     }
   }, [isLoading, isAuthenticated, session, router]);
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
 
-    // Small delay to simulate network latency and show the submitting state
-    timeoutRef.current = setTimeout(() => {
-      const result = login(email, password);
+    const result = await login(email, password);
 
-      if (!result) {
-        setError(
-          "Credenciales inválidas. Verifique su correo y contraseña, o use una cuenta de demostración.",
-        );
-        setSubmitting(false);
-        return;
-      }
+    if (!result.ok) {
+      setError(loginErrorMessage(result.error));
+      setSubmitting(false);
+      return;
+    }
 
-      // Redirect to the role-appropriate page
-      const route = getDefaultRoute(result.user.role);
-      router.replace(route);
-    }, 800);
+    router.replace(getDefaultRoute(result.session.user.role));
   }
 
-  function handleDemoLogin(email: string, password: string) {
+  async function handleDemoLogin(email: string, password: string): Promise<void> {
     setError(null);
-    const result = login(email, password);
-    if (result) {
-      const route = getDefaultRoute(result.user.role);
-      router.replace(route);
+    const result = await login(email, password);
+    if (result.ok) {
+      router.replace(getDefaultRoute(result.session.user.role));
+      return;
     }
+    setError(loginErrorMessage(result.error));
   }
 
   // Show loading during session hydration
@@ -250,11 +253,11 @@ export default function LoginPage() {
           </Link>
         </p>
 
-        {/* Demo mode note */}
+        {/* Auth note */}
         <p className="mt-6 text-center text-xs text-cata-text/30">
-          La autenticación funciona con cuentas de demostración predeterminadas.
-          Los datos de sesión se almacenan localmente en el navegador.
-          No ingrese credenciales reales.
+          La autenticación se verifica contra el servidor. Su sesión se mantiene
+          mediante una cookie segura — el navegador nunca almacena su contraseña
+          ni su token de acceso.
         </p>
       </div>
     </div>

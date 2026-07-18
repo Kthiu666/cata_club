@@ -1,323 +1,175 @@
 /**
- * Unit tests for MockAuthService.
+ * Unit tests for the browser-side auth service (src/services/auth.ts).
  *
- * Uses global mocks for localStorage since the test environment is node.
- * Covers login success for all roles, login failure modes, session
- * persistence, and logout behaviour.
+ * All network calls are mocked via vi.spyOn(global, "fetch") — no real BFF
+ * or backend involved. Covers login (success + distinct failure kinds),
+ * fetchSession (hydration), logout (always resolves), and the
+ * isValidAuthSession runtime guard.
  *
  * @vitest-environment node
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { MockAuthService, DEMO_PERSONAS } from "../auth";
+import { login, fetchSession, logout, isValidAuthSession, authService, type AuthSession } from "../auth";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** In-memory localStorage mock. */
-function createMockStorage(): Storage {
-  const store: Record<string, string> = {};
-  return {
-    getItem: vi.fn((key: string) => store[key] ?? null),
-    setItem: vi.fn((key: string, value: string) => {
-      store[key] = value;
-    }),
-    removeItem: vi.fn((key: string) => {
-      delete store[key];
-    }),
-    clear: vi.fn(() => {
-      Object.keys(store).forEach((k) => delete store[k]);
-    }),
-    get length() {
-      return Object.keys(store).length;
-    },
-    key: vi.fn((_index: number) => null),
-  };
+function okResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
-/** localStorage mock that throws on every operation (disabled storage). */
-function createBrokenStorage(): Storage {
-  const thrower = () => {
-    throw new Error("localStorage is not available");
-  };
-  return {
-    getItem: thrower,
-    setItem: thrower,
-    removeItem: thrower,
-    clear: thrower,
-    get length() {
-      throw new Error("localStorage is not available");
-    },
-    key: thrower,
-  } as unknown as Storage;
+function errorResponse(status: number, body: Record<string, unknown> = {}): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
-// ---------------------------------------------------------------------------
-// Setup / teardown
-// ---------------------------------------------------------------------------
-
-let authService: MockAuthService;
+const validSession: AuthSession = {
+  user: {
+    id: "1",
+    name: "Admin Cata Club",
+    email: "admin@cataclub.com",
+    role: "admin",
+    representanteId: null,
+  },
+  roles: ["ADMINISTRADOR"],
+  loggedInAt: "2026-07-17T10:00:00.000Z",
+};
 
 beforeEach(() => {
-  const storage = createMockStorage();
-  vi.stubGlobal("localStorage", storage);
-  vi.stubGlobal("window", {});
-  authService = new MockAuthService();
+  vi.spyOn(global, "fetch");
 });
 
 afterEach(() => {
-  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------
-// login — success paths
+// login
 // ---------------------------------------------------------------------------
 
-describe("login — success", () => {
-  it("returns a session for admin credentials", () => {
-    const session = authService.login("admin@cataclub.com", "admin123");
-    expect(session).not.toBeNull();
-    expect(session!.user.role).toBe("admin");
-    expect(session!.user.email).toBe("admin@cataclub.com");
-    expect(session!.token).toMatch(/^demo-token-user-admin-1-/);
-    expect(session!.loggedInAt).toBeTruthy();
+describe("login", () => {
+  it("returns ok:true with the session on success", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(validSession));
+
+    const result = await login("admin@cataclub.com", "admin123");
+
+    expect(result).toEqual({ ok: true, session: validSession });
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/auth/login",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "admin@cataclub.com", password: "admin123" }),
+      }),
+    );
   });
 
-  it("returns a session for trainer credentials", () => {
-    const session = authService.login("entrenador@cataclub.com", "trainer123");
-    expect(session).not.toBeNull();
-    expect(session!.user.role).toBe("trainer");
-    expect(session!.user.name).toBe("Carlos Entrenador");
+  it("never includes a token anywhere in the resolved session", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(validSession));
+
+    const result = await login("admin@cataclub.com", "admin123");
+
+    expect(JSON.stringify(result)).not.toMatch(/token/i);
   });
 
-  it("returns a session for representante credentials", () => {
-    const session = authService.login("representante@cataclub.com", "rep123");
-    expect(session).not.toBeNull();
-    expect(session!.user.role).toBe("representante");
-    expect(session!.user.name).toBe("Carlos Martinez");
+  it("returns invalid_credentials on 401", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(errorResponse(401, { message: "bad creds" }));
+
+    const result = await login("admin@cataclub.com", "wrong");
+
+    expect(result).toEqual({ ok: false, error: "invalid_credentials" });
   });
 
-  it("returns a session for self-managed (estudiante) student credentials", () => {
-    const session = authService.login("estudiante@cataclub.com", "self123");
-    expect(session).not.toBeNull();
-    expect(session!.user.role).toBe("estudiante");
-    expect(session!.user.name).toBe("Sofia Martinez");
+  it("returns session_validation_failed on 401 when the BFF reports error: unauthorized (backendMe rejected the fresh token)", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      errorResponse(401, { error: "unauthorized", message: "token rejected" }),
+    );
+
+    const result = await login("admin@cataclub.com", "admin123");
+
+    expect(result).toEqual({ ok: false, error: "session_validation_failed" });
   });
 
-  it("persists the session to localStorage", () => {
-    authService.login("admin@cataclub.com", "admin123");
-    const raw = localStorage.getItem("cata-club-auth-session");
-    expect(raw).not.toBeNull();
-    const parsed = JSON.parse(raw!);
-    expect(parsed.user.role).toBe("admin");
+  it("returns backend_unavailable on 503", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(errorResponse(503, {}));
+
+    const result = await login("admin@cataclub.com", "admin123");
+
+    expect(result).toEqual({ ok: false, error: "backend_unavailable" });
   });
 
-  it("is case-insensitive for email", () => {
-    const session = authService.login("ADMIN@cataclub.com", "admin123");
-    expect(session).not.toBeNull();
-    expect(session!.user.role).toBe("admin");
+  it("returns backend_unavailable when fetch rejects with a network error", async () => {
+    vi.mocked(global.fetch).mockRejectedValue(new TypeError("Failed to fetch"));
+
+    const result = await login("admin@cataclub.com", "admin123");
+
+    expect(result).toEqual({ ok: false, error: "backend_unavailable" });
   });
 
-  it("returns a session for every demo persona defined", () => {
-    for (const persona of DEMO_PERSONAS) {
-      const session = authService.login(persona.email, persona.password);
-      expect(session).not.toBeNull();
-      expect(session!.user.role).toBe(persona.user.role);
-    }
-  });
-});
+  it("returns timeout when the request aborts", async () => {
+    vi.mocked(global.fetch).mockRejectedValue(new DOMException("Aborted", "AbortError"));
 
-// ---------------------------------------------------------------------------
-// login — failure paths
-// ---------------------------------------------------------------------------
+    const result = await login("admin@cataclub.com", "admin123");
 
-describe("login — failure", () => {
-  it("returns null for wrong password", () => {
-    const session = authService.login("admin@cataclub.com", "wrongpassword");
-    expect(session).toBeNull();
+    expect(result).toEqual({ ok: false, error: "timeout" });
   });
 
-  it("returns null for unknown email", () => {
-    const session = authService.login("unknown@cataclub.com", "admin123");
-    expect(session).toBeNull();
+  it("returns unknown when the response body has an invalid shape", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(okResponse({ not: "a session" }));
+
+    const result = await login("admin@cataclub.com", "admin123");
+
+    expect(result).toEqual({ ok: false, error: "unknown" });
   });
 
-  it("returns null for empty email", () => {
-    const session = authService.login("", "admin123");
-    expect(session).toBeNull();
-  });
+  it("returns unknown for an unexpected non-2xx status", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(errorResponse(500, {}));
 
-  it("returns null for empty password", () => {
-    const session = authService.login("admin@cataclub.com", "");
-    expect(session).toBeNull();
-  });
+    const result = await login("admin@cataclub.com", "admin123");
 
-  it("returns null for both empty", () => {
-    const session = authService.login("", "");
-    expect(session).toBeNull();
-  });
-
-  it("does NOT persist a failed login attempt", () => {
-    authService.login("admin@cataclub.com", "wrong");
-    const raw = localStorage.getItem("cata-club-auth-session");
-    expect(raw).toBeNull();
+    expect(result).toEqual({ ok: false, error: "unknown" });
   });
 });
 
 // ---------------------------------------------------------------------------
-// getSession
+// fetchSession
 // ---------------------------------------------------------------------------
 
-describe("getSession", () => {
-  it("returns the stored session after login", () => {
-    authService.login("admin@cataclub.com", "admin123");
-    const session = authService.getSession();
-    expect(session).not.toBeNull();
-    expect(session!.user.email).toBe("admin@cataclub.com");
+describe("fetchSession", () => {
+  it("returns an authenticated outcome when /api/auth/session responds 200", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(validSession));
+
+    const result = await fetchSession();
+
+    expect(result).toEqual({ kind: "authenticated", session: validSession });
+    expect(global.fetch).toHaveBeenCalledWith("/api/auth/session", expect.objectContaining({ method: "GET" }));
   });
 
-  it("returns null when no session exists", () => {
-    expect(authService.getSession()).toBeNull();
+  it("returns unauthenticated when the session route reports 401 (genuinely invalid/expired session)", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(errorResponse(401, { authenticated: false }));
+
+    expect(await fetchSession()).toEqual({ kind: "unauthenticated" });
   });
 
-  it("returns null when stored data is corrupted JSON", () => {
-    localStorage.setItem("cata-club-auth-session", "not-json");
-    expect(authService.getSession()).toBeNull();
+  it("returns outage on a 503 (transient backend outage — must NOT be treated as logout)", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(errorResponse(503, { authenticated: false }));
+
+    expect(await fetchSession()).toEqual({ kind: "outage" });
   });
 
-  it("clears corrupted data from localStorage", () => {
-    localStorage.setItem("cata-club-auth-session", "not-json");
-    authService.getSession();
-    expect(localStorage.getItem("cata-club-auth-session")).toBeNull();
+  it("returns outage on a network failure (graceful degradation, not a forced logout)", async () => {
+    vi.mocked(global.fetch).mockRejectedValue(new TypeError("Failed to fetch"));
+
+    expect(await fetchSession()).toEqual({ kind: "outage" });
   });
 
-  it("returns null when stored JSON is missing the user property", () => {
-    localStorage.setItem(
-      "cata-club-auth-session",
-      JSON.stringify({ token: "abc", loggedInAt: new Date().toISOString() }),
-    );
-    expect(authService.getSession()).toBeNull();
-  });
+  it("returns unauthenticated when the response body has an invalid shape", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(okResponse({ bogus: true }));
 
-  it("returns null when stored JSON has an invalid role", () => {
-    localStorage.setItem(
-      "cata-club-auth-session",
-      JSON.stringify({
-        user: { id: "u1", name: "Test", email: "t@t.com", role: "superadmin" },
-        token: "abc",
-        loggedInAt: new Date().toISOString(),
-      }),
-    );
-    expect(authService.getSession()).toBeNull();
-  });
-
-  it("rejects persisted session with old 'student' role (domain correction)", () => {
-    localStorage.setItem(
-      "cata-club-auth-session",
-      JSON.stringify({
-        user: { id: "u1", name: "Student", email: "student@cataclub.com", role: "student" },
-        token: "old-token",
-        loggedInAt: new Date().toISOString(),
-      }),
-    );
-    expect(authService.getSession()).toBeNull();
-  });
-
-  it("rejects persisted session with old 'representative' role (domain correction)", () => {
-    localStorage.setItem(
-      "cata-club-auth-session",
-      JSON.stringify({
-        user: { id: "u1", name: "Representative", email: "rep@cataclub.com", role: "representative" },
-        token: "old-token",
-        loggedInAt: new Date().toISOString(),
-      }),
-    );
-    expect(authService.getSession()).toBeNull();
-  });
-
-  it("clears localStorage when persisted session has old 'student' role", () => {
-    localStorage.setItem(
-      "cata-club-auth-session",
-      JSON.stringify({
-        user: { id: "u1", name: "Student", email: "student@cataclub.com", role: "student" },
-        token: "old-token",
-        loggedInAt: new Date().toISOString(),
-      }),
-    );
-    authService.getSession();
-    expect(localStorage.getItem("cata-club-auth-session")).toBeNull();
-  });
-
-  it("clears localStorage when persisted session has old 'representative' role", () => {
-    localStorage.setItem(
-      "cata-club-auth-session",
-      JSON.stringify({
-        user: { id: "u1", name: "Representative", email: "rep@cataclub.com", role: "representative" },
-        token: "old-token",
-        loggedInAt: new Date().toISOString(),
-      }),
-    );
-    authService.getSession();
-    expect(localStorage.getItem("cata-club-auth-session")).toBeNull();
-  });
-
-  it("returns null when stored JSON user is null", () => {
-    localStorage.setItem(
-      "cata-club-auth-session",
-      JSON.stringify({ user: null, token: "abc", loggedInAt: new Date().toISOString() }),
-    );
-    expect(authService.getSession()).toBeNull();
-  });
-
-  it("returns null when stored JSON is missing the token field", () => {
-    localStorage.setItem(
-      "cata-club-auth-session",
-      JSON.stringify({
-        user: { id: "u1", name: "Test", email: "t@t.com", role: "admin" },
-        loggedInAt: new Date().toISOString(),
-      }),
-    );
-    expect(authService.getSession()).toBeNull();
-  });
-
-  it("clears localStorage when JSON shape is invalid", () => {
-    localStorage.setItem(
-      "cata-club-auth-session",
-      JSON.stringify({ user: null, token: "abc", loggedInAt: new Date().toISOString() }),
-    );
-    authService.getSession();
-    expect(localStorage.getItem("cata-club-auth-session")).toBeNull();
-  });
-
-  it("returns a valid session when stored data passes shape validation", () => {
-    authService.login("admin@cataclub.com", "admin123");
-    // Simulate a fresh instance reading the valid persisted data
-    const fresh = new MockAuthService();
-    const session = fresh.getSession();
-    expect(session).not.toBeNull();
-    expect(session!.user.role).toBe("admin");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// isAuthenticated
-// ---------------------------------------------------------------------------
-
-describe("isAuthenticated", () => {
-  it("returns true after login", () => {
-    authService.login("admin@cataclub.com", "admin123");
-    expect(authService.isAuthenticated()).toBe(true);
-  });
-
-  it("returns false before login", () => {
-    expect(authService.isAuthenticated()).toBe(false);
-  });
-
-  it("returns false after logout", () => {
-    authService.login("admin@cataclub.com", "admin123");
-    authService.logout();
-    expect(authService.isAuthenticated()).toBe(false);
+    expect(await fetchSession()).toEqual({ kind: "unauthenticated" });
   });
 });
 
@@ -326,93 +178,96 @@ describe("isAuthenticated", () => {
 // ---------------------------------------------------------------------------
 
 describe("logout", () => {
-  it("clears the stored session", () => {
-    authService.login("admin@cataclub.com", "admin123");
-    authService.logout();
-    expect(authService.getSession()).toBeNull();
+  it("calls POST /api/auth/logout", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(okResponse({ success: true }));
+
+    await logout();
+
+    expect(global.fetch).toHaveBeenCalledWith("/api/auth/logout", expect.objectContaining({ method: "POST" }));
   });
 
-  it("removes the localStorage key", () => {
-    authService.login("admin@cataclub.com", "admin123");
-    authService.logout();
-    expect(localStorage.getItem("cata-club-auth-session")).toBeNull();
-  });
+  it("resolves even when the fetch call throws", async () => {
+    vi.mocked(global.fetch).mockRejectedValue(new TypeError("Failed to fetch"));
 
-  it("is safe to call when no session exists", () => {
-    expect(() => authService.logout()).not.toThrow();
+    await expect(logout()).resolves.toBeUndefined();
   });
 });
 
 // ---------------------------------------------------------------------------
-// Graceful degradation — localStorage unavailable (SSR, private browsing, etc.)
+// isValidAuthSession
 // ---------------------------------------------------------------------------
 
-describe("localStorage unavailable", () => {
-  beforeEach(() => {
-    vi.stubGlobal("localStorage", createBrokenStorage());
-    vi.stubGlobal("window", {});
-    authService = new MockAuthService();
+describe("isValidAuthSession", () => {
+  it("accepts a well-shaped session", () => {
+    expect(isValidAuthSession(validSession)).toBe(true);
   });
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
+  it("rejects null", () => {
+    expect(isValidAuthSession(null)).toBe(false);
   });
 
-  it("login returns session even when localStorage.setItem throws", () => {
-    const session = authService.login("admin@cataclub.com", "admin123");
-    expect(session).not.toBeNull();
-    expect(session!.user.role).toBe("admin");
+  it("rejects a session missing the user block", () => {
+    expect(isValidAuthSession({ roles: [], loggedInAt: "x" })).toBe(false);
   });
 
-  it("getSession returns null when localStorage.getItem throws", () => {
-    expect(authService.getSession()).toBeNull();
+  it("rejects an invalid role", () => {
+    expect(
+      isValidAuthSession({
+        user: { id: "1", name: "X", email: "x@x.com", role: "superadmin" },
+        roles: [],
+        loggedInAt: "x",
+      }),
+    ).toBe(false);
   });
 
-  it("getSession returns null from a fresh instance after login (memory-only)", () => {
-    // Login works after a successful login (memory-only, no persistence)
-    authService.login("admin@cataclub.com", "admin123");
-    // A new service instance should have no session (persistence failed)
-    const freshService = new MockAuthService();
-    expect(freshService.getSession()).toBeNull();
+  it("rejects a session where roles is not an array of strings", () => {
+    expect(
+      isValidAuthSession({
+        user: { id: "1", name: "X", email: "x@x.com", role: "admin" },
+        roles: "ADMINISTRADOR",
+        loggedInAt: "x",
+      }),
+    ).toBe(false);
   });
 
-  it("logout does not throw when localStorage.removeItem throws", () => {
-    authService.login("admin@cataclub.com", "admin123");
-    expect(() => authService.logout()).not.toThrow();
+  it("accepts a tesorero session", () => {
+    expect(
+      isValidAuthSession({
+        user: { id: "1", name: "T", email: "t@t.com", role: "tesorero" },
+        roles: ["TESORERO"],
+        loggedInAt: "x",
+      }),
+    ).toBe(true);
   });
 
-  it("isAuthenticated returns true after login (in-memory session)", () => {
-    authService.login("admin@cataclub.com", "admin123");
-    expect(authService.isAuthenticated()).toBe(true);
+  it('accepts an "unsupported" session', () => {
+    expect(
+      isValidAuthSession({
+        user: { id: "1", name: "N", email: "n@n.com", role: "unsupported" },
+        roles: [],
+        loggedInAt: "x",
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects a session with a token field but otherwise treats it as an unexpected extra (not required, not rejected)", () => {
+    // Defense-in-depth note: isValidAuthSession only checks required fields;
+    // it doesn't reject unknown extras. Token-leak prevention is enforced by
+    // the BFF never putting one in the response body (see route tests).
+    expect(
+      isValidAuthSession({ ...validSession, token: "leaked" }),
+    ).toBe(true);
   });
 });
 
 // ---------------------------------------------------------------------------
-// SSR — localStorage is undefined
+// authService — object parity with previous call sites
 // ---------------------------------------------------------------------------
 
-describe("SSR (localStorage undefined)", () => {
-  beforeEach(() => {
-    vi.stubGlobal("localStorage", undefined);
-    // No window stub — simulate server environment
-    authService = new MockAuthService();
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("login returns session without persisting", () => {
-    const session = authService.login("admin@cataclub.com", "admin123");
-    expect(session).not.toBeNull();
-    expect(session!.user.role).toBe("admin");
-  });
-
-  it("getSession returns null without error", () => {
-    expect(authService.getSession()).toBeNull();
-  });
-
-  it("logout does not throw", () => {
-    expect(() => authService.logout()).not.toThrow();
+describe("authService", () => {
+  it("exposes login, logout, and getSession", () => {
+    expect(authService.login).toBe(login);
+    expect(authService.logout).toBe(logout);
+    expect(authService.getSession).toBe(fetchSession);
   });
 });

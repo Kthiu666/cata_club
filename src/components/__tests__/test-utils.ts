@@ -30,7 +30,7 @@ export function createMockSession(
       representanteId: null,
       createdAt: "2026-01-01T00:00:00Z",
     },
-    token: "demo-token-test-1234567890",
+    roles: ["ADMINISTRADOR"],
     loggedInAt: "2026-07-01T12:00:00Z",
     ...overrides,
   };

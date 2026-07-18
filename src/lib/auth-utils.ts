@@ -52,9 +52,17 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
     case "trainer":
       links.push({ href: "/trainer", label: "Entrenador" });
       break;
+    case "tesorero":
+      links.push({ href: "/payments", label: "Membresías y Pagos" });
+      break;
     case "representante":
     case "estudiante":
       links.push({ href: "/student", label: "Mi Cuenta" });
+      break;
+    case "unsupported":
+      // No role-specific links — this account has no recognized backend
+      // role. /unauthorized (their only reachable protected page) doesn't
+      // need a nav entry; Inicio is enough to navigate away.
       break;
   }
 
@@ -96,9 +104,13 @@ export function getDefaultRoute(role: UserRole): string {
       return "/dashboard";
     case "trainer":
       return "/trainer";
+    case "tesorero":
+      return "/payments";
     case "representante":
     case "estudiante":
       return "/student";
+    case "unsupported":
+      return "/unauthorized";
   }
 }
 
@@ -111,9 +123,13 @@ export function getRoleLabel(role: UserRole): string {
       return "Administrador";
     case "trainer":
       return "Entrenador";
+    case "tesorero":
+      return "Tesorero";
     case "representante":
       return "Representante";
     case "estudiante":
       return "Estudiante";
+    case "unsupported":
+      return "Rol no soportado";
   }
 }

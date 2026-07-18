@@ -19,9 +19,9 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-export default function RegisterPage() {
+export default function RegisterPage(): React.ReactElement {
   const router = useRouter();
-  const { login, isAuthenticated, isLoading, session } = useAuth();
+  const { isAuthenticated, isLoading, session } = useAuth();
 
   // Redirect to role-appropriate page if already authenticated
   useEffect(() => {
@@ -36,7 +36,7 @@ export default function RegisterPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [demoSuccess, setDemoSuccess] = useState(false);
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  function handleSubmit(e: FormEvent<HTMLFormElement>): void {
     e.preventDefault();
     setFormError(null);
 
@@ -59,23 +59,16 @@ export default function RegisterPage() {
     }, 1500);
   }
 
-  function handleContinueToEnrollment() {
+  function handleContinueToEnrollment(): void {
     // Guard: prevent double-click / repeated activation while navigating.
     if (navigating) return;
 
-    // Demo mode: the register form does not persist a real account yet.
-    // Start the pre-enrollment demo session so the protected enrollment route
-    // behaves like a newly created user continuing their registration.
+    // /student/enroll is a public, unauthenticated flow (see
+    // PUBLIC_EXCEPTIONS in src/lib/middleware-utils.ts) — it must not
+    // depend on a real login. It previously logged in with a hardcoded demo
+    // account, which broke this button against the real backend.
     setNavigating(true);
-
-    const result = login("natural@cataclub.com", "natural123");
-    if (result) {
-      router.push("/student/enroll");
-      return;
-    }
-
-    setFormError("No se pudo iniciar la sesión de demostración. Intente iniciar sesión manualmente.");
-    setNavigating(false);
+    router.push("/student/enroll");
   }
 
   return (
@@ -121,13 +114,8 @@ export default function RegisterPage() {
               <p className="mb-6 text-sm leading-relaxed text-cata-text/65">
                 No se almacenó ningún dato. Esto es una demostración de IU — cuando el
                 backend esté conectado, se crearía su cuenta. Para continuar el
-                recorrido, se abrirá la sesión de preinscripción automáticamente.
+                recorrido, puede pasar directamente a la inscripción.
               </p>
-              {formError && (
-                <div className="alert-error mb-4 justify-center" role="alert">
-                  {formError}
-                </div>
-              )}
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
                 <button
                   type="button"

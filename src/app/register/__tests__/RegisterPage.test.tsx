@@ -40,7 +40,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 // ---------------------------------------------------------------------------
 
 /** Fill required fields and submit the registration form. */
-function submitDemoForm() {
+function submitDemoForm(): void {
   fireEvent.change(screen.getByLabelText("Correo electrónico"), {
     target: { value: "test@catclub.com" },
   });
@@ -91,16 +91,19 @@ describe("RegisterPage", () => {
     mockPush.mockReset();
     mockLogin.mockReset();
     // Simulate successful login by default
-    mockLogin.mockReturnValue({
-      user: {
-        id: "user-natural-1",
-        name: "Usuario Natural",
-        email: "natural@cataclub.com",
-        role: "representante",
-        representanteId: null,
+    mockLogin.mockResolvedValue({
+      ok: true,
+      session: {
+        user: {
+          id: "user-natural-1",
+          name: "Usuario Natural",
+          email: "natural@cataclub.com",
+          role: "representante",
+          representanteId: null,
+        },
+        roles: ["TESORERO"],
+        loggedInAt: new Date().toISOString(),
       },
-      token: "demo-token-test",
-      loggedInAt: new Date().toISOString(),
     });
   });
 
@@ -134,32 +137,21 @@ describe("RegisterPage", () => {
   });
 
   describe("handleContinueToEnrollment", () => {
-    it("logs in with demo credentials and navigates to /student/enroll", async () => {
-      const button = await submitAndReachSuccess();
+    // /student/enroll is a public, unauthenticated flow — see PUBLIC_EXCEPTIONS
+    // in src/lib/middleware-utils.ts. This must navigate directly, without
+    // calling the real login() (previously a hardcoded demo account that
+    // doesn't exist on the real backend — see Finding 7).
 
-      fireEvent.click(button);
-
-      expect(mockLogin).toHaveBeenCalledTimes(1);
-      expect(mockLogin).toHaveBeenCalledWith(
-        "natural@cataclub.com",
-        "natural123",
-      );
-      expect(mockPush).toHaveBeenCalledTimes(1);
-      expect(mockPush).toHaveBeenCalledWith("/student/enroll");
-    });
-
-    it("shows error when login fails and does NOT navigate", async () => {
-      mockLogin.mockReturnValue(null); // Simulate failed login
+    it("navigates directly to /student/enroll without calling login", async () => {
       const button = await submitAndReachSuccess();
 
       fireEvent.click(button);
 
       await waitFor(() => {
-        expect(
-          screen.getByText(/no se pudo iniciar la sesión/i),
-        ).toBeInTheDocument();
+        expect(mockPush).toHaveBeenCalledTimes(1);
       });
-      expect(mockPush).not.toHaveBeenCalled();
+      expect(mockPush).toHaveBeenCalledWith("/student/enroll");
+      expect(mockLogin).not.toHaveBeenCalled();
     });
 
     it("disables the button and shows loading text during navigation", async () => {
@@ -176,32 +168,16 @@ describe("RegisterPage", () => {
     it("prevents repeated activation (double-click guard)", async () => {
       const button = await submitAndReachSuccess();
 
-      // Click once — this triggers login and push
       fireEvent.click(button);
 
-      // Wait for the re-render with navigating=true
       await waitFor(() => {
         expect(button).toBeDisabled();
       });
 
-      // Click again — the guard should prevent a second call
+      // Click again — the guard should prevent a second navigation
       fireEvent.click(button);
 
-      expect(mockLogin).toHaveBeenCalledTimes(1);
       expect(mockPush).toHaveBeenCalledTimes(1);
-    });
-
-    it("renders the login-failure error via the shared alert-error banner, not a duplicated inline banner", async () => {
-      mockLogin.mockReturnValue(null); // Simulate failed login
-      const button = await submitAndReachSuccess();
-
-      fireEvent.click(button);
-
-      const alertEl = await screen.findByRole("alert");
-      expect(alertEl).toHaveTextContent(/no se pudo iniciar la sesión/i);
-      expect(alertEl).toHaveClass("alert-error");
-      // No duplicated inline dark-theme banner markup remains
-      expect(alertEl.className).not.toMatch(/bg-red-900|border-red-500/);
     });
   });
 });
