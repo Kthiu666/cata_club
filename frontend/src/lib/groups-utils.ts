@@ -74,6 +74,7 @@ const DIA_SEMANA_LABELS: Record<string, string> = {
   jue: "Jueves",
   vie: "Viernes",
   sab: "Sábado",
+  dom: "Domingo",
 };
 
 const NIVEL_LABELS: Record<NivelTecnico, string> = {

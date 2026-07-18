@@ -17,8 +17,9 @@
  *          timeout instead — so provide one if you need timeout guarantees.
  */
 
-import type { UserRole } from "@/types/domain";
+import type { UserRole, EstadoAsistencia } from "@/types/domain";
 import type { EnrollmentRequest, EnrollmentResponse } from "@/types/enrollment";
+import type { AttendanceRecord, TrainingSchedule } from "@/app/attendance/attendance-utils";
 
 // ---------------------------------------------------------------------------
 // Types — Membership Payment Validation (CU012)
@@ -397,6 +398,101 @@ export async function updatePaymentValidation(
     method: "PUT",
     body: JSON.stringify(data),
     headers: mockHeaders,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Types — Attendance & Ranking (Fase 3)
+// ---------------------------------------------------------------------------
+
+/**
+ * A ranking level with current occupancy — `GET /ranking/niveles`.
+ * `NivelRanking` IS the "Grupo" concept for the frontend (see backend's
+ * ranking_schemas.py module docstring); already camelCase, passed through
+ * unmodified by the Route Handler.
+ */
+export interface NivelConOcupacion {
+  id: number;
+  numeroNivel: number;
+  nombre: string | null;
+  capacidadMinima: number;
+  capacidadMaxima: number;
+  personasActuales: number;
+  cuposDisponibles: number;
+  necesitaRevision: boolean;
+  nivelCategoria: "principiante" | "intermedio" | "avanzado";
+}
+
+/** A row of a nivel's roster — `GET /ranking/niveles/:id/tabla`. */
+export interface TablaRankingItem {
+  personaId: number;
+  personaNombreCompleto: string;
+  posicionActual: number | null;
+  puntajeAcumulado: number;
+  estaEnRanking: boolean;
+}
+
+/** One student's attendance mark, part of a `registerAttendance` batch. */
+export interface AttendanceStudentMark {
+  personaId: number;
+  estado: EstadoAsistencia;
+}
+
+/** Request body for `POST /api/attendance/records` — registers real attendance for a session. */
+export interface RegisterAttendanceRequest {
+  horarioId: number;
+  entrenadorId: number;
+  /** ISO "YYYY-MM-DD"; defaults to today (server clock) when omitted. */
+  fechaEntrenamiento?: string;
+  students: AttendanceStudentMark[];
+}
+
+/** Result of a `registerAttendance` batch — tolerates partial failure (one POST per student). */
+export interface RegisterAttendanceResult {
+  createdCount: number;
+  failed: { personaId: number; message: string }[];
+}
+
+// ---------------------------------------------------------------------------
+// Attendance & Ranking API Methods (Fase 3)
+// ---------------------------------------------------------------------------
+
+/** List real training schedules (Horario). */
+export async function fetchTrainingSchedules(): Promise<TrainingSchedule[]> {
+  return request<TrainingSchedule[]>(apiEndpoint("/attendance/schedules"));
+}
+
+/** Fetch attendance records (Asistencia), optionally filtered by date range/horario/persona. */
+export async function fetchAttendanceRecords(params?: {
+  fechaInicio?: string;
+  fechaFin?: string;
+  horarioId?: number;
+  personaId?: number;
+}): Promise<AttendanceRecord[]> {
+  const qs = new URLSearchParams();
+  if (params?.fechaInicio) qs.set("fechaInicio", params.fechaInicio);
+  if (params?.fechaFin) qs.set("fechaFin", params.fechaFin);
+  if (params?.horarioId !== undefined) qs.set("horarioId", String(params.horarioId));
+  if (params?.personaId !== undefined) qs.set("personaId", String(params.personaId));
+  const query = qs.toString();
+  return request<AttendanceRecord[]>(apiEndpoint(`/attendance/records${query ? `?${query}` : ""}`));
+}
+
+/** List ranking levels (Grupo) with current occupancy. */
+export async function fetchNivelesConOcupacion(): Promise<NivelConOcupacion[]> {
+  return request<NivelConOcupacion[]>(apiEndpoint("/ranking/niveles"));
+}
+
+/** Fetch a nivel's roster (E03-RF010) — used to derive who to mark attendance for. */
+export async function fetchNivelRoster(nivelId: number): Promise<TablaRankingItem[]> {
+  return request<TablaRankingItem[]>(apiEndpoint(`/ranking/niveles/${nivelId}/tabla`));
+}
+
+/** Persist attendance for a session (one real `POST /asistencias` per student, partial-failure-tolerant). */
+export async function registerAttendance(data: RegisterAttendanceRequest): Promise<RegisterAttendanceResult> {
+  return request<RegisterAttendanceResult>(apiEndpoint("/attendance/records"), {
+    method: "POST",
+    body: JSON.stringify(data),
   });
 }
 

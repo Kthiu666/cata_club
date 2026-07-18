@@ -31,6 +31,27 @@ export interface ScheduleSlot {
   activo: boolean;
 }
 
+/**
+ * A real training schedule slot (Horario), as returned by
+ * `GET /api/attendance/schedules` (proxying FastAPI's `/asistencias/horarios`).
+ *
+ * Deliberately leaner than `ScheduleSlot`: the real `HorarioResponseDTO` has
+ * no `cancha`, `cupoMaximo`, `activo`, or nivel/group linkage — those mock
+ * fields have no backend equivalent (see `src/lib/server/attendance-adapter.ts`
+ * for the documented gap). Only what the backend actually returns is modeled
+ * here; the admin page renders accordingly.
+ */
+export interface TrainingSchedule {
+  id: number;
+  diaSemana: DiaSemana;
+  /** "HH:mm", seconds already trimmed by the adapter. */
+  horaInicio: string;
+  horaFin: string;
+  entrenadorId: number;
+  /** Titular trainer's display name — resolved server-side from `/personas`. */
+  entrenadorNombre: string;
+}
+
 /** A recent attendance record, enriched with student/trainer names. */
 export interface AttendanceRecord {
   id: string;
@@ -63,6 +84,7 @@ export const DIA_SEMANA_LABELS: Record<DiaSemana, string> = {
   jue: "Jueves",
   vie: "Viernes",
   sab: "Sábado",
+  dom: "Domingo",
 };
 
 export const NIVEL_LABELS: Record<NivelTecnico, string> = {
@@ -196,6 +218,18 @@ export function formatNivel(nivel: NivelTecnico): string {
  */
 export function countActiveSchedules(schedules: ScheduleSlot[]): number {
   return schedules.filter((s) => s.activo).length;
+}
+
+const JS_DAY_INDEX_TO_DIA_SEMANA: DiaSemana[] = ["dom", "lun", "mar", "mie", "jue", "vie", "sab"];
+
+/**
+ * Map JS `Date.getDay()` (0 = Sunday .. 6 = Saturday) to the backend-aligned
+ * `DiaSemana` short code — used by the trainer dashboard to find today's
+ * real schedules. Falls back to "lun" for an out-of-range index (never
+ * throws, same defensive pattern as `formatDay`/`formatNivel`).
+ */
+export function jsDayIndexToDiaSemana(dayIndex: number): DiaSemana {
+  return JS_DAY_INDEX_TO_DIA_SEMANA[dayIndex] ?? "lun";
 }
 
 // ---------------------------------------------------------------------------

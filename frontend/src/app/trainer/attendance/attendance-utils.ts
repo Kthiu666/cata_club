@@ -1,23 +1,25 @@
 /**
- * Pure utility functions and mock data for the Trainer Attendance flow.
+ * Pure utility functions for the Trainer Attendance flow.
  *
  * Extracted from page.tsx for testability — no React dependencies.
  *
- * Domain (2026-07): Session rosters are now DERIVED from Grupo.estudiantesIds
- * via the shared buildTrainingSessions() helper in groups-utils.ts. The old
- * hardcoded AVAILABLE_SESSIONS is replaced by DERIVED_SESSIONS, which
- * reconciles mock data from src/mocks/members (MOCK_GRUPOS, MOCK_MEMBER_ACCOUNTS)
- * and src/mocks/attendance (MOCK_SCHEDULES) so the Grupo → schedule → student
- * relationship is explicit and tested.
+ * Domain (Fase 3): the wizard now selects a real Horario
+ * (`GET /api/attendance/schedules`) and a real NivelRanking/"Grupo" roster
+ * (`GET /api/ranking/niveles` + `GET /api/ranking/niveles/:id/tabla`)
+ * *independently*, instead of deriving a single combined "session" from
+ * Grupo.estudiantesIds like the old mock-backed AVAILABLE_SESSIONS did.
+ *
+ * That's not a UI preference — it's forced by a real backend gap: neither
+ * `HorarioResponseDTO` nor `NivelRankingResponseDTO` exposes the
+ * `nivel_ranking_id` link that exists on the `HorarioEntrenamiento` model,
+ * so there is currently no way, through the API, to know which nivel a
+ * horario belongs to (see src/lib/server/attendance-adapter.ts for the full
+ * writeup). Asking the trainer to pick both explicitly is the honest
+ * adaptation until that link is exposed.
  */
 
 import type { EstadoAsistencia } from "@/types/domain";
-import {
-  MOCK_MEMBER_ACCOUNTS,
-  MOCK_GRUPOS,
-} from "@/mocks/members";
-import { MOCK_SCHEDULES } from "@/mocks/attendance";
-import { buildTrainingSessions } from "@/lib/groups-utils";
+import type { TablaRankingItem } from "@/services/api";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -28,49 +30,6 @@ export interface SessionStudent {
   name: string;
   attendance: EstadoAsistencia;
 }
-
-export interface TrainingSession {
-  id: string;
-  groupName: string;
-  time: string;
-  court: string;
-  level: string;
-  studentCount: number;
-  students: SessionStudent[];
-}
-
-// ---------------------------------------------------------------------------
-// Derive training sessions from canonical mock data
-//
-// Domain rule: sessions are NOT owned by one trainer. Any trainer may register
-// attendance in any available session. The roster comes from Grupo.estudiantesIds
-// so it stays consistent with group membership changes.
-// ---------------------------------------------------------------------------
-
-/**
- * Build a map of studentId → "Nombres Apellidos" from MOCK_MEMBER_ACCOUNTS.
- */
-function buildStudentNameMap(): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const account of MOCK_MEMBER_ACCOUNTS) {
-    for (const estudiante of account.estudiantes) {
-      map[estudiante.id] = `${estudiante.nombres} ${estudiante.apellidos}`;
-    }
-  }
-  return map;
-}
-
-const DERIVED_STUDENT_NAME_MAP = buildStudentNameMap();
-
-/**
- * Training sessions derived from Grupo + Horario data.
- * This replaces the old hardcoded AVAILABLE_SESSIONS.
- */
-export const AVAILABLE_SESSIONS: TrainingSession[] = buildTrainingSessions(
-  MOCK_GRUPOS,
-  MOCK_SCHEDULES,
-  DERIVED_STUDENT_NAME_MAP,
-);
 
 // ---------------------------------------------------------------------------
 // Attendance helpers
@@ -84,13 +43,11 @@ export const ATTENDANCE_LABELS: Record<EstadoAsistencia, string> = {
   justified: "Justificado",
 };
 
-// Badge/status color tokens for each attendance state now come from the
-// shared `getAttendanceBadgeTokens` in `@/app/attendance/attendance-utils`
-// (Fase 3b — B4), imported directly by page.tsx. This keeps trainer
-// attendance's badge/status colors byte-identical to the admin attendance
-// view instead of maintaining a second, drifting color-mapping Record here
-// (Fase 4b — see admin-light-theme spec, "Trainer attendance matches Fase 3
-// badge pattern").
+// Badge/status color tokens for each attendance state come from the shared
+// `getAttendanceBadgeTokens` in `@/app/attendance/attendance-utils` (Fase 3b
+// — B4), imported directly by page.tsx. This keeps trainer attendance's
+// badge/status colors byte-identical to the admin attendance view instead of
+// maintaining a second, drifting color-mapping Record here.
 
 /** All possible attendance states for the toggle. */
 export const ATTENDANCE_STATES: EstadoAsistencia[] = [
@@ -131,7 +88,7 @@ export function countByState(
 
 /**
  * Build a human-readable summary of attendance counts.
- * e.g. "5 Presentes • 2 Ausentes • 1 Tardanza • 0 Justificados"
+ * e.g. "5 presente • 2 ausente • 1 tardanza • 0 justificado"
  */
 export function buildAttendanceSummary(students: SessionStudent[]): string {
   const parts = ATTENDANCE_STATES.map((state) => {
@@ -140,4 +97,18 @@ export function buildAttendanceSummary(students: SessionStudent[]): string {
     return `${count} ${label}`;
   });
   return parts.join(" • ");
+}
+
+/**
+ * Build the roster to mark attendance for from a nivel's real ranking table
+ * (`GET /ranking/niveles/:id/tabla`), defaulting every student to "absent"
+ * — the trainer marks who was actually present from there. Replaces the old
+ * mock-derived AVAILABLE_SESSIONS roster.
+ */
+export function buildRosterFromTabla(items: TablaRankingItem[]): SessionStudent[] {
+  return items.map((item) => ({
+    id: String(item.personaId),
+    name: item.personaNombreCompleto,
+    attendance: "absent" as EstadoAsistencia,
+  }));
 }

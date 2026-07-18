@@ -205,8 +205,16 @@ export interface Grupo {
 // Schedule & Attendance
 // ---------------------------------------------------------------------------
 
-/** Day of week for training schedules. */
-export type DiaSemana = "lun" | "mar" | "mie" | "jue" | "vie" | "sab";
+/**
+ * Day of week for training schedules.
+ *
+ * Backend alignment (Fase 3): the real `DiaSemana` enum (see
+ * `app/dominio/enums.py`) deliberately covers the full civil week including
+ * Sunday ("el Lunes-Domingo completa la semana civil real; no se trunca a
+ * Sábado") — `"dom"` was added here to match. Existing mock data (which
+ * never used a Sunday slot) is unaffected by this additive change.
+ */
+export type DiaSemana = "lun" | "mar" | "mie" | "jue" | "vie" | "sab" | "dom";
 
 /**
  * A training session slot (Horario).

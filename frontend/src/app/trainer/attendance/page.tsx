@@ -1,25 +1,30 @@
 /**
- * Trainer Attendance Registration — Interactive Prototype
+ * Trainer Attendance Registration — real, persisted flow (Fase 3).
  *
- * Multi-step wizard for registering attendance in training sessions.
- * This is a frontend-only mock that demonstrates the full attendance flow:
- *   - Session selection from available sessions
- *   - Student attendance marking (present/absent/late/justified)
- *   - Confirmation summary showing which trainer registered the attendance
+ * Multi-step wizard for registering attendance in training sessions,
+ * backed by real data end-to-end:
+ *   - Schedule (Horario) and roster (NivelRanking "Grupo" roster) selection
+ *     from `GET /api/attendance/schedules` and `GET /api/ranking/niveles`
+ *     + `GET /api/ranking/niveles/:id/tabla`.
+ *   - Student attendance marking (present/absent/late/justified).
+ *   - Confirmation + real persistence via `POST /api/attendance/records`
+ *     (one real `POST /asistencias` per student, see
+ *     src/lib/server/attendance-adapter.ts).
  *
  * Domain rules:
  *   - Horario/session is NOT owned by one trainer.
  *   - Any trainer can register attendance in any available session.
  *   - The system records which trainer took the attendance.
- *   - Attendance is tied to a specific session/horario and specific estudiantes.
  *
- * No data is persisted — this is a UI prototype akin to a Figma mockup.
- * All labels and copy are in Spanish per app convention.
+ * Schedule and roster are selected independently rather than as one combined
+ * "session": the backend has no API exposing which NivelRanking a Horario
+ * belongs to (see attendance-utils.ts docstring) — asking the trainer to
+ * pick both is the honest adaptation to that gap, not a stylistic choice.
  */
 
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,17 +42,26 @@ import {
   ChevronRight,
   AlertTriangle,
   ClipboardList,
+  XCircle,
 } from "lucide-react";
 import {
-  AVAILABLE_SESSIONS,
   ATTENDANCE_LABELS,
   ATTENDANCE_STATES,
   countByState,
   buildAttendanceSummary,
+  buildRosterFromTabla,
   type SessionStudent,
 } from "./attendance-utils";
-import { getAttendanceBadgeTokens } from "@/app/attendance/attendance-utils";
-import { getLevelBadgeTokens } from "@/lib/groups-utils";
+import { getAttendanceBadgeTokens, formatDay } from "@/app/attendance/attendance-utils";
+import type { TrainingSchedule } from "@/app/attendance/attendance-utils";
+import {
+  fetchTrainingSchedules,
+  fetchNivelesConOcupacion,
+  fetchNivelRoster,
+  registerAttendance,
+  type NivelConOcupacion,
+  type RegisterAttendanceResult,
+} from "@/services/api";
 import type { EstadoAsistencia } from "@/types/domain";
 
 // ---------------------------------------------------------------------------
@@ -59,9 +73,15 @@ type WizardStep = "select-session" | "mark-attendance" | "confirm";
 const STEP_ORDER: WizardStep[] = ["select-session", "mark-attendance", "confirm"];
 
 const STEP_LABELS: Record<WizardStep, string> = {
-  "select-session": "Seleccionar Sesión",
+  "select-session": "Seleccionar Horario y Grupo",
   "mark-attendance": "Registrar Asistencia",
   confirm: "Confirmar y Finalizar",
+};
+
+const NIVEL_CATEGORIA_LABELS: Record<NivelConOcupacion["nivelCategoria"], string> = {
+  principiante: "Principiante",
+  intermedio: "Intermedio",
+  avanzado: "Avanzado",
 };
 
 // ---------------------------------------------------------------------------
@@ -81,32 +101,74 @@ const ATTENDANCE_ICONS: Record<EstadoAsistencia, React.ReactNode> = {
 
 export default function TrainerAttendancePage(): React.ReactElement {
   const { session } = useAuth();
-  const trainerName = session?.user?.name ?? "Entrenador Demo";
+  const trainerName = session?.user?.name ?? "Entrenador";
+  const entrenadorPersonaId = session?.user?.id ? Number(session.user.id) : null;
 
   const [step, setStep] = useState<WizardStep>("select-session");
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+
+  const [schedules, setSchedules] = useState<TrainingSchedule[]>([]);
+  const [niveles, setNiveles] = useState<NivelConOcupacion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
+  const [selectedNivelId, setSelectedNivelId] = useState<number | null>(null);
+  const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterError, setRosterError] = useState<string | null>(null);
+
   const [students, setStudents] = useState<SessionStudent[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [result, setResult] = useState<RegisterAttendanceResult | null>(null);
+
+  const loadOptions = useCallback(async (): Promise<void> => {
+    try {
+      setLoading(true);
+      setLoadError(null);
+      const [scheduleData, nivelData] = await Promise.all([
+        fetchTrainingSchedules(),
+        fetchNivelesConOcupacion(),
+      ]);
+      setSchedules(scheduleData);
+      setNiveles(nivelData);
+    } catch (err) {
+      console.error("[trainer/attendance] loadOptions failed", err);
+      setLoadError("Error al cargar horarios y grupos");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOptions();
+  }, [loadOptions]);
 
   const currentIndex = STEP_ORDER.indexOf(step);
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === STEP_ORDER.length - 1;
   const progress = ((currentIndex + 1) / STEP_ORDER.length) * 100;
 
-  const selectedSession = selectedSessionId
-    ? AVAILABLE_SESSIONS.find((s) => s.id === selectedSessionId) ?? null
-    : null;
+  const selectedSchedule = schedules.find((s) => s.id === selectedScheduleId) ?? null;
+  const selectedNivel = niveles.find((n) => n.id === selectedNivelId) ?? null;
+  const bothSelected = selectedScheduleId !== null && selectedNivelId !== null;
 
   // ---- Navigation ----
 
-  function handleSelectSession(sessionId: string): void {
-    const trainingSession = AVAILABLE_SESSIONS.find((s) => s.id === sessionId);
-    if (!trainingSession) return;
-    setSelectedSessionId(sessionId);
-    // Clone students so the wizard works on mutable copies
-    setStudents(trainingSession.students.map((s) => ({ ...s })));
-    setStep("mark-attendance");
+  async function handleContinueToRoster(): Promise<void> {
+    if (selectedNivelId === null) return;
+    setRosterLoading(true);
+    setRosterError(null);
+    try {
+      const tabla = await fetchNivelRoster(selectedNivelId);
+      setStudents(buildRosterFromTabla(tabla));
+      setStep("mark-attendance");
+    } catch (err) {
+      console.error("[trainer/attendance] fetchNivelRoster failed", err);
+      setRosterError("No se pudo cargar el listado de estudiantes de este grupo.");
+    } finally {
+      setRosterLoading(false);
+    }
   }
 
   function handleBack(): void {
@@ -141,77 +203,132 @@ export default function TrainerAttendancePage(): React.ReactElement {
     );
   }
 
-  function handleConfirm(e: FormEvent<HTMLFormElement>): void {
+  async function handleConfirm(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
+    if (!selectedScheduleId || entrenadorPersonaId === null) return;
     setSubmitting(true);
-    // Simulate submission delay
-    setTimeout(() => {
-      setSubmitting(false);
+    setSubmitError(null);
+    try {
+      const registration = await registerAttendance({
+        horarioId: selectedScheduleId,
+        entrenadorId: entrenadorPersonaId,
+        students: students.map((s) => ({ personaId: Number(s.id), estado: s.attendance })),
+      });
+      setResult(registration);
       setConfirmed(true);
-    }, 1200);
+    } catch (err) {
+      console.error("[trainer/attendance] registerAttendance failed", err);
+      setSubmitError("No se pudo registrar la asistencia. Intente nuevamente.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function handleReset(): void {
     setStep("select-session");
-    setSelectedSessionId(null);
+    setSelectedScheduleId(null);
+    setSelectedNivelId(null);
     setStudents([]);
     setConfirmed(false);
     setSubmitting(false);
+    setSubmitError(null);
+    setResult(null);
   }
 
   // ---- Step renderers ----
 
   function renderSessionSelection(): React.ReactElement {
     return (
-      <div className="space-y-4">
-        <p className="text-sm leading-relaxed text-cata-text/65">
-          Seleccione la sesión en la que desea registrar asistencia:
-        </p>
-
-        <div className="space-y-3">
-          {AVAILABLE_SESSIONS.map((trainingSession) => (
-            <button
-              key={trainingSession.id}
-              type="button"
-              onClick={() => handleSelectSession(trainingSession.id)}
-              className="card-hover flex w-full items-start gap-4 p-5 text-left transition-all duration-200 sm:p-6"
-            >
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cata-red/15">
-                <Calendar size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-semibold text-cata-text">
-                    {trainingSession.groupName}
-                  </h3>
-                  <span className={`badge ${getLevelBadgeTokens(trainingSession.level)}`}>
-                    {trainingSession.level}
-                  </span>
-                </div>
-                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-cata-text/65">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Clock size={13} strokeWidth={1.5} aria-hidden="true" />
-                    {trainingSession.time}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <GraduationCap size={13} strokeWidth={1.5} aria-hidden="true" />
-                    {trainingSession.court}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Users size={13} strokeWidth={1.5} aria-hidden="true" />
-                    {trainingSession.studentCount} estudiantes
-                  </span>
-                </div>
-              </div>
-              <ChevronRight
-                size={18}
-                strokeWidth={1.5}
-                className="mt-1 shrink-0 text-cata-text/30"
-                aria-hidden="true"
-              />
-            </button>
-          ))}
+      <div className="space-y-6">
+        <div>
+          <p className="mb-3 text-sm leading-relaxed text-cata-text/65">
+            Seleccione el horario de entrenamiento:
+          </p>
+          {schedules.length === 0 ? (
+            <p className="text-sm text-cata-text/45">No hay horarios registrados.</p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {schedules.map((sched) => {
+                const isActive = sched.id === selectedScheduleId;
+                return (
+                  <button
+                    key={sched.id}
+                    type="button"
+                    onClick={() => setSelectedScheduleId(sched.id)}
+                    className={`rounded-xl border p-4 text-left transition-all duration-150 ${
+                      isActive
+                        ? "border-cata-red bg-cata-red/10"
+                        : "border-cata-border bg-cata-surface hover:border-cata-red/40"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-semibold text-cata-text">
+                      <Calendar size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                      {formatDay(sched.diaSemana)}
+                    </div>
+                    <p className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/65">
+                      <Clock size={12} strokeWidth={1.5} aria-hidden="true" />
+                      {sched.horaInicio} — {sched.horaFin}
+                    </p>
+                    <p className="mt-1 text-xs text-cata-text/65">
+                      Titular: {sched.entrenadorNombre}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
+
+        <div>
+          <p className="mb-3 text-sm leading-relaxed text-cata-text/65">
+            Seleccione el grupo cuya asistencia va a registrar:
+          </p>
+          {niveles.length === 0 ? (
+            <p className="text-sm text-cata-text/45">No hay grupos registrados.</p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {niveles.map((nivel) => {
+                const isActive = nivel.id === selectedNivelId;
+                return (
+                  <button
+                    key={nivel.id}
+                    type="button"
+                    onClick={() => setSelectedNivelId(nivel.id)}
+                    className={`rounded-xl border p-4 text-left transition-all duration-150 ${
+                      isActive
+                        ? "border-cata-red bg-cata-red/10"
+                        : "border-cata-border bg-cata-surface hover:border-cata-red/40"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-semibold text-cata-text">
+                      <GraduationCap size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                      {nivel.nombre ?? `Nivel ${nivel.numeroNivel}`}
+                    </div>
+                    <p className="mt-1 text-xs text-cata-text/65">
+                      {NIVEL_CATEGORIA_LABELS[nivel.nivelCategoria]} &middot; {nivel.personasActuales} estudiantes
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {rosterError && (
+          <div className="alert-error" role="alert">
+            {rosterError}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={handleContinueToRoster}
+          disabled={!bothSelected || rosterLoading}
+          className="btn-primary w-full shadow-soft"
+        >
+          {rosterLoading ? "Cargando estudiantes..." : "Continuar"}
+          <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+        </button>
 
         {/* Domain reminder */}
         <div className="rounded-xl border border-amber-500/30 bg-amber-900/20 p-3 text-xs text-amber-400">
@@ -220,7 +337,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
             Cualquier entrenador puede registrar asistencia
           </p>
           <p className="mt-1 text-amber-700/80">
-            Las sesiones no están asignadas a un entrenador específico.
+            Los horarios no están asignados a un entrenador específico.
             El sistema registrará quién tomó la asistencia.
           </p>
         </div>
@@ -229,7 +346,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
   }
 
   function renderMarkAttendance(): React.ReactElement | null {
-    if (!selectedSession) return null;
+    if (!selectedSchedule || !selectedNivel) return null;
 
     const presentCount = countByState(students, "present");
     const absentCount = countByState(students, "absent");
@@ -245,12 +362,14 @@ export default function TrainerAttendancePage(): React.ReactElement {
               <Calendar size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
             </div>
             <span className="font-medium text-cata-text">
-              {selectedSession.groupName}
+              {selectedNivel.nombre ?? `Nivel ${selectedNivel.numeroNivel}`}
             </span>
             <span className="text-cata-text/65">—</span>
-            <span className="text-cata-text/65">{selectedSession.time}</span>
+            <span className="text-cata-text/65">{formatDay(selectedSchedule.diaSemana)}</span>
             <span className="text-cata-text/65">&middot;</span>
-            <span className="text-cata-text/65">{selectedSession.court}</span>
+            <span className="text-cata-text/65">
+              {selectedSchedule.horaInicio} — {selectedSchedule.horaFin}
+            </span>
           </div>
           {/* Live counts */}
           <div className="mt-3 flex flex-wrap gap-3 text-xs">
@@ -274,61 +393,68 @@ export default function TrainerAttendancePage(): React.ReactElement {
         </div>
 
         {/* Student list with attendance toggle */}
-        <div className="space-y-2">
-          {students.map((student, idx) => (
-            <div
-              key={student.id}
-              className="card-hover flex items-center justify-between gap-3 p-4"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cata-red/15">
-                  <UserCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                </div>
-                <span className="text-sm font-medium text-cata-text">
-                  {student.name}
-                </span>
-              </div>
-
-              {/* Quick-toggle button cycles through states */}
-              <div className="flex items-center gap-1.5">
-                {/* Quick-state buttons for each attendance option */}
-                <div className="hidden gap-1 sm:flex">
-                  {ATTENDANCE_STATES.map((state) => {
-                    const isActive = student.attendance === state;
-                    return (
-                      <button
-                        key={state}
-                        type="button"
-                        onClick={() => handleDirectAttendanceSet(idx, state)}
-                        title={ATTENDANCE_LABELS[state]}
-                        className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
-                          isActive
-                            ? `border-current/20 ${getAttendanceBadgeTokens(state).badgeClass}`
-                            : "border-transparent text-cata-text/45 hover:border-cata-border hover:text-cata-text/65"
-                        }`}
-                      >
-                        {ATTENDANCE_ICONS[state]}
-                        <span className="hidden lg:inline">{ATTENDANCE_LABELS[state]}</span>
-                      </button>
-                    );
-                  })}
+        {students.length === 0 ? (
+          <div className="card flex flex-col items-center py-10 text-center">
+            <Users size={28} strokeWidth={1.5} className="mb-2 text-cata-text/20" aria-hidden="true" />
+            <p className="text-sm text-cata-text/50">Este grupo no tiene estudiantes asignados.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {students.map((student, idx) => (
+              <div
+                key={student.id}
+                className="card-hover flex items-center justify-between gap-3 p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cata-red/15">
+                    <UserCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                  </div>
+                  <span className="text-sm font-medium text-cata-text">
+                    {student.name}
+                  </span>
                 </div>
 
-                {/* Mobile/compact toggle (cycle) */}
-                <button
-                  type="button"
-                  onClick={() => handleToggleAttendance(idx)}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 sm:hidden ${
-                    getAttendanceBadgeTokens(student.attendance).badgeClass
-                  }`}
-                >
-                  {ATTENDANCE_ICONS[student.attendance]}
-                  {ATTENDANCE_LABELS[student.attendance]}
-                </button>
+                {/* Quick-toggle button cycles through states */}
+                <div className="flex items-center gap-1.5">
+                  {/* Quick-state buttons for each attendance option */}
+                  <div className="hidden gap-1 sm:flex">
+                    {ATTENDANCE_STATES.map((state) => {
+                      const isActive = student.attendance === state;
+                      return (
+                        <button
+                          key={state}
+                          type="button"
+                          onClick={() => handleDirectAttendanceSet(idx, state)}
+                          title={ATTENDANCE_LABELS[state]}
+                          className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
+                            isActive
+                              ? `border-current/20 ${getAttendanceBadgeTokens(state).badgeClass}`
+                              : "border-transparent text-cata-text/45 hover:border-cata-border hover:text-cata-text/65"
+                          }`}
+                        >
+                          {ATTENDANCE_ICONS[state]}
+                          <span className="hidden lg:inline">{ATTENDANCE_LABELS[state]}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Mobile/compact toggle (cycle) */}
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAttendance(idx)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 sm:hidden ${
+                      getAttendanceBadgeTokens(student.attendance).badgeClass
+                    }`}
+                  >
+                    {ATTENDANCE_ICONS[student.attendance]}
+                    {ATTENDANCE_LABELS[student.attendance]}
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Trainer attribution reminder */}
         <div className="rounded-xl border border-cata-border bg-cata-bg p-3 text-xs text-cata-text/65">
@@ -342,7 +468,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
   }
 
   function renderConfirmation(): React.ReactElement | null {
-    if (!selectedSession) return null;
+    if (!selectedSchedule || !selectedNivel) return null;
 
     const presentCount = countByState(students, "present");
     const absentCount = countByState(students, "absent");
@@ -367,19 +493,11 @@ export default function TrainerAttendancePage(): React.ReactElement {
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <dt className="text-cata-text/65">Grupo</dt>
             <dd className="font-medium text-cata-text">
-              {selectedSession.groupName}
+              {selectedNivel.nombre ?? `Nivel ${selectedNivel.numeroNivel}`}
             </dd>
             <dt className="text-cata-text/65">Horario</dt>
             <dd className="font-medium text-cata-text">
-              {selectedSession.time}
-            </dd>
-            <dt className="text-cata-text/65">Cancha</dt>
-            <dd className="font-medium text-cata-text">
-              {selectedSession.court}
-            </dd>
-            <dt className="text-cata-text/65">Nivel</dt>
-            <dd className="font-medium text-cata-text">
-              {selectedSession.level}
+              {formatDay(selectedSchedule.diaSemana)} {selectedSchedule.horaInicio} — {selectedSchedule.horaFin}
             </dd>
           </dl>
         </div>
@@ -431,17 +549,11 @@ export default function TrainerAttendancePage(): React.ReactElement {
           </p>
         </div>
 
-        {/* Demo note */}
-        <div className="rounded-xl border border-amber-500/30 bg-amber-900/20 p-3 text-xs text-amber-400">
-          <p className="flex items-center gap-1.5 font-medium">
-            <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
-            Demo — Sin almacenamiento real
-          </p>
-          <p className="mt-1 text-amber-700/80">
-            Esta es una demostración del flujo de registro de asistencia.
-            En producción, los datos se enviarían al backend para su almacenamiento permanente.
-          </p>
-        </div>
+        {submitError && (
+          <div className="alert-error" role="alert">
+            {submitError}
+          </div>
+        )}
       </div>
     );
   }
@@ -462,20 +574,32 @@ export default function TrainerAttendancePage(): React.ReactElement {
             <p className="mb-2 text-sm leading-relaxed text-cata-text/65">
               La asistencia para{" "}
               <strong className="text-cata-text">
-                {selectedSession?.groupName}
+                {selectedNivel?.nombre ?? "el grupo seleccionado"}
               </strong>{" "}
               ha sido registrada exitosamente.
             </p>
             <p className="mb-2 text-sm leading-relaxed text-cata-text/65">
               <strong className="text-cata-text">{trainerName}</strong> figura como
               el entrenador que tomó la asistencia de{" "}
-              <strong className="text-cata-text">{students.length} estudiantes</strong>.
+              <strong className="text-cata-text">{result?.createdCount ?? 0} estudiantes</strong>.
             </p>
             {students.length > 0 && (
-              <p className="mb-8 text-xs text-cata-text/40">
+              <p className="mb-4 text-xs text-cata-text/40">
                 {buildAttendanceSummary(students)}
               </p>
             )}
+            {result && result.failed.length > 0 && (
+              <div className="mb-8 rounded-xl border border-amber-500/30 bg-amber-900/20 p-3 text-left text-xs text-amber-400">
+                <p className="flex items-center gap-1.5 font-medium">
+                  <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
+                  {result.failed.length} registro(s) no se pudieron guardar
+                </p>
+                <p className="mt-1 text-amber-700/80">
+                  Vuelva a intentar el registro para esos estudiantes desde una nueva sesión.
+                </p>
+              </div>
+            )}
+            {(!result || result.failed.length === 0) && <div className="mb-8" />}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
               <button type="button" onClick={handleReset} className="btn-primary shadow-soft">
@@ -492,122 +616,139 @@ export default function TrainerAttendancePage(): React.ReactElement {
           {/* Hero Banner */}
           <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
             <div className="absolute inset-0 bg-logo-glow" />
-            <div className="relative z-10 flex items-start justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
-                  <UserCheck size={14} strokeWidth={2} aria-hidden="true" />
-                  Registro de Asistencia
-                </div>
-                <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
-                  Asistencia de Sesión
-                </h1>
-                <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-                  {step === "select-session" && "Seleccione la sesión en la que desea registrar asistencia."}
-                  {step === "mark-attendance" && "Marque la asistencia de cada estudiante en la sesión seleccionada."}
-                  {step === "confirm" && "Revise y confirme el registro de asistencia."}
-                </p>
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
+                <UserCheck size={14} strokeWidth={2} aria-hidden="true" />
+                Registro de Asistencia
               </div>
-              <span className="hidden rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700 sm:inline-block">
-                Demo
-              </span>
+              <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
+                Asistencia de Sesión
+              </h1>
+              <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
+                {step === "select-session" && "Seleccione el horario y el grupo en el que desea registrar asistencia."}
+                {step === "mark-attendance" && "Marque la asistencia de cada estudiante en la sesión seleccionada."}
+                {step === "confirm" && "Revise y confirme el registro de asistencia."}
+              </p>
             </div>
           </div>
 
-          {/* Progress bar */}
-          <div className="mb-8">
-            <div className="mb-2 flex items-center justify-between text-xs text-cata-text/45">
-              <span>
-                Paso {currentIndex + 1} de {STEP_ORDER.length}
-              </span>
-              <span>{STEP_LABELS[step]}</span>
+          {/* Loading state */}
+          {loading && (
+            <div className="flex items-center justify-center py-16">
+              <div className="flex items-center gap-2">
+                <Clock size={16} strokeWidth={1.5} className="animate-spin text-cata-text/65" aria-hidden="true" />
+                <p className="text-sm text-cata-text/50">Cargando horarios y grupos...</p>
+              </div>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-cata-border">
-              <div
-                className="h-full rounded-full bg-cata-red transition-all duration-400 ease-out"
-                style={{ width: `${progress}%` }}
-              />
+          )}
+
+          {/* Error state */}
+          {loadError && !loading && (
+            <div className="card mb-8 border border-red-200 bg-red-50 p-6 text-center">
+              <XCircle size={32} strokeWidth={1.5} className="mx-auto mb-3 text-red-700" aria-hidden="true" />
+              <p className="text-sm text-cata-red">{loadError}</p>
+              <button type="button" onClick={() => loadOptions()} className="btn-ghost mt-3 text-xs text-cata-red">
+                Reintentar
+              </button>
             </div>
-          </div>
+          )}
 
-          {/* Form card */}
-          <div className="card mx-auto max-w-2xl p-6 sm:p-8">
-            <div className="mb-6 flex items-center gap-2">
-              <ClipboardList size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-              <h2 className="text-lg font-semibold text-cata-text">
-                {STEP_LABELS[step]}
-              </h2>
-            </div>
-
-            <form onSubmit={handleConfirm}>
-              {/* Step content */}
-              {step === "select-session" && renderSessionSelection()}
-              {step === "mark-attendance" && renderMarkAttendance()}
-              {step === "confirm" && renderConfirmation()}
-
-              {/* Navigation buttons */}
-              <div className="mt-8 flex items-center justify-between gap-3">
-                <div>
-                  {!isFirst && (
-                    <button
-                      type="button"
-                      onClick={handleBack}
-                      disabled={submitting}
-                      className="btn-ghost"
-                    >
-                      <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
-                      Atrás
-                    </button>
-                  )}
+          {!loading && !loadError && (
+            <>
+              {/* Progress bar */}
+              <div className="mb-8">
+                <div className="mb-2 flex items-center justify-between text-xs text-cata-text/45">
+                  <span>
+                    Paso {currentIndex + 1} de {STEP_ORDER.length}
+                  </span>
+                  <span>{STEP_LABELS[step]}</span>
                 </div>
-
-                <div className="flex gap-3">
-                  {!isLast && step !== "select-session" ? (
-                    <button
-                      type="button"
-                      onClick={handleNext}
-                      className="btn-primary shadow-soft"
-                    >
-                      Siguiente
-                      <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
-                    </button>
-                  ) : null}
-
-                  {isLast && (
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="btn-primary shadow-soft"
-                    >
-                      {submitting ? (
-                        "Registrando..."
-                      ) : (
-                        <>
-                          <CheckCircle size={14} strokeWidth={2} aria-hidden="true" />
-                          Confirmar Asistencia
-                        </>
-                      )}
-                    </button>
-                  )}
+                <div className="h-1.5 overflow-hidden rounded-full bg-cata-border">
+                  <div
+                    className="h-full rounded-full bg-cata-red transition-all duration-400 ease-out"
+                    style={{ width: `${progress}%` }}
+                  />
                 </div>
               </div>
-            </form>
-          </div>
 
-          {/* Navigation link */}
-          <p className="mt-6 text-center text-sm text-cata-text/65">
-            <Link
-              href="/trainer"
-              className="font-medium text-cata-red transition-colors hover:text-cata-red-light"
-            >
-              &larr; Volver al Panel del Entrenador
-            </Link>
-          </p>
+              {/* Form card */}
+              <div className="card mx-auto max-w-2xl p-6 sm:p-8">
+                <div className="mb-6 flex items-center gap-2">
+                  <ClipboardList size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                  <h2 className="text-lg font-semibold text-cata-text">
+                    {STEP_LABELS[step]}
+                  </h2>
+                </div>
 
-          {/* Demo note */}
-          <p className="mt-4 text-center text-xs text-cata-text/30">
-            Prototipo de demostración interactivo. No se almacena ningún dato real.
-            Datos ficticios para fines de presentación.
-          </p>
+                <form onSubmit={handleConfirm}>
+                  {/* Step content */}
+                  {step === "select-session" && renderSessionSelection()}
+                  {step === "mark-attendance" && renderMarkAttendance()}
+                  {step === "confirm" && renderConfirmation()}
+
+                  {/* Navigation buttons */}
+                  {step !== "select-session" && (
+                    <div className="mt-8 flex items-center justify-between gap-3">
+                      <div>
+                        {!isFirst && (
+                          <button
+                            type="button"
+                            onClick={handleBack}
+                            disabled={submitting}
+                            className="btn-ghost"
+                          >
+                            <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+                            Atrás
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex gap-3">
+                        {!isLast ? (
+                          <button
+                            type="button"
+                            onClick={handleNext}
+                            disabled={students.length === 0}
+                            className="btn-primary shadow-soft"
+                          >
+                            Siguiente
+                            <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                          </button>
+                        ) : null}
+
+                        {isLast && (
+                          <button
+                            type="submit"
+                            disabled={submitting || entrenadorPersonaId === null}
+                            className="btn-primary shadow-soft"
+                          >
+                            {submitting ? (
+                              "Registrando..."
+                            ) : (
+                              <>
+                                <CheckCircle size={14} strokeWidth={2} aria-hidden="true" />
+                                Confirmar Asistencia
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </form>
+              </div>
+
+              {/* Navigation link */}
+              <p className="mt-6 text-center text-sm text-cata-text/65">
+                <Link
+                  href="/trainer"
+                  className="font-medium text-cata-red transition-colors hover:text-cata-red-light"
+                >
+                  &larr; Volver al Panel del Entrenador
+                </Link>
+              </p>
+            </>
+          )}
         </div>
       )}
     </ProtectedRoute>

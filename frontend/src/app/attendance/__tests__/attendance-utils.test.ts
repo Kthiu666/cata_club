@@ -116,8 +116,12 @@ describe("formatDay", () => {
     expect(formatDay("sab")).toBe("Sábado");
   });
 
+  it('returns "Domingo" for dom (backend covers the full civil week)', () => {
+    expect(formatDay("dom")).toBe("Domingo");
+  });
+
   it("returns a label for every known day", () => {
-    const days = ["lun", "mar", "mie", "jue", "vie", "sab"] as const;
+    const days = ["lun", "mar", "mie", "jue", "vie", "sab", "dom"] as const;
     for (const day of days) {
       expect(formatDay(day).length).toBeGreaterThan(0);
     }
@@ -125,9 +129,9 @@ describe("formatDay", () => {
 
   it("returns fallback for unexpected day value at runtime", () => {
     // @ts-expect-error — testing runtime resilience with unexpected value
-    const result = formatDay("dom");
+    const result = formatDay("domingo");
     expect(result).toContain("Día desconocido");
-    expect(result).toContain("dom");
+    expect(result).toContain("domingo");
   });
 
   it("never returns undefined", () => {

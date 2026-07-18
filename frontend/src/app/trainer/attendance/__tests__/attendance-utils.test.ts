@@ -9,9 +9,10 @@ import {
   nextAttendanceState,
   countByState,
   buildAttendanceSummary,
-  AVAILABLE_SESSIONS,
+  buildRosterFromTabla,
   type SessionStudent,
 } from "../attendance-utils";
+import type { TablaRankingItem } from "@/services/api";
 
 describe("nextAttendanceState", () => {
   it("cycles absent → present", () => {
@@ -99,31 +100,26 @@ describe("buildAttendanceSummary", () => {
   });
 });
 
-describe("AVAILABLE_SESSIONS", () => {
-  it("provides exactly 7 active sessions (inactive schedules excluded)", () => {
-    // Derivation: grupo-001 (hor-001, hor-004, hor-007 → 3 active),
-    // grupo-002 (hor-002 active, hor-005 inactive → 1 active),
-    // grupo-003 (hor-003, hor-006, hor-008 → 3 active) = 7 total.
-    // If an inactive schedule leaks, this count breaks.
-    expect(AVAILABLE_SESSIONS.length).toBe(7);
+describe("buildRosterFromTabla", () => {
+  const tabla: TablaRankingItem[] = [
+    { personaId: 3, personaNombreCompleto: "Sofia Alumna", posicionActual: null, puntajeAcumulado: 0, estaEnRanking: true },
+    { personaId: 7, personaNombreCompleto: "Mateo Rodríguez", posicionActual: 2, puntajeAcumulado: 40, estaEnRanking: true },
+  ];
+
+  it("maps each roster row to a SessionStudent defaulted to absent", () => {
+    const roster = buildRosterFromTabla(tabla);
+    expect(roster).toEqual([
+      { id: "3", name: "Sofia Alumna", attendance: "absent" },
+      { id: "7", name: "Mateo Rodríguez", attendance: "absent" },
+    ]);
   });
 
-  it("each session has students initialized to absent", () => {
-    for (const session of AVAILABLE_SESSIONS) {
-      expect(session.students.length).toBeGreaterThan(0);
-      expect(session.students.every((s) => s.attendance === "absent")).toBe(true);
-    }
+  it("returns an empty roster for an empty tabla", () => {
+    expect(buildRosterFromTabla([])).toEqual([]);
   });
 
-  it("each session has required fields", () => {
-    for (const session of AVAILABLE_SESSIONS) {
-      expect(session.id).toBeTruthy();
-      expect(session.groupName).toBeTruthy();
-      expect(session.time).toBeTruthy();
-      expect(session.court).toBeTruthy();
-      expect(session.level).toBeTruthy();
-      expect(session.studentCount).toBeGreaterThan(0);
-      expect(session.students.every((s) => Boolean(s.id))).toBe(true);
-    }
+  it("stringifies personaId for use as a stable React key / POST payload id", () => {
+    const roster = buildRosterFromTabla(tabla);
+    expect(roster.every((s) => typeof s.id === "string")).toBe(true);
   });
 });
