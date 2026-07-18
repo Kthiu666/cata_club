@@ -16,7 +16,6 @@ import {
   AlertTriangle,
   UserCircle,
   User,
-  ChevronDown,
   GraduationCap,
   Building2,
   UserPlus,
@@ -531,28 +530,35 @@ export default function StudentPage(): React.ReactElement {
 
         {isRepresentative && students.length > 1 && (
           <div className="mb-4">
-            <label htmlFor="student-select" className="text-xs font-medium text-cata-text/45">
+            <p id="student-select-label" className="mb-1.5 text-xs font-medium text-cata-text/45">
               Seleccionar estudiante
-            </label>
-            <div className="relative mt-1 inline-block">
-              <select
-                id="student-select"
-                value={selectedStudentId}
-                onChange={(e) => handleStudentChange(e.target.value)}
-                className="appearance-none rounded-xl border border-cata-border bg-cata-surface px-4 py-2 pr-10 text-sm font-medium text-cata-text shadow-sm transition-colors hover:border-cata-red/30 focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/10"
-              >
-                {students.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nombre} — {s.grupo}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={14}
-                strokeWidth={1.5}
-                className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
-                aria-hidden="true"
-              />
+            </p>
+            <div
+              role="group"
+              aria-labelledby="student-select-label"
+              className="flex flex-wrap gap-2"
+            >
+              {students.map((s) => {
+                const isSelected = s.id === selectedStudentId;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => handleStudentChange(s.id)}
+                    aria-pressed={isSelected}
+                    className={`flex flex-col items-start rounded-xl border px-4 py-2 text-left text-sm font-medium transition-colors ${
+                      isSelected
+                        ? "border-cata-red bg-cata-red/10 text-cata-red"
+                        : "border-cata-border bg-cata-surface text-cata-text hover:border-cata-red/30"
+                    }`}
+                  >
+                    {s.nombre}
+                    <span className={`text-xs font-normal ${isSelected ? "text-cata-red/70" : "text-cata-text/45"}`}>
+                      {s.grupo}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
