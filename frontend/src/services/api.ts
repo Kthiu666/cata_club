@@ -17,7 +17,14 @@
  *          timeout instead — so provide one if you need timeout guarantees.
  */
 
-import type { UserRole, EstadoAsistencia } from "@/types/domain";
+import type {
+  UserRole,
+  EstadoAsistencia,
+  CategoriaRanking,
+  ResultadoMensual,
+  CierreMensual,
+  SeleccionOficial,
+} from "@/types/domain";
 import type { EnrollmentRequest, EnrollmentResponse } from "@/types/enrollment";
 import type { AttendanceRecord, TrainingSchedule } from "@/app/attendance/attendance-utils";
 import type { MemberAccount } from "@/app/members/members-utils";
@@ -593,4 +600,111 @@ export interface DashboardStats {
 /** Fetch aggregate dashboard stats, composed server-side from `/personas`, `/membresias/pagos*` and `/asistencias/horarios` — `GET /api/dashboard`. */
 export async function fetchDashboardStats(): Promise<DashboardStats> {
   return request<DashboardStats>(apiEndpoint("/dashboard"));
+}
+
+// ---------------------------------------------------------------------------
+// Ranking (Track Ranking) API Methods
+//
+// Unlike the mock-store-backed /payments routes above, these BFF routes
+// (src/app/api/ranking/**) always proxy to the real backend via the
+// access-token cookie — mirroring the auth routes' pattern, not the mock
+// pattern. See src/app/api/ranking/* route handlers for the proxy logic.
+// ---------------------------------------------------------------------------
+
+/** DTO for POST /ranking/resultados-mensuales — register a monthly result. */
+export interface RegistrarResultadoMensualDTO {
+  estudianteId: string;
+  categoria: CategoriaRanking;
+  /** "YYYY-MM" */
+  periodo: string;
+  puntos: number;
+  observacion?: string;
+}
+
+/** DTO for POST /ranking/niveles/:id/cerrar-mes — close out a ranking month. */
+export interface CerrarMesDTO {
+  /** "YYYY-MM" */
+  periodo: string;
+}
+
+/** DTO for POST /ranking/seleccion-oficial — register/update the official-selection roster. */
+export interface SeleccionOficialDTO {
+  estudianteId: string;
+  categoria: CategoriaRanking;
+  /** "YYYY-MM" */
+  periodo: string;
+}
+
+/**
+ * DTO for PATCH /ranking/niveles/:id — assign a student to a ranking
+ * category. `:id` is the target `categoria` (1–10); the student being
+ * assigned travels in the body. See the route handler's doc comment for
+ * why this shape was chosen (gap-fill, not in the original backend contract).
+ */
+export interface AsignarNivelDTO {
+  estudianteId: string;
+}
+
+/** Register a monthly ranking result for a student (CU — Resultados Mensuales). */
+export async function registrarResultadoMensual(
+  data: RegistrarResultadoMensualDTO,
+): Promise<ResultadoMensual> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<ResultadoMensual>(apiEndpoint("/ranking/resultados-mensuales"), {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: mockHeaders,
+  });
+}
+
+/** Close out the ranking month for a given category (CU — Cierre de Mes). Irreversible. */
+export async function cerrarMes(
+  categoria: CategoriaRanking,
+  data: CerrarMesDTO,
+): Promise<CierreMensual> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<CierreMensual>(apiEndpoint(`/ranking/niveles/${categoria}/cerrar-mes`), {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: mockHeaders,
+  });
+}
+
+/** Re-admit ("reingresar") a previously dropped/inactive student into the ranking. */
+export async function reingresar(estudianteId: string): Promise<{ success: boolean }> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<{ success: boolean }>(apiEndpoint(`/ranking/${estudianteId}/reingresar`), {
+    method: "POST",
+    headers: mockHeaders,
+  });
+}
+
+/** Register/update an entry in the admin-managed official-selection roster. */
+export async function seleccionOficial(
+  data: SeleccionOficialDTO,
+): Promise<SeleccionOficial> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<SeleccionOficial>(apiEndpoint("/ranking/seleccion-oficial"), {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: mockHeaders,
+  });
+}
+
+/**
+ * Assign a student to a ranking category ("Asignar Nivel"). Not part of the
+ * original ticket — added to fill an obvious gap (the UI tab had no backend
+ * action to call). Follows the `niveles/:id` URL-shape convention of its
+ * `cerrar-mes` sibling; the real backend contract should be confirmed later.
+ */
+export async function asignarNivel(
+  categoria: CategoriaRanking,
+  data: AsignarNivelDTO,
+): Promise<{ success: boolean }> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<{ success: boolean }>(apiEndpoint(`/ranking/niveles/${categoria}`), {
+    method: "PATCH",
+    body: JSON.stringify(data),
+    headers: mockHeaders,
+  });
 }
