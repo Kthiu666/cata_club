@@ -32,7 +32,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       # JWT_SECRET_KEY: MUST be set in .env — the backend refuses to start
       # if it detects a placeholder or missing secret (fail-fast validator).
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Error: define JWT_SECRET_KEY in .env (run: openssl rand -hex 32)}
+      JWT_SECRET_KEY: "${JWT_SECRET_KEY:?Error: define JWT_SECRET_KEY in .env (run: openssl rand -hex 32)}"
       JWT_ALGORITMO: HS256
       JWT_EXPIRA_MINUTOS: 60
       JWT_REFRESH_EXPIRA_DIAS: 7

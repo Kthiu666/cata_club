@@ -30,7 +30,9 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-RUN addgroup --system nodegroup && adduser --system --ingroup nodegroup nodeuser
+RUN addgroup --system nodegroup && adduser --system --ingroup nodegroup nodeuser \
+    && mkdir -p /app/.next/cache \
+    && chown -R nodeuser:nodegroup /app
 USER nodeuser
 
 EXPOSE 3000

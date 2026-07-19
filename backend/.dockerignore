@@ -3,7 +3,6 @@ __pycache__
 *.pyc
 .git
 tests
-scripts
 .env
 .pytest_cache
 .coverage
