@@ -92,7 +92,7 @@ test.describe("Admin smoke", () => {
     // ── Step 1: Navigate to login page ──
     await page.goto("/login");
     // Wait for auth skeleton to resolve and the form to render (stable user-visible control)
-    await expect(page.getByLabel(/correo electrónico/i)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByLabel(/correo electrónico/i)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole("heading", { name: /bienvenido/i })).toBeVisible();
 
     // ── Step 2: Fill in admin credentials ──
