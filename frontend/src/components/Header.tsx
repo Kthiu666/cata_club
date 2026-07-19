@@ -29,6 +29,8 @@ import {
   User,
   Users,
   Calendar,
+  Trophy,
+  Award,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNavLinksForRole, type NavLinkDef } from "@/lib/auth-utils";
@@ -57,6 +59,8 @@ const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
   "/payments": ShieldCheck,
   "/attendance": Calendar,
   "/trainer": GraduationCap,
+  "/trainer/ranking": Trophy,
+  "/groups#seleccion-oficial": Award,
   "/student": GraduationCap,
 };
 
