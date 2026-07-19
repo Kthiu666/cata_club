@@ -52,6 +52,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['registrado_por_id'], ['persona.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    sa.Enum('DIESTRO', 'ZURDO', name='tipomanodominante').create(op.get_bind(), checkfirst=True)
     with op.batch_alter_table('antecedentes_club', schema=None) as batch_op:
         batch_op.add_column(sa.Column('mano_dominante', sa.Enum('DIESTRO', 'ZURDO', name='tipomanodominante'), nullable=True))
 
@@ -87,6 +88,7 @@ def downgrade() -> None:
 
     with op.batch_alter_table('antecedentes_club', schema=None) as batch_op:
         batch_op.drop_column('mano_dominante')
+    sa.Enum(name='tipomanodominante').drop(op.get_bind(), checkfirst=True)
 
     op.drop_table('movimiento_evento')
     op.drop_table('egreso')
