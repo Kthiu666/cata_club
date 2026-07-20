@@ -771,16 +771,6 @@ export async function restablecerContrasenia(
  * "Solicitar Clase Extra" form must stay disabled and show a "not available"
  * message.
  */
-/**
- * Memberships owned by a persona. Needed to discover `membresia_id` for
- * `POST /clases-extra/` because the backend requires it but has no other
- * student-facing endpoint that returns it.
- *
- * REQUIRES a new backend endpoint (e.g. `GET /membresias/persona/{persona_id}`)
- * or equivalent to be implemented by the backend group. Without it, the
- * "Solicitar Clase Extra" form must stay disabled and show a "not available"
- * message.
- */
 export interface MembresiaPorPersona {
   id: number;
   estado: "INACTIVA" | "ACTIVA" | "VENCIDA";
