@@ -31,6 +31,7 @@ import {
   Calendar,
   Trophy,
   Award,
+  FileText,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNavLinksForRole, type NavLinkDef } from "@/lib/auth-utils";
@@ -61,6 +62,7 @@ export const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
   "/trainer": GraduationCap,
   "/trainer/ranking": Trophy,
   "/groups#seleccion-oficial": Award,
+  "/reports": FileText,
   "/student": GraduationCap,
 };
 
@@ -279,7 +281,7 @@ export default function Header({ hideOnLanding = false }: HeaderProps): React.Re
         </Link>
 
         {/* Desktop nav */}
-        <ul className="hidden items-center gap-0.5 md:flex">
+        <ul className="hidden items-center gap-0.5 md:flex md:flex-wrap">
           {links.map((link): React.ReactElement => {
             const isActive = pathname === link.href;
             return (

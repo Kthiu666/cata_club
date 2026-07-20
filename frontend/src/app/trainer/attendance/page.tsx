@@ -256,23 +256,32 @@ export default function TrainerAttendancePage(): React.ReactElement {
                     key={sched.id}
                     type="button"
                     onClick={() => setSelectedScheduleId(sched.id)}
-                    className={`rounded-xl border p-4 text-left transition-all duration-150 ${
+                    className={`card-hover p-5 text-left transition-all duration-150 ${
                       isActive
-                        ? "border-cata-red bg-cata-red/10"
-                        : "border-cata-border bg-cata-surface hover:border-cata-red/40"
+                        ? "ring-2 ring-cata-red/30 border-cata-red/20"
+                        : ""
                     }`}
                   >
-                    <div className="flex items-center gap-2 text-sm font-semibold text-cata-text">
-                      <Calendar size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                      {formatDay(sched.diaSemana)}
+                    <div className="mb-2.5 flex items-center gap-2.5">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                        <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                      </div>
+                      <span className="text-sm font-bold text-cata-text">
+                        {formatDay(sched.diaSemana)}
+                      </span>
                     </div>
-                    <p className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/65">
-                      <Clock size={12} strokeWidth={1.5} aria-hidden="true" />
-                      {sched.horaInicio} — {sched.horaFin}
-                    </p>
-                    <p className="mt-1 text-xs text-cata-text/65">
-                      Titular: {sched.entrenadorNombre}
-                    </p>
+                    <div className="rounded-lg bg-cata-bg/60 px-3 py-2">
+                      <p className="flex items-center gap-1.5 text-xs text-cata-text/70">
+                        <Clock size={13} strokeWidth={1.5} className="text-cata-red/70" aria-hidden="true" />
+                        <span className="font-semibold text-cata-text">{sched.horaInicio}</span>
+                        <span className="text-cata-text/40">a</span>
+                        <span className="font-semibold text-cata-text">{sched.horaFin}</span>
+                      </p>
+                      <p className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/55">
+                        <UserCheck size={12} strokeWidth={1.5} aria-hidden="true" />
+                        {sched.entrenadorNombre}
+                      </p>
+                    </div>
                   </button>
                 );
               })}

@@ -141,7 +141,7 @@ describe("getNavLinksForRole", () => {
 
   it("returns admin links including /groups, /members, /attendance and Selección Oficial", () => {
     const links = getNavLinksForRole("admin");
-    expect(links).toHaveLength(7);
+    expect(links).toHaveLength(8);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
     expect(links[1]).toEqual({ href: "/dashboard", label: "Administración" });
     expect(links[2]).toEqual({ href: "/members", label: "Miembros" });
@@ -149,6 +149,7 @@ describe("getNavLinksForRole", () => {
     expect(links[4]).toEqual({ href: "/payments", label: "Membresías y Pagos" });
     expect(links[5]).toEqual({ href: "/attendance", label: "Horarios y Asistencia" });
     expect(links[6]).toEqual({ href: "/groups#seleccion-oficial", label: "Selección Oficial" });
+    expect(links[7]).toEqual({ href: "/reports", label: "Reportes" });
   });
 
   it("returns trainer links including Ranking", () => {

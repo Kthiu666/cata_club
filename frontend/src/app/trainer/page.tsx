@@ -32,6 +32,7 @@ import {
 import { fetchTrainingSchedules, fetchAttendanceRecords } from "@/services/api";
 import {
   buildAttendanceStats,
+  formatDay,
   jsDayIndexToDiaSemana,
   type AttendanceRecord,
   type TrainingSchedule,
@@ -138,6 +139,7 @@ export default function TrainerPage(): React.ReactElement {
         )}
 
         {!loading && !error && (
+          <>
           <div className="mb-10 grid gap-5 sm:grid-cols-3">
             <div className="card-hover p-5 sm:p-6">
               <div className="mb-4 flex items-start justify-between">
@@ -181,6 +183,47 @@ export default function TrainerPage(): React.ReactElement {
               </p>
             </div>
           </div>
+
+          {/* Today's schedule cards */}
+          {todaySchedules.length > 0 && (
+            <div className="mt-8">
+              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-cata-text/45">
+                Horarios de Hoy
+              </h2>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {todaySchedules.map((sched) => (
+                  <div key={sched.id} className="card-hover p-5">
+                    <div className="mb-2.5 flex items-center gap-2.5">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                        <Calendar size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                      </div>
+                      <div>
+                        <span className="block text-sm font-bold text-cata-text">
+                          {formatDay(sched.diaSemana)}
+                        </span>
+                        <span className="text-xs text-cata-text/50">
+                          {sched.horaInicio}–{sched.horaFin}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-cata-bg/60 px-3 py-2">
+                      <p className="flex items-center gap-1.5 text-xs text-cata-text/70">
+                        <Clock size={13} strokeWidth={1.5} className="text-cata-red/70" aria-hidden="true" />
+                        <span className="font-semibold text-cata-text">{sched.horaInicio}</span>
+                        <span className="text-cata-text/40">a</span>
+                        <span className="font-semibold text-cata-text">{sched.horaFin}</span>
+                      </p>
+                      <p className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/55">
+                        <UserCheck size={12} strokeWidth={1.5} aria-hidden="true" />
+                        {sched.entrenadorNombre}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          </>
         )}
       </AppShell>
     </ProtectedRoute>

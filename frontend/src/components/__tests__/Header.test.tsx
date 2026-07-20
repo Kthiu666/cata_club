@@ -234,6 +234,12 @@ describe("Header", (): void => {
     expect(
       screen.getByRole("link", { name: /Horarios/i }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Selección Oficial/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Reportes/i }),
+    ).toBeInTheDocument();
 
     // User info
     expect(screen.getByText("Admin Cata Club")).toBeInTheDocument();

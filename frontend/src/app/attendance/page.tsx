@@ -253,23 +253,30 @@ export default function AttendancePage(): React.ReactElement {
               {filteredSchedules.length > 0 ? (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {filteredSchedules.map((slot) => (
-                    <div key={slot.id} className="card-hover p-4">
-                      <div className="mb-3 flex items-center gap-2">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cata-red/15">
-                          <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                    <div key={slot.id} className="card-hover p-5">
+                      <div className="mb-3 flex items-center gap-2.5">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                          <Calendar size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                         </div>
-                        <span className="text-sm font-bold text-cata-text">
-                          {formatDay(slot.diaSemana)}
-                        </span>
+                        <div>
+                          <span className="block text-sm font-bold text-cata-text">
+                            {formatDay(slot.diaSemana)}
+                          </span>
+                          <span className="text-xs text-cata-text/50">
+                            {slot.horaInicio}–{slot.horaFin}
+                          </span>
+                        </div>
                       </div>
-                      <div className="space-y-1.5 text-xs text-cata-text/65">
-                        <p className="flex items-center gap-1.5">
-                          <Clock size={12} strokeWidth={1.5} aria-hidden="true" />
-                          {slot.horaInicio} — {slot.horaFin}
+                      <div className="rounded-lg bg-cata-bg/60 px-3 py-2">
+                        <p className="flex items-center gap-1.5 text-xs text-cata-text/70">
+                          <Clock size={13} strokeWidth={1.5} className="text-cata-red/70" aria-hidden="true" />
+                          <span className="font-semibold text-cata-text">{slot.horaInicio}</span>
+                          <span className="text-cata-text/40">a</span>
+                          <span className="font-semibold text-cata-text">{slot.horaFin}</span>
                         </p>
-                        <p className="flex items-center gap-1.5">
+                        <p className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/55">
                           <UserCheck size={12} strokeWidth={1.5} aria-hidden="true" />
-                          Entrenador titular: {slot.entrenadorNombre}
+                          {slot.entrenadorNombre}
                         </p>
                       </div>
                     </div>

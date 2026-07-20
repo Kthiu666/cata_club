@@ -53,6 +53,7 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
         // ProtectedRoute on the trainer route. See auth-utils "Files to
         // MODIFY" note in the ranking-track task for the full rationale.
         { href: "/groups#seleccion-oficial", label: "Selección Oficial" },
+        { href: "/reports", label: "Reportes" },
       );
       break;
     case "trainer":

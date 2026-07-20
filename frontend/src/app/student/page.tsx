@@ -139,19 +139,19 @@ function RecentSessionsSection({ profile }: { profile: StudentProfileSummary }):
           <p className="text-sm text-cata-text/50">Aún no hay asistencias registradas.</p>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2">
           {profile.recentSessions.map((session) => {
             const tokens = ATTENDANCE_BADGE_TOKENS[session.estado];
             return (
-              <div key={`${session.fecha}-${session.horario}`} className="card-hover p-4 sm:p-5">
+              <div key={`${session.fecha}-${session.horario}`} className="card-hover p-5">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
-                    <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                    <Calendar size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-cata-text">{session.fecha}</p>
-                    <p className="text-sm text-cata-text/65">{session.horario}</p>
-                    <span className={`mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${tokens.badgeClass}`}>
+                    <p className="text-sm font-semibold text-cata-text">{session.fecha}</p>
+                    <p className="mt-0.5 text-xs text-cata-text/55">{session.horario}</p>
+                    <span className={`mt-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${tokens.badgeClass}`}>
                       {ATTENDANCE_LABELS[session.estado]}
                     </span>
                   </div>
