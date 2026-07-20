@@ -83,13 +83,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       ? ((await pagosResult.response.json()) as PaginatedResponse<BackendPagoListItem>).items
       : [];
 
-  const uniqueMembresiaIds = [...new Set(pagos.map((pago) => pago.membresiaId))];
-  const membresias = await Promise.all(
-    uniqueMembresiaIds.map(async (membresiaId) => {
-      const result = await backendFetchAuthed(request, `/membresias/${membresiaId}`);
-      return result.ok && result.response.ok ? ((await result.response.json()) as BackendMembresia) : undefined;
-    }),
-  );
+  // Issue #4 fix: usar GET /membresias bulk en vez de N+1 individuales.
+  const membresiasResult = await backendFetchAuthed(request, "/membresias/?limit=200");
+  const membresias: BackendMembresia[] =
+    membresiasResult.ok && membresiasResult.response.ok
+      ? ((await membresiasResult.response.json()) as PaginatedResponse<BackendMembresia>).items
+      : [];
   const activeMemberships = membresias.filter((membresia) => membresia?.estado === "ACTIVA").length;
 
   const pendingPayments =

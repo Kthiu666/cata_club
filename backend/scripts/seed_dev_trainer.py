@@ -5,7 +5,7 @@ Creates a trainer user, 5 weekly schedules (Mon-Fri), 11 ranking levels,
 ranking assignments -- all idempotent (safe to run on every container start).
 
 Login with:
-  email:    entrenador@cataclub.local
+  email:    entrenador@cataclub.test
   password: trainer12345
 """
 import os
@@ -37,7 +37,7 @@ from app.seguridad.gestor_auth import GestorAutenticacion
 # Entrenador
 # ---------------------------------------------------------------------------
 TRAINER_CEDULA = "0000000002"
-TRAINER_CORREO = "entrenador@cataclub.local"
+TRAINER_CORREO = "entrenador@cataclub.test"
 TRAINER_CONTRASENIA = "trainer12345"
 
 # ---------------------------------------------------------------------------
@@ -101,7 +101,7 @@ ALUMNOS = [
         "nombres": "Ana",
         "apellidos": "Garcia",
         "cedula": "0000000003",
-        "correo": "ana@cataclub.local",
+        "correo": "ana@cataclub.test",
         "contrasenia": "alumno123",
         "telefono": "0971111111",
         "nivel_ranking_id": 2,
@@ -111,7 +111,7 @@ ALUMNOS = [
         "nombres": "Luis",
         "apellidos": "Lopez",
         "cedula": "0000000004",
-        "correo": "luis@cataclub.local",
+        "correo": "luis@cataclub.test",
         "contrasenia": "alumno123",
         "telefono": "0972222222",
         "nivel_ranking_id": 1,
@@ -121,7 +121,7 @@ ALUMNOS = [
         "nombres": "Maria",
         "apellidos": "Torres",
         "cedula": "0000000005",
-        "correo": "maria@cataclub.local",
+        "correo": "maria@cataclub.test",
         "contrasenia": "alumno123",
         "telefono": "0973333333",
         "nivel_ranking_id": 6,

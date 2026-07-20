@@ -7,7 +7,7 @@ inserts directly via the ORM, idempotently (safe to run on every container
 start).
 
 Login with:
-  email:    admin@cataclub.local
+  email:    admin@cataclub.test
   password: admin12345
 """
 import os
@@ -25,7 +25,7 @@ from app.dominio.enums import TipoRol
 from app.seguridad.gestor_auth import GestorAutenticacion
 
 CEDULA = "0000000001"
-CORREO = "admin@cataclub.local"
+CORREO = "admin@cataclub.test"
 CONTRASENIA = "admin12345"
 
 

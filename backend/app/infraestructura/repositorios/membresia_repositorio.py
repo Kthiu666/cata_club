@@ -91,3 +91,14 @@ class MembresiaRepositorio:
             .filter(Membresia.persona_id == persona_id)
             .all()
         )
+
+    def listar(self, skip: int = 0, limit: int = 200) -> List[Membresia]:
+        """Listado paginado de todas las membresías. Útil para dashboards
+        que necesitan conocer el estado de todas las membresías sin hacer
+        N+1 consultas individuales."""
+        return list(
+            self.db.query(Membresia)
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
