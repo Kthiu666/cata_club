@@ -14,6 +14,7 @@ import {
   ClipboardList,
   ArrowRight,
   CalendarDays,
+  Trophy,
 } from "lucide-react";
 import { buildTrainingSessions } from "@/lib/groups-utils";
 import { MOCK_GRUPOS, MOCK_MEMBER_ACCOUNTS } from "@/mocks/members";
@@ -70,7 +71,7 @@ export default function TrainerPage(): React.ReactElement {
         subtitle={`Resumen de entrenamiento de hoy — ${todayLongLabel}.`}
       >
         {/* Interactive Attendance CTA */}
-        <div className="mb-6">
+        <div className="mb-6 flex flex-wrap gap-3">
           <Link
             href="/trainer/attendance"
             className="flex items-center justify-between gap-3 rounded-2xl border border-cata-red/20 bg-cata-red/10 px-5 py-4 text-cata-red transition-colors hover:bg-cata-red/15"
@@ -85,6 +86,14 @@ export default function TrainerPage(): React.ReactElement {
               </span>
             </span>
             <ArrowRight size={16} strokeWidth={1.5} aria-hidden="true" />
+          </Link>
+          <Link
+            href="/trainer/ranking"
+            className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
+          >
+            <Trophy size={16} strokeWidth={1.5} aria-hidden="true" />
+            Gestionar Ranking
+            <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
           </Link>
         </div>
 

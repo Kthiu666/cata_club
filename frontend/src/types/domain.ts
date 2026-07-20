@@ -280,3 +280,70 @@ export function getManagedAccounts(
       u.role === "estudiante" && u.representanteId === usuarioId,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Ranking (Track Ranking) — competitive ranking system managed by trainers.
+//
+// `CategoriaRanking` is an intentionally SEPARATE 1–10 numeric taxonomy from
+// `NivelTecnico` above. `NivelTecnico` belongs to a Grupo (technical
+// level/horario placement); `CategoriaRanking` belongs to a student directly
+// and drives the competitive ranking ladder. Do not conflate the two — see
+// project notes on the 2026-07-18 domain clarification.
+// ---------------------------------------------------------------------------
+
+/**
+ * A student's competitive ranking category, 1 (highest) through 10 (lowest)
+ * — confirmed by the club as a plain numeric scale, unrelated to
+ * `NivelTecnico`. Kept as a documented `number` rather than a `1|2|...|10`
+ * literal union (no numeric-literal-union convention exists elsewhere in
+ * this file); range (1–10, integer) is validated at the UI/BFF boundary,
+ * not enforced by the type system.
+ */
+export type CategoriaRanking = number;
+
+/**
+ * A monthly ranking result registered for a student within a category
+ * (Resultado Mensual). First-cut shape against an unfinished backend
+ * contract — kept minimal (period, category, points) rather than modeling
+ * match-by-match detail.
+ */
+export interface ResultadoMensual {
+  id: string;
+  estudianteId: string;
+  categoria: CategoriaRanking;
+  /** Ranking period this result belongs to, "YYYY-MM". */
+  periodo: string;
+  /** Points/score earned in this period — scale is defined by the backend. */
+  puntos: number;
+  observacion?: string;
+  registradoPor: string;
+  createdAt: string;
+}
+
+/**
+ * Record of a ranking-month closure (Cierre de Mes) for a given category —
+ * an irreversible action that locks further result registration for that
+ * category/period.
+ */
+export interface CierreMensual {
+  id: string;
+  categoria: CategoriaRanking;
+  /** Period being closed, "YYYY-MM". */
+  periodo: string;
+  cerradoPor: string;
+  cerradoEn: string;
+}
+
+/**
+ * An entry in the official-selection roster (Selección Oficial) —
+ * admin-managed, independent of the trainer-managed monthly ranking flow.
+ */
+export interface SeleccionOficial {
+  id: string;
+  estudianteId: string;
+  categoria: CategoriaRanking;
+  /** Period this selection applies to, "YYYY-MM". */
+  periodo: string;
+  seleccionadoPor: string;
+  createdAt: string;
+}

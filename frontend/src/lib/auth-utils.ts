@@ -47,10 +47,19 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
         { href: "/groups", label: "Grupos" },
         { href: "/payments", label: "Membresías y Pagos" },
         { href: "/attendance", label: "Horarios y Asistencia" },
+        // Selección Oficial UI lives inside /groups (admin-only page — see
+        // groups/page.tsx), not on the trainer-gated /trainer/ranking page,
+        // so this points to that section rather than widening
+        // ProtectedRoute on the trainer route. See auth-utils "Files to
+        // MODIFY" note in the ranking-track task for the full rationale.
+        { href: "/groups#seleccion-oficial", label: "Selección Oficial" },
       );
       break;
     case "trainer":
-      links.push({ href: "/trainer", label: "Entrenador" });
+      links.push(
+        { href: "/trainer", label: "Entrenador" },
+        { href: "/trainer/ranking", label: "Ranking" },
+      );
       break;
     case "tesorero":
       links.push({ href: "/payments", label: "Membresías y Pagos" });
