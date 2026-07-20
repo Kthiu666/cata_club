@@ -78,6 +78,18 @@ class MembresiaServicio:
     def listar_membresias_por_persona(self, persona_id: int) -> list[Membresia]:
         return self.repo.listar_por_persona(persona_id)
 
+    def listar_membresias(
+        self, skip: int = 0, limit: int = 200
+    ) -> tuple[list[Membresia], int]:
+        """Listado paginado de todas las membresías. Devuelve (items, total)
+        para que el frontend/dashboard pueda conocer el estado de todas sin
+        N+1 consultas (ver issue #4)."""
+        items = self.repo.listar(skip=skip, limit=limit)
+        # El total se obtiene con un count simple; MembresiaRepositorio no
+        # expone un método count(), así que lo hacemos inline aquí.
+        total = self.db.query(Membresia).count()
+        return items, total
+
 
 class PagoServicio:
     def __init__(self, db: Session):

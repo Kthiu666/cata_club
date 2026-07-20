@@ -32,6 +32,7 @@ celery_app = Celery(
         "app.infraestructura.tareas.alertas_tareas",
         "app.infraestructura.tareas.ranking_tareas",
         "app.infraestructura.tareas.comprobante_tareas",
+        "app.infraestructura.tareas.recuperacion_tareas",
     ],
 )
 

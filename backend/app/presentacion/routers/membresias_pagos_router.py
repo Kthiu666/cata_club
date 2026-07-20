@@ -19,6 +19,8 @@ router = APIRouter(prefix="/membresias", tags=["Membresías y Pagos"])
 
 # Reutilizado para endpoints admin (mismo string que usaba el código original).
 ROL_ADMIN = ["ADMINISTRADOR"]
+# Tesorero también accede a la cola de pagos (ver tesoreria_router.py).
+ROL_ADMIN_O_TESORERO = ["ADMINISTRADOR", "TESORERO"]
 
 
 # --- TipoMembresia ---
@@ -45,6 +47,23 @@ async def crear_membresia(datos: MembresiaCreateDTO, db: Session = Depends(obten
 
 
 @router.get(
+    "/",
+    response_model=PaginatedResponse[MembresiaResponseDTO],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
+)
+async def listar_membresias(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(obtener_sesion),
+):
+    """Listado paginado de todas las membresías. Agregado para resolver el
+    N+1 en el dashboard (issue #4): en lugar de resolver cada membresía con
+    una llamada individual, el dashboard puede obtenerlas todas de una vez."""
+    items, total = MembresiaServicio(db).listar_membresias(skip=skip, limit=limit)
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
+
+
+@router.get(
     "/persona/{persona_id}",
     response_model=List[MembresiaResponseDTO],
     dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
@@ -68,7 +87,7 @@ async def listar_membresias_por_persona(persona_id: int, db: Session = Depends(o
 @router.get(
     "/pagos",
     response_model=PaginatedResponse[PagoListItemDTO],
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_TESORERO))],
 )
 async def listar_pagos(
     estado_pago: Optional[EstadoPago] = Query(default=None),
@@ -111,7 +130,7 @@ async def registrar_pago(
 
 
 @router.patch("/pagos/{pago_id}/validar", response_model=PagoResponseDTO,
-              dependencies=[Depends(GestorPermisos(ROL_ADMIN))])
+              dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_TESORERO))])
 async def validar_pago(pago_id: int, datos: PagoValidarDTO, db: Session = Depends(obtener_sesion)):
     return PagoServicio(db).validar_pago(pago_id, datos)
 
