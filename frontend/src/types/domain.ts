@@ -236,6 +236,99 @@ export interface Horario {
 }
 
 // ---------------------------------------------------------------------------
+// Extra classes, roles and editable medical record (Grupo B)
+// ---------------------------------------------------------------------------
+
+/** Backend blood-type enum values — matches TipoSangre in app/dominio/enums.py. */
+export type TipoSangre =
+  | "A_POSITIVO"
+  | "A_NEGATIVO"
+  | "B_POSITIVO"
+  | "B_NEGATIVO"
+  | "AB_POSITIVO"
+  | "AB_NEGATIVO"
+  | "O_POSITIVO"
+  | "O_NEGATIVO"
+  | "DESCONOCIDO";
+
+/** Backend role enum values as sent/received by the personas router. */
+export type BackendTipoRol = "ADMINISTRADOR" | "ENTRENADOR" | "TESORERO" | "ALUMNO";
+
+/** States of a personalized-membership extra-class request. */
+export type EstadoSolicitudExtra = "PENDIENTE" | "APROBADA" | "RECHAZADA";
+
+/**
+ * Extra-class request — returned by the backend already camelCase.
+ * Backend source: SolicitudClaseExtraResponseDTO.
+ */
+export interface SolicitudClaseExtra {
+  id: number;
+  fechaClaseSolicitada: string;
+  estado: EstadoSolicitudExtra;
+  /** Decimal from backend serialized as string to preserve precision. */
+  costoAdicional: string | null;
+  fechaSolicitud: string;
+  observaciones: string | null;
+  personaId: number;
+  membresiaId: number;
+  horarioId: number;
+}
+
+/** Payload to create an extra-class request (snake_case is sent to backend). */
+export interface SolicitudClaseExtraCreate {
+  fechaClaseSolicitada: string;
+  personaId: number;
+  membresiaId: number;
+  horarioId: number;
+  observaciones?: string;
+}
+
+/** Admin resolver payload for an extra-class request. */
+export interface SolicitudClaseExtraResolver {
+  estado: EstadoSolicitudExtra;
+  costoAdicional?: string;
+  observaciones?: string;
+}
+
+/** Response from the roles / account-state endpoints. */
+export interface RolesResponse {
+  personaId: number;
+  roles: BackendTipoRol[];
+  activo: boolean;
+}
+
+/** One disease item as returned by the backend (id + name). */
+export interface Enfermedad {
+  id: number;
+  nombreEnfermedad: string;
+}
+
+/**
+ * Editable medical record — distinct from the enrollment-time FichaMedica.
+ * Backend GET/PATCH source: FichaMedicaResponseDTO / FichaMedicaUpdateDTO.
+ * IMPORTANT: when PATCH sends `enfermedades`, the backend REPLACES the whole list.
+ */
+export interface FichaMedicaEditable {
+  id: number;
+  personaId: number;
+  tipoSangre: TipoSangre;
+  enfermedades: Enfermedad[];
+  alergias: string | null;
+  contactoEmergencia: string | null;
+  telefonoEmergencia: string | null;
+}
+
+/** Payload to update a medical record (all fields optional). */
+export interface FichaMedicaUpdatePayload {
+  tipoSangre?: TipoSangre;
+  /** If present, the backend replaces the entire disease list — no merge. */
+  enfermedades?: string[];
+  alergias?: string;
+  contactoEmergencia?: string;
+  telefonoEmergencia?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Health / Medical (Ficha Médica)
 // ---------------------------------------------------------------------------
 
