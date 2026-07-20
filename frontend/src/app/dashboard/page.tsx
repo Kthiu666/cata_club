@@ -29,11 +29,11 @@ import {
   TrendingUp,
   Activity,
   AlertTriangle,
-  Zap,
   UserPlus,
 } from "lucide-react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/components/shell/AppShell";
 import { fetchDashboardStats, type DashboardStats } from "@/services/api";
 
 const quickActions = [
@@ -129,25 +129,11 @@ export default function DashboardPage(): React.ReactElement {
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
-      <div>
-        {/* Hero Banner */}
-        <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-logo-glow" />
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
-              <Zap size={14} strokeWidth={2} aria-hidden="true" />
-              Panel Administrativo
-            </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
-              Panel de Control
-            </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-              Cata Club — Resumen diario, métricas clave y acceso rápido a las funciones
-              administrativas del club.
-            </p>
-          </div>
-        </div>
-
+      <AppShell
+        eyebrow="Panel Administrativo"
+        title="Panel de Control"
+        subtitle="Cata Club — Resumen diario, métricas clave y acceso rápido a las funciones administrativas del club."
+      >
         {error && (
           <div
             className="mb-6 flex items-center gap-2 rounded-xl border border-cata-red/30 bg-cata-red/10 px-4 py-3 text-sm text-cata-red"
@@ -276,7 +262,7 @@ export default function DashboardPage(): React.ReactElement {
             </div>
           </div>
         </div>
-      </div>
+      </AppShell>
     </ProtectedRoute>
   );
 }

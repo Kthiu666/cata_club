@@ -81,7 +81,10 @@ const mockUseAuth = vi.mocked(useAuth);
 
 describe("Header", (): void => {
   beforeEach((): void => {
-    mockPathname.mockReturnValue("/dashboard");
+    // A neutral route that isn't landing, an auth-shell route, or an
+    // app-shell route (those three hide the header entirely — see the
+    // dedicated describe blocks below).
+    mockPathname.mockReturnValue("/unauthorized");
     mockUseAuth.mockReset();
     // Default: not loading, not authenticated
     mockUseAuth.mockReturnValue(createUnauthenticatedAuth(false));
@@ -95,9 +98,48 @@ describe("Header", (): void => {
   });
 
   it("shows the header on a non-landing route when landing hiding is requested", (): void => {
-    mockPathname.mockReturnValue("/login");
+    mockPathname.mockReturnValue("/unauthorized");
 
     render(<Header hideOnLanding />);
+
+    expect(screen.getByRole("banner")).toBeInTheDocument();
+  });
+
+  // --- Auth shell routes (login, register, forgot-password) ---
+
+  it.each(["/login", "/register", "/forgot-password"])(
+    "hides the header on the %s auth-shell route",
+    (route): void => {
+      mockPathname.mockReturnValue(route);
+
+      render(<Header />);
+
+      expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+    },
+  );
+
+  it.each([
+    "/dashboard",
+    "/members",
+    "/groups",
+    "/payments",
+    "/attendance",
+    "/trainer",
+    "/trainer/attendance",
+  ])("hides the header on the %s app-shell route", (route): void => {
+    mockPathname.mockReturnValue(route);
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("admin", "Admin"));
+
+    render(<Header />);
+
+    expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+  });
+
+  it("still shows the header on /student (student exception)", (): void => {
+    mockPathname.mockReturnValue("/student");
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("representante", "Rep"));
+
+    render(<Header />);
 
     expect(screen.getByRole("banner")).toBeInTheDocument();
   });
@@ -250,22 +292,26 @@ describe("Header", (): void => {
 
   // --- Active link highlighting ---
 
+  // Every admin/trainer nav destination is now an app-shell route (hidden
+  // header, see the describe block below) — /student is the only
+  // remaining route where the top header renders AND matches one of its
+  // own nav links, so it's the realistic case for active-link coverage.
   it("marks the active link with aria-current=\"page\"", (): void => {
-    mockPathname.mockReturnValue("/members");
+    mockPathname.mockReturnValue("/student");
     mockUseAuth.mockReturnValue(
-      createAuthenticatedAuth("admin", "Admin"),
+      createAuthenticatedAuth("representante", "Rep"),
     );
 
     render(<Header />);
 
-    const membersLink = screen.getByRole("link", { name: /Miembros/i });
-    expect(membersLink).toHaveAttribute("aria-current", "page");
+    const accountLink = screen.getByRole("link", { name: /Mi Cuenta/i });
+    expect(accountLink).toHaveAttribute("aria-current", "page");
   });
 
   it("does not apply aria-current to non-current route links", (): void => {
-    mockPathname.mockReturnValue("/members");
+    mockPathname.mockReturnValue("/student");
     mockUseAuth.mockReturnValue(
-      createAuthenticatedAuth("admin", "Admin"),
+      createAuthenticatedAuth("representante", "Rep"),
     );
 
     render(<Header />);

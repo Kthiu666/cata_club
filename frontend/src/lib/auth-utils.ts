@@ -142,3 +142,17 @@ export function getRoleLabel(role: UserRole): string {
       return "Rol no soportado";
   }
 }
+
+/**
+ * Derive a 1-2 letter avatar initials string from a display name.
+ *
+ * Uses the first letter of the first two whitespace-separated words.
+ * Falls back to "?" for an empty/blank name so callers never render an
+ * empty avatar badge.
+ */
+export function getUserInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  const initials = words.slice(0, 2).map((word) => word[0]?.toUpperCase() ?? "");
+  return initials.join("");
+}

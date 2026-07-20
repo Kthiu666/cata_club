@@ -1,11 +1,19 @@
+/**
+ * Register Page — demo placeholder (no backend account creation yet).
+ *
+ * Layout follows `design/admin-register-mockup-v1.html`: split screen via
+ * AuthShell, with the existing field set/validation/demo-success flow
+ * unchanged.
+ */
+
 "use client";
 
 import { useState, type FormEvent, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { getDefaultRoute } from "@/lib/auth-utils";
+import AuthShell from "@/components/auth/AuthShell";
 import {
   Eye,
   EyeOff,
@@ -42,8 +50,13 @@ export default function RegisterPage(): React.ReactElement {
 
     const form = e.currentTarget;
     const formData = new FormData(form);
-    const password = formData.get("password") as string;
-    const confirmPassword = formData.get("confirmPassword") as string;
+    const passwordEntry = formData.get("password");
+    const confirmPasswordEntry = formData.get("confirmPassword");
+    // Both fields are plain <input type="password">, never <input type="file">,
+    // so FormData.get() always returns a string here — narrow defensively
+    // instead of asserting, since FormDataEntryValue is `string | File | null`.
+    const password = typeof passwordEntry === "string" ? passwordEntry : "";
+    const confirmPassword = typeof confirmPasswordEntry === "string" ? confirmPasswordEntry : "";
 
     if (password !== confirmPassword) {
       setFormError("Las contraseñas no coinciden.");
@@ -71,118 +84,115 @@ export default function RegisterPage(): React.ReactElement {
     router.push("/student/enroll");
   }
 
+  if (isLoading) {
+    return (
+      <div className="auth-shell flex min-h-screen items-center justify-center">
+        <p className="text-sm text-cata-text/65">Cargando sesión...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-[75vh] items-center justify-center py-12">
-      <div className="w-full max-w-md">
-        {/* Brand header */}
-        <div className="mb-10 text-center">
-          <div className="relative mx-auto mb-5 h-24 w-24 overflow-hidden rounded-2xl shadow-elevated">
-            <Image
-              src="/brand/cata-club-logo.jpeg"
-              alt="Cata Club"
-              fill
-              className="object-cover"
-              sizes="96px"
-              priority
-            />
+    <AuthShell
+      eyebrow="Cata Club — Tenis de Mesa"
+      title="Crear su cuenta"
+      subtitle="Regístrese en el sistema administrativo"
+      headline={
+        <>
+          Sumate a la
+          <br />
+          mesa. <em className="not-italic text-cata-red-light">Empezá</em>
+          <br />
+          a jugar en serio.
+        </>
+      }
+      description="Creá tu cuenta para gestionar estudiantes, pagos y asistencia del club desde un solo lugar."
+    >
+      {demoSuccess ? (
+        <div className="text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-cata-state-ok/10">
+            <CheckCircle size={28} className="text-cata-state-ok" aria-hidden="true" />
           </div>
-          <p className="mb-1 text-xs font-bold uppercase tracking-[0.2em] text-cata-red/80">
-            Cata Club — Tenis de Mesa
+          <h2 className="mb-2 text-lg font-semibold text-cata-text">
+            Registro de Demostración Completado
+          </h2>
+          <p className="mb-6 text-sm leading-relaxed text-cata-text/65">
+            No se almacenó ningún dato. Esto es una demostración de IU — cuando el
+            backend esté conectado, se crearía su cuenta. Para continuar el
+            recorrido, puede pasar directamente a la inscripción.
           </p>
-          <h1 className="text-2xl font-bold tracking-tight text-cata-text">
-            Crear su cuenta
-          </h1>
-          <p className="mt-1.5 text-sm text-cata-text/65">
-            Regístrese en el sistema administrativo
-          </p>
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={handleContinueToEnrollment}
+              disabled={navigating}
+              className="btn-primary w-full justify-center"
+            >
+              {navigating ? "Redirigiendo..." : "Inscribirse"}
+              {!navigating && <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />}
+            </button>
+            <button
+              type="button"
+              onClick={(): void => {
+                setDemoSuccess(false);
+                setFormError(null);
+              }}
+              className="btn-secondary w-full justify-center"
+            >
+              Editar información
+            </button>
+            <Link href="/login" className="btn-ghost justify-center text-center">
+              Ir a Iniciar Sesión
+            </Link>
+          </div>
         </div>
+      ) : (
+        <>
+          <p className="mb-4 text-center text-xs text-cata-text/45">
+            <span className="text-cata-red" aria-hidden="true">*</span> Campos obligatorios
+          </p>
 
-        {/* Form card */}
-        <div className="card p-8 sm:p-9">
-          {demoSuccess ? (
-            <div className="text-center">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-cata-state-ok/10">
-                <CheckCircle
-                  size={28}
-                  className="text-cata-state-ok"
-                  aria-hidden="true"
-                />
-              </div>
-              <h2 className="mb-2 text-lg font-semibold text-cata-text">
-                Registro de Demostración Completado
-              </h2>
-              <p className="mb-6 text-sm leading-relaxed text-cata-text/65">
-                No se almacenó ningún dato. Esto es una demostración de IU — cuando el
-                backend esté conectado, se crearía su cuenta. Para continuar el
-                recorrido, puede pasar directamente a la inscripción.
-              </p>
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-                <button
-                  type="button"
-                  onClick={handleContinueToEnrollment}
-                  disabled={navigating}
-                  className="btn-primary"
-                >
-                  {navigating ? "Redirigiendo..." : "Inscribirse"}
-                  {!navigating && <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />}
-                </button>
-                <button
-                  onClick={() => {
-                    setDemoSuccess(false);
-                    setFormError(null);
-                  }}
-                  className="btn-secondary"
-                >
-                  Editar información
-                </button>
-                <Link href="/login" className="btn-ghost text-center">
-                  Ir a Iniciar Sesión
-                </Link>
-              </div>
-            </div>
-          ) : (
-            <form className="space-y-6" onSubmit={handleSubmit}>
-              {/* -- Account -- */}
-              <fieldset>
-                <legend className="mb-4 text-xs font-semibold uppercase tracking-widest text-cata-text/45">
-                  Cuenta
-                </legend>
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            {/* -- Account -- */}
+            <fieldset>
+              <legend className="mb-3 text-[11px] font-bold uppercase tracking-widest text-cata-text/45">
+                Cuenta
+              </legend>
 
-                {/* Email */}
-                <div className="mb-4">
-                  <label
-                    htmlFor="email"
-                    className="mb-1.5 block text-sm font-medium text-cata-text"
-                  >
+              <div className="mb-4">
+                <div className="mb-1.5 flex items-baseline gap-1">
+                  <label htmlFor="email" className="text-sm font-medium text-cata-text">
                     Correo electrónico
                   </label>
-                  <div className="relative">
-                    <Mail
-                      size={16}
-                      strokeWidth={1.5}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
-                      aria-hidden="true"
-                    />
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      placeholder="correo@ejemplo.com"
-                      required
-                      disabled={submitting}
-                      className="input-field pl-10"
-                    />
-                  </div>
+                  <span className="text-cata-red" aria-hidden="true">*</span>
                 </div>
+                <div className="relative">
+                  <Mail
+                    size={16}
+                    strokeWidth={1.5}
+                    className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
+                    aria-hidden="true"
+                  />
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    placeholder="correo@ejemplo.com"
+                    required
+                    disabled={submitting}
+                    className="input-field pl-10"
+                  />
+                </div>
+              </div>
 
-                {/* Password */}
-                <div className="mb-4">
-                  <label
-                    htmlFor="password"
-                    className="mb-1.5 block text-sm font-medium text-cata-text"
-                  >
-                    Contraseña
-                  </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <div className="mb-1.5 flex items-baseline gap-1">
+                    <label htmlFor="password" className="text-sm font-medium text-cata-text">
+                      Contraseña
+                    </label>
+                    <span className="text-cata-red" aria-hidden="true">*</span>
+                  </div>
                   <div className="relative">
                     <Lock
                       size={16}
@@ -202,7 +212,7 @@ export default function RegisterPage(): React.ReactElement {
                     />
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
+                      onClick={(): void => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-cata-text/65 hover:text-cata-text"
                       aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                     >
@@ -215,14 +225,13 @@ export default function RegisterPage(): React.ReactElement {
                   </div>
                 </div>
 
-                {/* Confirm Password */}
                 <div>
-                  <label
-                    htmlFor="confirmPassword"
-                    className="mb-1.5 block text-sm font-medium text-cata-text"
-                  >
-                    Confirmar Contraseña
-                  </label>
+                  <div className="mb-1.5 flex items-baseline gap-1">
+                    <label htmlFor="confirmPassword" className="text-sm font-medium text-cata-text">
+                      Confirmar Contraseña
+                    </label>
+                    <span className="text-cata-red" aria-hidden="true">*</span>
+                  </div>
                   <div className="relative">
                     <Lock
                       size={16}
@@ -234,20 +243,16 @@ export default function RegisterPage(): React.ReactElement {
                       type={showConfirmPassword ? "text" : "password"}
                       id="confirmPassword"
                       name="confirmPassword"
-                      placeholder="Vuelva a ingresar la contraseña"
+                      placeholder="Repita la contraseña"
                       required
                       disabled={submitting}
                       className="input-field pl-10 pr-10"
                     />
                     <button
                       type="button"
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
+                      onClick={(): void => setShowConfirmPassword(!showConfirmPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-cata-text/65 hover:text-cata-text"
-                      aria-label={
-                        showConfirmPassword ? "Ocultar contraseña" : "Mostrar contraseña"
-                      }
+                      aria-label={showConfirmPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                     >
                       {showConfirmPassword ? (
                         <EyeOff size={16} strokeWidth={1.5} aria-hidden="true" />
@@ -257,23 +262,25 @@ export default function RegisterPage(): React.ReactElement {
                     </button>
                   </div>
                 </div>
-              </fieldset>
+              </div>
+            </fieldset>
 
-              {/* -- Personal Information -- */}
-              <hr className="border-cata-border" />
-              <fieldset>
-                <legend className="mb-4 text-xs font-semibold uppercase tracking-widest text-cata-text/45">
-                  Información Personal
-                </legend>
+            <hr className="border-cata-border" />
 
-                {/* First Names */}
-                <div className="mb-4">
-                  <label
-                    htmlFor="firstName"
-                    className="mb-1.5 block text-sm font-medium text-cata-text"
-                  >
-                    Nombres
-                  </label>
+            {/* -- Personal Information -- */}
+            <fieldset>
+              <legend className="mb-3 text-[11px] font-bold uppercase tracking-widest text-cata-text/45">
+                Información personal
+              </legend>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <div className="mb-1.5 flex items-baseline gap-1">
+                    <label htmlFor="firstName" className="text-sm font-medium text-cata-text">
+                      Nombres
+                    </label>
+                    <span className="text-cata-red" aria-hidden="true">*</span>
+                  </div>
                   <div className="relative">
                     <User
                       size={16}
@@ -293,14 +300,13 @@ export default function RegisterPage(): React.ReactElement {
                   </div>
                 </div>
 
-                {/* Last Names */}
-                <div className="mb-4">
-                  <label
-                    htmlFor="lastName"
-                    className="mb-1.5 block text-sm font-medium text-cata-text"
-                  >
-                    Apellidos
-                  </label>
+                <div>
+                  <div className="mb-1.5 flex items-baseline gap-1">
+                    <label htmlFor="lastName" className="text-sm font-medium text-cata-text">
+                      Apellidos
+                    </label>
+                    <span className="text-cata-red" aria-hidden="true">*</span>
+                  </div>
                   <div className="relative">
                     <User
                       size={16}
@@ -319,15 +325,16 @@ export default function RegisterPage(): React.ReactElement {
                     />
                   </div>
                 </div>
+              </div>
 
-                {/* National ID */}
-                <div className="mb-4">
-                  <label
-                    htmlFor="nationalId"
-                    className="mb-1.5 block text-sm font-medium text-cata-text"
-                  >
-                    Cédula de Identidad
-                  </label>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <div className="mb-1.5 flex items-baseline gap-1">
+                    <label htmlFor="nationalId" className="text-sm font-medium text-cata-text">
+                      Cédula de Identidad
+                    </label>
+                    <span className="text-cata-red" aria-hidden="true">*</span>
+                  </div>
                   <div className="relative">
                     <Hash
                       size={16}
@@ -351,14 +358,13 @@ export default function RegisterPage(): React.ReactElement {
                   </div>
                 </div>
 
-                {/* Birth Date */}
-                <div className="mb-4">
-                  <label
-                    htmlFor="birthDate"
-                    className="mb-1.5 block text-sm font-medium text-cata-text"
-                  >
-                    Fecha de Nacimiento
-                  </label>
+                <div>
+                  <div className="mb-1.5 flex items-baseline gap-1">
+                    <label htmlFor="birthDate" className="text-sm font-medium text-cata-text">
+                      Fecha de Nacimiento
+                    </label>
+                    <span className="text-cata-red" aria-hidden="true">*</span>
+                  </div>
                   <div className="relative">
                     <Calendar
                       size={16}
@@ -376,15 +382,16 @@ export default function RegisterPage(): React.ReactElement {
                     />
                   </div>
                 </div>
+              </div>
 
-                {/* Phone */}
-                <div className="mb-4">
-                  <label
-                    htmlFor="phone"
-                    className="mb-1.5 block text-sm font-medium text-cata-text"
-                  >
-                    Teléfono Celular
-                  </label>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <div className="mb-1.5 flex items-baseline gap-1">
+                    <label htmlFor="phone" className="text-sm font-medium text-cata-text">
+                      Teléfono Celular
+                    </label>
+                    <span className="text-cata-red" aria-hidden="true">*</span>
+                  </div>
                   <div className="relative">
                     <Phone
                       size={16}
@@ -404,15 +411,13 @@ export default function RegisterPage(): React.ReactElement {
                   </div>
                 </div>
 
-                {/* Contact Phone */}
                 <div>
-                  <label
-                    htmlFor="contactPhone"
-                    className="mb-1.5 block text-sm font-medium text-cata-text"
-                  >
-                    Teléfono de Contacto{" "}
+                  <div className="mb-1.5 flex items-baseline gap-1">
+                    <label htmlFor="contactPhone" className="text-sm font-medium text-cata-text">
+                      Teléfono de Contacto
+                    </label>
                     <span className="text-cata-text/45">(opcional)</span>
-                  </label>
+                  </div>
                   <div className="relative">
                     <Phone
                       size={16}
@@ -430,49 +435,38 @@ export default function RegisterPage(): React.ReactElement {
                     />
                   </div>
                 </div>
-              </fieldset>
+              </div>
+            </fieldset>
 
-              {/* Note: Club context (technical level, health/medical info) is intentionally
-                  absent from registration. Those details are captured during the student
-                  enrollment flow — see /student/enroll. */}
+            {/* Note: Club context (technical level, health/medical info) is intentionally
+                absent from registration. Those details are captured during the student
+                enrollment flow — see /student/enroll. */}
 
-              {/* Validation error */}
-              {formError && (
-                <div className="alert-error" role="alert">
-                  {formError}
-                </div>
-              )}
+            {formError && (
+              <div className="alert-error" role="alert">
+                {formError}
+              </div>
+            )}
 
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={submitting}
-                className="btn-primary mt-2 w-full shadow-soft"
-              >
-                {submitting ? "Creando cuenta..." : "Crear Cuenta"}
-              </button>
-            </form>
-          )}
-        </div>
+            <button type="submit" disabled={submitting} className="btn-primary mt-2 w-full shadow-soft">
+              {submitting ? "Creando cuenta..." : "Crear Cuenta"}
+            </button>
+          </form>
 
-        {/* Sign in link */}
-        <p className="mt-8 text-center text-sm text-cata-text/65">
-          ¿Ya tiene una cuenta?{" "}
-          <Link
-            href="/login"
-            className="font-medium text-cata-red transition-colors hover:text-cata-red-light"
-          >
-            Iniciar sesión
-          </Link>
-        </p>
+          <p className="mt-6 text-center text-sm text-cata-text/65">
+            ¿Ya tiene una cuenta?{" "}
+            <Link href="/login" className="font-medium text-cata-red transition-colors hover:text-cata-red-light">
+              Iniciar sesión
+            </Link>
+          </p>
 
-        {/* Demo mode note */}
-        <p className="mt-6 text-center text-xs text-cata-text/30">
-          La interfaz de registro es un placeholder de demostración. No se envía ni almacena
-          ningún dato. La creación de cuentas se habilitará cuando el servicio de autenticación
-          del backend esté conectado.
-        </p>
-      </div>
-    </div>
+          <p className="mt-6 text-center text-xs text-cata-text/30">
+            La interfaz de registro es un placeholder de demostración. No se envía ni almacena
+            ningún dato. La creación de cuentas se habilitará cuando el servicio de autenticación
+            del backend esté conectado.
+          </p>
+        </>
+      )}
+    </AuthShell>
   );
 }

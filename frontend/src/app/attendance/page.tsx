@@ -20,6 +20,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/components/shell/AppShell";
 import {
   Calendar,
   Clock,
@@ -135,24 +136,11 @@ export default function AttendancePage(): React.ReactElement {
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
-      <div>
-        {/* Hero Banner */}
-        <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-logo-glow" />
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
-              <Calendar size={14} strokeWidth={2} aria-hidden="true" />
-              Asistencia y Horarios
-            </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
-              Horarios y Asistencia
-            </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-              Horarios de entrenamiento y registros de asistencia reales.
-            </p>
-          </div>
-        </div>
-
+      <AppShell
+        eyebrow="Asistencia y horarios"
+        title="Horarios y Asistencia"
+        subtitle="Horarios de entrenamiento y registros de asistencia reales."
+      >
         {/* Loading state */}
         {loading && (
           <div className="flex items-center justify-center py-16">
@@ -371,7 +359,7 @@ export default function AttendancePage(): React.ReactElement {
             </div>
           </>
         )}
-      </div>
+      </AppShell>
     </ProtectedRoute>
   );
 }

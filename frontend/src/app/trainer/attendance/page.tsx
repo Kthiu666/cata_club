@@ -27,6 +27,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/components/shell/AppShell";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Calendar,
@@ -560,17 +561,29 @@ export default function TrainerAttendancePage(): React.ReactElement {
 
   // ---- Render ----
 
+  const stepSubtitle =
+    step === "select-session"
+      ? "Seleccione la sesión en la que desea registrar asistencia."
+      : step === "mark-attendance"
+        ? "Marque la asistencia de cada estudiante en la sesión seleccionada."
+        : "Revise y confirme el registro de asistencia.";
+
   return (
     <ProtectedRoute allowedRoles={["trainer"]}>
+      <AppShell
+        eyebrow="Área de entrenadores"
+        title="Registrar Asistencia"
+        subtitle={confirmed ? "Asistencia registrada." : stepSubtitle}
+      >
       {confirmed ? (
-        <div className="flex min-h-[75vh] items-center justify-center py-12">
+        <div className="flex min-h-[50vh] items-center justify-center py-8">
           <div className="w-full max-w-lg text-center">
             <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-cata-state-ok/10">
               <CheckCircle size={32} className="text-cata-state-ok" strokeWidth={1.5} aria-hidden="true" />
             </div>
-            <h1 className="mb-3 text-2xl font-bold tracking-tight text-cata-text">
+            <h2 className="mb-3 text-2xl font-bold tracking-tight text-cata-text">
               Asistencia Registrada
-            </h1>
+            </h2>
             <p className="mb-2 text-sm leading-relaxed text-cata-text/65">
               La asistencia para{" "}
               <strong className="text-cata-text">
@@ -612,26 +625,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
           </div>
         </div>
       ) : (
-        <div className="py-8">
-          {/* Hero Banner */}
-          <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
-            <div className="absolute inset-0 bg-logo-glow" />
-            <div className="relative z-10">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
-                <UserCheck size={14} strokeWidth={2} aria-hidden="true" />
-                Registro de Asistencia
-              </div>
-              <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
-                Asistencia de Sesión
-              </h1>
-              <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-                {step === "select-session" && "Seleccione el horario y el grupo en el que desea registrar asistencia."}
-                {step === "mark-attendance" && "Marque la asistencia de cada estudiante en la sesión seleccionada."}
-                {step === "confirm" && "Revise y confirme el registro de asistencia."}
-              </p>
-            </div>
-          </div>
-
+        <div>
           {/* Loading state */}
           {loading && (
             <div className="flex items-center justify-center py-16">
@@ -751,6 +745,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
           )}
         </div>
       )}
+      </AppShell>
     </ProtectedRoute>
   );
 }
