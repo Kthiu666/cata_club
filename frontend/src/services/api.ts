@@ -739,6 +739,19 @@ export async function fetchNuevosPorPeriodo(
 }
 
 
+/**
+ * Request a password-recovery link (POST /auth/recuperar-contrasenia).
+ * The backend deliberately returns the same success message whether or not
+ * the email is registered (anti-enumeration) — callers should show a
+ * generic "check your email" message regardless of the response content.
+ */
+export async function solicitarRecuperacion(correo: string): Promise<{ mensaje: string }> {
+  return request<{ mensaje: string }>(apiEndpoint('/auth/recuperar-contrasenia'), {
+    method: 'POST',
+    body: JSON.stringify({ correo }),
+  });
+}
+
 /** Reset password using a recovery token (POST /auth/restablecer-contrasenia). */
 export async function restablecerContrasenia(
   token: string,
