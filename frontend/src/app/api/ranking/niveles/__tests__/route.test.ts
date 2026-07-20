@@ -39,7 +39,7 @@ const nivel = {
   personasActuales: 1,
   cuposDisponibles: 9,
   necesitaRevision: true,
-  nivelCategoria: "principiante",
+  nivelCategoria: "avanzado",
 };
 
 beforeEach(() => {

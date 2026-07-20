@@ -267,7 +267,7 @@ const nivelFixture: NivelConOcupacion = {
   personasActuales: 3,
   cuposDisponibles: 7,
   necesitaRevision: false,
-  nivelCategoria: "principiante",
+  nivelCategoria: "avanzado",
 };
 
 describe("nivelToGrupo", () => {
@@ -275,7 +275,7 @@ describe("nivelToGrupo", () => {
     const grupo = nivelToGrupo(nivelFixture);
     expect(grupo.id).toBe("1");
     expect(grupo.nombre).toBe("Principiantes");
-    expect(grupo.nivel).toBe("principiante");
+    expect(grupo.nivel).toBe("avanzado");
     expect(grupo.estudiantesIds).toEqual([]);
   });
 

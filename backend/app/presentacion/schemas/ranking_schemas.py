@@ -28,12 +28,12 @@ class NivelRankingResponseDTO(ResponseBase, BaseModel):
     @computed_field
     @property
     def nivel_categoria(self) -> str:
-        """Categoría agrupada para el frontend: 1-3 principiante, 4-6 intermedio, 7-10 avanzado."""
+        """Categoría agrupada para el frontend: 1-3 avanzado (mejor nivel), 4-6 intermedio, 7-10 principiante."""
         if self.numero_nivel <= 3:
-            return "principiante"
+            return "avanzado"
         elif self.numero_nivel <= 6:
             return "intermedio"
-        return "avanzado"
+        return "principiante"
 
 
 class NivelRankingConOcupacionDTO(NivelRankingResponseDTO):
