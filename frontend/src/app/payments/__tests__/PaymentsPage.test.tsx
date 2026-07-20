@@ -15,6 +15,50 @@ vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+// AppShell (the page's new sidebar layout) needs next/navigation, next/link,
+// next/image, and AuthContext — none of which this page used directly
+// before. Mocked minimally, matching the pattern in Header.test.tsx /
+// AppShell.test.tsx.
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/payments",
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
+vi.mock("next/link", () => ({
+  __esModule: true,
+  default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { children: React.ReactNode; href: string }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
+}));
+
+vi.mock("next/image", () => ({
+  __esModule: true,
+  default: (props: React.ImgHTMLAttributes<HTMLImageElement> & { fill?: boolean; priority?: boolean }) => {
+    const { fill, priority, sizes, ...rest } = props;
+    void fill;
+    void priority;
+    void sizes;
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img alt="" {...rest} />;
+  },
+}));
+
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({
+    session: {
+      user: { id: "u1", name: "Admin Test", email: "admin@cataclub.com", role: "admin", representanteId: null },
+      roles: ["ADMINISTRADOR"],
+      loggedInAt: "2026-07-01T12:00:00Z",
+    },
+    isAuthenticated: true,
+    isLoading: false,
+    login: vi.fn(),
+    logout: vi.fn(),
+  }),
+}));
+
 const mockFetchPaymentValidations = vi.fn();
 const mockUpdatePaymentValidation = vi.fn();
 

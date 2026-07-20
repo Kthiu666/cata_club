@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/components/shell/AppShell";
 import {
   Users,
   UserCheck,
@@ -40,6 +41,8 @@ import {
   formatMembershipPeriod,
   countActiveStudents,
   filterAccounts,
+  accountMatchesFlag,
+  countAccountsMatchingFlag,
   getAccountStatusBadge,
   getNivelLabelFromGrupo,
   MEMBERSHIP_STATUS_LABELS,
@@ -49,10 +52,18 @@ import {
   getPayerTypeLabel,
   type MemberAccount,
   type MemberStudentSummary,
+  type MemberFilterFlag,
   type PaymentStatus,
 } from "./members-utils";
 import type { Grupo } from "@/types/domain";
 import { formatCurrency, formatDate } from "@/lib/format-utils";
+
+const FILTER_CHIPS: { flag: MemberFilterFlag; label: string }[] = [
+  { flag: "all", label: "Todos" },
+  { flag: "vencida", label: "Membresía vencida" },
+  { flag: "pendiente", label: "Pago pendiente" },
+  { flag: "sin-grupo", label: "Sin grupo asignado" },
+];
 
 // ---------------------------------------------------------------------------
 // Payment status icon helper
@@ -324,6 +335,7 @@ function AccountRow({
 
 export default function MembersPage(): React.ReactElement {
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeFlag, setActiveFlag] = useState<MemberFilterFlag>("all");
   const [accounts, setAccounts] = useState<MemberAccount[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -348,29 +360,17 @@ export default function MembersPage(): React.ReactElement {
   }, [loadMembers]);
 
   const stats = buildMemberStats(accounts);
-  const filteredAccounts = filterAccounts(accounts, searchTerm);
+  const filteredAccounts = filterAccounts(accounts, searchTerm).filter((account) =>
+    accountMatchesFlag(account, activeFlag),
+  );
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
-      <div>
-        {/* Hero Banner */}
-        <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-logo-glow" />
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
-              <Users size={14} strokeWidth={2} aria-hidden="true" />
-              Gestión de Miembros
-            </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
-              Miembros del Club
-            </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-              Responsables de pago, estudiantes y resumen de membresías. Administre cuentas,
-              estudiantes y estados de membresía desde un solo lugar.
-            </p>
-          </div>
-        </div>
-
+      <AppShell
+        eyebrow="Gestión de Miembros"
+        title="Miembros del Club"
+        subtitle="Responsables de pago, estudiantes y resumen de membresías. Administre cuentas, estudiantes y estados de membresía desde un solo lugar."
+      >
         {error && (
           <div
             className="mb-6 flex items-center gap-2 rounded-xl border border-cata-red/30 bg-cata-red/10 px-4 py-3 text-sm text-cata-red"
@@ -412,9 +412,9 @@ export default function MembersPage(): React.ReactElement {
           />
         </div>
 
-        {/* Search */}
-        <div className="mb-6">
-          <div className="relative max-w-sm">
+        {/* Search + filter chips */}
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative max-w-sm flex-1">
             <Search
               size={14}
               strokeWidth={1.5}
@@ -429,6 +429,34 @@ export default function MembersPage(): React.ReactElement {
               className="input-field pl-9"
               aria-label="Buscar miembros"
             />
+          </div>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar miembros">
+            {FILTER_CHIPS.map((chip) => {
+              const isActive = activeFlag === chip.flag;
+              const count = countAccountsMatchingFlag(accounts, chip.flag);
+              return (
+                <button
+                  key={chip.flag}
+                  type="button"
+                  onClick={() => setActiveFlag(chip.flag)}
+                  aria-pressed={isActive}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    isActive
+                      ? "border-cata-red bg-cata-red/10 text-cata-red"
+                      : "border-cata-border text-cata-text/65 hover:bg-cata-bg"
+                  }`}
+                >
+                  {chip.label}
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                      isActive ? "bg-cata-red/20" : "bg-cata-bg"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -474,14 +502,17 @@ export default function MembersPage(): React.ReactElement {
               aria-hidden="true"
             />
             <p className="text-sm text-cata-text/50">
-              {searchTerm
+              {searchTerm || activeFlag !== "all"
                 ? "No se encontraron miembros con ese criterio de búsqueda."
                 : "Aún no hay miembros registrados."}
             </p>
-            {searchTerm && (
+            {(searchTerm || activeFlag !== "all") && (
               <button
                 type="button"
-                onClick={() => setSearchTerm("")}
+                onClick={() => {
+                  setSearchTerm("");
+                  setActiveFlag("all");
+                }}
                 className="btn-ghost mt-3 text-xs"
               >
                 Limpiar búsqueda
@@ -503,7 +534,7 @@ export default function MembersPage(): React.ReactElement {
             El <strong className="text-cata-text">nivel técnico</strong> lo lleva el grupo asignado, no el estudiante.
           </p>
         </div>
-      </div>
+      </AppShell>
     </ProtectedRoute>
   );
 }

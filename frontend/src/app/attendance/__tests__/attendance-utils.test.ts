@@ -17,6 +17,7 @@ import {
   buildScheduleGroupMap,
   getScheduleLevelLabel,
   getAttendanceBadgeTokens,
+  getAttendanceRatePercent,
   type AttendanceRecord,
 } from "../attendance-utils";
 import type { EstadoAsistencia, Grupo, NivelTecnico } from "@/types/domain";
@@ -414,5 +415,41 @@ describe("getAttendanceBadgeTokens", () => {
       expect(tokens.badgeClass).not.toMatch(/900|text-white|bg-white/);
       expect(tokens.iconClass).not.toMatch(/900|text-white|bg-white/);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getAttendanceRatePercent
+// ---------------------------------------------------------------------------
+
+describe("getAttendanceRatePercent", () => {
+  it("returns 0 for zero records instead of NaN", () => {
+    const stats = buildAttendanceStats([]);
+    expect(getAttendanceRatePercent(stats)).toBe(0);
+  });
+
+  it("computes the rounded present-rate percentage", () => {
+    const stats = {
+      totalPresent: 89,
+      totalAbsent: 11,
+      totalLate: 0,
+      totalJustified: 0,
+      totalUnknown: 0,
+      totalStudents: 100,
+    };
+    expect(getAttendanceRatePercent(stats)).toBe(89);
+  });
+
+  it("rounds to the nearest whole percent", () => {
+    const stats = {
+      totalPresent: 2,
+      totalAbsent: 1,
+      totalLate: 0,
+      totalJustified: 0,
+      totalUnknown: 0,
+      totalStudents: 3,
+    };
+    // 2/3 = 66.66...% → rounds to 67
+    expect(getAttendanceRatePercent(stats)).toBe(67);
   });
 });

@@ -16,6 +16,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/components/shell/AppShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   ShieldCheck,
@@ -207,25 +208,11 @@ export default function PaymentsPage(): React.ReactElement {
 
   return (
     <ProtectedRoute allowedRoles={["admin", "tesorero"]}>
-      <div>
-        {/* Hero Banner */}
-        <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-logo-glow" />
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
-              <ShieldCheck size={14} strokeWidth={2} aria-hidden="true" />
-              Validación de Pagos
-            </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
-              Membresías y Pagos
-            </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-              Valide comprobantes de pago de membresías y administre el estado de los miembros.
-              Revise, apruebe o rechace solicitudes con trazabilidad completa.
-            </p>
-          </div>
-        </div>
-
+      <AppShell
+        eyebrow="Validación de Pagos"
+        title="Membresías y Pagos"
+        subtitle="Valide comprobantes de pago de membresías y administre el estado de los miembros. Revise, apruebe o rechace solicitudes con trazabilidad completa."
+      >
         {/* Stats cards */}
         <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <div className="card-hover p-5 sm:p-6">
@@ -752,7 +739,7 @@ export default function PaymentsPage(): React.ReactElement {
           }}
           onCancel={() => setConfirmApproveOpen(false)}
         />
-      </div>
+      </AppShell>
     </ProtectedRoute>
   );
 }
