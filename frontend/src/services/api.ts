@@ -20,6 +20,13 @@
 import type {
   UserRole,
   EstadoAsistencia,
+  SolicitudClaseExtra,
+  SolicitudClaseExtraCreate,
+  SolicitudClaseExtraResolver,
+  RolesResponse,
+  BackendTipoRol,
+  FichaMedicaEditable,
+  FichaMedicaUpdatePayload,
   CategoriaRanking,
   ResultadoMensual,
   CierreMensual,
@@ -718,5 +725,125 @@ export async function restablecerContrasenia(
   await request<void>(apiEndpoint('/auth/restablecer-contrasenia'), {
     method: 'POST',
     body: JSON.stringify({ token, nueva_contrasenia: nuevaContrasenia }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Types & API Methods — Extra Classes, Roles & Medical Record (Grupo B)
+// ---------------------------------------------------------------------------
+
+/**
+ * Memberships owned by a persona. Needed to discover `membresia_id` for
+ * `POST /clases-extra/` because the backend requires it but has no other
+ * student-facing endpoint that returns it.
+ *
+ * REQUIRES a new backend endpoint (e.g. `GET /membresias/persona/{persona_id}`)
+ * or equivalent to be implemented by the backend group. Without it, the
+ * "Solicitar Clase Extra" form must stay disabled and show a "not available"
+ * message.
+ */
+export interface MembresiaPorPersona {
+  id: number;
+  estado: "INACTIVA" | "ACTIVA" | "VENCIDA";
+  montoAplicado: string;
+  fechaActivacion: string;
+  personaId: number;
+  tipoMembresiaId: number;
+  /** Resolved plan metadata — may be undefined if the type cannot be fetched. */
+  tipo?: {
+    id: number;
+    categoria: string;
+    franjaHoraria: string;
+    precio: string;
+    modalidad: "PERSONALIZADA" | "MENSUAL";
+  };
+}
+
+/** Fetch a persona's own memberships (backend endpoint to be added). */
+export async function fetchMembresiasPorPersona(personaId: number): Promise<MembresiaPorPersona[]> {
+  return request<MembresiaPorPersona[]>(apiEndpoint(`/membresias/persona/${personaId}`));
+}
+
+/** Create an extra-class request. Valid only for PERSONALIZED memberships. */
+export async function solicitarClaseExtra(
+  data: SolicitudClaseExtraCreate,
+): Promise<SolicitudClaseExtra> {
+  const body = {
+    fecha_clase_solicitada: data.fechaClaseSolicitada,
+    persona_id: data.personaId,
+    membresia_id: data.membresiaId,
+    horario_id: data.horarioId,
+    ...(data.observaciones ? { observaciones: data.observaciones } : {}),
+  };
+  return request<SolicitudClaseExtra>(apiEndpoint("/clases-extra"), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** List extra-class requests for a given persona. */
+export async function listarClasesExtra(personaId: number): Promise<SolicitudClaseExtra[]> {
+  return request<SolicitudClaseExtra[]>(apiEndpoint(`/clases-extra/persona/${personaId}`));
+}
+
+/** Admin-only: approve or reject an extra-class request. */
+export async function resolverClaseExtra(
+  id: number,
+  data: SolicitudClaseExtraResolver,
+): Promise<SolicitudClaseExtra> {
+  const body = {
+    estado: data.estado,
+    ...(data.costoAdicional !== undefined ? { costo_adicional: data.costoAdicional } : {}),
+    ...(data.observaciones ? { observaciones: data.observaciones } : {}),
+  };
+  return request<SolicitudClaseExtra>(apiEndpoint(`/clases-extra/${id}/resolver`), {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Admin-only: assign a backend role to a persona. */
+export async function asignarRol(personaId: number, tipoRol: BackendTipoRol): Promise<RolesResponse> {
+  return request<RolesResponse>(apiEndpoint(`/personas/${personaId}/roles`), {
+    method: "POST",
+    body: JSON.stringify({ tipo_rol: tipoRol }),
+  });
+}
+
+/** Admin-only: remove a backend role from a persona. */
+export async function quitarRol(personaId: number, tipoRol: BackendTipoRol): Promise<RolesResponse> {
+  return request<RolesResponse>(apiEndpoint(`/personas/${personaId}/roles/${tipoRol}`), {
+    method: "DELETE",
+  });
+}
+
+/** Admin-only: activate or deactivate a person's account. */
+export async function cambiarEstadoCuenta(personaId: number, activo: boolean): Promise<RolesResponse> {
+  return request<RolesResponse>(apiEndpoint(`/personas/${personaId}/cuenta/estado`), {
+    method: "PATCH",
+    body: JSON.stringify({ activo }),
+  });
+}
+
+/** Admin-only: fetch a person's medical record. */
+export async function fetchFichaMedica(personaId: number): Promise<FichaMedicaEditable> {
+  return request<FichaMedicaEditable>(apiEndpoint(`/fichas-medicas/persona/${personaId}`));
+}
+
+/** Admin-only: update a person's medical record. `enfermedades` replaces the full list. */
+export async function actualizarFichaMedica(
+  personaId: number,
+  data: FichaMedicaUpdatePayload,
+): Promise<FichaMedicaEditable> {
+  const body: Record<string, unknown> = {};
+  if (data.tipoSangre !== undefined) body.tipo_sangre = data.tipoSangre;
+  if (data.enfermedades !== undefined) body.enfermedades = data.enfermedades;
+  if (data.alergias !== undefined) body.alergias = data.alergias;
+  if (data.contactoEmergencia !== undefined) body.contacto_emergencia = data.contactoEmergencia;
+  if (data.telefonoEmergencia !== undefined) body.telefono_emergencia = data.telefonoEmergencia;
+
+  return request<FichaMedicaEditable>(apiEndpoint(`/fichas-medicas/persona/${personaId}`), {
+    method: "PATCH",
+    body: JSON.stringify(body),
   });
 }
