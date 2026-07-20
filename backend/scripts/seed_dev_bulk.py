@@ -151,7 +151,7 @@ def _telefono_para(indice: int) -> str:
 
 def _correo_para(nombre: str, apellido: str, indice: int) -> str:
     apellido_simple = apellido.split(" ")[0].lower()
-    return f"{nombre.lower()}{apellido_simple}{indice}@cataclub.local"
+    return f"{nombre.lower()}{apellido_simple}{indice}@cataclub.test"
 
 
 def _fechas_recientes(dia_semana: DiaSemana, cantidad: int) -> list[date]:
@@ -425,7 +425,7 @@ def main() -> None:
                 "seed_dev_trainer.py -- las membresías/pagos se omitirán."
             )
 
-        entrenador_usuario = db.query(Usuario).filter(Usuario.correo == "entrenador@cataclub.local").first()
+        entrenador_usuario = db.query(Usuario).filter(Usuario.correo == "entrenador@cataclub.test").first()
         horarios_entrenador: list[HorarioEntrenamiento] = []
         if entrenador_usuario:
             horarios_entrenador = (
@@ -659,8 +659,8 @@ def main() -> None:
         print(f"[seed] Contraseña compartida para TODAS las cuentas de este seed: {CONTRASENIA_COMPARTIDA}")
         if muestras_correo:
             print(f"[seed] Correos de ejemplo para probar login: {', '.join(muestras_correo)}")
-        print("[seed] Entrenador: entrenador@cataclub.local / trainer12345")
-        print("[seed] Admin: admin@cataclub.local / admin12345")
+        print("[seed] Entrenador: entrenador@cataclub.test / trainer12345")
+        print("[seed] Admin: admin@cataclub.test / admin12345")
     finally:
         db.close()
 
