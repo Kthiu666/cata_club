@@ -1,72 +1,141 @@
 /**
- * Forgot Password Page — "Coming soon" placeholder.
+ * Forgot Password Page — requests a password-recovery link.
  *
- * Matches the centered-card fidelity of login/register (brand header, card
- * container, companion link) but intentionally does NOT implement a real
- * password-reset flow — no form, no submission, no backend call. This page
- * only communicates status and offers a way back to login.
+ * Layout follows `design/admin-forgot-password-mockup-v1.html` via the
+ * shared AuthShell split-screen. Calls the real backend
+ * (POST /auth/recuperar-contrasenia via the BFF route
+ * src/app/api/auth/recuperar-contrasenia/route.ts) — the backend
+ * deliberately returns the same success message whether or not the email
+ * is registered (anti-enumeration), so this page always shows the same
+ * confirmation state and never reveals whether an account exists.
+ *
+ * The companion screen, src/app/reset-password/page.tsx, already consumes
+ * the recovery token from the email link (?token=...) and was already
+ * wired to the real backend — this page was the missing half.
  */
 
-import Image from "next/image";
-import Link from "next/link";
-import { KeyRound, ArrowLeft } from "lucide-react";
+"use client";
 
-export default function ForgotPasswordPage() {
+import { type FormEvent, useState } from "react";
+import Link from "next/link";
+import { KeyRound, ArrowLeft, Mail, AlertCircle, CheckCircle2 } from "lucide-react";
+import AuthShell from "@/components/auth/AuthShell";
+import { solicitarRecuperacion, ApiClientError } from "@/services/api";
+
+export default function ForgotPasswordPage(): React.ReactElement {
+  const [correo, setCorreo] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setError(null);
+
+    if (!correo.trim()) {
+      setError("Ingrese su correo electrónico.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await solicitarRecuperacion(correo.trim());
+      setSubmitted(true);
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError
+          ? err.message
+          : "No se pudo procesar la solicitud. Intente nuevamente.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
-    <div className="flex min-h-[75vh] items-center justify-center py-12">
-      <div className="w-full max-w-sm">
-        {/* Brand header */}
-        <div className="mb-10 text-center">
-          <div className="relative mx-auto mb-5 h-20 w-20 overflow-hidden rounded-2xl shadow-soft">
-            <Image
-              src="/brand/cata-club-logo.jpeg"
-              alt="Cata Club"
-              fill
-              className="object-cover"
-              sizes="80px"
-              priority
-            />
+    <AuthShell
+      eyebrow="Cata Club Admin"
+      title="Recuperar contraseña"
+      subtitle={submitted ? undefined : "Ingrese su correo para recibir un enlace de recuperación"}
+      headline={
+        <>
+          Perdiste el punto,
+          <br />
+          no <em className="not-italic text-cata-red-light">el partido</em>.
+        </>
+      }
+      description="Recuperá el acceso a tu cuenta en un par de pasos. La gestión del club no se detiene."
+    >
+      {submitted ? (
+        /* Confirmation card — deliberately identical regardless of whether
+         * the email is registered (mirrors the backend's own contract). */
+        <div className="card p-8 text-center sm:p-9">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-cata-state-ok/10">
+            <CheckCircle2 size={28} className="text-cata-state-ok" strokeWidth={1.5} aria-hidden="true" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-cata-text">
-            Recuperar Contraseña
-          </h1>
-          <p className="mt-1.5 text-sm text-cata-text/65">
-            Cata Club Admin
+          <h2 className="mb-2 text-lg font-semibold text-cata-text">
+            Revise su correo
+          </h2>
+          <p className="text-sm leading-relaxed text-cata-text/65">
+            Si <strong>{correo.trim()}</strong> está registrado, recibirá un enlace para
+            restablecer su contraseña en unos minutos.
           </p>
         </div>
-
-        {/* Status card */}
-        <div className="card p-8 text-center sm:p-9">
+      ) : (
+        <div className="card p-8 sm:p-9">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-cata-red/10">
             <KeyRound size={28} className="text-cata-red" strokeWidth={1.5} aria-hidden="true" />
           </div>
-          <h2 className="mb-2 text-lg font-semibold text-cata-text">
-            Próximamente
-          </h2>
-          <p className="text-sm leading-relaxed text-cata-text/65">
-            La recuperación de contraseña estará disponible cuando el
-            servicio de autenticación del backend esté conectado. Por ahora,
-            use una de las cuentas de demostración para iniciar sesión.
-          </p>
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <div>
+              <label htmlFor="correo" className="mb-1.5 block text-sm font-medium text-cata-text">
+                Correo electrónico
+              </label>
+              <div className="relative">
+                <Mail
+                  size={16}
+                  strokeWidth={1.5}
+                  className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
+                  aria-hidden="true"
+                />
+                <input
+                  type="email"
+                  id="correo"
+                  name="correo"
+                  value={correo}
+                  onChange={(e) => setCorreo(e.target.value)}
+                  placeholder="correo@ejemplo.com"
+                  required
+                  disabled={submitting}
+                  className="input-field pl-10"
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="alert-error" role="alert">
+                <AlertCircle size={14} strokeWidth={1.5} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <button type="submit" disabled={submitting} className="btn-primary w-full shadow-soft">
+              {submitting ? "Enviando..." : "Enviar enlace de recuperación"}
+            </button>
+          </form>
         </div>
+      )}
 
-        {/* Auth companion link — back to login */}
-        <p className="mt-8 text-center text-sm text-cata-text/65">
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-1.5 font-medium text-cata-red transition-colors hover:text-cata-red-light"
-          >
-            <ArrowLeft size={14} strokeWidth={1.5} aria-hidden="true" />
-            Volver a Iniciar Sesión
-          </Link>
-        </p>
-
-        {/* Demo mode note */}
-        <p className="mt-6 text-center text-xs text-cata-text/30">
-          Esta pantalla es un placeholder de demostración. No se envía ni
-          almacena ningún dato.
-        </p>
-      </div>
-    </div>
+      {/* Auth companion link — back to login */}
+      <p className="mt-6 text-center text-sm text-cata-text/65">
+        <Link
+          href="/login"
+          className="inline-flex items-center gap-1.5 font-medium text-cata-red transition-colors hover:text-cata-red-light"
+        >
+          <ArrowLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+          Volver a Iniciar Sesión
+        </Link>
+      </p>
+    </AuthShell>
   );
 }

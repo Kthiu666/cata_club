@@ -1,18 +1,24 @@
 /**
  * BFF proxy — POST /api/ranking/niveles/:id/cerrar-mes
  *
- * Frontend sends:  { periodo: "YYYY-MM" }
- * Backend expects: POST /ranking/niveles/:id/cerrar-mes?anio=X&mes=Y
- *
- * Translates the JSON body into the query-parameter format the backend
- * expects, and extracts :id as the nivel_ranking_id (the frontend sends
- * the nivel ID, not numero_nivel, in this call).
+ * Closes out the ranking month for a nivel (`:id` is a real
+ * `nivel_ranking_id`, the same one used by /groups) — an irreversible
+ * action per the product spec; the UI must confirm before calling this.
+ * Proxies to FastAPI's `POST /ranking/niveles/{nivel_id}/cerrar-mes`, which
+ * requires `anio`/`mes` as query params (not body) — this route translates
+ * the camelCase `{ anio, mes }` JSON body into that query string, mirroring
+ * the translation pattern in ../../../groups/assign/route.ts.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { ACCESS_TOKEN_COOKIE, getBackendApiUrl } from "@/lib/server/auth";
 
 const BACKEND_TIMEOUT_MS = 10_000;
+
+interface CerrarMesRequestBody {
+  anio?: unknown;
+  mes?: unknown;
+}
 
 export async function POST(
   request: NextRequest,
@@ -23,9 +29,9 @@ export async function POST(
     return NextResponse.json({ message: "No autenticado." }, { status: 401 });
   }
 
-  let body: unknown;
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json(
       { message: "JSON inválido en el cuerpo de la solicitud." },
@@ -33,45 +39,23 @@ export async function POST(
     );
   }
 
-  const periodo = (body as Record<string, unknown>)?.periodo;
-  if (!periodo || typeof periodo !== "string") {
+  const body = rawBody as CerrarMesRequestBody;
+  if (typeof body.anio !== "number" || typeof body.mes !== "number") {
     return NextResponse.json(
-      { message: "Falta campo 'periodo' (formato YYYY-MM)." },
+      { message: "anio y mes son obligatorios y deben ser numéricos." },
       { status: 400 },
     );
   }
-
-  const parts = periodo.split("-");
-  if (parts.length !== 2) {
-    return NextResponse.json(
-      { message: "El periodo debe tener formato YYYY-MM." },
-      { status: 400 },
-    );
-  }
-
-  const anio = Number(parts[0]);
-  const mes = Number(parts[1]);
-  if (!Number.isInteger(anio) || !Number.isInteger(mes) || mes < 1 || mes > 12) {
-    return NextResponse.json(
-      { message: "Período inválido." },
-      { status: 400 },
-    );
-  }
-
-  const nivelId = params.id;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
   try {
-    const qs = new URLSearchParams({ anio: String(anio), mes: String(mes) });
+    const query = new URLSearchParams({ anio: String(body.anio), mes: String(body.mes) });
     const response = await fetch(
-      `${getBackendApiUrl()}/ranking/niveles/${encodeURIComponent(nivelId)}/cerrar-mes?${qs.toString()}`,
+      `${getBackendApiUrl()}/ranking/niveles/${encodeURIComponent(params.id)}/cerrar-mes?${query}`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers: { Authorization: `Bearer ${accessToken}` },
         signal: controller.signal,
       },
     );

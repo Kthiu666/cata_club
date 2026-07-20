@@ -33,6 +33,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/components/shell/AppShell";
 import {
   Users,
   GraduationCap,
@@ -252,25 +253,11 @@ export default function GroupsPage(): React.ReactElement {
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
-      <div>
-        {/* Hero Banner */}
-        <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-logo-glow" />
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
-              <Users size={14} strokeWidth={2} aria-hidden="true" />
-              Grupos de Entrenamiento
-            </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
-              Gestión de Grupos
-            </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-              Grupos de entrenamiento, asignación de estudiantes y horarios. El nivel técnico
-              pertenece al grupo, no al estudiante.
-            </p>
-          </div>
-        </div>
-
+      <AppShell
+        eyebrow="Grupos de Entrenamiento"
+        title="Gestión de Grupos"
+        subtitle="Grupos de entrenamiento, asignación de estudiantes y horarios. El nivel técnico pertenece al grupo, no al estudiante."
+      >
         {loadError && (
           <div
             className="mb-4 flex items-center gap-2 rounded-xl border border-cata-red/30 bg-cata-red/10 px-4 py-3 text-sm text-cata-red"
@@ -774,7 +761,7 @@ export default function GroupsPage(): React.ReactElement {
             un Administrador puede mover a un estudiante ya asignado entre grupos.
           </p>
         </div>
-      </div>
+      </AppShell>
     </ProtectedRoute>
   );
 }

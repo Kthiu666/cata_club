@@ -1,14 +1,14 @@
 /**
- * BFF proxy — /api/ranking/resultados-mensuales
+ * BFF proxy — POST /api/ranking/resultados-mensuales
  *
- * GET:  returns monthly ranking results (optional filters: nivel_id, anio, mes)
- * POST: registers a monthly result — translates frontend shape to backend shape.
- *
- * POST translation:
- *   Frontend: { estudianteId, categoria, periodo, puntos, observacion? }
- *   Backend:  { persona_id, anio, mes, posicion?, participo }
- *     estudianteId → persona_id, periodo → anio+mes, puntos → posicion,
- *     participo = true (trainer registered = student participated)
+ * Registers a monthly ranking result (Resultado Mensual) for a student.
+ * Proxies to FastAPI's `POST /ranking/resultados-mensuales`
+ * (`ResultadoMensualRegistrarDTO`: persona_id, anio, mes, posicion?,
+ * participo) — this route validates and translates the camelCase
+ * `{ personaId, anio, mes, posicion?, participo }` body into that shape,
+ * mirroring the translation pattern in ../groups/assign/route.ts. The
+ * backend derives the student's current nivel_ranking_id itself; it is not
+ * part of the request.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -16,37 +16,12 @@ import { ACCESS_TOKEN_COOKIE, getBackendApiUrl } from "@/lib/server/auth";
 
 const BACKEND_TIMEOUT_MS = 10_000;
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
-  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
-  if (!accessToken) {
-    return NextResponse.json({ message: "No autenticado." }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
-  const qs = new URLSearchParams();
-  const nivelId = searchParams.get("nivel_id");
-  const anio = searchParams.get("anio");
-  const mes = searchParams.get("mes");
-  if (nivelId) qs.set("nivel_id", nivelId);
-  if (anio) qs.set("anio", anio);
-  if (mes) qs.set("mes", mes);
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
-  try {
-    const url = `${getBackendApiUrl()}/ranking/resultados-mensuales${qs.toString() ? `?${qs.toString()}` : ""}`;
-    const response = await fetch(url, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${accessToken}` },
-      signal: controller.signal,
-    });
-
-    return await forwardBackendResponse(response);
-  } catch (error: unknown) {
-    return backendFailureResponse(error);
-  } finally {
-    clearTimeout(timeoutId);
-  }
+interface RegistrarResultadoRequestBody {
+  personaId?: unknown;
+  anio?: unknown;
+  mes?: unknown;
+  posicion?: unknown;
+  participo?: unknown;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -55,9 +30,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ message: "No autenticado." }, { status: 401 });
   }
 
-  let body: unknown;
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json(
       { message: "JSON inválido en el cuerpo de la solicitud." },
@@ -65,44 +40,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const b = body as Record<string, unknown>;
-  const estudianteId = b.estudianteId;
-  const periodo = b.periodo as string | undefined;
-  const puntos = b.puntos;
-
-  if (!estudianteId || typeof estudianteId !== "string") {
+  const body = rawBody as RegistrarResultadoRequestBody;
+  if (
+    typeof body.personaId !== "number" ||
+    typeof body.anio !== "number" ||
+    typeof body.mes !== "number" ||
+    typeof body.participo !== "boolean" ||
+    (body.posicion !== undefined && typeof body.posicion !== "number")
+  ) {
     return NextResponse.json(
-      { message: "Falta estudianteId válido." },
+      { message: "personaId, anio, mes y participo son obligatorios (posicion es opcional)." },
       { status: 400 },
     );
   }
-  if (!periodo || typeof periodo !== "string") {
-    return NextResponse.json(
-      { message: "Falta periodo válido (YYYY-MM)." },
-      { status: 400 },
-    );
-  }
-
-  const parts = periodo.split("-");
-  if (parts.length !== 2) {
-    return NextResponse.json(
-      { message: "El periodo debe tener formato YYYY-MM." },
-      { status: 400 },
-    );
-  }
-
-  const anio = Number(parts[0]);
-  const mes = Number(parts[1]);
-  if (!Number.isInteger(anio) || !Number.isInteger(mes) || mes < 1 || mes > 12) {
-    return NextResponse.json(
-      { message: "Período inválido." },
-      { status: 400 },
-    );
-  }
-
-  const posicion = typeof puntos === "number" && Number.isFinite(puntos)
-    ? Math.max(1, Math.round(puntos))
-    : undefined;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
@@ -114,11 +64,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-        persona_id: Number(estudianteId),
-        anio,
-        mes,
-        posicion,
-        participo: posicion !== undefined,
+        persona_id: body.personaId,
+        anio: body.anio,
+        mes: body.mes,
+        posicion: body.posicion,
+        participo: body.participo,
       }),
       signal: controller.signal,
     });

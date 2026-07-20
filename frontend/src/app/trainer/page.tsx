@@ -16,11 +16,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/components/shell/AppShell";
 import {
   Calendar,
   Users,
   UserCheck,
-  GraduationCap,
   TrendingUp,
   CheckCircle2,
   ClipboardList,
@@ -75,35 +75,36 @@ export default function TrainerPage(): React.ReactElement {
   const stats = buildAttendanceStats(todayRecords);
   const presentPercent = stats.totalStudents > 0 ? Math.round((stats.totalPresent / stats.totalStudents) * 100) : 0;
 
+  const todayLongLabel = new Date().toLocaleDateString("es-EC", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
   return (
     <ProtectedRoute allowedRoles={["trainer"]}>
-      <div>
-        {/* Hero Banner */}
-        <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-logo-glow" />
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
-              <GraduationCap size={14} strokeWidth={2} aria-hidden="true" />
-              Área de Entrenadores
-            </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
-              Panel del Entrenador
-            </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-              Resumen de entrenamiento de hoy — {new Date().toLocaleDateString("es-EC", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-            </p>
-          </div>
-        </div>
-
+      <AppShell
+        eyebrow="Área de entrenadores"
+        title="Panel del Entrenador"
+        subtitle={`Resumen de entrenamiento de hoy — ${todayLongLabel}.`}
+      >
         {/* Interactive Attendance CTA */}
         <div className="mb-6 flex flex-wrap gap-3">
           <Link
             href="/trainer/attendance"
-            className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
+            className="flex items-center justify-between gap-3 rounded-2xl border border-cata-red/20 bg-cata-red/10 px-5 py-4 text-cata-red transition-colors hover:bg-cata-red/15"
           >
-            <ClipboardList size={16} strokeWidth={1.5} aria-hidden="true" />
-            Registrar Asistencia
-            <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+            <span className="flex items-center gap-3">
+              <ClipboardList size={20} strokeWidth={1.5} aria-hidden="true" />
+              <span>
+                <span className="block text-sm font-bold">Registrar Asistencia Interactiva</span>
+                <span className="block text-xs text-cata-red/75">
+                  Tomá asistencia de las sesiones de hoy en unos pasos
+                </span>
+              </span>
+            </span>
+            <ArrowRight size={16} strokeWidth={1.5} aria-hidden="true" />
           </Link>
           <Link
             href="/trainer/ranking"
@@ -181,7 +182,7 @@ export default function TrainerPage(): React.ReactElement {
             </div>
           </div>
         )}
-      </div>
+      </AppShell>
     </ProtectedRoute>
   );
 }

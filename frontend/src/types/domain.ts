@@ -403,36 +403,34 @@ export function getManagedAccounts(
 export type CategoriaRanking = number;
 
 /**
- * A monthly ranking result registered for a student within a category
- * (Resultado Mensual). First-cut shape against an unfinished backend
- * contract — kept minimal (period, category, points) rather than modeling
- * match-by-match detail.
+ * A monthly ranking result registered for a student within a nivel
+ * (Resultado Mensual) — mirrors the backend's `ResultadoMensualResponseDTO`
+ * (persona_id, nivel_ranking_id, anio, mes, posicion, puntos_obtenidos,
+ * participo, ausencia_justificada).
  */
 export interface ResultadoMensual {
-  id: string;
-  estudianteId: string;
-  categoria: CategoriaRanking;
-  /** Ranking period this result belongs to, "YYYY-MM". */
-  periodo: string;
-  /** Points/score earned in this period — scale is defined by the backend. */
-  puntos: number;
-  observacion?: string;
-  registradoPor: string;
-  createdAt: string;
+  id: number;
+  personaId: number;
+  nivelRankingId: number;
+  anio: number;
+  mes: number;
+  posicion: number | null;
+  puntosObtenidos: number;
+  participo: boolean;
+  ausenciaJustificada: boolean;
 }
 
 /**
- * Record of a ranking-month closure (Cierre de Mes) for a given category —
- * an irreversible action that locks further result registration for that
- * category/period.
+ * Record of a ranking-month closure (Cierre de Mes) for a given nivel — an
+ * irreversible action that locks further result registration for that
+ * nivel/period. Mirrors the backend's `CierreMensualResponseDTO`.
  */
 export interface CierreMensual {
-  id: string;
-  categoria: CategoriaRanking;
-  /** Period being closed, "YYYY-MM". */
-  periodo: string;
-  cerradoPor: string;
-  cerradoEn: string;
+  nivelRankingId: number;
+  anio: number;
+  mes: number;
+  personasProcesadas: number;
+  personasEliminadas: number[];
 }
 
 /**

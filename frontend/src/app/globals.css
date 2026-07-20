@@ -4,7 +4,9 @@
 @tailwind components;
 @tailwind utilities;
 
-.app-main:has(.landing-page) {
+.app-main:has(.landing-page),
+.app-main:has(.auth-shell),
+.app-main:has(.app-shell) {
   max-width: none;
   padding: 0;
 }

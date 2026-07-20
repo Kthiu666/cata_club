@@ -1,8 +1,6 @@
 /**
  * Tests for POST /api/ranking/niveles/:id/cerrar-mes.
  *
- * The BFF translates { periodo: "YYYY-MM" } to query params ?anio=X&mes=Y.
- *
  * @vitest-environment node
  */
 
@@ -23,7 +21,7 @@ function postRequest(cookie: string, body: unknown): NextRequest {
   });
 }
 
-const dto = { periodo: "2026-07" };
+const dto = { anio: 2026, mes: 7 };
 
 beforeEach(() => {
   vi.spyOn(global, "fetch");
@@ -43,9 +41,9 @@ describe("POST /api/ranking/niveles/:id/cerrar-mes", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it("translates periodo to query params anio and mes", async () => {
+  it("forwards the nivel id in the URL and anio/mes as query params, with the token as Bearer", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      jsonResponse({ nivel_ranking_id: 3, anio: 2026, mes: 7, personas_procesadas: 5 }),
+      jsonResponse({ nivel_ranking_id: 3, anio: 2026, mes: 7, personas_procesadas: 1, personas_eliminadas: [] }),
     );
 
     const response = await POST(postRequest(`${ACCESS_TOKEN_COOKIE}=abc123`, dto), {
@@ -62,30 +60,18 @@ describe("POST /api/ranking/niveles/:id/cerrar-mes", () => {
     expect(response.status).toBe(200);
   });
 
-  it("returns 400 when periodo is missing", async () => {
-    const response = await POST(
-      postRequest(`${ACCESS_TOKEN_COOKIE}=abc123`, {}),
-      { params: { id: "3" } },
-    );
-
-    expect(response.status).toBe(400);
-  });
-
-  it("returns 400 for invalid JSON", async () => {
-    const request = new NextRequest("http://localhost/api/ranking/niveles/3/cerrar-mes", {
-      method: "POST",
-      headers: { cookie: `${ACCESS_TOKEN_COOKIE}=abc123`, "Content-Type": "application/json" },
-      body: "not json {",
+  it("returns 400 when anio or mes are missing/wrong-typed", async () => {
+    const response = await POST(postRequest(`${ACCESS_TOKEN_COOKIE}=abc123`, { anio: 2026 }), {
+      params: { id: "3" },
     });
 
-    const response = await POST(request, { params: { id: "3" } });
-
     expect(response.status).toBe(400);
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it("propagates a 409 conflict when the month is already closed", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      jsonResponse({ message: "El mes ya fue cerrado para esta categoría." }, 409),
+      jsonResponse({ message: "El mes ya fue cerrado para este nivel." }, 409),
     );
 
     const response = await POST(postRequest(`${ACCESS_TOKEN_COOKIE}=abc123`, dto), {
