@@ -12,7 +12,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -35,6 +35,60 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNavLinksForRole, type NavLinkDef } from "@/lib/auth-utils";
+import NotificationBell from "@/components/NotificationBell";
+import { fetchNotificaciones, marcarNotificacionLeida } from "@/services/api";
+import type { Notificacion } from "@/types/domain";
+
+const NOTIFICACIONES_POLL_INTERVAL_MS = 60_000;
+
+/**
+ * Fetch + 60s poll + mark-read live here, called exactly once by Header, so
+ * both rendered <NotificationBell> instances (desktop nav + mobile drawer)
+ * share one data source instead of polling independently and drifting out
+ * of sync with each other.
+ */
+function useNotificaciones(enabled: boolean): {
+  notificaciones: Notificacion[];
+  loadError: boolean;
+  markRead: (id: number) => void;
+} {
+  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
+  const [loadError, setLoadError] = useState(false);
+
+  const load = useCallback(async (): Promise<void> => {
+    try {
+      const data = await fetchNotificaciones();
+      setNotificaciones(data);
+      setLoadError(false);
+    } catch {
+      // Silent — the bell degrades to "no notifications" rather than
+      // interrupting the whole header on a transient failure.
+      setLoadError(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+    void load();
+    const intervalId = setInterval(() => void load(), NOTIFICACIONES_POLL_INTERVAL_MS);
+    return () => clearInterval(intervalId);
+  }, [enabled, load]);
+
+  const markRead = useCallback((id: number): void => {
+    // Snapshot before the optimistic update so a failed mark-read call can
+    // be restored explicitly, instead of relying on a reload to "revert" it
+    // (a reload can itself fail during the same outage, stranding the item
+    // as incorrectly read-with-no-retry).
+    let previous: Notificacion[] = [];
+    setNotificaciones((prev) => {
+      previous = prev;
+      return prev.map((n) => (n.id === id ? { ...n, leida: true } : n));
+    });
+    marcarNotificacionLeida(id).catch(() => setNotificaciones(previous));
+  }, []);
+
+  return { notificaciones, loadError, markRead };
+}
 
 interface NavLink {
   href: string;
@@ -231,6 +285,7 @@ export default function Header({ hideOnLanding = false }: HeaderProps): React.Re
   const [menuOpen, setMenuOpen] = useState(false);
   const { isAuthenticated, session, logout, isLoading } = useAuth();
   const links = useNavLinks();
+  const { notificaciones, loadError, markRead } = useNotificaciones(isAuthenticated && !!session);
 
   if (hideOnLanding && pathname === "/") {
     return null;
@@ -305,6 +360,7 @@ export default function Header({ hideOnLanding = false }: HeaderProps): React.Re
           {/* User menu — shown when authenticated */}
           {isAuthenticated && session && (
             <li className="ml-2 flex items-center gap-2 border-l border-white/10 pl-3">
+              <NotificationBell notificaciones={notificaciones} loadError={loadError} onMarkRead={markRead} />
               <span className="flex items-center gap-1.5 text-xs text-white/65">
                 <User size={13} strokeWidth={1.5} aria-hidden="true" />
                 <span className="max-w-[120px] truncate">{session.user.name}</span>
@@ -362,9 +418,12 @@ export default function Header({ hideOnLanding = false }: HeaderProps): React.Re
             {/* User section in mobile menu */}
             {isAuthenticated && session && (
               <li className="border-t border-white/10 pt-3 mt-3">
-                <div className="flex items-center gap-2 px-3.5 py-2 text-xs text-white/65">
-                  <User size={14} strokeWidth={1.5} aria-hidden="true" />
-                  <span className="truncate">{session.user.name}</span>
+                <div className="flex items-center justify-between gap-2 px-3.5 py-2 text-xs text-white/65">
+                  <span className="flex items-center gap-2 truncate">
+                    <User size={14} strokeWidth={1.5} aria-hidden="true" />
+                    <span className="truncate">{session.user.name}</span>
+                  </span>
+                  <NotificationBell notificaciones={notificaciones} loadError={loadError} onMarkRead={markRead} />
                 </div>
                 <button
                   type="button"

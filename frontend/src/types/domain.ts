@@ -464,3 +464,59 @@ export interface PersonaReporte {
   motivoBeca?: string | null;
   fechaRegistro?: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Ranking — Notificaciones & Justificativos (E03-RF006a/b + in-app
+// notifications). Mirrors backend/app/dominio/enums.py's
+// `TipoNotificacion`/`EstadoJustificativoRanking` and
+// ranking_schemas.py's `NotificacionResponseDTO`/`JustificativoResponseDTO`
+// — both confirmed live in ranking_router.py (GET/PATCH notificaciones,
+// POST/PATCH justificativos), not speculative.
+// ---------------------------------------------------------------------------
+
+/** Notification type — mirrors backend's `TipoNotificacion` enum. */
+export type TipoNotificacion =
+  | "RANKING_ELIMINACION_PROXIMA"
+  | "RANKING_ASCENSO_SUGERIDO"
+  | "RANKING_DESCENSO_SUGERIDO"
+  | "RANKING_REINGRESO_APROBADO"
+  | "JUSTIFICATIVO_APROBADO"
+  | "JUSTIFICATIVO_RECHAZADO";
+
+/**
+ * An in-app ranking notification (`GET /ranking/notificaciones/mias`) —
+ * mirrors `NotificacionResponseDTO`, already camelCase via `ResponseBase`'s
+ * alias_generator.
+ */
+export interface Notificacion {
+  id: number;
+  tipo: TipoNotificacion;
+  mensaje: string;
+  leida: boolean;
+  fechaCreacion: string;
+  entidadRelacionadaId: number | null;
+}
+
+/** Estado of a ranking justificativo — mirrors backend's `EstadoJustificativoRanking`. */
+export type EstadoJustificativoRanking = "PENDIENTE" | "APROBADO" | "RECHAZADO";
+
+/**
+ * A justification for a missed ranking month (E03-RF006a/b) — mirrors
+ * `JustificativoResponseDTO`. `motivoRechazo`/`fechaEvaluacion`/
+ * `evaluadoPorId` are only populated once an admin evaluates it via
+ * `PATCH /ranking/justificativos/:id/evaluar`, which returns this same DTO
+ * (verified in ranking_router.py's `evaluar_justificativo`).
+ */
+export interface Justificativo {
+  id: number;
+  personaId: number;
+  anio: number;
+  mes: number;
+  motivo: string;
+  archivoUrl: string | null;
+  estado: EstadoJustificativoRanking;
+  motivoRechazo: string | null;
+  fechaSolicitud: string;
+  fechaEvaluacion: string | null;
+  evaluadoPorId: number | null;
+}

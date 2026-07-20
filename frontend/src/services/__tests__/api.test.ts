@@ -20,8 +20,14 @@ import {
   enrollStudent,
   fetchPaymentValidations,
   updatePaymentValidation,
+  fetchNotificaciones,
+  marcarNotificacionLeida,
+  submitJustificativo,
+  evaluarJustificativo,
+  fetchJustificativosPendientes,
 } from "../api";
 import type { PaymentValidationRequest } from "../api";
+import type { Notificacion, Justificativo } from "@/types/domain";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -317,6 +323,157 @@ describe("updatePaymentValidation — approve", () => {
     await expect(
       updatePaymentValidation("invalid-id", { action: "approved" }),
     ).rejects.toThrow("Payment validation request not found");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ranking — Notificaciones & Justificativos
+// ---------------------------------------------------------------------------
+
+function makeNotificacion(overrides: Partial<Notificacion> = {}): Notificacion {
+  return {
+    id: 1,
+    tipo: "JUSTIFICATIVO_APROBADO",
+    mensaje: "Tu justificativo de 7/2026 fue aprobado.",
+    leida: false,
+    fechaCreacion: "2026-07-19T10:00:00Z",
+    entidadRelacionadaId: 5,
+    ...overrides,
+  };
+}
+
+function makeJustificativo(overrides: Partial<Justificativo> = {}): Justificativo {
+  return {
+    id: 10,
+    personaId: 3,
+    anio: 2026,
+    mes: 7,
+    motivo: "Viaje familiar",
+    archivoUrl: null,
+    estado: "PENDIENTE",
+    motivoRechazo: null,
+    fechaSolicitud: "2026-07-19T10:00:00Z",
+    fechaEvaluacion: null,
+    evaluadoPorId: null,
+    ...overrides,
+  };
+}
+
+describe("fetchNotificaciones", () => {
+  it("calls the real BFF route GET /api/ranking/notificaciones/mias", async () => {
+    const items = [makeNotificacion()];
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(items));
+
+    const result = await fetchNotificaciones();
+
+    expect(global.fetch).toHaveBeenCalledWith("/api/ranking/notificaciones/mias", expect.anything());
+    expect(result).toEqual(items);
+  });
+});
+
+describe("marcarNotificacionLeida", () => {
+  it("sends PATCH to /api/ranking/notificaciones/:id/leer", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(makeNotificacion({ leida: true })));
+
+    const result = await marcarNotificacionLeida(1);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/ranking/notificaciones/1/leer",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    expect(result.leida).toBe(true);
+  });
+});
+
+describe("submitJustificativo", () => {
+  it("sends POST to /api/ranking/justificativos with the full DTO", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(makeJustificativo(), { status: 201 }));
+
+    const result = await submitJustificativo({
+      personaId: 3,
+      anio: 2026,
+      mes: 7,
+      motivo: "Viaje familiar",
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/ranking/justificativos",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ personaId: 3, anio: 2026, mes: 7, motivo: "Viaje familiar" }),
+      }),
+    );
+    expect(result).toEqual(makeJustificativo());
+  });
+
+  it("throws a typed error when the backend rejects the request", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      errorResponse(409, { message: "Ya existe un justificativo para esta persona en ese período" }),
+    );
+
+    await expect(
+      submitJustificativo({ personaId: 3, anio: 2026, mes: 7, motivo: "Viaje familiar" }),
+    ).rejects.toThrow("Ya existe un justificativo para esta persona en ese período");
+  });
+});
+
+describe("evaluarJustificativo", () => {
+  it("sends PATCH to /api/ranking/justificativos/:id/evaluar in real (non-mock) mode", async () => {
+    process.env.NEXT_PUBLIC_USE_MOCKS = "false";
+    const evaluado = makeJustificativo({ estado: "APROBADO", fechaEvaluacion: "2026-07-20T09:00:00Z" });
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(evaluado));
+
+    const result = await evaluarJustificativo(10, { estado: "APROBADO" });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/ranking/justificativos/10/evaluar",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ estado: "APROBADO" }),
+      }),
+    );
+    expect(result.estado).toBe("APROBADO");
+  });
+
+  it("simulates the decision against the mock pending list in mock mode, without calling the backend", async () => {
+    process.env.NEXT_PUBLIC_USE_MOCKS = "true";
+    const pendientesBefore = await fetchJustificativosPendientes();
+    const target = pendientesBefore[0];
+
+    const result = await evaluarJustificativo(target.id, {
+      estado: "RECHAZADO",
+      motivoRechazo: "Sin evidencia",
+    });
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(result).toEqual(
+      expect.objectContaining({ id: target.id, estado: "RECHAZADO", motivoRechazo: "Sin evidencia" }),
+    );
+
+    // A second fetchJustificativosPendientes() reflects the evaluation, same
+    // as a real backend would after an approve/reject.
+    const pendientesAfter = await fetchJustificativosPendientes();
+    expect(pendientesAfter.find((j) => j.id === target.id)).toBeUndefined();
+  });
+});
+
+describe("fetchJustificativosPendientes", () => {
+  it("returns curated mock data when NEXT_PUBLIC_USE_MOCKS is unset (defaults to mock mode)", async () => {
+    delete process.env.NEXT_PUBLIC_USE_MOCKS;
+
+    const result = await fetchJustificativosPendientes();
+
+    expect(result.length).toBeGreaterThan(0);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty list instead of fabricating data when mocks are disabled", async () => {
+    process.env.NEXT_PUBLIC_USE_MOCKS = "false";
+
+    const result = await fetchJustificativosPendientes();
+
+    expect(result).toEqual([]);
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
 

@@ -46,6 +46,9 @@ import {
   ArrowRight,
   RotateCcw,
   Award,
+  FileText,
+  XCircle,
+  Loader2,
 } from "lucide-react";
 import {
   fetchMembers,
@@ -54,10 +57,12 @@ import {
   moveStudentToNivel,
   reingresar,
   seleccionOficial,
+  fetchJustificativosPendientes,
+  evaluarJustificativo,
   ApiClientError,
 } from "@/services/api";
 import type { NivelConOcupacion } from "@/services/api";
-import type { CategoriaRanking, SeleccionOficial } from "@/types/domain";
+import type { CategoriaRanking, SeleccionOficial, Justificativo } from "@/types/domain";
 import { getUnassignedStudents, getLevelLabel, type StudentRef, type GroupCardData } from "@/lib/groups-utils";
 import { buildGroupCardsFromNiveles, getLevelBadgeClass, getCapacityBarColor } from "./groups-page-utils";
 
@@ -144,6 +149,31 @@ export default function GroupsPage(): React.ReactElement {
   const [seleccionError, setSeleccionError] = useState<string | null>(null);
   const [seleccionesOficiales, setSeleccionesOficiales] = useState<SeleccionOficial[]>([]);
 
+  // Justificativos pendientes (Ranking track, E03-RF006b) — admin review
+  // queue. No backend endpoint lists pending justificativos yet (only
+  // POST .../justificativos and PATCH .../evaluar exist — see
+  // src/mocks/justificativos.ts), so `fetchJustificativosPendientes` is
+  // mock-only; evaluating one is a real backend call.
+  const [justificativosPendientes, setJustificativosPendientes] = useState<Justificativo[]>([]);
+  const [justificativosLoading, setJustificativosLoading] = useState(true);
+  const [evaluandoId, setEvaluandoId] = useState<number | null>(null);
+
+  const loadJustificativos = useCallback(async (): Promise<void> => {
+    setJustificativosLoading(true);
+    try {
+      const pendientes = await fetchJustificativosPendientes();
+      setJustificativosPendientes(pendientes);
+    } catch {
+      setJustificativosPendientes([]);
+    } finally {
+      setJustificativosLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadJustificativos();
+  }, [loadJustificativos]);
+
   const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
     setLoadError(null);
@@ -183,6 +213,19 @@ export default function GroupsPage(): React.ReactElement {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 4000);
   }, []);
+
+  async function handleEvaluarJustificativo(id: number, estado: "APROBADO" | "RECHAZADO"): Promise<void> {
+    setEvaluandoId(id);
+    try {
+      await evaluarJustificativo(id, { estado });
+      setJustificativosPendientes((prev) => prev.filter((j) => j.id !== id));
+      showNotification("success", estado === "APROBADO" ? "Justificativo aprobado." : "Justificativo rechazado.");
+    } catch (err) {
+      showNotification("error", extractErrorMessage(err, "No se pudo evaluar el justificativo."));
+    } finally {
+      setEvaluandoId(null);
+    }
+  }
 
   async function handleAssignStudent(estudianteId: string, targetGroupId: string): Promise<void> {
     const student = allStudents.find((s) => s.id === estudianteId);
@@ -742,6 +785,77 @@ export default function GroupsPage(): React.ReactElement {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+
+        {/* Justificativos pendientes (Ranking track) — admin review queue for
+            E03-RF006b, independent of the Reingreso/Selección Oficial panels
+            above. See the `justificativosPendientes` state doc comment: the
+            listing is mock-only (no backend GET yet), evaluating is real. */}
+        <div id="justificativos-pendientes" className="card mt-8 scroll-mt-24 p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <FileText size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            <h3 className="text-sm font-bold text-cata-text">
+              Justificativos Pendientes ({justificativosPendientes.length})
+            </h3>
+          </div>
+          <p className="mb-4 text-sm leading-relaxed text-cata-text/65">
+            Justificativos de ausencia al ranking mensual enviados por estudiantes, a la espera de
+            aprobación o rechazo.
+          </p>
+
+          {justificativosLoading ? (
+            <div className="flex items-center gap-2 py-4">
+              <Loader2 size={14} className="animate-spin text-cata-text/40" aria-hidden="true" />
+              <p className="text-xs text-cata-text/40">Cargando justificativos…</p>
+            </div>
+          ) : justificativosPendientes.length > 0 ? (
+            <div className="space-y-2">
+              {justificativosPendientes.map((j) => {
+                const student = allStudents.find((s) => Number(s.id) === j.personaId);
+                const isEvaluando = evaluandoId === j.id;
+                return (
+                  <div
+                    key={j.id}
+                    className="card-hover flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-cata-text">
+                        {student ? `${student.nombres} ${student.apellidos}` : `Persona #${j.personaId}`}
+                        {" — "}
+                        {j.mes}/{j.anio}
+                      </p>
+                      <p className="text-xs text-cata-text/65">{j.motivo}</p>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        disabled={isEvaluando}
+                        onClick={() => void handleEvaluarJustificativo(j.id, "APROBADO")}
+                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
+                      >
+                        <CheckCircle2 size={12} strokeWidth={1.5} aria-hidden="true" />
+                        Aprobar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isEvaluando}
+                        onClick={() => void handleEvaluarJustificativo(j.id, "RECHAZADO")}
+                        className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-medium text-cata-red transition-colors hover:bg-red-100 disabled:opacity-50"
+                      >
+                        <XCircle size={12} strokeWidth={1.5} aria-hidden="true" />
+                        Rechazar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 py-4">
+              <CheckCircle2 size={14} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />
+              <p className="text-xs text-cata-text/40">No hay justificativos pendientes de revisión.</p>
             </div>
           )}
         </div>

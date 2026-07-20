@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchStudentPortal, fetchMembresiasPorPersona, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra } from "@/services/api";
+import { fetchStudentPortal, fetchMembresiasPorPersona, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra, submitJustificativo } from "@/services/api";
 import type { StudentPortalSummary, StudentProfileSummary, MembresiaPorPersona } from "@/services/api";
-import type { SolicitudClaseExtra } from "@/types/domain";
+import type { SolicitudClaseExtra, Justificativo } from "@/types/domain";
 import type { TrainingSchedule } from "@/app/attendance/attendance-utils";
 import { ATTENDANCE_LABELS, ATTENDANCE_BADGE_TOKENS } from "@/app/attendance/attendance-utils";
 import { derivePortalMode, isRepresentative, buildAccountLabel, describeRanking } from "./student-utils";
@@ -31,6 +31,7 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  FileText,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -457,6 +458,198 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
   );
 }
 
+// ---------------------------------------------------------------------------
+// Justificativos section — submit + session history (Ranking track,
+// E03-RF006a). No backend GET lists a persona's own past justificativos yet
+// (only POST /ranking/:personaId/justificativos and PATCH .../evaluar
+// exist), so the history shown here is frontend-only session state built
+// from each successful submit — the same "no backend GET yet" pattern
+// already used by groups/page.tsx's reingresados/seleccionesOficiales state.
+// ---------------------------------------------------------------------------
+
+const MESES_LABEL = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+
+function JustificativoEstadoBadge({ estado }: { estado: Justificativo["estado"] }): React.ReactElement {
+  if (estado === "APROBADO") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+        <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" /> Aprobado
+      </span>
+    );
+  }
+  if (estado === "RECHAZADO") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-cata-red">
+        <XCircle size={10} strokeWidth={2} aria-hidden="true" /> Rechazado
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 text-xs font-medium text-amber-400">
+      <Clock size={10} strokeWidth={2} aria-hidden="true" /> Pendiente
+    </span>
+  );
+}
+
+function JustificativosSection({ personaId }: { personaId: string }): React.ReactElement {
+  const numericPersonaId = Number(personaId);
+  const now = new Date();
+
+  const [anio, setAnio] = useState(now.getFullYear());
+  const [mes, setMes] = useState(now.getMonth() + 1);
+  const [motivo, setMotivo] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [historial, setHistorial] = useState<Justificativo[]>([]);
+
+  async function handleSubmit(e: React.FormEvent): Promise<void> {
+    e.preventDefault();
+    if (!motivo.trim()) return;
+
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const created = await submitJustificativo({
+        personaId: numericPersonaId,
+        anio,
+        mes,
+        motivo: motivo.trim(),
+      });
+      setHistorial((prev) => [created, ...prev]);
+      setMotivo("");
+    } catch (error: unknown) {
+      setSubmitError(error instanceof Error ? error.message : "No se pudo enviar el justificativo.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <section className="mb-8">
+      <div className="mb-4 flex items-center gap-2">
+        <FileText size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+        <h2 className="text-lg font-bold text-cata-text">Justificativos</h2>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-cata-border bg-cata-surface p-5 sm:p-6">
+        <h3 className="mb-1 text-base font-bold text-cata-text">Justificar una ausencia del ranking mensual</h3>
+        <p className="mb-4 text-xs text-cata-text/65">
+          Enviá un justificativo para el mes en que no participaste — un administrador lo evaluará.
+        </p>
+        <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <label htmlFor="justificativo-anio" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Año
+            </label>
+            <input
+              id="justificativo-anio"
+              type="number"
+              min={2020}
+              value={anio}
+              onChange={(e) => setAnio(Number(e.target.value))}
+              className="input-field w-full"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="justificativo-mes" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Mes
+            </label>
+            <select
+              id="justificativo-mes"
+              value={mes}
+              onChange={(e) => setMes(Number(e.target.value))}
+              className="input-field w-full"
+              required
+            >
+              {MESES_LABEL.map((label, i) => (
+                <option key={label} value={i + 1}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="sm:col-span-2 lg:col-span-2">
+            <label htmlFor="justificativo-motivo" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Motivo
+            </label>
+            <input
+              id="justificativo-motivo"
+              type="text"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Ej. Viaje familiar"
+              maxLength={255}
+              className="input-field w-full"
+              required
+            />
+          </div>
+          <div className="sm:col-span-2 lg:col-span-4">
+            <button
+              type="submit"
+              disabled={submitting || !motivo.trim()}
+              className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"
+            >
+              {submitting ? (
+                <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Send size={14} strokeWidth={1.5} aria-hidden="true" />
+              )}
+              {submitting ? "Enviando..." : "Enviar justificativo"}
+            </button>
+            {submitError && (
+              <p className="mt-2 text-sm text-cata-red" role="alert">
+                {submitError}
+              </p>
+            )}
+          </div>
+        </form>
+      </div>
+
+      <div>
+        <div className="mb-2 flex items-center gap-2">
+          <History size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          <h3 className="text-base font-bold text-cata-text">Historial de esta sesión</h3>
+        </div>
+        <p className="mb-3 text-xs text-cata-text/45">
+          Todavía no hay un endpoint del backend para listar tus justificativos anteriores — este historial
+          muestra únicamente lo que enviaste durante esta sesión.
+        </p>
+        {historial.length === 0 ? (
+          <div className="card p-6 text-center">
+            <p className="text-sm text-cata-text/50">Aún no enviaste justificativos en esta sesión.</p>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {historial.map((j) => (
+              <div
+                key={j.id}
+                className="card-hover flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                    <FileText size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-cata-text">
+                      {MESES_LABEL[j.mes - 1]} {j.anio}
+                    </p>
+                    <p className="text-xs text-cata-text/65">{j.motivo}</p>
+                  </div>
+                </div>
+                <JustificativoEstadoBadge estado={j.estado} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 /** Real `TipoMembresia` catalog cards for the pending-enrollment view — replaces the old hardcoded `membershipPlans` array. */
 function MembershipPlansGrid({ data }: { data: StudentPortalSummary }): React.ReactElement {
   if (data.membershipPlans.length === 0) {
@@ -640,6 +833,7 @@ function ActivePortalView({
 
           <RecentSessionsSection profile={selectedProfile} />
           <ExtraClassesSection personaId={selectedProfile.personaId} />
+          <JustificativosSection personaId={selectedProfile.personaId} />
         </>
       )}
     </>
