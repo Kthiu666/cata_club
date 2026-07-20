@@ -43,9 +43,20 @@ import {
   CheckCircle2,
   MapPin,
   ArrowRight,
+  RotateCcw,
+  Award,
 } from "lucide-react";
-import { fetchMembers, fetchNivelesConOcupacion, assignStudentToNivel, moveStudentToNivel, ApiClientError } from "@/services/api";
+import {
+  fetchMembers,
+  fetchNivelesConOcupacion,
+  assignStudentToNivel,
+  moveStudentToNivel,
+  reingresar,
+  seleccionOficial,
+  ApiClientError,
+} from "@/services/api";
 import type { NivelConOcupacion } from "@/services/api";
+import type { CategoriaRanking, SeleccionOficial } from "@/types/domain";
 import { getUnassignedStudents, getLevelLabel, type StudentRef, type GroupCardData } from "@/lib/groups-utils";
 import { buildGroupCardsFromNiveles, getLevelBadgeClass, getCapacityBarColor } from "./groups-page-utils";
 
@@ -116,6 +127,22 @@ export default function GroupsPage(): React.ReactElement {
     message: string;
   } | null>(null);
 
+  // Reingreso (Ranking track) — frontend-only session state: students
+  // re-admitted this session are tracked locally since there's no backend
+  // GET yet to refresh `activo` after a successful /ranking/:id/reingresar
+  // call. See src/app/api/ranking/[id]/reingresar/route.ts.
+  const [reingresandoId, setReingresandoId] = useState<string | null>(null);
+  const [reingresados, setReingresados] = useState<Set<string>>(new Set());
+
+  // Selección Oficial (Ranking track) — frontend-only session list, same
+  // reasoning as above. See src/app/api/ranking/seleccion-oficial/route.ts.
+  const [seleccionEstudianteId, setSeleccionEstudianteId] = useState("");
+  const [seleccionCategoria, setSeleccionCategoria] = useState<CategoriaRanking | "">("");
+  const [seleccionPeriodo, setSeleccionPeriodo] = useState("");
+  const [seleccionLoading, setSeleccionLoading] = useState(false);
+  const [seleccionError, setSeleccionError] = useState<string | null>(null);
+  const [seleccionesOficiales, setSeleccionesOficiales] = useState<SeleccionOficial[]>([]);
+
   const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
     setLoadError(null);
@@ -144,6 +171,7 @@ export default function GroupsPage(): React.ReactElement {
   }, [loadData]);
 
   const unassigned = getUnassignedStudents(allStudents);
+  const inactiveStudents = allStudents.filter((s) => !s.activo && !reingresados.has(s.id));
   const cardData = buildGroupCardsFromNiveles(niveles);
   const selectedNivel = selectedGroupId ? niveles.find((n) => String(n.id) === selectedGroupId) ?? null : null;
   const assignedStudentsForSelected = selectedGroupId
@@ -171,6 +199,54 @@ export default function GroupsPage(): React.ReactElement {
       showNotification("error", extractErrorMessage(err, "No se pudo asignar el estudiante al grupo."));
     } finally {
       setActionPending(false);
+    }
+  }
+
+  async function handleReingresar(estudianteId: string): Promise<void> {
+    setReingresandoId(estudianteId);
+    try {
+      await reingresar(estudianteId);
+      setReingresados((prev) => new Set(prev).add(estudianteId));
+      showNotification("success", "Estudiante reingresado al ranking correctamente.");
+    } catch (err) {
+      console.error("[groups] reingresar failed", err);
+      showNotification(
+        "error",
+        err instanceof ApiClientError ? err.message : "Error al reingresar al estudiante.",
+      );
+    } finally {
+      setReingresandoId(null);
+    }
+  }
+
+  async function handleSeleccionOficialSubmit(event: React.FormEvent): Promise<void> {
+    event.preventDefault();
+    setSeleccionError(null);
+
+    if (!seleccionEstudianteId || !seleccionCategoria || !seleccionPeriodo) {
+      setSeleccionError("Completá estudiante, categoría y período.");
+      return;
+    }
+
+    setSeleccionLoading(true);
+    try {
+      const entry = await seleccionOficial({
+        estudianteId: seleccionEstudianteId,
+        categoria: seleccionCategoria,
+        periodo: seleccionPeriodo,
+      });
+      setSeleccionesOficiales((prev) => [entry, ...prev]);
+      setSeleccionEstudianteId("");
+      setSeleccionCategoria("");
+      setSeleccionPeriodo("");
+      showNotification("success", "Estudiante agregado a la selección oficial.");
+    } catch (err) {
+      console.error("[groups] seleccionOficial failed", err);
+      setSeleccionError(
+        err instanceof ApiClientError ? err.message : "Error al registrar la selección oficial.",
+      );
+    } finally {
+      setSeleccionLoading(false);
     }
   }
 
@@ -389,6 +465,47 @@ export default function GroupsPage(): React.ReactElement {
                 </div>
               )}
             </div>
+
+            {/* Reingreso al ranking — inactive/dropped students (Ranking track) */}
+            <div className="card p-5">
+              <div className="mb-4 flex items-center gap-2">
+                <RotateCcw size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                <h3 className="text-sm font-bold text-cata-text">
+                  Estudiantes inactivos ({inactiveStudents.length})
+                </h3>
+              </div>
+
+              {inactiveStudents.length > 0 ? (
+                <div className="space-y-2">
+                  {inactiveStudents.map((student) => (
+                    <div
+                      key={student.id}
+                      className="card-hover flex items-center justify-between px-4 py-3"
+                    >
+                      <span className="text-sm text-cata-text">
+                        {student.nombres} {student.apellidos}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={reingresandoId === student.id}
+                        onClick={() => handleReingresar(student.id)}
+                        className="btn-ghost text-xs"
+                      >
+                        <RotateCcw size={12} strokeWidth={1.5} aria-hidden="true" />
+                        {reingresandoId === student.id ? "Reingresando..." : "Reingresar"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 py-4">
+                  <CheckCircle2 size={14} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />
+                  <p className="text-xs text-cata-text/40">
+                    No hay estudiantes inactivos pendientes de reingreso.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Right column: Group detail panel */}
@@ -542,6 +659,104 @@ export default function GroupsPage(): React.ReactElement {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Selección Oficial (Ranking track) — admin-managed roster, independent of the trainer-managed monthly ranking flow */}
+        <div id="seleccion-oficial" className="card mt-8 scroll-mt-24 p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Award size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            <h3 className="text-sm font-bold text-cata-text">Selección Oficial</h3>
+          </div>
+          <p className="mb-4 text-sm leading-relaxed text-cata-text/65">
+            Roster de selección oficial gestionado por administración — independiente del flujo
+            mensual de ranking a cargo del entrenador.
+          </p>
+
+          {seleccionError && (
+            <div className="alert-error mb-4" role="alert">
+              {seleccionError}
+            </div>
+          )}
+
+          <form
+            onSubmit={handleSeleccionOficialSubmit}
+            className="mb-5 grid gap-3 sm:grid-cols-4"
+          >
+            <label className="block text-sm sm:col-span-2">
+              <span className="mb-1 block text-xs font-medium text-cata-text/65">Estudiante</span>
+              <select
+                className="input-field"
+                value={seleccionEstudianteId}
+                onChange={(e) => setSeleccionEstudianteId(e.target.value)}
+              >
+                <option value="">Seleccionar...</option>
+                {allStudents.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombres} {s.apellidos}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-xs font-medium text-cata-text/65">Categoría</span>
+              <select
+                className="input-field"
+                value={seleccionCategoria}
+                onChange={(e) =>
+                  setSeleccionCategoria(e.target.value ? Number(e.target.value) : "")
+                }
+              >
+                <option value="">—</option>
+                {Array.from({ length: 10 }, (_, i) => i + 1).map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-xs font-medium text-cata-text/65">Período</span>
+              <input
+                type="month"
+                className="input-field"
+                value={seleccionPeriodo}
+                onChange={(e) => setSeleccionPeriodo(e.target.value)}
+              />
+            </label>
+            <div className="sm:col-span-4">
+              <button type="submit" disabled={seleccionLoading} className="btn-primary">
+                {seleccionLoading ? "Guardando..." : "Agregar a selección oficial"}
+              </button>
+            </div>
+          </form>
+
+          {seleccionesOficiales.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
+                    <th className="px-4 py-2 font-medium">Estudiante</th>
+                    <th className="px-4 py-2 font-medium">Categoría</th>
+                    <th className="px-4 py-2 font-medium">Período</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-cata-border">
+                  {seleccionesOficiales.map((entry) => {
+                    const student = allStudents.find((s) => s.id === entry.estudianteId);
+                    return (
+                      <tr key={entry.id}>
+                        <td className="px-4 py-2 text-cata-text">
+                          {student ? `${student.nombres} ${student.apellidos}` : entry.estudianteId}
+                        </td>
+                        <td className="px-4 py-2 text-cata-text/65">{entry.categoria}</td>
+                        <td className="px-4 py-2 text-cata-text/65">{entry.periodo}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Domain info card */}

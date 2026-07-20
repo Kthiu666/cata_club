@@ -27,6 +27,7 @@ import {
   ArrowRight,
   Clock,
   XCircle,
+  Trophy,
 } from "lucide-react";
 import { fetchTrainingSchedules, fetchAttendanceRecords } from "@/services/api";
 import {
@@ -95,13 +96,21 @@ export default function TrainerPage(): React.ReactElement {
         </div>
 
         {/* Interactive Attendance CTA */}
-        <div className="mb-6">
+        <div className="mb-6 flex flex-wrap gap-3">
           <Link
             href="/trainer/attendance"
             className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
           >
             <ClipboardList size={16} strokeWidth={1.5} aria-hidden="true" />
             Registrar Asistencia
+            <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+          </Link>
+          <Link
+            href="/trainer/ranking"
+            className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
+          >
+            <Trophy size={16} strokeWidth={1.5} aria-hidden="true" />
+            Gestionar Ranking
             <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
           </Link>
         </div>
