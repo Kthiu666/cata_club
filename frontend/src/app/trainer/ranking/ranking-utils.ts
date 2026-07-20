@@ -7,30 +7,10 @@
  * established page.tsx + page-utils.ts convention (see
  * src/app/groups/groups-page-utils.ts, src/app/attendance/attendance-utils.ts).
  *
- * `CategoriaRanking` (1–10) is a separate, unrelated taxonomy from
- * `NivelTecnico` — do not conflate the two. See the doc comment on
- * `CategoriaRanking` in src/types/domain.ts.
+ * The "ranking category" a student is assigned to IS the same `nivel_ranking`
+ * record used by `NivelTecnico`/Grupo (src/app/groups/page.tsx) — the backend
+ * has only one such table. There is no separate ranking-category taxonomy.
  */
-
-import type { CategoriaRanking } from "@/types/domain";
-
-// ---------------------------------------------------------------------------
-// Category range validation
-// ---------------------------------------------------------------------------
-
-export const CATEGORIA_MIN = 1;
-export const CATEGORIA_MAX = 10;
-
-/** True when `value` is an integer within the valid ranking-category range (1–10). */
-export function isValidCategoria(value: number): value is CategoriaRanking {
-  return Number.isInteger(value) && value >= CATEGORIA_MIN && value <= CATEGORIA_MAX;
-}
-
-/** All valid ranking categories, 1 through 10, for building a select/dropdown. */
-export const CATEGORIA_OPTIONS: CategoriaRanking[] = Array.from(
-  { length: CATEGORIA_MAX - CATEGORIA_MIN + 1 },
-  (_, i) => i + CATEGORIA_MIN,
-);
 
 // ---------------------------------------------------------------------------
 // Period ("YYYY-MM") validation and derivation
@@ -50,6 +30,12 @@ export function currentPeriodo(date: Date = new Date()): string {
   return `${year}-${month}`;
 }
 
+/** Split a validated "YYYY-MM" period into its numeric año/mes parts for the backend. */
+export function parsePeriodo(periodo: string): { anio: number; mes: number } {
+  const [anio, mes] = periodo.split("-").map(Number);
+  return { anio, mes };
+}
+
 // ---------------------------------------------------------------------------
 // Student list derivation
 // ---------------------------------------------------------------------------
@@ -60,22 +46,26 @@ export interface RankingStudentRef {
   nombres: string;
   apellidos: string;
   activo: boolean;
-  categoria: CategoriaRanking | null;
+  /** The student's current nivel_ranking id (null if not yet assigned). */
+  nivelRankingId: number | null;
 }
 
 /**
- * Build the ranking student list from the shared member-accounts mock data,
- * joined with the page's local `categoria` assignments (keyed by student
- * id). No backend GET endpoint exists yet for ranking-category assignments
- * — see the "Files to CREATE" gap noted for niveles/:id — so this list is
- * frontend-only, matching how src/app/groups/page.tsx derives its own
- * student list from the same mock source.
+ * Build the ranking student list from the real member accounts (fetched via
+ * fetchMembers(), same source as src/app/groups/page.tsx). Each student's
+ * `grupoId` (their current nivel_ranking id) doubles as their ranking
+ * category — there's no separate concept on the backend.
  */
 export function buildRankingStudents(
   memberAccounts: ReadonlyArray<{
-    estudiantes: ReadonlyArray<{ id: string; nombres: string; apellidos: string; activo: boolean }>;
+    estudiantes: ReadonlyArray<{
+      id: string;
+      nombres: string;
+      apellidos: string;
+      activo: boolean;
+      grupoId: string | null;
+    }>;
   }>,
-  categorias: Readonly<Record<string, CategoriaRanking>>,
 ): RankingStudentRef[] {
   const refs: RankingStudentRef[] = [];
   for (const account of memberAccounts) {
@@ -85,7 +75,7 @@ export function buildRankingStudents(
         nombres: estudiante.nombres,
         apellidos: estudiante.apellidos,
         activo: estudiante.activo,
-        categoria: categorias[estudiante.id] ?? null,
+        nivelRankingId: estudiante.grupoId !== null ? Number(estudiante.grupoId) : null,
       });
     }
   }

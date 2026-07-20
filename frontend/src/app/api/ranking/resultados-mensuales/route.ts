@@ -2,17 +2,13 @@
  * BFF proxy — POST /api/ranking/resultados-mensuales
  *
  * Registers a monthly ranking result (Resultado Mensual) for a student.
- * Unlike /api/payments (a frontend-only mock backed by mockStore), this
- * route is a real proxy: it reads the caller's access-token cookie (see
- * ACCESS_TOKEN_COOKIE in src/lib/server/auth.ts) and forwards the request to
- * the backend with an `Authorization: Bearer` header, mirroring the pattern
- * already established by src/app/api/auth/**. The backend is the sole
- * authority on trainer-role authorization for this action; this route only
- * enforces that a token is present.
- *
- * First cut against an unfinished backend contract — request/response
- * shapes are NOT validated in depth here beyond "is it valid JSON"; the
- * backend owns full validation.
+ * Proxies to FastAPI's `POST /ranking/resultados-mensuales`
+ * (`ResultadoMensualRegistrarDTO`: persona_id, anio, mes, posicion?,
+ * participo) — this route validates and translates the camelCase
+ * `{ personaId, anio, mes, posicion?, participo }` body into that shape,
+ * mirroring the translation pattern in ../groups/assign/route.ts. The
+ * backend derives the student's current nivel_ranking_id itself; it is not
+ * part of the request.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -20,18 +16,40 @@ import { ACCESS_TOKEN_COOKIE, getBackendApiUrl } from "@/lib/server/auth";
 
 const BACKEND_TIMEOUT_MS = 10_000;
 
+interface RegistrarResultadoRequestBody {
+  personaId?: unknown;
+  anio?: unknown;
+  mes?: unknown;
+  posicion?: unknown;
+  participo?: unknown;
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
   if (!accessToken) {
     return NextResponse.json({ message: "No autenticado." }, { status: 401 });
   }
 
-  let body: unknown;
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json(
       { message: "JSON inválido en el cuerpo de la solicitud." },
+      { status: 400 },
+    );
+  }
+
+  const body = rawBody as RegistrarResultadoRequestBody;
+  if (
+    typeof body.personaId !== "number" ||
+    typeof body.anio !== "number" ||
+    typeof body.mes !== "number" ||
+    typeof body.participo !== "boolean" ||
+    (body.posicion !== undefined && typeof body.posicion !== "number")
+  ) {
+    return NextResponse.json(
+      { message: "personaId, anio, mes y participo son obligatorios (posicion es opcional)." },
       { status: 400 },
     );
   }
@@ -45,7 +63,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        persona_id: body.personaId,
+        anio: body.anio,
+        mes: body.mes,
+        posicion: body.posicion,
+        participo: body.participo,
+      }),
       signal: controller.signal,
     });
 
@@ -56,12 +80,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     clearTimeout(timeoutId);
   }
 }
-
-// ---------------------------------------------------------------------------
-// Shared response helpers — kept local to this route file (no shared BFF
-// helper module exists yet for ranking; see sibling routes for the same
-// small helper duplicated, matching this repo's per-route-file convention).
-// ---------------------------------------------------------------------------
 
 async function forwardBackendResponse(response: Response): Promise<NextResponse> {
   let data: unknown = null;

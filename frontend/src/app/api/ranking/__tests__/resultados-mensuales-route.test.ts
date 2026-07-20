@@ -24,7 +24,7 @@ function postRequest(cookie: string, body: unknown): NextRequest {
   });
 }
 
-const dto = { estudianteId: "stu-001", categoria: 3, periodo: "2026-07", puntos: 12 };
+const dto = { personaId: 3, anio: 2026, mes: 7, posicion: 2, participo: true };
 
 beforeEach(() => {
   vi.spyOn(global, "fetch");
@@ -44,8 +44,8 @@ describe("POST /api/ranking/resultados-mensuales", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it("forwards the request to the backend with a Bearer token", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse({ id: "rm-001", ...dto }, 201));
+  it("forwards the request to the backend, translated to snake_case, with a Bearer token", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse({ id: 1 }, 201));
 
     const response = await POST(postRequest(`${ACCESS_TOKEN_COOKIE}=abc123`, dto));
 
@@ -54,12 +54,12 @@ describe("POST /api/ranking/resultados-mensuales", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({ Authorization: "Bearer abc123" }),
-        body: JSON.stringify(dto),
+        body: JSON.stringify({ persona_id: 3, anio: 2026, mes: 7, posicion: 2, participo: true }),
       }),
     );
     expect(response.status).toBe(201);
     const json = await response.json();
-    expect(json.id).toBe("rm-001");
+    expect(json.id).toBe(1);
   });
 
   it("returns 400 for invalid JSON in the request body", async () => {
@@ -70,6 +70,15 @@ describe("POST /api/ranking/resultados-mensuales", () => {
     });
 
     const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when personaId, anio, mes or participo are missing/wrong-typed", async () => {
+    const response = await POST(
+      postRequest(`${ACCESS_TOKEN_COOKIE}=abc123`, { personaId: 3, anio: 2026 }),
+    );
 
     expect(response.status).toBe(400);
     expect(global.fetch).not.toHaveBeenCalled();

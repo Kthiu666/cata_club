@@ -21,7 +21,7 @@ function postRequest(cookie: string, body: unknown): NextRequest {
   });
 }
 
-const dto = { periodo: "2026-07" };
+const dto = { anio: 2026, mes: 7 };
 
 beforeEach(() => {
   vi.spyOn(global, "fetch");
@@ -41,9 +41,9 @@ describe("POST /api/ranking/niveles/:id/cerrar-mes", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it("forwards the category id in the URL and the token as Bearer", async () => {
+  it("forwards the nivel id in the URL and anio/mes as query params, with the token as Bearer", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      jsonResponse({ id: "cm-001", categoria: 3, periodo: "2026-07" }),
+      jsonResponse({ nivel_ranking_id: 3, anio: 2026, mes: 7, personas_procesadas: 1, personas_eliminadas: [] }),
     );
 
     const response = await POST(postRequest(`${ACCESS_TOKEN_COOKIE}=abc123`, dto), {
@@ -51,19 +51,27 @@ describe("POST /api/ranking/niveles/:id/cerrar-mes", () => {
     });
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:8000/api/v1/ranking/niveles/3/cerrar-mes",
+      "http://localhost:8000/api/v1/ranking/niveles/3/cerrar-mes?anio=2026&mes=7",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({ Authorization: "Bearer abc123" }),
-        body: JSON.stringify(dto),
       }),
     );
     expect(response.status).toBe(200);
   });
 
+  it("returns 400 when anio or mes are missing/wrong-typed", async () => {
+    const response = await POST(postRequest(`${ACCESS_TOKEN_COOKIE}=abc123`, { anio: 2026 }), {
+      params: { id: "3" },
+    });
+
+    expect(response.status).toBe(400);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it("propagates a 409 conflict when the month is already closed", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      jsonResponse({ message: "El mes ya fue cerrado para esta categoría." }, 409),
+      jsonResponse({ message: "El mes ya fue cerrado para este nivel." }, 409),
     );
 
     const response = await POST(postRequest(`${ACCESS_TOKEN_COOKIE}=abc123`, dto), {
