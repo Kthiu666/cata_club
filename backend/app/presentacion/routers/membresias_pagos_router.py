@@ -44,6 +44,15 @@ async def crear_membresia(datos: MembresiaCreateDTO, db: Session = Depends(obten
     return MembresiaServicio(db).crear_membresia(datos)
 
 
+@router.get(
+    "/persona/{persona_id}",
+    response_model=List[MembresiaResponseDTO],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
+)
+async def listar_membresias_por_persona(persona_id: int, db: Session = Depends(obtener_sesion)):
+    return MembresiaServicio(db).listar_membresias_por_persona(persona_id)
+
+
 # --- Pago ---
 # IMPORTANTE sobre el orden: este bloque de rutas de /pagos debe declararse
 # ANTES de `GET /{membresia_id}` (más abajo). FastAPI/Starlette resuelve

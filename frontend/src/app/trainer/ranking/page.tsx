@@ -12,18 +12,12 @@
  * `NivelTecnico` (the club's technical-level/horario concept used by
  * Grupo — see src/app/groups/page.tsx). Do not conflate the two.
  *
- * Student list is frontend-only mock data (MOCK_MEMBER_ACCOUNTS), matching
- * src/app/groups/page.tsx's precedent — no GET endpoint exists yet for
- * ranking-category assignments or monthly results. Mutating actions
- * (assign category, register result, close month) call the real BFF proxy
- * routes under /api/ranking/** (src/app/api/ranking/**), which forward the
- * caller's session to the backend; loading/error/success states around
- * those calls mirror src/app/payments/page.tsx.
+ * Data is loaded from the real backend via BFF GET proxies on mount.
  */
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
@@ -36,19 +30,26 @@ import {
   AlertTriangle,
   Plus,
 } from "lucide-react";
-import { MOCK_MEMBER_ACCOUNTS } from "@/mocks/members";
-import type { CategoriaRanking, ResultadoMensual, CierreMensual } from "@/types/domain";
+import type { CategoriaRanking } from "@/types/domain";
+import type {
+  AsignacionRanking,
+  ResultadoMensualRanking,
+  CierreMensualRanking,
+} from "@/services/api";
 import {
   registrarResultadoMensual,
   cerrarMes,
   asignarNivel,
+  fetchAsignacionesRanking,
+  fetchResultadosMensualesRanking,
+  fetchCierresMensualesRanking,
   ApiClientError,
 } from "@/services/api";
 import {
   CATEGORIA_OPTIONS,
   isValidPeriodo,
   currentPeriodo,
-  buildRankingStudents,
+  type RankingStudentRef,
 } from "./ranking-utils";
 
 type TabKey = "asignar" | "resultados" | "cierre";
@@ -59,24 +60,68 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "cierre", label: "Cierre de Mes" },
 ];
 
-function studentDisplayName(
-  students: { id: string; nombres: string; apellidos: string }[],
-  estudianteId: string,
-): string {
-  const student = students.find((s) => s.id === estudianteId);
-  return student ? `${student.nombres} ${student.apellidos}` : estudianteId;
+function buildStudentsFromAsignaciones(
+  asignaciones: AsignacionRanking[],
+  categoriasOverride: Record<string, CategoriaRanking>,
+): RankingStudentRef[] {
+  return asignaciones.map((a) => ({
+    id: String(a.persona_id),
+    nombres: a.persona_nombre_completo.split(" ")[0] ?? "",
+    apellidos: a.persona_nombre_completo.split(" ").slice(1).join(" "),
+    activo: a.esta_en_ranking,
+    categoria: categoriasOverride[String(a.persona_id)] ?? a.nivel_ranking_numero,
+  }));
+}
+
+function formatBackendPeriodo(anio: number, mes: number): string {
+  return `${anio}-${String(mes).padStart(2, "0")}`;
 }
 
 export default function RankingPage(): React.ReactElement {
   const [activeTab, setActiveTab] = useState<TabKey>("asignar");
 
-  // Local, frontend-only state — see module doc comment: no GET endpoint
-  // exists yet, so these lists are seeded empty and grow as actions succeed.
-  const [categorias, setCategorias] = useState<Record<string, CategoriaRanking>>({});
-  const [resultados, setResultados] = useState<ResultadoMensual[]>([]);
-  const [cierres, setCierres] = useState<CierreMensual[]>([]);
+  const [asignaciones, setAsignaciones] = useState<AsignacionRanking[]>([]);
+  const [resultados, setResultados] = useState<ResultadoMensualRanking[]>([]);
+  const [cierres, setCierres] = useState<CierreMensualRanking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const students = buildRankingStudents(MOCK_MEMBER_ACCOUNTS, categorias);
+  // Local overrides from successful actions (optimistic)
+  const [categorias, setCategorias] = useState<Record<string, CategoriaRanking>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load(): Promise<void> {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const [asig, res, cie] = await Promise.all([
+          fetchAsignacionesRanking(),
+          fetchResultadosMensualesRanking(),
+          fetchCierresMensualesRanking(),
+        ]);
+        if (!cancelled) {
+          setAsignaciones(asig);
+          setResultados(res);
+          setCierres(cie);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setLoadError(
+            err instanceof ApiClientError
+              ? err.message
+              : "Error al cargar datos de ranking.",
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const students = buildStudentsFromAsignaciones(asignaciones, categorias);
 
   return (
     <ProtectedRoute allowedRoles={["trainer"]}>
@@ -99,15 +144,12 @@ export default function RankingPage(): React.ReactElement {
           </div>
         </div>
 
-        {/* Demo badge */}
-        <div className="mb-6 flex items-center gap-2">
-          <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">
-            Demo
-          </span>
-          <span className="text-xs text-cata-text/40">
-            El listado de estudiantes es de demostración — las acciones se envían al backend real
-          </span>
-        </div>
+        {loading && (
+          <div className="mb-6 text-xs text-cata-text/50">Cargando datos de ranking...</div>
+        )}
+        {loadError && (
+          <div className="alert-error mb-6" role="alert">{loadError}</div>
+        )}
 
         {/* Tabs */}
         <div className="mb-6 flex items-center gap-2" role="tablist" aria-label="Secciones de Ranking">
@@ -130,8 +172,8 @@ export default function RankingPage(): React.ReactElement {
         </div>
 
         {activeTab === "asignar" && (
-          <AsignarNivelTab students={students} onAssigned={(estudianteId, categoria) => {
-            setCategorias((prev) => ({ ...prev, [estudianteId]: categoria }));
+          <AsignarNivelTab students={students} onAssigned={(estudianteId, nivelNumero) => {
+            setCategorias((prev) => ({ ...prev, [estudianteId]: nivelNumero }));
           }} />
         )}
 
@@ -139,12 +181,17 @@ export default function RankingPage(): React.ReactElement {
           <ResultadosMensualesTab
             students={students}
             resultados={resultados}
-            onRegistered={(resultado) => setResultados((prev) => [resultado, ...prev])}
+            onRegistered={(r) => setResultados((prev) => [r, ...prev])}
           />
         )}
 
         {activeTab === "cierre" && (
-          <CierreMesTab cierres={cierres} onClosed={(cierre) => setCierres((prev) => [cierre, ...prev])} />
+          <CierreMesTab
+            cierres={cierres}
+            onClosed={() => {
+              fetchCierresMensualesRanking().then(setCierres).catch(() => {});
+            }}
+          />
         )}
       </div>
     </ProtectedRoute>
@@ -156,8 +203,8 @@ export default function RankingPage(): React.ReactElement {
 // ---------------------------------------------------------------------------
 
 interface AsignarNivelTabProps {
-  students: ReturnType<typeof buildRankingStudents>;
-  onAssigned: (estudianteId: string, categoria: CategoriaRanking) => void;
+  students: RankingStudentRef[];
+  onAssigned: (estudianteId: string, nivelNumero: CategoriaRanking) => void;
 }
 
 function AsignarNivelTab({ students, onAssigned }: AsignarNivelTabProps): React.ReactElement {
@@ -178,7 +225,6 @@ function AsignarNivelTab({ students, onAssigned }: AsignarNivelTabProps): React.
       onAssigned(estudianteId, categoria);
       setSuccessId(estudianteId);
     } catch (err) {
-      console.error("[ranking] asignarNivel failed", err);
       setError(
         err instanceof ApiClientError
           ? err.message
@@ -205,7 +251,7 @@ function AsignarNivelTab({ students, onAssigned }: AsignarNivelTabProps): React.
       {students.length === 0 ? (
         <div className="flex flex-col items-center py-12 text-center">
           <Users size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
-          <p className="text-sm text-cata-text/50">No hay estudiantes registrados.</p>
+          <p className="text-sm text-cata-text/50">No hay estudiantes en el ranking.</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -285,9 +331,9 @@ function AsignarNivelTab({ students, onAssigned }: AsignarNivelTabProps): React.
 // ---------------------------------------------------------------------------
 
 interface ResultadosMensualesTabProps {
-  students: ReturnType<typeof buildRankingStudents>;
-  resultados: ResultadoMensual[];
-  onRegistered: (resultado: ResultadoMensual) => void;
+  students: RankingStudentRef[];
+  resultados: ResultadoMensualRanking[];
+  onRegistered: (resultado: ResultadoMensualRanking) => void;
 }
 
 function ResultadosMensualesTab({
@@ -331,19 +377,35 @@ function ResultadosMensualesTab({
 
     setSubmitting(true);
     try {
-      const resultado = await registrarResultadoMensual({
+      await registrarResultadoMensual({
         estudianteId,
         categoria,
         periodo,
         puntos: puntosNum,
         observacion: observacion.trim() || undefined,
       });
-      onRegistered(resultado);
+      // Optimistic: add a placeholder result so the table updates immediately
+      const [anioStr, mesStr] = periodo.split("-");
+      const optimResult: ResultadoMensualRanking = {
+        id: Date.now(),
+        persona_id: Number(estudianteId),
+        persona_nombre_completo: students.find((s) => s.id === estudianteId)
+          ? `${students.find((s) => s.id === estudianteId)!.nombres} ${students.find((s) => s.id === estudianteId)!.apellidos}`
+          : estudianteId,
+        nivel_ranking_id: 0,
+        nivel_ranking_nombre: null,
+        anio: Number(anioStr),
+        mes: Number(mesStr),
+        posicion: Math.max(1, Math.round(puntosNum)),
+        puntos_obtenidos: puntosNum,
+        participo: true,
+        ausencia_justificada: false,
+      };
+      onRegistered(optimResult);
       setSuccessMessage("Resultado mensual registrado correctamente.");
       setPuntos("");
       setObservacion("");
     } catch (err) {
-      console.error("[ranking] registrarResultadoMensual failed", err);
       setSubmitError(
         err instanceof ApiClientError
           ? err.message
@@ -469,7 +531,7 @@ function ResultadosMensualesTab({
         {resultados.length === 0 ? (
           <div className="flex flex-col items-center py-10 text-center">
             <ListChecks size={28} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
-            <p className="text-sm text-cata-text/50">Aún no hay resultados registrados en esta sesión.</p>
+            <p className="text-sm text-cata-text/50">No hay resultados registrados.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -477,22 +539,30 @@ function ResultadosMensualesTab({
               <thead>
                 <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
                   <th className="px-4 py-3 font-medium">Estudiante</th>
-                  <th className="px-4 py-3 font-medium">Categoría</th>
+                  <th className="px-4 py-3 font-medium">Nivel</th>
                   <th className="px-4 py-3 font-medium">Período</th>
                   <th className="px-4 py-3 font-medium text-right">Puntos</th>
-                  <th className="px-4 py-3 font-medium">Observación</th>
+                  <th className="px-4 py-3 font-medium">Participó</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-cata-border">
                 {resultados.map((r) => (
                   <tr key={r.id}>
                     <td className="px-4 py-3 font-medium text-cata-text">
-                      {studentDisplayName(students, r.estudianteId)}
+                      {r.persona_nombre_completo}
                     </td>
-                    <td className="px-4 py-3 text-cata-text/65">{r.categoria}</td>
-                    <td className="px-4 py-3 text-cata-text/65">{r.periodo}</td>
-                    <td className="px-4 py-3 text-right font-medium text-cata-text">{r.puntos}</td>
-                    <td className="px-4 py-3 text-cata-text/45">{r.observacion ?? "—"}</td>
+                    <td className="px-4 py-3 text-cata-text/65">
+                      {r.nivel_ranking_nombre ?? r.nivel_ranking_id}
+                    </td>
+                    <td className="px-4 py-3 text-cata-text/65">
+                      {formatBackendPeriodo(r.anio, r.mes)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium text-cata-text">
+                      {r.puntos_obtenidos}
+                    </td>
+                    <td className="px-4 py-3 text-cata-text/45">
+                      {r.participo ? "Sí" : "No"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -509,12 +579,12 @@ function ResultadosMensualesTab({
 // ---------------------------------------------------------------------------
 
 interface CierreMesTabProps {
-  cierres: CierreMensual[];
-  onClosed: (cierre: CierreMensual) => void;
+  cierres: CierreMensualRanking[];
+  onClosed: () => void;
 }
 
 function CierreMesTab({ cierres, onClosed }: CierreMesTabProps): React.ReactElement {
-  const [categoria, setCategoria] = useState<CategoriaRanking | "">("");
+  const [nivelId, setNivelId] = useState<string>("");
   const [periodo, setPeriodo] = useState(currentPeriodo());
   const [validationError, setValidationError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -525,8 +595,8 @@ function CierreMesTab({ cierres, onClosed }: CierreMesTabProps): React.ReactElem
   function handleRequestClose(): void {
     setSuccessMessage(null);
     setError(null);
-    if (!categoria) {
-      setValidationError("Seleccioná una categoría (1–10).");
+    if (!nivelId) {
+      setValidationError("Seleccioná un nivel de ranking.");
       return;
     }
     if (!isValidPeriodo(periodo)) {
@@ -539,16 +609,15 @@ function CierreMesTab({ cierres, onClosed }: CierreMesTabProps): React.ReactElem
 
   async function handleConfirmClose(): Promise<void> {
     setConfirmOpen(false);
-    if (!categoria) return;
+    if (!nivelId) return;
 
     setClosing(true);
     setError(null);
     try {
-      const cierre = await cerrarMes(categoria, { periodo });
-      onClosed(cierre);
-      setSuccessMessage(`Mes ${periodo} cerrado para la categoría ${categoria}.`);
+      await cerrarMes(Number(nivelId), { periodo });
+      onClosed();
+      setSuccessMessage(`Mes ${periodo} cerrado correctamente.`);
     } catch (err) {
-      console.error("[ranking] cerrarMes failed", err);
       setError(
         err instanceof ApiClientError ? err.message : "Error al cerrar el mes de ranking.",
       );
@@ -568,7 +637,7 @@ function CierreMesTab({ cierres, onClosed }: CierreMesTabProps): React.ReactElem
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
           <AlertTriangle size={14} strokeWidth={1.5} className="mt-0.5 shrink-0" aria-hidden="true" />
           Cerrar el mes es una acción irreversible: bloquea el registro de nuevos resultados para
-          esa categoría y período.
+          ese nivel y período.
         </div>
 
         {validationError && (
@@ -590,16 +659,16 @@ function CierreMesTab({ cierres, onClosed }: CierreMesTabProps): React.ReactElem
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm">
-            <span className="mb-1 block text-xs font-medium text-cata-text/65">Categoría</span>
+            <span className="mb-1 block text-xs font-medium text-cata-text/65">Nivel de ranking</span>
             <select
               className="input-field"
-              value={categoria}
-              onChange={(e) => setCategoria(e.target.value ? Number(e.target.value) : "")}
+              value={nivelId}
+              onChange={(e) => setNivelId(e.target.value)}
             >
               <option value="">Seleccionar...</option>
               {CATEGORIA_OPTIONS.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  Nivel {c}
                 </option>
               ))}
             </select>
@@ -641,24 +710,30 @@ function CierreMesTab({ cierres, onClosed }: CierreMesTabProps): React.ReactElem
         {cierres.length === 0 ? (
           <div className="flex flex-col items-center py-10 text-center">
             <XCircle size={28} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
-            <p className="text-sm text-cata-text/50">Aún no se cerró ningún mes en esta sesión.</p>
+            <p className="text-sm text-cata-text/50">No se cerró ningún mes aún.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
-                  <th className="px-4 py-3 font-medium">Categoría</th>
+                  <th className="px-4 py-3 font-medium">Nivel</th>
                   <th className="px-4 py-3 font-medium">Período</th>
+                  <th className="px-4 py-3 font-medium">Procesados</th>
                   <th className="px-4 py-3 font-medium">Cerrado por</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-cata-border">
                 {cierres.map((c) => (
                   <tr key={c.id}>
-                    <td className="px-4 py-3 font-medium text-cata-text">{c.categoria}</td>
-                    <td className="px-4 py-3 text-cata-text/65">{c.periodo}</td>
-                    <td className="px-4 py-3 text-cata-text/45">{c.cerradoPor}</td>
+                    <td className="px-4 py-3 font-medium text-cata-text">
+                      {c.nivel_ranking_nombre ?? `Nivel ${c.nivel_ranking_numero}`}
+                    </td>
+                    <td className="px-4 py-3 text-cata-text/65">
+                      {formatBackendPeriodo(c.anio, c.mes)}
+                    </td>
+                    <td className="px-4 py-3 text-cata-text/65">{c.personas_procesadas}</td>
+                    <td className="px-4 py-3 text-cata-text/45">{c.cerrado_por_nombre}</td>
                   </tr>
                 ))}
               </tbody>
@@ -671,7 +746,7 @@ function CierreMesTab({ cierres, onClosed }: CierreMesTabProps): React.ReactElem
         open={confirmOpen}
         variant="danger"
         title="Cerrar mes de ranking"
-        message={`¿Confirmás el cierre del mes ${periodo} para la categoría ${categoria}? Esta acción es irreversible.`}
+        message={`¿Confirmás el cierre del mes ${periodo} para el nivel ${nivelId}? Esta acción es irreversible.`}
         confirmLabel="Cerrar mes"
         onConfirm={handleConfirmClose}
         onCancel={() => setConfirmOpen(false)}

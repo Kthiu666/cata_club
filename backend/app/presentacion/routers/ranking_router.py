@@ -14,7 +14,8 @@ from app.presentacion.schemas.ranking_schemas import (
     ResultadoMensualRegistrarDTO, ResultadoMensualResponseDTO, CierreMensualResponseDTO,
     JustificativoCreateDTO, JustificativoEvaluarDTO, JustificativoResponseDTO,
     ReingresoResponseDTO, SeleccionOficialDTO, PerfilRankingAlumnoDTO,
-    NotificacionResponseDTO,
+    NotificacionResponseDTO, AsignacionRankingResponseDTO,
+    ResultadoMensualRankingResponseDTO, CierreMensualRankingResponseDTO,
 )
 
 router = APIRouter(prefix="/ranking", tags=["ranking"])
@@ -42,6 +43,41 @@ async def listar_niveles(db: Session = Depends(obtener_sesion)):
 
 
 @router.get(
+    "/asignaciones", response_model=List[AsignacionRankingResponseDTO],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
+)
+async def listar_asignaciones(db: Session = Depends(obtener_sesion)):
+    """Listado de todos los alumnos en el ranking (con su nivel y posición)."""
+    return RankingServicio(db).listar_asignaciones()
+
+
+@router.get(
+    "/resultados-mensuales", response_model=List[ResultadoMensualRankingResponseDTO],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
+)
+async def listar_resultados_mensuales(
+    nivel_id: int | None = Query(default=None),
+    anio: int | None = Query(default=None),
+    mes: int | None = Query(default=None, ge=1, le=12),
+    db: Session = Depends(obtener_sesion),
+):
+    """Listado de resultados mensuales, filtrable por nivel, año y mes."""
+    return RankingServicio(db).listar_resultados_mensuales(nivel_id, anio, mes)
+
+
+@router.get(
+    "/cierres-mensuales", response_model=List[CierreMensualRankingResponseDTO],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
+)
+async def listar_cierres_mensuales(
+    nivel_id: int | None = Query(default=None),
+    db: Session = Depends(obtener_sesion),
+):
+    """Historial de cierres mensuales de ranking."""
+    return RankingServicio(db).listar_cierres_mensuales(nivel_id)
+
+
+@router.get(
     "/niveles/{nivel_id}/tabla", response_model=List[TablaRankingItemDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
@@ -53,7 +89,7 @@ async def obtener_tabla_de_nivel(nivel_id: int, db: Session = Depends(obtener_se
 # --- Asignación de nivel inicial (E03-RF002) --------------------------------
 @router.post(
     "/asignar-nivel-inicial", response_model=RankingResponseDTO, status_code=201,
-    dependencies=[Depends(GestorPermisos(ROL_ENTRENADOR))],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
 )
 async def asignar_nivel_inicial(datos: AsignarNivelInicialDTO, db: Session = Depends(obtener_sesion)):
     return RankingServicio(db).asignar_nivel_inicial(datos)
@@ -88,11 +124,14 @@ async def registrar_resultado_mensual(
 async def cerrar_mes(
     nivel_id: int, anio: int = Query(...), mes: int = Query(..., ge=1, le=12),
     db: Session = Depends(obtener_sesion),
+    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
 ):
     """Cierre MANUAL (decisión del equipo): calcula puntos, detecta
     ausencias no justificadas, elimina tras 2 meses consecutivos
     (notificando antes) y sugiere ascensos/descensos."""
-    return RankingServicio(db).cerrar_mes(nivel_id, anio, mes)
+    return RankingServicio(db).cerrar_mes(
+        nivel_id, anio, mes, cerrado_por_id=token_payload.get("persona_id")
+    )
 
 
 # --- Justificativos (E03-RF006a/RF006b) -------------------------------------

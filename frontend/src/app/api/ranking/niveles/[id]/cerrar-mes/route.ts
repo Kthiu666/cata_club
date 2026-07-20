@@ -1,11 +1,12 @@
 /**
  * BFF proxy — POST /api/ranking/niveles/:id/cerrar-mes
  *
- * Closes out the current ranking month for a category/nivel (`:id`) — an
- * irreversible action per the product spec; the UI must confirm before
- * calling this. Proxies to the backend with the caller's access token, same
- * pattern as the sibling ranking routes (see resultados-mensuales/route.ts
- * for the fuller doc comment on this proxy pattern).
+ * Frontend sends:  { periodo: "YYYY-MM" }
+ * Backend expects: POST /ranking/niveles/:id/cerrar-mes?anio=X&mes=Y
+ *
+ * Translates the JSON body into the query-parameter format the backend
+ * expects, and extracts :id as the nivel_ranking_id (the frontend sends
+ * the nivel ID, not numero_nivel, in this call).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -32,18 +33,45 @@ export async function POST(
     );
   }
 
+  const periodo = (body as Record<string, unknown>)?.periodo;
+  if (!periodo || typeof periodo !== "string") {
+    return NextResponse.json(
+      { message: "Falta campo 'periodo' (formato YYYY-MM)." },
+      { status: 400 },
+    );
+  }
+
+  const parts = periodo.split("-");
+  if (parts.length !== 2) {
+    return NextResponse.json(
+      { message: "El periodo debe tener formato YYYY-MM." },
+      { status: 400 },
+    );
+  }
+
+  const anio = Number(parts[0]);
+  const mes = Number(parts[1]);
+  if (!Number.isInteger(anio) || !Number.isInteger(mes) || mes < 1 || mes > 12) {
+    return NextResponse.json(
+      { message: "Período inválido." },
+      { status: 400 },
+    );
+  }
+
+  const nivelId = params.id;
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
   try {
+    const qs = new URLSearchParams({ anio: String(anio), mes: String(mes) });
     const response = await fetch(
-      `${getBackendApiUrl()}/ranking/niveles/${encodeURIComponent(params.id)}/cerrar-mes`,
+      `${getBackendApiUrl()}/ranking/niveles/${encodeURIComponent(nivelId)}/cerrar-mes?${qs.toString()}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify(body),
         signal: controller.signal,
       },
     );

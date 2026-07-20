@@ -3,7 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.dominio.modelos import (
-    NivelRanking, Ranking, ResultadoRankingMensual, JustificativoRanking, Notificacion,
+    CierreMensualRanking, NivelRanking, Ranking, ResultadoRankingMensual,
+    JustificativoRanking, Notificacion,
 )
 
 
@@ -43,6 +44,16 @@ class RankingRepositorio:
 
     def obtener_por_persona(self, persona_id: int) -> Optional[Ranking]:
         return self.db.query(Ranking).filter(Ranking.persona_id == persona_id).first()
+
+    def listar_todos(self, solo_activos: bool = True) -> list[Ranking]:
+        stmt = (
+            select(Ranking)
+            .options(joinedload(Ranking.persona), joinedload(Ranking.nivel_ranking))
+        )
+        if solo_activos:
+            stmt = stmt.where(Ranking.esta_en_ranking.is_(True))
+        stmt = stmt.order_by(Ranking.persona_id)
+        return list(self.db.execute(stmt).scalars().unique().all())
 
     def listar_por_nivel(self, nivel_id: int, solo_activos: bool = True) -> list[Ranking]:
         stmt = (
@@ -91,6 +102,29 @@ class ResultadoRankingMensualRepositorio:
                 ResultadoRankingMensual.nivel_ranking_id == nivel_id,
                 ResultadoRankingMensual.anio == anio,
                 ResultadoRankingMensual.mes == mes,
+            )
+            .all()
+        )
+
+    def listar_por_nivel(self, nivel_id: int) -> list[ResultadoRankingMensual]:
+        return (
+            self.db.query(ResultadoRankingMensual)
+            .options(joinedload(ResultadoRankingMensual.persona))
+            .filter(ResultadoRankingMensual.nivel_ranking_id == nivel_id)
+            .order_by(ResultadoRankingMensual.anio.desc(), ResultadoRankingMensual.mes.desc())
+            .all()
+        )
+
+    def listar_todos(self) -> list[ResultadoRankingMensual]:
+        return (
+            self.db.query(ResultadoRankingMensual)
+            .options(
+                joinedload(ResultadoRankingMensual.persona),
+                joinedload(ResultadoRankingMensual.nivel_ranking),
+            )
+            .order_by(
+                ResultadoRankingMensual.anio.desc(),
+                ResultadoRankingMensual.mes.desc(),
             )
             .all()
         )
@@ -170,3 +204,50 @@ class NotificacionRepositorio:
         self.db.commit()
         self.db.refresh(notificacion)
         return notificacion
+
+
+class CierreMensualRankingRepositorio:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def obtener(self, nivel_id: int, anio: int, mes: int) -> Optional[CierreMensualRanking]:
+        return (
+            self.db.query(CierreMensualRanking)
+            .filter(
+                CierreMensualRanking.nivel_ranking_id == nivel_id,
+                CierreMensualRanking.anio == anio,
+                CierreMensualRanking.mes == mes,
+            )
+            .first()
+        )
+
+    def listar_todos(self) -> list[CierreMensualRanking]:
+        return (
+            self.db.query(CierreMensualRanking)
+            .options(
+                joinedload(CierreMensualRanking.nivel_ranking),
+                joinedload(CierreMensualRanking.cerrado_por),
+            )
+            .order_by(
+                CierreMensualRanking.anio.desc(),
+                CierreMensualRanking.mes.desc(),
+            )
+            .all()
+        )
+
+    def listar_por_nivel(self, nivel_id: int) -> list[CierreMensualRanking]:
+        return (
+            self.db.query(CierreMensualRanking)
+            .filter(CierreMensualRanking.nivel_ranking_id == nivel_id)
+            .order_by(
+                CierreMensualRanking.anio.desc(),
+                CierreMensualRanking.mes.desc(),
+            )
+            .all()
+        )
+
+    def crear(self, cierre: CierreMensualRanking) -> CierreMensualRanking:
+        self.db.add(cierre)
+        self.db.commit()
+        self.db.refresh(cierre)
+        return cierre

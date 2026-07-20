@@ -75,6 +75,9 @@ class MembresiaServicio:
             raise EntidadNoEncontrada(f"Membresía con id {membresia_id} no encontrada")
         return membresia
 
+    def listar_membresias_por_persona(self, persona_id: int) -> list[Membresia]:
+        return self.repo.listar_por_persona(persona_id)
+
 
 class PagoServicio:
     def __init__(self, db: Session):

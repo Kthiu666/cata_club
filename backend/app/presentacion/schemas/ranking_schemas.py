@@ -173,3 +173,45 @@ class NotificacionResponseDTO(ResponseBase, BaseModel):
     leida: bool
     fecha_creacion: datetime
     entidad_relacionada_id: Optional[int] = None
+
+
+# --- Listados para frontend (Phase 1) ----------------------------------------
+class AsignacionRankingResponseDTO(ResponseBase, BaseModel):
+    """Fila de un alumno en el ranking (para listado de asignaciones)."""
+    persona_id: int
+    persona_nombre_completo: str
+    nivel_ranking_id: int
+    nivel_ranking_nombre: Optional[str] = None
+    nivel_ranking_numero: int
+    posicion_actual: Optional[int] = None
+    puntaje_acumulado: int
+    esta_en_ranking: bool
+
+
+class ResultadoMensualRankingResponseDTO(ResponseBase, BaseModel):
+    """Resultado mensual con info de persona y nivel (para listado)."""
+    id: int
+    persona_id: int
+    persona_nombre_completo: str
+    nivel_ranking_id: int
+    nivel_ranking_nombre: Optional[str] = None
+    anio: int
+    mes: int
+    posicion: Optional[int] = None
+    puntos_obtenidos: int
+    participo: bool
+    ausencia_justificada: bool
+
+
+class CierreMensualRankingResponseDTO(ResponseBase, BaseModel):
+    """Cierre mensual con info de nivel y cerrado por (para listado)."""
+    id: int
+    nivel_ranking_id: int
+    nivel_ranking_nombre: Optional[str] = None
+    nivel_ranking_numero: int
+    anio: int
+    mes: int
+    personas_procesadas: int
+    cerrado_por_id: int
+    cerrado_por_nombre: str
+    cerrado_en: datetime

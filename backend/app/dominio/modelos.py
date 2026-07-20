@@ -334,6 +334,9 @@ class NivelRanking(Base):
     resultados_mensuales: Mapped[List["ResultadoRankingMensual"]] = relationship(
         back_populates="nivel_ranking"
     )
+    cierres_mensuales: Mapped[List["CierreMensualRanking"]] = relationship(
+        back_populates="nivel_ranking"
+    )
 
 
 class HorarioEntrenamiento(Base):
@@ -544,6 +547,24 @@ class ResultadoRankingMensual(Base):
     __table_args__ = (
         UniqueConstraint("persona_id", "anio", "mes", name="uq_resultado_ranking_persona_periodo"),
     )
+
+
+# ---------------------------------------------------------------------------
+# Cierre mensual de ranking (E03-RF004/RF005/RF007/RF009)
+# Registra cada cierre ejecutado por un Entrenador/Administrador, para poder
+# consultar el historial de cierres sin reconstruirlo desde ResultadoRankingMensual.
+# ---------------------------------------------------------------------------
+class CierreMensualRanking(Base):
+    __tablename__ = "cierre_mensual_ranking"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nivel_ranking_id: Mapped[int] = mapped_column(ForeignKey("nivel_ranking.id"))
+    nivel_ranking: Mapped["NivelRanking"] = relationship(back_populates="cierres_mensuales")
+    anio: Mapped[int] = mapped_column()
+    mes: Mapped[int] = mapped_column()
+    personas_procesadas: Mapped[int] = mapped_column(default=0)
+    cerrado_por_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
+    cerrado_por: Mapped["Persona"] = relationship()
+    cerrado_en: Mapped[datetime] = mapped_column(DateTime, default=_ahora_utc)
 
 
 # ---------------------------------------------------------------------------

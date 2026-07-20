@@ -39,7 +39,8 @@ import {
   ToggleLeft,
   ToggleRight,
 } from "lucide-react";
-import { fetchMembers, fetchNivelesConOcupacion, asignarRol, quitarRol, cambiarEstadoCuenta, fetchFichaMedica, actualizarFichaMedica } from "@/services/api";
+import { fetchMembers, fetchNivelesConOcupacion, asignarRol, quitarRol, cambiarEstadoCuenta, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia } from "@/services/api";
+import type { TipoMembresiaCatalogo } from "@/services/api";
 import { nivelToGrupo } from "@/app/groups/groups-page-utils";
 import {
   buildMemberStats,
@@ -341,6 +342,12 @@ interface StudentRowProps {
 
 function StudentRow({ student, grupos }: StudentRowProps): React.ReactElement {
   const [showMedical, setShowMedical] = useState(false);
+  const [showCreateMembership, setShowCreateMembership] = useState(false);
+  const [tiposMembresia, setTiposMembresia] = useState<TipoMembresiaCatalogo[]>([]);
+  const [selectedTipoId, setSelectedTipoId] = useState<number | "">("");
+  const [membershipLoading, setMembershipLoading] = useState(false);
+  const [membershipError, setMembershipError] = useState<string | null>(null);
+  const [membershipSuccess, setMembershipSuccess] = useState(false);
 
   const membershipLabel = student.membresia
     ? MEMBERSHIP_STATUS_LABELS[student.membresia.estado]
@@ -358,6 +365,44 @@ function StudentRow({ student, grupos }: StudentRowProps): React.ReactElement {
 
   const nivelDisplay = getNivelLabelFromGrupo(student.grupoId, grupos);
   const personaId = Number(student.id);
+
+  async function handleOpenCreateMembership(): Promise<void> {
+    setShowCreateMembership(true);
+    setMembershipError(null);
+    setMembershipSuccess(false);
+    if (tiposMembresia.length === 0) {
+      try {
+        const tipos = await fetchTiposMembresia();
+        setTiposMembresia(tipos);
+      } catch {
+        setMembershipError("No se pudieron cargar los tipos de membresía.");
+      }
+    }
+  }
+
+  async function handleCreateMembership(): Promise<void> {
+    if (!selectedTipoId || !personaId) return;
+    const tipo = tiposMembresia.find((t) => t.id === selectedTipoId);
+    if (!tipo) return;
+
+    setMembershipLoading(true);
+    setMembershipError(null);
+    try {
+      await crearMembresia({
+        personaId,
+        tipoMembresiaId: selectedTipoId,
+        montoAplicado: Number(tipo.precio),
+      });
+      setMembershipSuccess(true);
+      setShowCreateMembership(false);
+    } catch (err) {
+      setMembershipError(
+        err instanceof Error ? err.message : "Error al crear la membresía.",
+      );
+    } finally {
+      setMembershipLoading(false);
+    }
+  }
 
   return (
     <tr id={`student-detail-${student.id}`} className="border-t border-cata-border bg-cata-bg/60">
@@ -408,8 +453,63 @@ function StudentRow({ student, grupos }: StudentRowProps): React.ReactElement {
                   {formatCurrency(student.membresia.monto)}
                 </p>
               </>
+            ) : membershipSuccess ? (
+              <span className="inline-flex items-center gap-1 text-xs text-cata-state-ok">
+                <CheckCircle2 size={11} strokeWidth={2} aria-hidden="true" />
+                Membresía creada. Recarga para verla.
+              </span>
+            ) : showCreateMembership ? (
+              <div className="space-y-2">
+                <select
+                  value={selectedTipoId}
+                  onChange={(e) => setSelectedTipoId(e.target.value ? Number(e.target.value) : "")}
+                  className="w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+                >
+                  <option value="">Seleccionar tipo...</option>
+                  {tiposMembresia.map((tipo) => (
+                    <option key={tipo.id} value={tipo.id}>
+                      {tipo.categoria} — ${tipo.precio} ({tipo.modalidad})
+                    </option>
+                  ))}
+                </select>
+                {membershipError && (
+                  <p className="text-xs text-cata-red">{membershipError}</p>
+                )}
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleCreateMembership()}
+                    disabled={!selectedTipoId || membershipLoading}
+                    className="inline-flex items-center gap-1 rounded-lg bg-cata-red px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-cata-red/80 disabled:opacity-50"
+                  >
+                    {membershipLoading ? (
+                      <Loader2 size={11} className="animate-spin" />
+                    ) : (
+                      <Plus size={11} />
+                    )}
+                    Crear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateMembership(false)}
+                    className="rounded-lg border border-cata-border px-2.5 py-1 text-xs text-cata-text/65 transition-colors hover:bg-cata-surface"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
             ) : (
-              <span className="text-xs text-cata-text/40">Sin membresía registrada</span>
+              <div className="space-y-1.5">
+                <span className="text-xs text-cata-text/40">Sin membresía registrada</span>
+                <button
+                  type="button"
+                  onClick={() => handleOpenCreateMembership()}
+                  className="inline-flex items-center gap-1 rounded-lg bg-cata-red/15 px-2.5 py-1 text-xs font-medium text-cata-red transition-colors hover:bg-cata-red/25"
+                >
+                  <Plus size={11} strokeWidth={2} aria-hidden="true" />
+                  Crear membresía
+                </button>
+              </div>
             )}
           </div>
 

@@ -1,24 +1,53 @@
 /**
- * BFF proxy — POST /api/ranking/resultados-mensuales
+ * BFF proxy — /api/ranking/resultados-mensuales
  *
- * Registers a monthly ranking result (Resultado Mensual) for a student.
- * Unlike /api/payments (a frontend-only mock backed by mockStore), this
- * route is a real proxy: it reads the caller's access-token cookie (see
- * ACCESS_TOKEN_COOKIE in src/lib/server/auth.ts) and forwards the request to
- * the backend with an `Authorization: Bearer` header, mirroring the pattern
- * already established by src/app/api/auth/**. The backend is the sole
- * authority on trainer-role authorization for this action; this route only
- * enforces that a token is present.
+ * GET:  returns monthly ranking results (optional filters: nivel_id, anio, mes)
+ * POST: registers a monthly result — translates frontend shape to backend shape.
  *
- * First cut against an unfinished backend contract — request/response
- * shapes are NOT validated in depth here beyond "is it valid JSON"; the
- * backend owns full validation.
+ * POST translation:
+ *   Frontend: { estudianteId, categoria, periodo, puntos, observacion? }
+ *   Backend:  { persona_id, anio, mes, posicion?, participo }
+ *     estudianteId → persona_id, periodo → anio+mes, puntos → posicion,
+ *     participo = true (trainer registered = student participated)
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { ACCESS_TOKEN_COOKIE, getBackendApiUrl } from "@/lib/server/auth";
 
 const BACKEND_TIMEOUT_MS = 10_000;
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
+  if (!accessToken) {
+    return NextResponse.json({ message: "No autenticado." }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const qs = new URLSearchParams();
+  const nivelId = searchParams.get("nivel_id");
+  const anio = searchParams.get("anio");
+  const mes = searchParams.get("mes");
+  if (nivelId) qs.set("nivel_id", nivelId);
+  if (anio) qs.set("anio", anio);
+  if (mes) qs.set("mes", mes);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
+  try {
+    const url = `${getBackendApiUrl()}/ranking/resultados-mensuales${qs.toString() ? `?${qs.toString()}` : ""}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: controller.signal,
+    });
+
+    return await forwardBackendResponse(response);
+  } catch (error: unknown) {
+    return backendFailureResponse(error);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
@@ -36,6 +65,45 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  const b = body as Record<string, unknown>;
+  const estudianteId = b.estudianteId;
+  const periodo = b.periodo as string | undefined;
+  const puntos = b.puntos;
+
+  if (!estudianteId || typeof estudianteId !== "string") {
+    return NextResponse.json(
+      { message: "Falta estudianteId válido." },
+      { status: 400 },
+    );
+  }
+  if (!periodo || typeof periodo !== "string") {
+    return NextResponse.json(
+      { message: "Falta periodo válido (YYYY-MM)." },
+      { status: 400 },
+    );
+  }
+
+  const parts = periodo.split("-");
+  if (parts.length !== 2) {
+    return NextResponse.json(
+      { message: "El periodo debe tener formato YYYY-MM." },
+      { status: 400 },
+    );
+  }
+
+  const anio = Number(parts[0]);
+  const mes = Number(parts[1]);
+  if (!Number.isInteger(anio) || !Number.isInteger(mes) || mes < 1 || mes > 12) {
+    return NextResponse.json(
+      { message: "Período inválido." },
+      { status: 400 },
+    );
+  }
+
+  const posicion = typeof puntos === "number" && Number.isFinite(puntos)
+    ? Math.max(1, Math.round(puntos))
+    : undefined;
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
   try {
@@ -45,7 +113,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        persona_id: Number(estudianteId),
+        anio,
+        mes,
+        posicion,
+        participo: posicion !== undefined,
+      }),
       signal: controller.signal,
     });
 
@@ -56,12 +130,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     clearTimeout(timeoutId);
   }
 }
-
-// ---------------------------------------------------------------------------
-// Shared response helpers — kept local to this route file (no shared BFF
-// helper module exists yet for ranking; see sibling routes for the same
-// small helper duplicated, matching this repo's per-route-file convention).
-// ---------------------------------------------------------------------------
 
 async function forwardBackendResponse(response: Response): Promise<NextResponse> {
   let data: unknown = null;

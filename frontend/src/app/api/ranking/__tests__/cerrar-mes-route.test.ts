@@ -1,6 +1,8 @@
 /**
  * Tests for POST /api/ranking/niveles/:id/cerrar-mes.
  *
+ * The BFF translates { periodo: "YYYY-MM" } to query params ?anio=X&mes=Y.
+ *
  * @vitest-environment node
  */
 
@@ -41,9 +43,9 @@ describe("POST /api/ranking/niveles/:id/cerrar-mes", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it("forwards the category id in the URL and the token as Bearer", async () => {
+  it("translates periodo to query params anio and mes", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      jsonResponse({ id: "cm-001", categoria: 3, periodo: "2026-07" }),
+      jsonResponse({ nivel_ranking_id: 3, anio: 2026, mes: 7, personas_procesadas: 5 }),
     );
 
     const response = await POST(postRequest(`${ACCESS_TOKEN_COOKIE}=abc123`, dto), {
@@ -51,14 +53,34 @@ describe("POST /api/ranking/niveles/:id/cerrar-mes", () => {
     });
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:8000/api/v1/ranking/niveles/3/cerrar-mes",
+      "http://localhost:8000/api/v1/ranking/niveles/3/cerrar-mes?anio=2026&mes=7",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({ Authorization: "Bearer abc123" }),
-        body: JSON.stringify(dto),
       }),
     );
     expect(response.status).toBe(200);
+  });
+
+  it("returns 400 when periodo is missing", async () => {
+    const response = await POST(
+      postRequest(`${ACCESS_TOKEN_COOKIE}=abc123`, {}),
+      { params: { id: "3" } },
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("returns 400 for invalid JSON", async () => {
+    const request = new NextRequest("http://localhost/api/ranking/niveles/3/cerrar-mes", {
+      method: "POST",
+      headers: { cookie: `${ACCESS_TOKEN_COOKIE}=abc123`, "Content-Type": "application/json" },
+      body: "not json {",
+    });
+
+    const response = await POST(request, { params: { id: "3" } });
+
+    expect(response.status).toBe(400);
   });
 
   it("propagates a 409 conflict when the month is already closed", async () => {

@@ -84,3 +84,10 @@ class MembresiaRepositorio:
         """Atajo de `listar_membresias_activas_por_representante` que devuelve
         solo el conteo. Útil para E04-RF002."""
         return len(self.listar_membresias_activas_por_representante(representante_id, en_fecha))
+
+    def listar_por_persona(self, persona_id: int) -> List[Membresia]:
+        return list(
+            self.db.query(Membresia)
+            .filter(Membresia.persona_id == persona_id)
+            .all()
+        )
