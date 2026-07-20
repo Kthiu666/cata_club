@@ -32,8 +32,14 @@ import {
   XCircle,
   Building2,
   AlertTriangle,
+  Stethoscope,
+  Save,
+  Loader2,
+  Plus,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
-import { fetchMembers, fetchNivelesConOcupacion } from "@/services/api";
+import { fetchMembers, fetchNivelesConOcupacion, asignarRol, quitarRol, cambiarEstadoCuenta, fetchFichaMedica, actualizarFichaMedica } from "@/services/api";
 import { nivelToGrupo } from "@/app/groups/groups-page-utils";
 import {
   buildMemberStats,
@@ -51,7 +57,7 @@ import {
   type MemberStudentSummary,
   type PaymentStatus,
 } from "./members-utils";
-import type { Grupo } from "@/types/domain";
+import type { Grupo, BackendTipoRol, FichaMedicaEditable, TipoSangre } from "@/types/domain";
 import { formatCurrency, formatDate } from "@/lib/format-utils";
 
 // ---------------------------------------------------------------------------
@@ -102,6 +108,229 @@ function StatCard({ icon, label, value }: StatCardProps): React.ReactElement {
 }
 
 // ---------------------------------------------------------------------------
+// Medical record editor (expanded within a student row)
+// ---------------------------------------------------------------------------
+
+interface MedicalRecordEditorProps {
+  personaId: number;
+}
+
+function MedicalRecordEditor({ personaId }: MedicalRecordEditorProps): React.ReactElement {
+  const [state, setState] = useState<
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "ready"; ficha: FichaMedicaEditable; isNew: boolean }
+  >({ status: "loading" });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  const [tipoSangre, setTipoSangre] = useState<TipoSangre>("DESCONOCIDO");
+  const [enfermedadesInput, setEnfermedadesInput] = useState("");
+  const [alergias, setAlergias] = useState("");
+  const [contactoEmergencia, setContactoEmergencia] = useState("");
+  const [telefonoEmergencia, setTelefonoEmergencia] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    setSaveError(null);
+    setSaveSuccess(false);
+
+    fetchFichaMedica(personaId)
+      .then((ficha) => {
+        if (cancelled) return;
+        setTipoSangre(ficha.tipoSangre);
+        setEnfermedadesInput(ficha.enfermedades.map((e) => e.nombreEnfermedad).join(", "));
+        setAlergias(ficha.alergias ?? "");
+        setContactoEmergencia(ficha.contactoEmergencia ?? "");
+        setTelefonoEmergencia(ficha.telefonoEmergencia ?? "");
+        setState({ status: "ready", ficha, isNew: false });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : "No se pudo cargar la ficha médica.";
+        if (message.toLowerCase().includes("not found") || message.toLowerCase().includes("no encontrada")) {
+          // No medical record yet — allow creation of a new one.
+          setState({ status: "ready", ficha: undefined as unknown as FichaMedicaEditable, isNew: true });
+        } else {
+          setState({ status: "error", message });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [personaId, reloadToken]);
+
+  async function handleSave(): Promise<void> {
+    setSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+
+    try {
+      const enfermedades = enfermedadesInput
+        .split(",")
+        .map((e) => e.trim())
+        .filter((e) => e.length > 0);
+
+      await actualizarFichaMedica(personaId, {
+        tipoSangre,
+        enfermedades,
+        alergias: alergias.trim() || undefined,
+        contactoEmergencia: contactoEmergencia.trim() || undefined,
+        telefonoEmergencia: telefonoEmergencia.trim() || undefined,
+      });
+      setSaveSuccess(true);
+      setReloadToken((n) => n + 1);
+    } catch (error: unknown) {
+      setSaveError(error instanceof Error ? error.message : "No se pudo guardar la ficha médica.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (state.status === "loading") {
+    return (
+      <div className="mt-4 flex items-center gap-2 text-sm text-cata-text/50">
+        <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+        Cargando ficha médica...
+      </div>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <div className="mt-4 rounded-xl border border-cata-red/30 bg-cata-red/10 p-4 text-sm text-cata-red">
+        {state.message}
+        <button
+          type="button"
+          onClick={() => setReloadToken((n) => n + 1)}
+          className="btn-ghost ml-4 text-xs"
+        >
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-2xl border border-cata-border bg-cata-surface p-4 sm:p-5">
+      <h4 className="mb-4 flex items-center gap-2 text-sm font-bold text-cata-text">
+        <Stethoscope size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+        Ficha médica
+        {state.isNew && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+            <Plus size={10} strokeWidth={2} aria-hidden="true" />
+            Nueva
+          </span>
+        )}
+      </h4>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div>
+          <label htmlFor={`tipo-sangre-${personaId}`} className="mb-1 block text-xs font-medium text-cata-text/65">
+            Tipo de sangre
+          </label>
+          <select
+            id={`tipo-sangre-${personaId}`}
+            value={tipoSangre}
+            onChange={(e) => setTipoSangre(e.target.value as TipoSangre)}
+            className="input-field w-full"
+          >
+            {["A_POSITIVO", "A_NEGATIVO", "B_POSITIVO", "B_NEGATIVO", "AB_POSITIVO", "AB_NEGATIVO", "O_POSITIVO", "O_NEGATIVO", "DESCONOCIDO"].map((t) => (
+              <option key={t} value={t}>
+                {t.replace("_", " ")}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="sm:col-span-2 lg:col-span-2">
+          <label htmlFor={`enfermedades-${personaId}`} className="mb-1 block text-xs font-medium text-cata-text/65">
+            Enfermedades (separadas por coma)
+          </label>
+          <input
+            id={`enfermedades-${personaId}`}
+            type="text"
+            value={enfermedadesInput}
+            onChange={(e) => setEnfermedadesInput(e.target.value)}
+            placeholder="Ej: Asma, Diabetes"
+            className="input-field w-full"
+          />
+          <p className="mt-1 text-[10px] text-cata-text/45">
+            Al guardar se reemplaza la lista completa. Dejar vacío borra todas las enfermedades.
+          </p>
+        </div>
+        <div>
+          <label htmlFor={`alergias-${personaId}`} className="mb-1 block text-xs font-medium text-cata-text/65">
+            Alergias
+          </label>
+          <input
+            id={`alergias-${personaId}`}
+            type="text"
+            value={alergias}
+            onChange={(e) => setAlergias(e.target.value)}
+            className="input-field w-full"
+          />
+        </div>
+        <div>
+          <label htmlFor={`contacto-${personaId}`} className="mb-1 block text-xs font-medium text-cata-text/65">
+            Contacto de emergencia
+          </label>
+          <input
+            id={`contacto-${personaId}`}
+            type="text"
+            value={contactoEmergencia}
+            onChange={(e) => setContactoEmergencia(e.target.value)}
+            className="input-field w-full"
+          />
+        </div>
+        <div>
+          <label htmlFor={`telefono-${personaId}`} className="mb-1 block text-xs font-medium text-cata-text/65">
+            Teléfono de emergencia
+          </label>
+          <input
+            id={`telefono-${personaId}`}
+            type="text"
+            value={telefonoEmergencia}
+            onChange={(e) => setTelefonoEmergencia(e.target.value)}
+            className="input-field w-full"
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={saving}
+          className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"
+        >
+          {saving ? (
+            <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+          ) : (
+            <Save size={14} strokeWidth={1.5} aria-hidden="true" />
+          )}
+          {saving ? "Guardando..." : "Guardar ficha médica"}
+        </button>
+        {saveError && (
+          <p className="text-sm text-cata-red" role="alert">
+            {saveError}
+          </p>
+        )}
+        {saveSuccess && (
+          <p className="flex items-center gap-1 text-sm text-cata-state-ok" role="status">
+            <CheckCircle2 size={14} strokeWidth={2} aria-hidden="true" />
+            Ficha médica guardada.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Student detail row (expanded within an account)
 // ---------------------------------------------------------------------------
 
@@ -111,6 +340,8 @@ interface StudentRowProps {
 }
 
 function StudentRow({ student, grupos }: StudentRowProps): React.ReactElement {
+  const [showMedical, setShowMedical] = useState(false);
+
   const membershipLabel = student.membresia
     ? MEMBERSHIP_STATUS_LABELS[student.membresia.estado]
     : "Sin membresía";
@@ -126,6 +357,7 @@ function StudentRow({ student, grupos }: StudentRowProps): React.ReactElement {
     : "badge-neutral";
 
   const nivelDisplay = getNivelLabelFromGrupo(student.grupoId, grupos);
+  const personaId = Number(student.id);
 
   return (
     <tr id={`student-detail-${student.id}`} className="border-t border-cata-border bg-cata-bg/60">
@@ -202,8 +434,8 @@ function StudentRow({ student, grupos }: StudentRowProps): React.ReactElement {
             )}
           </div>
 
-          {/* Status indicator */}
-          <div className="flex items-start justify-end">
+          {/* Status indicator + medical record button */}
+          <div className="flex flex-col items-end gap-2">
             {student.activo ? (
               <span className="inline-flex items-center gap-1 text-xs text-cata-state-ok">
                 <CheckCircle2 size={11} strokeWidth={2} aria-hidden="true" />
@@ -215,8 +447,18 @@ function StudentRow({ student, grupos }: StudentRowProps): React.ReactElement {
                 Inactivo
               </span>
             )}
+            <button
+              type="button"
+              onClick={() => setShowMedical((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-cata-red/15 px-3 py-1.5 text-xs font-medium text-cata-red transition-colors hover:bg-cata-red/25"
+            >
+              <Stethoscope size={12} strokeWidth={1.5} aria-hidden="true" />
+              {showMedical ? "Ocultar ficha médica" : "Ver/editar ficha médica"}
+            </button>
           </div>
         </div>
+
+        {showMedical && <MedicalRecordEditor personaId={personaId} />}
       </td>
     </tr>
   );
@@ -232,14 +474,66 @@ interface AccountRowProps {
   grupos: Grupo[];
 }
 
+const ALL_BACKEND_ROLES: BackendTipoRol[] = ["ADMINISTRADOR", "ENTRENADOR", "TESORERO", "ALUMNO"];
+
 function AccountRow({
   account,
   defaultOpen,
   grupos,
 }: AccountRowProps): React.ReactElement {
   const [expanded, setExpanded] = useState(defaultOpen);
+  const [roles, setRoles] = useState<BackendTipoRol[]>([]);
+  const [activo, setActivo] = useState(true);
+  const [roleLoading, setRoleLoading] = useState<BackendTipoRol | null>(null);
+  const [stateLoading, setStateLoading] = useState(false);
+  const [roleError, setRoleError] = useState<string | null>(null);
+  const [stateError, setStateError] = useState<string | null>(null);
   const activeCount = countActiveStudents(account);
   const statusBadge = getAccountStatusBadge(account);
+  const personaId = Number(account.id);
+
+  async function toggleRole(role: BackendTipoRol): Promise<void> {
+    setRoleLoading(role);
+    setRoleError(null);
+    const hasRole = roles.includes(role);
+
+    try {
+      if (hasRole) {
+        await quitarRol(personaId, role);
+        setRoles((prev) => prev.filter((r) => r !== role));
+      } else {
+        await asignarRol(personaId, role);
+        setRoles((prev) => [...prev, role]);
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "No se pudo actualizar el rol.";
+      // If the backend says the role is already present/absent, reconcile local state.
+      if (message.toLowerCase().includes("ya tiene el rol")) {
+        setRoles((prev) => (prev.includes(role) ? prev : [...prev, role]));
+      } else if (message.toLowerCase().includes("no tiene el rol")) {
+        setRoles((prev) => prev.filter((r) => r !== role));
+      } else {
+        setRoleError(message);
+      }
+    } finally {
+      setRoleLoading(null);
+    }
+  }
+
+  async function toggleEstado(): Promise<void> {
+    setStateLoading(true);
+    setStateError(null);
+    const next = !activo;
+
+    try {
+      await cambiarEstadoCuenta(personaId, next);
+      setActivo(next);
+    } catch (error: unknown) {
+      setStateError(error instanceof Error ? error.message : "No se pudo cambiar el estado.");
+    } finally {
+      setStateLoading(false);
+    }
+  }
 
   return (
     <>
@@ -305,9 +599,61 @@ function AccountRow({
           </span>
         </td>
         <td className="px-4 py-3.5">
-          <span className={`badge ${statusBadge.className}`}>
-            {statusBadge.label}
-          </span>
+          <div className="flex flex-col items-start gap-2">
+            <span className={`badge ${statusBadge.className}`}>
+              {statusBadge.label}
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {ALL_BACKEND_ROLES.map((role) => {
+                const selected = roles.includes(role);
+                const isLoading = roleLoading === role;
+                return (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => void toggleRole(role)}
+                    disabled={roleLoading !== null}
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                      selected
+                        ? "bg-cata-red text-white"
+                        : "bg-cata-bg text-cata-text/65 hover:bg-cata-border/40"
+                    } disabled:opacity-50`}
+                    title={selected ? "Quitar rol" : "Asignar rol"}
+                  >
+                    {isLoading && <Loader2 size={10} className="animate-spin" aria-hidden="true" />}
+                    {role === "ADMINISTRADOR" && "Admin"}
+                    {role === "ENTRENADOR" && "Entrenador"}
+                    {role === "TESORERO" && "Tesorero"}
+                    {role === "ALUMNO" && "Alumno"}
+                  </button>
+                );
+              })}
+            </div>
+            {roleError && (
+              <p className="text-[10px] text-cata-red" role="alert">
+                {roleError}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => void toggleEstado()}
+              disabled={stateLoading}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-cata-text/65 transition-colors hover:text-cata-text disabled:opacity-50"
+              aria-pressed={activo}
+            >
+              {activo ? (
+                <ToggleRight size={16} className="text-cata-state-ok" aria-hidden="true" />
+              ) : (
+                <ToggleLeft size={16} className="text-cata-text/40" aria-hidden="true" />
+              )}
+              {stateLoading ? "Actualizando..." : activo ? "Cuenta activa" : "Cuenta inactiva"}
+            </button>
+            {stateError && (
+              <p className="text-[10px] text-cata-red" role="alert">
+                {stateError}
+              </p>
+            )}
+          </div>
         </td>
       </tr>
       {expanded &&
