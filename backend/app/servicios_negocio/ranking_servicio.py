@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.dominio.modelos import (
-    NivelRanking, Ranking, ResultadoRankingMensual, JustificativoRanking,
+    CierreMensualRanking, NivelRanking, Ranking, ResultadoRankingMensual, JustificativoRanking,
     Notificacion, Persona, Usuario, Rol, usuario_rol,
 )
 from app.dominio.enums import EstadoJustificativoRanking, TipoNotificacion, TipoRol
@@ -35,13 +35,15 @@ from app.dominio.excepciones import EntidadNoEncontrada, OperacionInvalida, Perm
 from app.infraestructura.repositorios.persona_repositorio import PersonaRepositorio
 from app.infraestructura.repositorios.ranking_repositorio import (
     NivelRankingRepositorio, RankingRepositorio, ResultadoRankingMensualRepositorio,
-    JustificativoRankingRepositorio, NotificacionRepositorio,
+    JustificativoRankingRepositorio, NotificacionRepositorio, CierreMensualRankingRepositorio,
 )
 from app.presentacion.schemas.ranking_schemas import (
     NivelRankingCreateDTO, AsignarNivelInicialDTO, ResultadoMensualRegistrarDTO,
     JustificativoCreateDTO, JustificativoEvaluarDTO, SeleccionOficialDTO,
     NivelRankingConOcupacionDTO, TablaRankingItemDTO, CierreMensualResponseDTO,
     SugerenciaMovimientoDTO, PerfilRankingAlumnoDTO,
+    AsignacionRankingResponseDTO, ResultadoMensualRankingResponseDTO,
+    CierreMensualRankingResponseDTO,
 )
 
 # --- Umbral de eliminación automática (E03-RF007) ---------------------------
@@ -119,6 +121,88 @@ class RankingServicio:
         self.repo_justificativo = JustificativoRankingRepositorio(db)
         self.repo_notificacion = NotificacionRepositorio(db)
         self.repo_persona = PersonaRepositorio(db)
+        self.repo_cierre = CierreMensualRankingRepositorio(db)
+
+    # --- Listados para frontend -----------------------------------------------
+    def listar_asignaciones(self) -> list[AsignacionRankingResponseDTO]:
+        rankings = self.repo.listar_todos(solo_activos=True)
+        resultado = []
+        for r in rankings:
+            nivel = r.nivel_ranking
+            resultado.append(
+                AsignacionRankingResponseDTO(
+                    persona_id=r.persona_id,
+                    persona_nombre_completo=f"{r.persona.nombres} {r.persona.apellidos}",
+                    nivel_ranking_id=r.nivel_ranking_id,
+                    nivel_ranking_nombre=nivel.nombre if nivel else None,
+                    nivel_ranking_numero=nivel.numero_nivel if nivel else 0,
+                    posicion_actual=r.posicion_actual,
+                    puntaje_acumulado=r.puntaje_acumulado,
+                    esta_en_ranking=r.esta_en_ranking,
+                )
+            )
+        return resultado
+
+    def listar_resultados_mensuales(
+        self, nivel_id: int | None = None, anio: int | None = None, mes: int | None = None
+    ) -> list[ResultadoMensualRankingResponseDTO]:
+        if nivel_id:
+            resultados = self.repo_resultado.listar_por_nivel(nivel_id)
+        else:
+            resultados = self.repo_resultado.listar_todos()
+
+        resultado = []
+        for r in resultados:
+            if anio and r.anio != anio:
+                continue
+            if mes and r.mes != mes:
+                continue
+            persona = r.persona
+            nivel = r.nivel_ranking
+            resultado.append(
+                ResultadoMensualRankingResponseDTO(
+                    id=r.id,
+                    persona_id=r.persona_id,
+                    persona_nombre_completo=f"{persona.nombres} {persona.apellidos}" if persona else "",
+                    nivel_ranking_id=r.nivel_ranking_id,
+                    nivel_ranking_nombre=nivel.nombre if nivel else None,
+                    anio=r.anio,
+                    mes=r.mes,
+                    posicion=r.posicion,
+                    puntos_obtenidos=r.puntos_obtenidos,
+                    participo=r.participo,
+                    ausencia_justificada=r.ausencia_justificada,
+                )
+            )
+        return resultado
+
+    def listar_cierres_mensuales(
+        self, nivel_id: int | None = None
+    ) -> list[CierreMensualRankingResponseDTO]:
+        if nivel_id:
+            cierres = self.repo_cierre.listar_por_nivel(nivel_id)
+        else:
+            cierres = self.repo_cierre.listar_todos()
+
+        resultado = []
+        for c in cierres:
+            nivel = c.nivel_ranking
+            cerrado_por = c.cerrado_por
+            resultado.append(
+                CierreMensualRankingResponseDTO(
+                    id=c.id,
+                    nivel_ranking_id=c.nivel_ranking_id,
+                    nivel_ranking_nombre=nivel.nombre if nivel else None,
+                    nivel_ranking_numero=nivel.numero_nivel if nivel else 0,
+                    anio=c.anio,
+                    mes=c.mes,
+                    personas_procesadas=c.personas_procesadas,
+                    cerrado_por_id=c.cerrado_por_id,
+                    cerrado_por_nombre=f"{cerrado_por.nombres} {cerrado_por.apellidos}" if cerrado_por else "",
+                    cerrado_en=c.cerrado_en,
+                )
+            )
+        return resultado
 
     # --- E03-RF002: asignación de nivel inicial -----------------------------
     def asignar_nivel_inicial(self, datos: AsignarNivelInicialDTO) -> Ranking:
@@ -212,7 +296,7 @@ class RankingServicio:
         return self.repo_resultado.crear(resultado)
 
     # --- E03-RF004/RF005/RF007/RF009: cierre mensual de un nivel -----------
-    def cerrar_mes(self, nivel_id: int, anio: int, mes: int) -> CierreMensualResponseDTO:
+    def cerrar_mes(self, nivel_id: int, anio: int, mes: int, cerrado_por_id: int) -> CierreMensualResponseDTO:
         """Dispara manualmente (botón "Cerrar ranking del mes") por
         Entrenador/Administrador. Ver docstring del módulo, punto 2."""
         nivel_servicio = NivelRankingServicio(self.db)
@@ -286,6 +370,15 @@ class RankingServicio:
             self.repo.guardar_cambios(ranking)
 
         sugerencias = self._sugerir_movimientos(nivel, activos_restantes)
+
+        cierre_record = CierreMensualRanking(
+            nivel_ranking_id=nivel_id,
+            anio=anio,
+            mes=mes,
+            personas_procesadas=procesadas,
+            cerrado_por_id=cerrado_por_id,
+        )
+        self.repo_cierre.crear(cierre_record)
 
         return CierreMensualResponseDTO(
             nivel_ranking_id=nivel_id,

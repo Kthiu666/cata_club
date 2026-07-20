@@ -21,7 +21,7 @@ function postRequest(cookie: string, body: unknown): NextRequest {
   });
 }
 
-const dto = { estudianteId: "stu-004", categoria: 1, periodo: "2026-07" };
+const dto = { estudianteId: "4", categoria: 1, periodo: "2026-07" };
 
 beforeEach(() => {
   vi.spyOn(global, "fetch");
@@ -41,8 +41,10 @@ describe("POST /api/ranking/seleccion-oficial", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it("forwards the request to the backend with a Bearer token", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse({ id: "so-001", ...dto }, 201));
+  it("translates the frontend DTO into the backend's batch format", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      jsonResponse([{ id: 1, persona_id: 4, seleccion_oficial: true, anio_seleccion: 2026 }], 201),
+    );
 
     const response = await POST(postRequest(`${ACCESS_TOKEN_COOKIE}=abc123`, dto));
 
@@ -51,7 +53,7 @@ describe("POST /api/ranking/seleccion-oficial", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({ Authorization: "Bearer abc123" }),
-        body: JSON.stringify(dto),
+        body: JSON.stringify({ persona_ids: [4], anio: 2026 }),
       }),
     );
     expect(response.status).toBe(201);
@@ -69,9 +71,15 @@ describe("POST /api/ranking/seleccion-oficial", () => {
     expect(response.status).toBe(400);
   });
 
-  it("propagates a backend error status when the caller is not admin", async () => {
+  it("returns 400 when estudianteId is missing", async () => {
+    const response = await POST(postRequest(`${ACCESS_TOKEN_COOKIE}=abc123`, { categoria: 1 }));
+
+    expect(response.status).toBe(400);
+  });
+
+  it("propagates a backend error status", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      jsonResponse({ message: "Solo administradores pueden gestionar la selección oficial." }, 403),
+      jsonResponse({ message: "No tiene permisos para esta operación." }, 403),
     );
 
     const response = await POST(postRequest(`${ACCESS_TOKEN_COOKIE}=abc123`, dto));

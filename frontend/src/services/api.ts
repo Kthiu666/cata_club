@@ -689,6 +689,70 @@ export async function seleccionOficial(
 }
 
 // ---------------------------------------------------------------------------
+// Ranking Data Fetching (GET endpoints — replace mock data)
+// ---------------------------------------------------------------------------
+
+export interface AsignacionRanking {
+  persona_id: number;
+  persona_nombre_completo: string;
+  nivel_ranking_id: number;
+  nivel_ranking_nombre: string | null;
+  nivel_ranking_numero: number;
+  posicion_actual: number | null;
+  puntaje_acumulado: number;
+  esta_en_ranking: boolean;
+}
+
+export interface ResultadoMensualRanking {
+  id: number;
+  persona_id: number;
+  persona_nombre_completo: string;
+  nivel_ranking_id: number;
+  nivel_ranking_nombre: string | null;
+  anio: number;
+  mes: number;
+  posicion: number | null;
+  puntos_obtenidos: number;
+  participo: boolean;
+  ausencia_justificada: boolean;
+}
+
+export interface CierreMensualRanking {
+  id: number;
+  nivel_ranking_id: number;
+  nivel_ranking_nombre: string | null;
+  nivel_ranking_numero: number;
+  anio: number;
+  mes: number;
+  personas_procesadas: number;
+  cerrado_por_id: number;
+  cerrado_por_nombre: string;
+  cerrado_en: string;
+}
+
+export async function fetchAsignacionesRanking(): Promise<AsignacionRanking[]> {
+  return request<AsignacionRanking[]>(apiEndpoint("/ranking/asignaciones"));
+}
+
+export async function fetchResultadosMensualesRanking(
+  filtros?: { nivel_id?: number; anio?: number; mes?: number },
+): Promise<ResultadoMensualRanking[]> {
+  const qs = new URLSearchParams();
+  if (filtros?.nivel_id !== undefined) qs.set("nivel_id", String(filtros.nivel_id));
+  if (filtros?.anio !== undefined) qs.set("anio", String(filtros.anio));
+  if (filtros?.mes !== undefined) qs.set("mes", String(filtros.mes));
+  const query = qs.toString();
+  return request<ResultadoMensualRanking[]>(apiEndpoint(`/ranking/resultados-mensuales${query ? `?${query}` : ""}`));
+}
+
+export async function fetchCierresMensualesRanking(
+  nivel_id?: number,
+): Promise<CierreMensualRanking[]> {
+  const qs = nivel_id !== undefined ? `?nivel_id=${nivel_id}` : "";
+  return request<CierreMensualRanking[]>(apiEndpoint(`/ranking/cierres-mensuales${qs}`));
+}
+
+// ---------------------------------------------------------------------------
 // Reports API Methods
 // ---------------------------------------------------------------------------
 
@@ -747,13 +811,7 @@ export async function restablecerContrasenia(
 
 /**
  * Memberships owned by a persona. Needed to discover `membresia_id` for
- * `POST /clases-extra/` because the backend requires it but has no other
- * student-facing endpoint that returns it.
- *
- * REQUIRES a new backend endpoint (e.g. `GET /membresias/persona/{persona_id}`)
- * or equivalent to be implemented by the backend group. Without it, the
- * "Solicitar Clase Extra" form must stay disabled and show a "not available"
- * message.
+ * `POST /clases-extra/` and for the admin create-membership flow.
  */
 export interface MembresiaPorPersona {
   id: number;
@@ -762,7 +820,6 @@ export interface MembresiaPorPersona {
   fechaActivacion: string;
   personaId: number;
   tipoMembresiaId: number;
-  /** Resolved plan metadata — may be undefined if the type cannot be fetched. */
   tipo?: {
     id: number;
     categoria: string;
@@ -772,9 +829,39 @@ export interface MembresiaPorPersona {
   };
 }
 
-/** Fetch a persona's own memberships (backend endpoint to be added). */
+/** Fetch a persona's memberships — `GET /api/membresias/persona/[id]`. */
 export async function fetchMembresiasPorPersona(personaId: number): Promise<MembresiaPorPersona[]> {
   return request<MembresiaPorPersona[]>(apiEndpoint(`/membresias/persona/${personaId}`));
+}
+
+/** Catalog entry for a membership plan type. */
+export interface TipoMembresiaCatalogo {
+  id: number;
+  categoria: string;
+  franjaHoraria: string;
+  precio: string;
+  modalidad: "PERSONALIZADA" | "MENSUAL";
+}
+
+/** List all available membership plan types — `GET /api/membresias/tipos`. */
+export async function fetchTiposMembresia(): Promise<TipoMembresiaCatalogo[]> {
+  return request<TipoMembresiaCatalogo[]>(apiEndpoint("/membresias/tipos"));
+}
+
+/** Create and assign a membership to a persona — `POST /api/membresias/`. */
+export async function crearMembresia(data: {
+  personaId: number;
+  tipoMembresiaId: number;
+  montoAplicado: number;
+}): Promise<MembresiaPorPersona> {
+  return request<MembresiaPorPersona>(apiEndpoint("/membresias/"), {
+    method: "POST",
+    body: JSON.stringify({
+      persona_id: data.personaId,
+      tipo_membresia_id: data.tipoMembresiaId,
+      monto_aplicado: data.montoAplicado,
+    }),
+  });
 }
 
 /** Create an extra-class request. Valid only for PERSONALIZED memberships. */
