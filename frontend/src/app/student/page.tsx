@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchStudentPortal } from "@/services/api";
-import type { StudentPortalSummary, StudentProfileSummary } from "@/services/api";
+import { fetchStudentPortal, fetchMembresiasPorPersona, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra } from "@/services/api";
+import type { StudentPortalSummary, StudentProfileSummary, MembresiaPorPersona } from "@/services/api";
+import type { SolicitudClaseExtra } from "@/types/domain";
+import type { TrainingSchedule } from "@/app/attendance/attendance-utils";
 import { ATTENDANCE_LABELS, ATTENDANCE_BADGE_TOKENS } from "@/app/attendance/attendance-utils";
 import { derivePortalMode, isRepresentative, buildAccountLabel, describeRanking } from "./student-utils";
 import {
@@ -22,6 +24,13 @@ import {
   ArrowRight,
   Trophy,
   RefreshCw,
+  BookOpen,
+  Clock,
+  History,
+  Send,
+  CheckCircle2,
+  XCircle,
+  Loader2,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -152,6 +161,298 @@ function RecentSessionsSection({ profile }: { profile: StudentProfileSummary }):
           })}
         </div>
       )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Extra-class requests section — visible only for PERSONALIZED memberships
+// ---------------------------------------------------------------------------
+
+type ExtraClassesState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "unavailable"; reason: "not-personalized" | "no-membership" | "discovery-failed" }
+  | { status: "ready"; membership: MembresiaPorPersona; schedules: TrainingSchedule[]; history: SolicitudClaseExtra[] };
+
+function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactElement {
+  const [state, setState] = useState<ExtraClassesState>({ status: "loading" });
+  const [fechaClase, setFechaClase] = useState("");
+  const [horarioId, setHorarioId] = useState("");
+  const [observaciones, setObservaciones] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  const numericPersonaId = Number(personaId);
+  const numericHorarioId = Number(horarioId);
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    setSubmitError(null);
+    setSubmitSuccess(false);
+
+    Promise.all([
+      fetchMembresiasPorPersona(numericPersonaId),
+      fetchTrainingSchedules(),
+      listarClasesExtra(numericPersonaId),
+    ])
+      .then(([memberships, schedules, history]) => {
+        if (cancelled) return;
+        const activeMembership = memberships.find((m) => m.estado === "ACTIVA" || m.estado === "VENCIDA");
+        const personalized = activeMembership?.tipo?.modalidad === "PERSONALIZADA";
+
+        if (!activeMembership) {
+          setState({ status: "unavailable", reason: "no-membership" });
+        } else if (!personalized) {
+          setState({ status: "unavailable", reason: "not-personalized" });
+        } else {
+          setState({ status: "ready", membership: activeMembership, schedules, history });
+        }
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const is404 = error instanceof Error && error.message.toLowerCase().includes("not found");
+        if (is404) {
+          setState({ status: "unavailable", reason: "discovery-failed" });
+        } else {
+          setState({ status: "error", message: error instanceof Error ? error.message : "No se pudo cargar la sección de clases extra." });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [numericPersonaId, reloadToken]);
+
+  async function handleSubmit(e: React.FormEvent): Promise<void> {
+    e.preventDefault();
+    if (state.status !== "ready" || !fechaClase || !horarioId) return;
+
+    setSubmitting(true);
+    setSubmitError(null);
+    setSubmitSuccess(false);
+
+    try {
+      await solicitarClaseExtra({
+        fechaClaseSolicitada: fechaClase,
+        personaId: numericPersonaId,
+        membresiaId: state.membership.id,
+        horarioId: numericHorarioId,
+        observaciones: observaciones.trim() || undefined,
+      });
+      setSubmitSuccess(true);
+      setFechaClase("");
+      setHorarioId("");
+      setObservaciones("");
+      setReloadToken((n) => n + 1);
+    } catch (error: unknown) {
+      setSubmitError(error instanceof Error ? error.message : "No se pudo enviar la solicitud.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (state.status === "loading") {
+    return (
+      <section className="mb-8">
+        <div className="mb-4 flex items-center gap-2">
+          <BookOpen size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          <h2 className="text-lg font-bold text-cata-text">Clases Extra</h2>
+        </div>
+        <div className="card flex min-h-[20vh] items-center justify-center p-6 text-center">
+          <Loader2 size={20} className="animate-spin text-cata-text/50" aria-hidden="true" />
+          <p className="ml-2 text-sm text-cata-text/50">Cargando clases extra...</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <section className="mb-8">
+        <div className="mb-4 flex items-center gap-2">
+          <BookOpen size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          <h2 className="text-lg font-bold text-cata-text">Clases Extra</h2>
+        </div>
+        <ErrorCard message={state.message} onRetry={() => setReloadToken((n) => n + 1)} />
+      </section>
+    );
+  }
+
+  if (state.status === "unavailable") {
+    const messages: Record<"not-personalized" | "no-membership" | "discovery-failed", string> = {
+      "not-personalized": "Las clases extra solo están disponibles para membresías personalizadas.",
+      "no-membership": "No se encontró una membresía activa para solicitar clases extra.",
+      "discovery-failed": "El listado de membresías no está disponible en este momento. Consulte con administración.",
+    };
+    return (
+      <section className="mb-8">
+        <div className="mb-4 flex items-center gap-2">
+          <BookOpen size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          <h2 className="text-lg font-bold text-cata-text">Clases Extra</h2>
+        </div>
+        <div className="card p-6 text-center">
+          <BookOpen size={28} strokeWidth={1.5} className="mx-auto mb-3 text-cata-text/30" aria-hidden="true" />
+          <p className="text-sm text-cata-text/65">{messages[state.reason]}</p>
+          {state.reason === "discovery-failed" && (
+            <button
+              type="button"
+              onClick={() => setReloadToken((n) => n + 1)}
+              className="btn-secondary mx-auto mt-4 inline-flex items-center gap-2"
+            >
+              <RefreshCw size={14} strokeWidth={1.5} aria-hidden="true" />
+              Reintentar
+            </button>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  const { membership, schedules, history } = state;
+
+  return (
+    <section className="mb-8">
+      <div className="mb-4 flex items-center gap-2">
+        <BookOpen size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+        <h2 className="text-lg font-bold text-cata-text">Clases Extra</h2>
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+          <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" />
+          Membresía personalizada
+        </span>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-cata-border bg-cata-surface p-5 sm:p-6">
+        <h3 className="mb-4 text-base font-bold text-cata-text">Solicitar una clase extra</h3>
+        <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <label htmlFor="fecha-clase" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Fecha de la clase
+            </label>
+            <input
+              id="fecha-clase"
+              type="date"
+              value={fechaClase}
+              onChange={(e) => setFechaClase(e.target.value)}
+              min={new Date().toISOString().split("T")[0]}
+              className="input-field w-full"
+              required
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="horario-clase" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Horario
+            </label>
+            <select
+              id="horario-clase"
+              value={horarioId}
+              onChange={(e) => setHorarioId(e.target.value)}
+              className="input-field w-full"
+              required
+            >
+              <option value="">Seleccionar horario...</option>
+              {schedules.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.diaSemana} {s.horaInicio}–{s.horaFin} · {s.entrenadorNombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="sm:col-span-2 lg:col-span-4">
+            <label htmlFor="observaciones-clase" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Observaciones
+            </label>
+            <input
+              id="observaciones-clase"
+              type="text"
+              value={observaciones}
+              onChange={(e) => setObservaciones(e.target.value)}
+              placeholder="Opcional"
+              className="input-field w-full"
+            />
+          </div>
+          <div className="sm:col-span-2 lg:col-span-4">
+            <button
+              type="submit"
+              disabled={submitting || !fechaClase || !horarioId}
+              className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"
+            >
+              {submitting ? (
+                <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Send size={14} strokeWidth={1.5} aria-hidden="true" />
+              )}
+              {submitting ? "Enviando..." : "Solicitar clase extra"}
+            </button>
+            {submitError && (
+              <p className="mt-2 text-sm text-cata-red" role="alert">
+                {submitError}
+              </p>
+            )}
+            {submitSuccess && (
+              <p className="mt-2 flex items-center gap-1 text-sm text-cata-state-ok" role="status">
+                <CheckCircle2 size={14} strokeWidth={2} aria-hidden="true" />
+                Solicitud enviada correctamente.
+              </p>
+            )}
+          </div>
+        </form>
+      </div>
+
+      <div>
+        <div className="mb-4 flex items-center gap-2">
+          <History size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          <h3 className="text-base font-bold text-cata-text">Historial de solicitudes</h3>
+        </div>
+        {history.length === 0 ? (
+          <div className="card p-6 text-center">
+            <p className="text-sm text-cata-text/50">Aún no hay solicitudes de clases extra.</p>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {history.map((solicitud) => (
+              <div key={solicitud.id} className="card-hover flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                    <Clock size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-cata-text">
+                      {solicitud.fechaClaseSolicitada}
+                    </p>
+                    <p className="text-xs text-cata-text/65">
+                      Horario #{solicitud.horarioId} · {solicitud.observaciones || "Sin observaciones"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {solicitud.estado === "PENDIENTE" && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 text-xs font-medium text-amber-400">
+                      <Clock size={10} strokeWidth={2} aria-hidden="true" /> Pendiente
+                    </span>
+                  )}
+                  {solicitud.estado === "APROBADA" && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                      <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" /> Aprobada
+                    </span>
+                  )}
+                  {solicitud.estado === "RECHAZADA" && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-cata-red">
+                      <XCircle size={10} strokeWidth={2} aria-hidden="true" /> Rechazada
+                    </span>
+                  )}
+                  {solicitud.costoAdicional && (
+                    <span className="text-xs text-cata-text/65">+${solicitud.costoAdicional}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
@@ -338,6 +639,7 @@ function ActivePortalView({
           </div>
 
           <RecentSessionsSection profile={selectedProfile} />
+          <ExtraClassesSection personaId={selectedProfile.personaId} />
         </>
       )}
     </>
