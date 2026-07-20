@@ -24,6 +24,7 @@ import type {
   ResultadoMensual,
   CierreMensual,
   SeleccionOficial,
+  PersonaReporte,
 } from "@/types/domain";
 import type { EnrollmentRequest, EnrollmentResponse } from "@/types/enrollment";
 import type { AttendanceRecord, TrainingSchedule } from "@/app/attendance/attendance-utils";
@@ -706,5 +707,45 @@ export async function asignarNivel(
     method: "PATCH",
     body: JSON.stringify(data),
     headers: mockHeaders,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Reports API Methods
+// ---------------------------------------------------------------------------
+
+/** Fetch personas filtered by etiquetas (prioridad municipal, becado). */
+export async function fetchPersonasPorEtiquetas(filtros: {
+  prioridadMunicipal?: boolean;
+  becado?: boolean;
+}): Promise<PersonaReporte[]> {
+  const qs = new URLSearchParams();
+  if (filtros.prioridadMunicipal !== undefined) qs.set("prioridad_municipal", String(filtros.prioridadMunicipal));
+  if (filtros.becado !== undefined) qs.set("becado", String(filtros.becado));
+  const query = qs.toString();
+  return request<PersonaReporte[]>(apiEndpoint(`/personas/reportes${query ? `?${query}` : ""}`));
+}
+
+/** Fetch new personas registered within a given date range. */
+export async function fetchNuevosPorPeriodo(
+  fechaInicio: string,
+  fechaFin: string,
+): Promise<PersonaReporte[]> {
+  const qs = new URLSearchParams({
+    fecha_inicio: fechaInicio,
+    fecha_fin: fechaFin,
+  });
+  return request<PersonaReporte[]>(apiEndpoint(`/personas/reportes/nuevos-por-periodo?${qs.toString()}`));
+}
+
+
+/** Reset password using a recovery token (POST /auth/restablecer-contrasenia). */
+export async function restablecerContrasenia(
+  token: string,
+  nuevaContrasenia: string,
+): Promise<void> {
+  await request<void>(apiEndpoint('/auth/restablecer-contrasenia'), {
+    method: 'POST',
+    body: JSON.stringify({ token, nueva_contrasenia: nuevaContrasenia }),
   });
 }

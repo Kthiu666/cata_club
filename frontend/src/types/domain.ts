@@ -355,3 +355,21 @@ export interface SeleccionOficial {
   seleccionadoPor: string;
   createdAt: string;
 }
+
+/**
+ * Persona report entry — mirrors the camelCase output of PersonaResponseDTO
+ * from the backend reportes endpoints (etiquetas & nuevos-por-periodo).
+ */
+export interface PersonaReporte {
+  id: number;
+  nombres: string;
+  apellidos: string;
+  cedula: string;
+  fechaNacimiento: string;
+  telefono: string;
+  telefonoContacto?: string | null;
+  prioridadMunicipal: boolean;
+  porcentajeBeca: number;
+  motivoBeca?: string | null;
+  fechaRegistro?: string | null;
+}
