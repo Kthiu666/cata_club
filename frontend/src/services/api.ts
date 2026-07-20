@@ -909,7 +909,7 @@ export async function resolverClaseExtra(
 export async function asignarRol(personaId: number, tipoRol: BackendTipoRol): Promise<RolesResponse> {
   return request<RolesResponse>(apiEndpoint(`/personas/${personaId}/roles`), {
     method: "POST",
-    body: JSON.stringify({ tipo_rol: tipoRol }),
+    body: JSON.stringify({ tipoRol }),
   });
 }
 
