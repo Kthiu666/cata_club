@@ -32,10 +32,13 @@ import type {
   CierreMensual,
   SeleccionOficial,
   PersonaReporte,
+  Notificacion,
+  Justificativo,
 } from "@/types/domain";
 import type { EnrollmentRequest, EnrollmentResponse } from "@/types/enrollment";
 import type { AttendanceRecord, TrainingSchedule } from "@/app/attendance/attendance-utils";
 import type { MemberAccount } from "@/app/members/members-utils";
+import { MOCK_JUSTIFICATIVOS_PENDIENTES } from "@/mocks/justificativos";
 
 // ---------------------------------------------------------------------------
 // Types — Membership Payment Validation (CU012)
@@ -846,4 +849,110 @@ export async function actualizarFichaMedica(
     method: "PATCH",
     body: JSON.stringify(body),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Ranking — Notificaciones & Justificativos
+//
+// Notificaciones and the justificativo submit/evaluate actions proxy a real,
+// confirmed backend contract (see ranking_router.py: GET/PATCH
+// notificaciones/*, POST/PATCH justificativos/*) — same "always real"
+// pattern as the other ranking BFF routes above, not mock-gated.
+// `fetchJustificativosPendientes` is the one exception: no backend endpoint
+// lists pending justificativos at all (see src/mocks/justificativos.ts),
+// so it stays mock-only until the backend team exposes one.
+// ---------------------------------------------------------------------------
+
+/** List the logged-in persona's own in-app ranking notifications — `GET /ranking/notificaciones/mias`. */
+export async function fetchNotificaciones(): Promise<Notificacion[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<Notificacion[]>(apiEndpoint("/ranking/notificaciones/mias"), {
+    headers: mockHeaders,
+  });
+}
+
+/** Mark one of the caller's own notifications as read — `PATCH /ranking/notificaciones/:id/leer`. */
+export async function marcarNotificacionLeida(id: number): Promise<Notificacion> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<Notificacion>(apiEndpoint(`/ranking/notificaciones/${id}/leer`), {
+    method: "PATCH",
+    headers: mockHeaders,
+  });
+}
+
+/** DTO for submitting a justificativo — `personaId` becomes a URL segment server-side, not a body field (see the BFF route's doc comment). */
+export interface SubmitJustificativoDTO {
+  personaId: number;
+  anio: number;
+  mes: number;
+  motivo: string;
+  archivoUrl?: string;
+}
+
+/** Submit a justificativo for a missed ranking month (E03-RF006a) — `POST /ranking/:personaId/justificativos`. */
+export async function submitJustificativo(data: SubmitJustificativoDTO): Promise<Justificativo> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<Justificativo>(apiEndpoint("/ranking/justificativos"), {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: mockHeaders,
+  });
+}
+
+/** DTO for evaluating (approving/rejecting) a pending justificativo. */
+export interface EvaluarJustificativoDTO {
+  estado: "APROBADO" | "RECHAZADO";
+  motivoRechazo?: string;
+}
+
+/**
+ * Mutable in-memory copy of the pending-justificativos mock list. Mock mode
+ * has no real backend to PATCH against (see `fetchJustificativosPendientes`
+ * below), so `evaluarJustificativo`'s mock path simulates the decision
+ * against this array instead — removing the evaluated entry so a
+ * subsequent `fetchJustificativosPendientes()` call reflects the change,
+ * same as a real backend would after approve/reject.
+ */
+let mockJustificativosPendientes: Justificativo[] = [...MOCK_JUSTIFICATIVOS_PENDIENTES];
+
+/** Admin-only: approve or reject a pending justificativo (E03-RF006b) — `PATCH /ranking/justificativos/:id/evaluar`. */
+export async function evaluarJustificativo(
+  id: number,
+  data: EvaluarJustificativoDTO,
+): Promise<Justificativo> {
+  if (isMockMode()) {
+    const target = mockJustificativosPendientes.find((j) => j.id === id);
+    const evaluado: Justificativo = {
+      id,
+      personaId: target?.personaId ?? 0,
+      anio: target?.anio ?? new Date().getFullYear(),
+      mes: target?.mes ?? new Date().getMonth() + 1,
+      motivo: target?.motivo ?? "",
+      archivoUrl: target?.archivoUrl ?? null,
+      estado: data.estado,
+      motivoRechazo: data.motivoRechazo ?? null,
+      fechaSolicitud: target?.fechaSolicitud ?? new Date().toISOString(),
+      fechaEvaluacion: new Date().toISOString(),
+      evaluadoPorId: -1,
+    };
+    mockJustificativosPendientes = mockJustificativosPendientes.filter((j) => j.id !== id);
+    return evaluado;
+  }
+  return request<Justificativo>(apiEndpoint(`/ranking/justificativos/${id}/evaluar`), {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * List pending justificativos for admin review.
+ *
+ * No backend endpoint exists for this yet — see src/mocks/justificativos.ts.
+ * Mock mode returns the (mutable) curated sample data — evaluated entries
+ * are removed by `evaluarJustificativo` above; real mode returns an empty
+ * list rather than pretending the listing contract exists.
+ */
+export async function fetchJustificativosPendientes(): Promise<Justificativo[]> {
+  if (!isMockMode()) return [];
+  return mockJustificativosPendientes;
 }

@@ -62,6 +62,16 @@ vi.mock("@/contexts/AuthContext", (): { useAuth: typeof useAuth } => ({
   useAuth: vi.fn<typeof useAuth>(),
 }));
 
+// useNotificaciones (consumed once by Header, fed into every rendered
+// NotificationBell) fetches on mount — stub it out so Header's tests don't
+// depend on network/timer behavior unrelated to nav/auth rendering.
+const mockFetchNotificaciones = vi.fn().mockResolvedValue([]);
+const mockMarcarNotificacionLeida = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/services/api", () => ({
+  fetchNotificaciones: () => mockFetchNotificaciones(),
+  marcarNotificacionLeida: (id: number) => mockMarcarNotificacionLeida(id),
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -85,6 +95,10 @@ describe("Header", (): void => {
     mockUseAuth.mockReset();
     // Default: not loading, not authenticated
     mockUseAuth.mockReturnValue(createUnauthenticatedAuth(false));
+    mockFetchNotificaciones.mockClear();
+    mockFetchNotificaciones.mockResolvedValue([]);
+    mockMarcarNotificacionLeida.mockClear();
+    mockMarcarNotificacionLeida.mockResolvedValue(undefined);
   });
 
   it("hides the header on the landing route when requested", (): void => {
@@ -320,6 +334,51 @@ describe("Header", (): void => {
 
     // User name visible
     expect(screen.getAllByText("Admin").length).toBeGreaterThan(0);
+  });
+
+  // --- Notifications (single shared poll across desktop + mobile bells) ---
+
+  it("fetches notifications only once even with both desktop and mobile bells mounted", (): void => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("admin", "Admin"));
+
+    render(<Header />);
+    // Open the mobile menu — desktop bell (CSS-hidden, still mounted) and
+    // mobile bell are now both in the DOM at once.
+    fireEvent.click(screen.getByRole("button", { name: /Abrir menú/i }));
+
+    expect(screen.getAllByRole("button", { name: /notificaciones/i }).length).toBe(2);
+    // One Header-level hook call feeds both — not one fetch per bell.
+    expect(mockFetchNotificaciones).toHaveBeenCalledTimes(1);
+  });
+
+  it("restores the previous read state when marking a notification as read fails", async (): Promise<void> => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("admin", "Admin"));
+    mockFetchNotificaciones.mockResolvedValue([
+      {
+        id: 7,
+        tipo: "JUSTIFICATIVO_APROBADO",
+        mensaje: "Tu justificativo de 7/2026 fue aprobado.",
+        leida: false,
+        fechaCreacion: "2026-07-19T10:00:00Z",
+        entidadRelacionadaId: 5,
+      },
+    ]);
+    mockMarcarNotificacionLeida.mockRejectedValue(new Error("network down"));
+
+    render(<Header />);
+
+    const bellButton = await screen.findByRole("button", { name: /1 sin leer/i });
+    fireEvent.click(bellButton);
+
+    const notificationItem = await screen.findByText(/fue aprobado/i);
+    fireEvent.click(notificationItem);
+
+    // Optimistic update applies immediately: unread badge clears.
+    expect(screen.queryByRole("button", { name: /1 sin leer/i })).not.toBeInTheDocument();
+
+    // Once the failed call settles, the snapshot is restored explicitly —
+    // not by relying on a reload (which could itself fail during an outage).
+    await screen.findByRole("button", { name: /1 sin leer/i });
   });
 
   // --- Logout ---
