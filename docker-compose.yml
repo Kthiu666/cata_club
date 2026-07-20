@@ -43,6 +43,7 @@ services:
       CLOUDINARY_CARPETA_COMPROBANTES: cataclub/comprobantes
       CLOUDINARY_CARPETA_VOUCHERS: cataclub/vouchers
       CELERY_HORA_AUTOMATIZACIONES: "02:30"
+      AMBIENTE: ${AMBIENTE:-production}
     depends_on:
       db:
         condition: service_healthy
@@ -50,11 +51,11 @@ services:
         condition: service_started
     command: >
       sh -c "
+        uv run alembic upgrade head;
         if [ \"$${AMBIENTE:-production}\" = \"development\" ]; then
-          uv run python -c 'from app.infraestructura.db import crear_tablas; crear_tablas()' &&
-          uv run python scripts/seed_dev_admin.py;
+          uv run python scripts/seed_dev_admin.py &&
+          uv run python scripts/seed_dev_trainer.py;
         fi &&
-        uv run alembic upgrade head &&
         uv run uvicorn main:app --host 0.0.0.0 --port 8000
       "
 
