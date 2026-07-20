@@ -138,22 +138,24 @@ describe("getNavLinksForRole", () => {
     expect(links[1]).toEqual({ href: "/login", label: "Iniciar Sesión" });
   });
 
-  it("returns admin links including /groups, /members and /attendance", () => {
+  it("returns admin links including /groups, /members, /attendance and Selección Oficial", () => {
     const links = getNavLinksForRole("admin");
-    expect(links).toHaveLength(6);
+    expect(links).toHaveLength(7);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
     expect(links[1]).toEqual({ href: "/dashboard", label: "Administración" });
     expect(links[2]).toEqual({ href: "/members", label: "Miembros" });
     expect(links[3]).toEqual({ href: "/groups", label: "Grupos" });
     expect(links[4]).toEqual({ href: "/payments", label: "Membresías y Pagos" });
     expect(links[5]).toEqual({ href: "/attendance", label: "Horarios y Asistencia" });
+    expect(links[6]).toEqual({ href: "/groups#seleccion-oficial", label: "Selección Oficial" });
   });
 
-  it("returns trainer link", () => {
+  it("returns trainer links including Ranking", () => {
     const links = getNavLinksForRole("trainer");
-    expect(links).toHaveLength(2);
+    expect(links).toHaveLength(3);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
     expect(links[1]).toEqual({ href: "/trainer", label: "Entrenador" });
+    expect(links[2]).toEqual({ href: "/trainer/ranking", label: "Ranking" });
   });
 
   it("returns tesorero link to Membresías y Pagos", () => {
