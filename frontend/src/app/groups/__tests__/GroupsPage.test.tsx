@@ -84,7 +84,6 @@ vi.mock("@/services/api", () => {
     assignStudentToNivel: (personaId: number, nivelId: number) => mockAssignStudentToNivel(personaId, nivelId),
     moveStudentToNivel: (personaId: number, nivelId: number) => mockMoveStudentToNivel(personaId, nivelId),
     reingresar: vi.fn(),
-    seleccionOficial: vi.fn(),
     fetchJustificativosPendientes: () => mockFetchJustificativosPendientes(),
     evaluarJustificativo: (id: number, dto: unknown) => mockEvaluarJustificativo(id, dto),
     fetchNotificaciones: () => mockFetchNotificaciones(),
@@ -151,9 +150,6 @@ const PENDING_JUSTIFICATIVO: Justificativo = {
   evaluadoPorId: null,
 };
 
-// "Sofía González" also appears as a plain-text <option> in the Selección
-// Oficial <select> further down the page, so queries must be scoped to the
-// "Estudiantes sin grupo" section specifically.
 async function findUnassignedRow(): Promise<HTMLElement> {
   const heading = await screen.findByText(/^estudiantes sin grupo/i);
   const section = heading.closest("div.card") as HTMLElement;
@@ -256,5 +252,25 @@ describe("GroupsPage — justificativo Aprobar/Rechazar confirmation gating", ()
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(mockEvaluarJustificativo).not.toHaveBeenCalled();
+  });
+});
+
+describe("GroupsPage — Selección Oficial extracted to its own route (PR9)", () => {
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchJustificativosPendientes.mockReset();
+    mockFetchMembers.mockResolvedValue({ accounts: [UNASSIGNED_ACCOUNT], niveles: NIVELES });
+    mockFetchJustificativosPendientes.mockResolvedValue([]);
+  });
+
+  it("no longer renders the Selección Oficial section inline", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/^estudiantes sin grupo/i);
+
+    // Scoped to <main> — the sidebar nav link text ("Selección Oficial",
+    // now pointing at the dedicated route) legitimately still renders there.
+    const main = screen.getByRole("main");
+    expect(within(main).queryByText(/selección oficial/i)).not.toBeInTheDocument();
+    expect(document.getElementById("seleccion-oficial")).not.toBeInTheDocument();
   });
 });
