@@ -4,7 +4,7 @@ Revision ID: 0b9a2e1f4c5d
 Revises: d3bc8c020e36
 Create Date: 2026-07-20 00:00:00.000000
 
-Issue #6 — gap 1: QA encontró que el enum `tiporol` de PostgreSQL no tiene
+Issue #6 — gap 1: QA encontró que el enum `tiporol` de PostgreSQL no tenía
 el valor TESORERO. El enum Python (TipoRol) ya lo incluye (ver enums.py), y
 el código de la tesoreria_router.py ya usa el string "TESORERO" en sus
 GestorPermisos — pero al insertar un rol con ese valor en la DB falla porque
