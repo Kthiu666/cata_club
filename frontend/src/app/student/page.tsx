@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchStudentPortal, fetchMembresiasPorPersona, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra, submitJustificativo, fetchJustificativosDePersona } from "@/services/api";
-import type { StudentPortalSummary, StudentProfileSummary, MembresiaPorPersona } from "@/services/api";
+import { fetchStudentPortal, fetchMembresiasPorPersona, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra, submitJustificativo, fetchJustificativosDePersona, fetchPagosDePersona } from "@/services/api";
+import type { StudentPortalSummary, StudentProfileSummary, MembresiaPorPersona, PagoPersona } from "@/services/api";
 import type { SolicitudClaseExtra, Justificativo } from "@/types/domain";
 import type { TrainingSchedule } from "@/app/attendance/attendance-utils";
 import { ATTENDANCE_LABELS, ATTENDANCE_BADGE_TOKENS } from "@/app/attendance/attendance-utils";
@@ -84,26 +84,6 @@ function MembershipUnavailableCard(): React.ReactElement {
       <p className="text-sm leading-relaxed text-cata-text/65">
         El estado de su membresía no está disponible desde este portal por el momento. Consulte con
         administración del club.
-      </p>
-    </div>
-  );
-}
-
-function PaymentUnavailableCard(): React.ReactElement {
-  return (
-    <div className="card-hover p-5 sm:p-6">
-      <div className="mb-4 flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
-          <CreditCard size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-cata-text/65">Pagos</p>
-          <p className="text-lg font-bold tracking-tight text-cata-text">No disponible</p>
-        </div>
-      </div>
-      <p className="text-sm leading-relaxed text-cata-text/65">
-        El historial de pagos y la carga de comprobantes no están disponibles desde este portal por el
-        momento. Consulte con administración del club para registrar o validar un pago.
       </p>
     </div>
   );
@@ -454,6 +434,131 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
           </div>
         )}
       </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pagos section — read-only payment history (`GET
+// /membresias/pagos/persona/:personaId`), any status, so a student can see
+// every payment on record including a rejected one with the admin's
+// `motivoRechazo` — mirrors JustificativosSection's structure. Uploading a
+// new comprobante / registering a payment is a separate, bigger feature not
+// built here (see `POST /membresias/pagos` and `.../voucher`, both already
+// exist backend-side but have no student-facing UI yet).
+// ---------------------------------------------------------------------------
+
+const TIPO_PAGO_LABEL: Record<PagoPersona["tipoPago"], string> = {
+  EFECTIVO: "Efectivo",
+  TRANSFERENCIA: "Transferencia",
+};
+
+function PagoEstadoBadge({ estado }: { estado: PagoPersona["estadoPago"] }): React.ReactElement {
+  if (estado === "APROBADO") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+        <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" /> Aprobado
+      </span>
+    );
+  }
+  if (estado === "RECHAZADO") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-cata-red">
+        <XCircle size={10} strokeWidth={2} aria-hidden="true" /> Rechazado
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 text-xs font-medium text-amber-400">
+      <Clock size={10} strokeWidth={2} aria-hidden="true" /> Pendiente
+    </span>
+  );
+}
+
+type PagosState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; pagos: PagoPersona[] };
+
+function PagosSection({ personaId }: { personaId: string }): React.ReactElement {
+  const [state, setState] = useState<PagosState>({ status: "loading" });
+  const [reloadToken, setReloadToken] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    fetchPagosDePersona(personaId)
+      .then((pagos) => {
+        if (!cancelled) setState({ status: "ready", pagos });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setState({
+          status: "error",
+          message: error instanceof Error ? error.message : "No se pudo cargar el historial de pagos.",
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [personaId, reloadToken]);
+
+  return (
+    <section className="mb-8">
+      <div className="mb-4 flex items-center gap-2">
+        <CreditCard size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+        <h2 className="text-lg font-bold text-cata-text">Pagos</h2>
+      </div>
+      <p className="mb-4 text-xs text-cata-text/65">
+        Historial de pagos registrados en su cuenta. La carga de comprobantes y el registro de nuevos
+        pagos no están disponibles desde este portal por el momento — consulte con administración del
+        club.
+      </p>
+
+      {state.status === "loading" && (
+        <div className="card p-6 text-center">
+          <p className="text-sm text-cata-text/50">Cargando historial de pagos...</p>
+        </div>
+      )}
+
+      {state.status === "error" && (
+        <ErrorCard message={state.message} onRetry={() => setReloadToken((n) => n + 1)} />
+      )}
+
+      {state.status === "ready" &&
+        (state.pagos.length === 0 ? (
+          <div className="card p-6 text-center">
+            <p className="text-sm text-cata-text/50">Todavía no hay pagos registrados.</p>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {state.pagos.map((pago) => (
+              <div
+                key={pago.id}
+                className="card-hover flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                    <CreditCard size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-cata-text">
+                      ${pago.monto} · {pago.fechaInicio} – {pago.fechaFin}
+                    </p>
+                    <p className="text-xs text-cata-text/65">{TIPO_PAGO_LABEL[pago.tipoPago]}</p>
+                    {pago.estadoPago === "RECHAZADO" && pago.motivoRechazo && (
+                      <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                        <p className="text-xs font-semibold text-cata-red">Motivo de rechazo</p>
+                        <p className="text-xs text-cata-red/80">{pago.motivoRechazo}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <PagoEstadoBadge estado={pago.estadoPago} />
+              </div>
+            ))}
+          </div>
+        ))}
     </section>
   );
 }
@@ -850,13 +955,13 @@ function ActivePortalView({
         <>
           <RankingCard profile={selectedProfile} />
 
-          <div className="mb-8 grid gap-5 sm:grid-cols-2">
+          <div className="mb-8">
             <MembershipUnavailableCard />
-            <PaymentUnavailableCard />
           </div>
 
           <RecentSessionsSection profile={selectedProfile} />
           <ExtraClassesSection personaId={selectedProfile.personaId} />
+          <PagosSection personaId={selectedProfile.personaId} />
           <JustificativosSection personaId={selectedProfile.personaId} />
         </>
       )}

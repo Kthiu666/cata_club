@@ -837,6 +837,40 @@ export async function fetchMembresiasPorPersona(personaId: number): Promise<Memb
   return request<MembresiaPorPersona[]>(apiEndpoint(`/membresias/persona/${personaId}`));
 }
 
+/**
+ * `PagoResponseDTO` (see backend app/presentacion/schemas/membresia_pago_schemas.py)
+ * — a persona's own payment, any status. Distinct from `PaymentValidationRequest`
+ * (the enriched admin-only validation queue shape): this is a lean passthrough
+ * for the student's own read-only history.
+ */
+export interface PagoPersona {
+  id: number;
+  monto: string;
+  motivoRechazo: string | null;
+  estadoPago: "PENDIENTE_VALIDACION" | "APROBADO" | "RECHAZADO";
+  tipoPago: "EFECTIVO" | "TRANSFERENCIA";
+  fechaRegistro: string;
+  fechaValidacion: string | null;
+  fechaInicio: string;
+  fechaFin: string;
+  personaId: number;
+  membresiaId: number;
+  voucherUrl: string | null;
+  voucherFormato: string | null;
+}
+
+/**
+ * A persona's own payment history, any status (mirrors `fetchJustificativosDePersona`'s
+ * "always real, not mock-gated" pattern — mock mode only adds the `x-mock-role`
+ * header) — `GET /membresias/pagos/persona/:personaId`.
+ */
+export async function fetchPagosDePersona(personaId: string): Promise<PagoPersona[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<PagoPersona[]>(apiEndpoint(`/membresias/pagos/persona/${personaId}`), {
+    headers: mockHeaders,
+  });
+}
+
 /** Catalog entry for a membership plan type. */
 export interface TipoMembresiaCatalogo {
   id: number;

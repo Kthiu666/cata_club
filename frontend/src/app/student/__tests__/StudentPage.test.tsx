@@ -15,7 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import StudentPage from "@/app/student/page";
-import type { StudentPortalSummary } from "@/services/api";
+import type { StudentPortalSummary, PagoPersona } from "@/services/api";
 import type { Justificativo } from "@/types/domain";
 
 vi.mock("@/components/ProtectedRoute", () => ({
@@ -68,6 +68,7 @@ const mockFetchTrainingSchedules = vi.fn();
 const mockListarClasesExtra = vi.fn();
 const mockSubmitJustificativo = vi.fn();
 const mockFetchJustificativosDePersona = vi.fn();
+const mockFetchPagosDePersona = vi.fn();
 
 vi.mock("@/services/api", () => ({
   fetchStudentPortal: () => mockFetchStudentPortal(),
@@ -77,6 +78,7 @@ vi.mock("@/services/api", () => ({
   solicitarClaseExtra: vi.fn(),
   submitJustificativo: (dto: unknown) => mockSubmitJustificativo(dto),
   fetchJustificativosDePersona: (personaId: string) => mockFetchJustificativosDePersona(personaId),
+  fetchPagosDePersona: (personaId: string) => mockFetchPagosDePersona(personaId),
 }));
 
 const PORTAL: StudentPortalSummary = {
@@ -120,13 +122,46 @@ const PENDIENTE: Justificativo = {
   evaluadoPorId: null,
 };
 
+const PAGO_RECHAZADO: PagoPersona = {
+  id: 1,
+  monto: "35.00",
+  motivoRechazo: "Comprobante ilegible",
+  estadoPago: "RECHAZADO",
+  tipoPago: "TRANSFERENCIA",
+  fechaRegistro: "2026-06-01T09:00:00Z",
+  fechaValidacion: "2026-06-02T14:30:00Z",
+  fechaInicio: "2026-06-01",
+  fechaFin: "2026-06-30",
+  personaId: 9,
+  membresiaId: 3,
+  voucherUrl: null,
+  voucherFormato: null,
+};
+
+const PAGO_APROBADO: PagoPersona = {
+  id: 2,
+  monto: "35.00",
+  motivoRechazo: null,
+  estadoPago: "APROBADO",
+  tipoPago: "EFECTIVO",
+  fechaRegistro: "2026-07-01T09:00:00Z",
+  fechaValidacion: "2026-07-01T10:00:00Z",
+  fechaInicio: "2026-07-01",
+  fechaFin: "2026-07-31",
+  personaId: 9,
+  membresiaId: 3,
+  voucherUrl: null,
+  voucherFormato: null,
+};
+
 beforeEach(() => {
   mockFetchStudentPortal.mockReset().mockResolvedValue(PORTAL);
   mockFetchMembresiasPorPersona.mockReset().mockResolvedValue([]);
   mockFetchTrainingSchedules.mockReset().mockResolvedValue([]);
   mockListarClasesExtra.mockReset().mockResolvedValue([]);
   mockSubmitJustificativo.mockReset();
-  mockFetchJustificativosDePersona.mockReset();
+  mockFetchJustificativosDePersona.mockReset().mockResolvedValue([]);
+  mockFetchPagosDePersona.mockReset().mockResolvedValue([]);
 });
 
 describe("StudentPage — Justificativos section", () => {
@@ -155,6 +190,36 @@ describe("StudentPage — Justificativos section", () => {
     render(<StudentPage />);
 
     await screen.findByText("Certificado médico");
+    expect(screen.queryByText(/motivo de rechazo/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("StudentPage — Pagos section", () => {
+  it("fetches and renders the persona's payment history from the service", async () => {
+    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_APROBADO]);
+
+    render(<StudentPage />);
+
+    await waitFor(() => {
+      expect(mockFetchPagosDePersona).toHaveBeenCalledWith("9");
+    });
+    expect(await screen.findByText("Efectivo")).toBeInTheDocument();
+  });
+
+  it("shows the rejection reason for a RECHAZADO payment", async () => {
+    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_RECHAZADO]);
+
+    render(<StudentPage />);
+
+    expect(await screen.findByText("Comprobante ilegible")).toBeInTheDocument();
+  });
+
+  it("does not show a rejection-reason block for an APROBADO payment", async () => {
+    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_APROBADO]);
+
+    render(<StudentPage />);
+
+    await screen.findByText("Efectivo");
     expect(screen.queryByText(/motivo de rechazo/i)).not.toBeInTheDocument();
   });
 });
