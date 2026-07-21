@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import AppShell from "@/components/shell/AppShell";
 
 interface MockLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
@@ -301,5 +301,60 @@ describe("AppShell", (): void => {
     // Mobile open/close still works after collapsing the desktop sidebar —
     // the two toggles remain functionally independent.
     expect(screen.getByRole("button", { name: /Abrir menú/i })).toBeInTheDocument();
+  });
+
+  // --- Regression: collapse toggle must stay reachable in both states ---
+  // Bug: the toggle previously lived inside the same flex row as the 36px
+  // logo. At the collapsed 76px width, px-5 padding (40px) + the logo (36px)
+  // + the toggle button left zero room, squeezing the toggle out of the
+  // sidebar with no way to re-expand. Fix: the toggle is now anchored
+  // directly to the `<aside>`, outside that header row, so it is never
+  // subject to the row's width constraints.
+
+  it("keeps the collapse toggle outside the logo header row so it can't be squeezed out when collapsed", (): void => {
+    const { container } = render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    const headerRow = container.querySelector("aside > div.border-b");
+    expect(headerRow).not.toBeNull();
+    expect(
+      within(headerRow as HTMLElement).queryByRole("button", { name: /Colapsar menú/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Colapsar menú/i })).toBeInTheDocument();
+  });
+
+  it("keeps the collapse toggle clickable across repeated collapse/expand cycles", (): void => {
+    render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent.click(screen.getByRole("button", { name: /Colapsar menú/i }));
+      expect(screen.getByRole("button", { name: /Expandir menú/i })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /Expandir menú/i }));
+      expect(screen.getByRole("button", { name: /Colapsar menú/i })).toBeInTheDocument();
+    }
+  });
+
+  // --- Regression: sidebar must stay pinned to the viewport, not page height ---
+  // Bug: `.app-shell` is `flex min-h-screen` and `<aside>` was `lg:static`, so
+  // as a flex item it stretched (default `align-items: stretch`) to match the
+  // main content's height. On long pages the bottom user/logout block ended
+  // up thousands of pixels down. Fix: pin the aside to the viewport at `lg:`.
+
+  it("pins the sidebar to the viewport instead of stretching with page content", (): void => {
+    const { container } = render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    const aside = container.querySelector("aside");
+    expect(aside).toHaveClass("lg:sticky", "lg:top-0", "lg:h-screen");
+    expect(aside).not.toHaveClass("lg:static");
+  });
+
+  // --- Notification bell theming in AppShell's light topbar ---
+
+  it("renders the notification bell with the light variant matching AppShell's light topbar", (): void => {
+    render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    const bell = screen.getByRole("button", { name: /notificaciones/i });
+    expect(bell).toHaveClass("text-cata-text/65");
+    expect(bell).not.toHaveClass("text-white/65");
   });
 });

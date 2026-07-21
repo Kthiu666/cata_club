@@ -151,7 +151,7 @@ export default function AppShell({
     <div className="app-shell flex min-h-screen bg-cata-bg">
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-cata-black text-white transition-transform duration-200 lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-cata-black text-white transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
           collapsed ? "lg:w-[76px]" : ""
         } ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
@@ -169,18 +169,6 @@ export default function AppShell({
           </Link>
           <button
             type="button"
-            onClick={toggleCollapsed}
-            className="hidden rounded-lg p-1.5 text-white/55 hover:bg-white/10 hover:text-white lg:flex"
-            aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
-          >
-            {collapsed ? (
-              <ChevronRight size={18} strokeWidth={1.5} aria-hidden="true" />
-            ) : (
-              <ChevronLeft size={18} strokeWidth={1.5} aria-hidden="true" />
-            )}
-          </button>
-          <button
-            type="button"
             onClick={(): void => setSidebarOpen(false)}
             className="rounded-lg p-1.5 text-white/55 hover:bg-white/10 hover:text-white lg:hidden"
             aria-label="Cerrar menú"
@@ -188,6 +176,28 @@ export default function AppShell({
             <X size={18} strokeWidth={1.5} aria-hidden="true" />
           </button>
         </div>
+
+        {/*
+         * Collapse toggle — anchored directly to the sidebar edge instead of
+         * living inside the header row above. When collapsed to 76px, the
+         * header row's padding (40px) plus the 36px logo already fills the
+         * available width, leaving no room for a button in that row — it
+         * used to get squeezed out entirely with no way to re-expand. This
+         * handle sits outside that row's flex layout, so it stays reachable
+         * in both collapsed and expanded states.
+         */}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          className="absolute -right-3 top-6 z-10 hidden h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-cata-black text-white/60 shadow-md transition-colors hover:bg-white/10 hover:text-white lg:flex"
+          aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
+        >
+          {collapsed ? (
+            <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+          ) : (
+            <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+          )}
+        </button>
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4" aria-label="Navegación principal">
           {navLinks.map((link): React.ReactElement => {
@@ -261,7 +271,12 @@ export default function AppShell({
               <Menu size={18} strokeWidth={1.5} aria-hidden="true" />
             </button>
             {session && (
-              <NotificationBell notificaciones={notificaciones} loadError={loadError} onMarkRead={markRead} />
+              <NotificationBell
+                notificaciones={notificaciones}
+                loadError={loadError}
+                onMarkRead={markRead}
+                variant="light"
+              />
             )}
             <button
               type="button"
