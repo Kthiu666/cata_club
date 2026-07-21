@@ -1055,3 +1055,18 @@ export async function fetchJustificativosPendientes(): Promise<Justificativo[]> 
   if (isMockMode()) return mockJustificativosPendientes;
   return request<Justificativo[]>(apiEndpoint("/ranking/justificativos/pendientes"));
 }
+
+/**
+ * A persona's own justificativo history, any status (E04-RF012 ampliado) —
+ * `GET /ranking/:personaId/justificativos`. Confirmed real backend contract
+ * (`listar_justificativos_de_persona` in ranking_router.py — dueño-or-
+ * representante authorization enforced server-side), same "always real"
+ * pattern as `submitJustificativo`/`fetchNotificaciones` above — not
+ * mock-gated like `fetchJustificativosPendientes`.
+ */
+export async function fetchJustificativosDePersona(personaId: string): Promise<Justificativo[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<Justificativo[]>(apiEndpoint(`/ranking/${personaId}/justificativos`), {
+    headers: mockHeaders,
+  });
+}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchStudentPortal, fetchMembresiasPorPersona, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra, submitJustificativo } from "@/services/api";
+import { fetchStudentPortal, fetchMembresiasPorPersona, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra, submitJustificativo, fetchJustificativosDePersona } from "@/services/api";
 import type { StudentPortalSummary, StudentProfileSummary, MembresiaPorPersona } from "@/services/api";
 import type { SolicitudClaseExtra, Justificativo } from "@/types/domain";
 import type { TrainingSchedule } from "@/app/attendance/attendance-utils";
@@ -459,12 +459,11 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
 }
 
 // ---------------------------------------------------------------------------
-// Justificativos section — submit + session history (Ranking track,
-// E03-RF006a). No backend GET lists a persona's own past justificativos yet
-// (only POST /ranking/:personaId/justificativos and PATCH .../evaluar
-// exist), so the history shown here is frontend-only session state built
-// from each successful submit — the same "no backend GET yet" pattern
-// already used by groups/page.tsx's reingresados/seleccionesOficiales state.
+// Justificativos section — submit + full history (Ranking track,
+// E03-RF006a/E04-RF012 ampliado). The history is fetched from the backend
+// (`GET /ranking/:personaId/justificativos`) so a student can see every
+// justificativo they've ever submitted, including rejected ones with the
+// admin's `motivoRechazo` — not just what was submitted this session.
 // ---------------------------------------------------------------------------
 
 const MESES_LABEL = [
@@ -504,6 +503,25 @@ function JustificativosSection({ personaId }: { personaId: string }): React.Reac
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [historial, setHistorial] = useState<Justificativo[]>([]);
+  const [historialLoading, setHistorialLoading] = useState(true);
+
+  async function cargarHistorial(): Promise<void> {
+    setHistorialLoading(true);
+    try {
+      const data = await fetchJustificativosDePersona(personaId);
+      setHistorial(data);
+    } catch {
+      // Best-effort: si falla la carga del historial, se deja la lista
+      // previa (o vacía) en vez de romper el resto de la sección.
+    } finally {
+      setHistorialLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void cargarHistorial();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personaId]);
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
@@ -512,14 +530,14 @@ function JustificativosSection({ personaId }: { personaId: string }): React.Reac
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const created = await submitJustificativo({
+      await submitJustificativo({
         personaId: numericPersonaId,
         anio,
         mes,
         motivo: motivo.trim(),
       });
-      setHistorial((prev) => [created, ...prev]);
       setMotivo("");
+      await cargarHistorial();
     } catch (error: unknown) {
       setSubmitError(error instanceof Error ? error.message : "No se pudo enviar el justificativo.");
     } finally {
@@ -612,15 +630,15 @@ function JustificativosSection({ personaId }: { personaId: string }): React.Reac
       <div>
         <div className="mb-2 flex items-center gap-2">
           <History size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-          <h3 className="text-base font-bold text-cata-text">Historial de esta sesión</h3>
+          <h3 className="text-base font-bold text-cata-text">Historial de justificativos</h3>
         </div>
-        <p className="mb-3 text-xs text-cata-text/45">
-          Todavía no hay un endpoint del backend para listar tus justificativos anteriores — este historial
-          muestra únicamente lo que enviaste durante esta sesión.
-        </p>
-        {historial.length === 0 ? (
+        {historialLoading ? (
           <div className="card p-6 text-center">
-            <p className="text-sm text-cata-text/50">Aún no enviaste justificativos en esta sesión.</p>
+            <p className="text-sm text-cata-text/50">Cargando historial...</p>
+          </div>
+        ) : historial.length === 0 ? (
+          <div className="card p-6 text-center">
+            <p className="text-sm text-cata-text/50">Todavía no enviaste ningún justificativo.</p>
           </div>
         ) : (
           <div className="grid gap-3">
@@ -638,6 +656,12 @@ function JustificativosSection({ personaId }: { personaId: string }): React.Reac
                       {MESES_LABEL[j.mes - 1]} {j.anio}
                     </p>
                     <p className="text-xs text-cata-text/65">{j.motivo}</p>
+                    {j.estado === "RECHAZADO" && j.motivoRechazo && (
+                      <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                        <p className="text-xs font-semibold text-cata-red">Motivo de rechazo</p>
+                        <p className="text-xs text-cata-red/80">{j.motivoRechazo}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <JustificativoEstadoBadge estado={j.estado} />
