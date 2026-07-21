@@ -15,6 +15,7 @@ from app.presentacion.routers import (
     ranking_router,
     tesoreria_router,
     enrollment_router,
+    dashboard_router,
 )
 from app.dominio.excepciones import (
     EntidadNoEncontrada, EntidadDuplicada, OperacionInvalida,
@@ -79,6 +80,7 @@ app.include_router(geografia_router.router, prefix="/api/v1")
 app.include_router(ranking_router.router, prefix="/api/v1")
 app.include_router(tesoreria_router.router, prefix="/api/v1")
 app.include_router(enrollment_router.router, prefix="/api/v1")
+app.include_router(dashboard_router.router, prefix="/api/v1")
 
 
 @app.get("/", tags=["Salud"])

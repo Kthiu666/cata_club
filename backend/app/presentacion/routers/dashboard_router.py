@@ -1,0 +1,64 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from fastapi import APIRouter, Depends
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from app.infraestructura.db import obtener_sesion
+from app.dominio.enums import DiaSemana, EstadoMembresia, EstadoPago
+from app.dominio.modelos import HorarioEntrenamiento, Membresia, Pago, Persona
+from app.presentacion.schemas.dashboard_schemas import DashboardStatsDTO
+from app.seguridad.gestor_auth import GestorAutenticacion
+
+router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+
+_TIMEZONE = ZoneInfo("America/Guayaquil")
+
+_WEEKDAY_MAP = {
+    0: DiaSemana.LUNES,
+    1: DiaSemana.MARTES,
+    2: DiaSemana.MIERCOLES,
+    3: DiaSemana.JUEVES,
+    4: DiaSemana.VIERNES,
+    5: DiaSemana.SABADO,
+    6: DiaSemana.DOMINGO,
+}
+
+
+@router.get(
+    "/stats",
+    response_model=DashboardStatsDTO,
+    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
+)
+async def dashboard_stats(db: Session = Depends(obtener_sesion)) -> DashboardStatsDTO:
+    total_personas = db.query(func.count(Persona.id)).scalar() or 0
+
+    active_memberships = (
+        db.query(func.count(Membresia.id))
+        .filter(Membresia.estado == EstadoMembresia.ACTIVA)
+        .scalar()
+        or 0
+    )
+
+    pending_payments = (
+        db.query(func.count(Pago.id))
+        .filter(Pago.estado_pago == EstadoPago.PENDIENTE_VALIDACION)
+        .scalar()
+        or 0
+    )
+
+    today_weekday = _WEEKDAY_MAP[datetime.now(tz=_TIMEZONE).weekday()]
+    today_schedules = (
+        db.query(func.count(HorarioEntrenamiento.id))
+        .filter(HorarioEntrenamiento.dia_semana == today_weekday)
+        .scalar()
+        or 0
+    )
+
+    return DashboardStatsDTO(
+        total_personas=total_personas,
+        active_memberships=active_memberships,
+        pending_payments=pending_payments,
+        today_schedules=today_schedules,
+    )
