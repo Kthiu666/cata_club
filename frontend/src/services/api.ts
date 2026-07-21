@@ -832,9 +832,15 @@ export interface MembresiaPorPersona {
   };
 }
 
-/** Fetch a persona's memberships — `GET /api/membresias/persona/[id]`. */
+/**
+ * Fetch a persona's memberships — `GET /api/membresias/persona/[id]`.
+ * Available to the owner, their representative, or an administrator.
+ */
 export async function fetchMembresiasPorPersona(personaId: number): Promise<MembresiaPorPersona[]> {
-  return request<MembresiaPorPersona[]>(apiEndpoint(`/membresias/persona/${personaId}`));
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<MembresiaPorPersona[]>(apiEndpoint(`/membresias/persona/${personaId}`), {
+    headers: mockHeaders,
+  });
 }
 
 /**
