@@ -153,6 +153,29 @@ async def obtener_pago(pago_id: int, db: Session = Depends(obtener_sesion)):
     return PagoServicio(db).obtener_pago(pago_id)
 
 
+# Historial de pagos de una persona (cualquier estado). Autenticado, NO
+# restringido a admin: la autorización real (dueño, su representante, o
+# ADMINISTRADOR) se valida dentro del servicio, igual que en POST /pagos.
+# Tres segmentos ("pagos", "persona", "{persona_id}") -- no colisiona con
+# GET /pagos/{pago_id} (dos segmentos) ni con `/{membresia_id}` (uno solo);
+# ver la nota de orden de rutas más arriba en este archivo.
+@router.get(
+    "/pagos/persona/{persona_id}",
+    response_model=List[PagoResponseDTO],
+    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
+)
+async def listar_pagos_de_persona(
+    persona_id: int,
+    db: Session = Depends(obtener_sesion),
+    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
+):
+    return PagoServicio(db).listar_pagos_de_persona(
+        persona_id_objetivo=persona_id,
+        persona_id_solicitante=token_payload.get("persona_id"),
+        roles_solicitante=token_payload.get("roles", []),
+    )
+
+
 # --- ComprobantePago (PDF oficial generado por Celery al aprobar) ---
 # Sólo admin puede adjuntar manualmente el comprobante oficial (la vida normal
 # es que la tarea Celery lo genere): igualamos a `validar_pago` que ya es admin.

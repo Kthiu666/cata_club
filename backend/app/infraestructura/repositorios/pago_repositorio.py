@@ -29,6 +29,19 @@ class PagoRepositorio:
         stmt = stmt.order_by(Pago.fecha_registro.desc()).offset(skip).limit(limit)
         return list(self.db.execute(stmt).scalars().all())
 
+    def listar_por_persona(self, persona_id: int) -> list[Pago]:
+        """Historial completo (cualquier estado) de los pagos de una persona.
+        Sin `joinedload(Pago.persona)`: a diferencia de `listar()`, aquí la
+        persona ya es conocida por quien solicita (dueño/representante/admin),
+        así que no hay N+1 que evitar -- el response DTO tampoco expone
+        `persona_nombre_completo`."""
+        stmt = (
+            select(Pago)
+            .where(Pago.persona_id == persona_id)
+            .order_by(Pago.fecha_registro.desc())
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
     def contar(self, estado_pago: Optional[EstadoPago] = None) -> int:
         """Cuenta el total de pagos (opcionalmente filtrados por estado)."""
         from sqlalchemy import func

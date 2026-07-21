@@ -1,3 +1,6 @@
+from app.seguridad.gestor_auth import GestorAutenticacion
+
+
 def _crear_persona(client, cedula="1710034065"):
     return client.post(
         "/api/v1/personas/",
@@ -329,3 +332,133 @@ def test_estadisticas_membresias_requiere_admin(client_sin_permisos):
     response = client_sin_permisos.get("/api/v1/membresias/estadisticas")
 
     assert response.status_code == 403
+
+
+# --- GET /membresias/pagos/persona/{persona_id} (historial propio) ----------
+def test_alumno_ve_su_propio_historial_de_pagos_incluyendo_rechazado_con_motivo(client):
+    """`client` autentica como persona_id=1; al ser la primera persona creada
+    en una BD limpia, ésta recibe id=1, con lo que queda siendo "la propia"
+    desde la perspectiva del token (mismo truco que test_ranking.py)."""
+    persona = _crear_persona(client)
+    assert persona["id"] == 1
+    tipo = _crear_tipo_membresia(client)
+    membresia = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": persona["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+    pago = client.post(
+        "/api/v1/membresias/pagos",
+        json={
+            "monto": "35.00", "tipo_pago": "EFECTIVO",
+            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+            "persona_id": persona["id"], "membresia_id": membresia["id"],
+        },
+    ).json()
+    client.patch(
+        f"/api/v1/membresias/pagos/{pago['id']}/validar",
+        json={"estado_pago": "RECHAZADO", "motivo_rechazo": "Comprobante ilegible"},
+    )
+
+    resp = client.get(f"/api/v1/membresias/pagos/persona/{persona['id']}")
+    assert resp.status_code == 200
+    historial = resp.json()
+    assert len(historial) == 1
+    assert historial[0]["estadoPago"] == "RECHAZADO"
+    assert historial[0]["motivoRechazo"] == "Comprobante ilegible"
+
+
+def test_representante_ve_los_pagos_de_su_representado(client_sin_permisos, client):
+    """Esquema (igual que test_voucher_pago.py): se crea todo con `client`
+    (admin) y luego se restaura el token de `client_sin_permisos` (persona_id=1,
+    rol ALUMNO, sin ADMINISTRADOR) para que la autorización dependa
+    exclusivamente del vínculo representante_id, no de un bypass admin."""
+    representante = _crear_persona(client, cedula="1733344455")
+    assert representante["id"] == 1
+    alumno = client.post(
+        "/api/v1/personas/",
+        json={
+            "nombres": "Hijo", "apellidos": "Representado", "cedula": "1744455566",
+            "fecha_nacimiento": "2015-05-14", "telefono": "0991234567",
+            "representante_id": representante["id"],
+        },
+    ).json()
+    tipo = _crear_tipo_membresia(client)
+    membresia = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": alumno["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+    client.post(
+        "/api/v1/membresias/pagos",
+        json={
+            "monto": "35.00", "tipo_pago": "EFECTIVO",
+            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+            "persona_id": alumno["id"], "membresia_id": membresia["id"],
+        },
+    )
+
+    from main import app
+    app.dependency_overrides[GestorAutenticacion.decodificar_token] = lambda: {
+        "sub": "alumno@cataclub.test", "persona_id": 1, "roles": ["ALUMNO"],
+    }
+
+    resp = client_sin_permisos.get(f"/api/v1/membresias/pagos/persona/{alumno['id']}")
+    assert resp.status_code == 200
+    historial = resp.json()
+    assert len(historial) == 1
+    assert historial[0]["personaId"] == alumno["id"]
+
+
+def test_admin_puede_listar_pagos_de_cualquier_persona(client):
+    persona = _crear_persona(client, cedula="1799999997")
+    tipo = _crear_tipo_membresia(client)
+    membresia = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": persona["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+    client.post(
+        "/api/v1/membresias/pagos",
+        json={
+            "monto": "35.00", "tipo_pago": "EFECTIVO",
+            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+            "persona_id": persona["id"], "membresia_id": membresia["id"],
+        },
+    )
+
+    resp = client.get(f"/api/v1/membresias/pagos/persona/{persona['id']}")
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+
+
+def test_persona_sin_relacion_no_puede_ver_historial_de_pagos_ajeno(client_sin_permisos, client):
+    """POST /personas/ es admin-only, así que las personas se crean con
+    `client` y luego se restaura el token de `client_sin_permisos` (persona_id=1,
+    rol ALUMNO) antes de la petición que se evalúa -- mismo truco que
+    `test_voucher_pago.py::test_subir_voucher_sin_ser_duenio_ni_admin_da_403`.
+    Relleno para que `otra_persona` no quede con id=1."""
+    _crear_persona(client, cedula="1700000002")
+    otra_persona = _crear_persona(client, cedula="1799999996")
+
+    from main import app
+    app.dependency_overrides[GestorAutenticacion.decodificar_token] = lambda: {
+        "sub": "alumno@cataclub.test", "persona_id": 1, "roles": ["ALUMNO"],
+    }
+
+    resp = client_sin_permisos.get(f"/api/v1/membresias/pagos/persona/{otra_persona['id']}")
+    assert resp.status_code == 403
+
+
+def test_historial_de_pagos_vacio_cuando_no_hay(client):
+    persona = _crear_persona(client, cedula="1755566677")
+
+    resp = client.get(f"/api/v1/membresias/pagos/persona/{persona['id']}")
+    assert resp.status_code == 200
+    assert resp.json() == []
