@@ -241,17 +241,55 @@ describe("GroupsPage — justificativo Aprobar/Rechazar confirmation gating", ()
     });
   });
 
-  it("opens a danger-variant confirmation dialog on Rechazar and aborts on cancel", async () => {
+  it("reveals an inline reason input on Rechazar instead of a plain confirm dialog", async () => {
     render(<GroupsPage />);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /^cancelar$/i }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/motivo de rechazo/i)).toBeInTheDocument();
     expect(mockEvaluarJustificativo).not.toHaveBeenCalled();
+  });
+
+  it("cancels the reject form without mutating", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/persona #10/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^cancelar$/i }));
+
+    expect(screen.queryByLabelText(/motivo de rechazo/i)).not.toBeInTheDocument();
+    expect(mockEvaluarJustificativo).not.toHaveBeenCalled();
+  });
+
+  it("shows a client-side error and does not call evaluarJustificativo when submitting an empty reason", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/persona #10/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
+
+    expect(await screen.findByText(/el motivo de rechazo es obligatorio/i)).toBeInTheDocument();
+    expect(mockEvaluarJustificativo).not.toHaveBeenCalled();
+  });
+
+  it("calls evaluarJustificativo with the trimmed motivoRechazo when a reason is typed and submitted", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/persona #10/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
+    fireEvent.change(screen.getByLabelText(/motivo de rechazo/i), {
+      target: { value: "  No corresponde al mes declarado  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
+
+    await waitFor(() => {
+      expect(mockEvaluarJustificativo).toHaveBeenCalledWith(5, {
+        estado: "RECHAZADO",
+        motivoRechazo: "No corresponde al mes declarado",
+      });
+    });
   });
 });
 
