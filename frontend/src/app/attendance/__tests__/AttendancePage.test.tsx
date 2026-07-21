@@ -1,13 +1,15 @@
 /**
- * Component tests for the admin AttendancePage (PR8a): the "Horarios de
- * Entrenamiento" table (PR3) is replaced by a "Tomar asistencia" link to
- * the (now admin-accessible) attendance-registration flow.
+ * Component tests for the admin AttendancePage:
+ *  - PR8a: the "Horarios de Entrenamiento" table (PR3) is replaced by a
+ *    "Tomar asistencia" link to the (now admin-accessible) flow.
+ *  - PR8b: records pagination is a visible, labeled control instead of
+ *    tiny icon-only ghost buttons.
  *
  * @vitest-environment jsdom
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import AttendancePage from "@/app/attendance/page";
 import type { TrainingSchedule, AttendanceRecord } from "@/app/attendance/attendance-utils";
 
@@ -91,5 +93,40 @@ describe("AttendancePage — Horarios section removed, Tomar asistencia added (P
 
     const link = screen.getByRole("link", { name: /tomar asistencia/i });
     expect(link).toHaveAttribute("href", "/trainer/attendance");
+  });
+});
+
+describe("AttendancePage — visible records pagination (PR8b)", () => {
+  beforeEach(() => {
+    mockFetchTrainingSchedules.mockReset().mockResolvedValue(SCHEDULES);
+    mockFetchAttendanceRecords.mockReset().mockResolvedValue(buildRecords(30));
+  });
+
+  it("shows labeled Anterior/Siguiente controls (visible text, not icon-only) and a prominent page count", async () => {
+    render(<AttendancePage />);
+
+    expect(await screen.findByText("Página 1 de 2")).toBeInTheDocument();
+
+    const prevButton = screen.getByRole("button", { name: /anterior/i });
+    const nextButton = screen.getByRole("button", { name: /siguiente/i });
+    // The old design was icon-only with only an aria-label — assert real
+    // VISIBLE text content so a regression back to icon-only fails this test.
+    expect(prevButton).toHaveTextContent("Anterior");
+    expect(nextButton).toHaveTextContent("Siguiente");
+    expect(prevButton).toBeDisabled();
+    expect(nextButton).toBeEnabled();
+  });
+
+  it("advances to the next page and back when the labeled buttons are clicked", async () => {
+    render(<AttendancePage />);
+
+    await screen.findByText("Página 1 de 2");
+    fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+
+    expect(await screen.findByText("Página 2 de 2")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /siguiente/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /anterior/i }));
+    expect(await screen.findByText("Página 1 de 2")).toBeInTheDocument();
   });
 });

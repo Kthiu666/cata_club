@@ -297,8 +297,8 @@ export default function AttendancePage(): React.ReactElement {
                   </div>
 
                   {recordsTotalPages > 1 && (
-                    <div className="mt-3 flex items-center justify-between">
-                      <p className="text-xs text-cata-text/50">
+                    <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
+                      <p className="text-sm font-semibold text-cata-text">
                         Página {recordsPage} de {recordsTotalPages}
                       </p>
                       <div className="flex items-center gap-2">
@@ -306,18 +306,18 @@ export default function AttendancePage(): React.ReactElement {
                           type="button"
                           onClick={() => setRecordsPage((p) => Math.max(1, p - 1))}
                           disabled={recordsPage <= 1}
-                          className="btn-ghost px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40"
-                          aria-label="Página anterior"
+                          className="btn-secondary px-4 py-2 text-xs"
                         >
                           <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+                          Anterior
                         </button>
                         <button
                           type="button"
                           onClick={() => setRecordsPage((p) => Math.min(recordsTotalPages, p + 1))}
                           disabled={recordsPage >= recordsTotalPages}
-                          className="btn-ghost px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40"
-                          aria-label="Página siguiente"
+                          className="btn-secondary px-4 py-2 text-xs"
                         >
+                          Siguiente
                           <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
                         </button>
                       </div>
