@@ -59,6 +59,13 @@ class PagoValidarDTO(BaseModel):
     estado_pago: EstadoPago
     motivo_rechazo: Optional[str] = Field(None, max_length=255)
 
+    @model_validator(mode="after")
+    def _motivo_rechazo_requerido_si_rechazado(self) -> "PagoValidarDTO":
+        if self.estado_pago == EstadoPago.RECHAZADO:
+            if self.motivo_rechazo is None or not self.motivo_rechazo.strip():
+                raise ValueError("motivo_rechazo es obligatorio al rechazar un pago")
+        return self
+
 
 class PagoResponseDTO(ResponseBase, BaseModel):
     id: int
