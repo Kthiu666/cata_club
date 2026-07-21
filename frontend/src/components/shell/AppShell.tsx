@@ -9,9 +9,8 @@
  * Navigation links come from the same `getNavLinksForRole` used by
  * `Header`, so role-based visibility stays centralized in one place.
  *
- * Explicitly NOT used by `/student` or `/student/enroll` — those keep
- * their current structure per the implementation guide's student
- * exception.
+ * Also used by `/student` (see `src/app/student/page.tsx`) — the old
+ * student exception that kept it off this shell is obsolete.
  */
 
 "use client";
@@ -83,6 +82,7 @@ export default function AppShell({
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const paletteInputRef = useRef<HTMLInputElement>(null);
+  const paletteDialogRef = useRef<HTMLDivElement>(null);
 
   const role = session?.user.role ?? null;
   const navLinks = useMemo<NavLinkDef[]>(
@@ -106,10 +106,36 @@ export default function AppShell({
       if (e.key === "Escape") {
         setPaletteOpen(false);
       }
+      // Focus trap: while the command palette is open, Tab/Shift+Tab must
+      // cycle only among its own focusable elements — otherwise focus can
+      // escape to the page behind the backdrop.
+      if (e.key === "Tab" && paletteOpen && paletteDialogRef.current) {
+        const focusable = Array.from(
+          paletteDialogRef.current.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement;
+        const isInsideDialog = active instanceof Node && paletteDialogRef.current.contains(active);
+        if (e.shiftKey) {
+          if (!isInsideDialog || active === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (!isInsideDialog || active === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
     }
     window.addEventListener("keydown", handleKeyDown);
     return (): void => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [paletteOpen]);
 
   useEffect((): void => {
     if (paletteOpen) {
@@ -302,6 +328,7 @@ export default function AppShell({
           onClick={(): void => setPaletteOpen(false)}
         >
           <div
+            ref={paletteDialogRef}
             role="dialog"
             aria-modal="true"
             aria-label="Buscador de secciones"

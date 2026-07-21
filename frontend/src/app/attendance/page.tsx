@@ -139,7 +139,6 @@ export default function AttendancePage(): React.ReactElement {
       <AppShell
         eyebrow="Asistencia y horarios"
         title="Horarios y Asistencia"
-        subtitle="Horarios de entrenamiento y registros de asistencia reales."
       >
         {/* Loading state */}
         {loading && (
@@ -165,61 +164,53 @@ export default function AttendancePage(): React.ReactElement {
         {!loading && !error && (
           <>
             {/* Stats grid */}
-            <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="card-hover p-5 sm:p-6">
-                <div className="mb-4 flex items-start justify-between">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
-                    <Calendar size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                  </div>
+            <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="card-hover flex items-center gap-3 p-4 sm:p-5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                  <Calendar size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                 </div>
-                <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Horarios</p>
-                <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">
-                  {schedules.length}
+                <p className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wider text-cata-text/65">
+                  Horarios
                 </p>
+                <p className="shrink-0 text-2xl font-bold tracking-tight text-cata-text">{schedules.length}</p>
               </div>
 
-              <div className="card-hover p-5 sm:p-6">
-                <div className="mb-4 flex items-start justify-between">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
-                    <UserCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                  </div>
+              <div className="card-hover flex items-center gap-3 p-4 sm:p-5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                  <UserCheck size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                 </div>
-                <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Asistencias registradas</p>
-                <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">
-                  {stats.totalStudents}
+                <p className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wider text-cata-text/65">
+                  Asistencias registradas
                 </p>
+                <p className="shrink-0 text-2xl font-bold tracking-tight text-cata-text">{stats.totalStudents}</p>
               </div>
 
-              <div className="card-hover p-5 sm:p-6">
-                <div className="mb-4 flex items-start justify-between">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
-                    <CheckCircle2 size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                  </div>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-cata-state-ok/10 px-2 py-0.5 text-[10px] font-semibold text-cata-state-ok">
-                    <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" />
+              <div className="card-hover flex items-center gap-3 p-4 sm:p-5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                  <CheckCircle2 size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                </div>
+                <p className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wider text-cata-text/65">
+                  Presentes
+                </p>
+                <p className="flex shrink-0 items-baseline gap-1.5 text-2xl font-bold tracking-tight text-cata-text">
+                  {stats.totalPresent}
+                  <span className="text-xs font-semibold text-cata-state-ok">
                     {stats.totalStudents > 0
                       ? `${Math.round((stats.totalPresent / stats.totalStudents) * 100)}%`
                       : "N/A"}
                   </span>
-                </div>
-                <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Presentes</p>
-                <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">
-                  {stats.totalPresent}
                 </p>
               </div>
 
-              <div className="card-hover p-5 sm:p-6">
-                <div className="mb-4 flex items-start justify-between">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
-                    <Clock3 size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                  </div>
+              <div className="card-hover flex items-center gap-3 p-4 sm:p-5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                  <Clock3 size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                 </div>
-                <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Ausencias / Tardanzas</p>
-                <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">
-                  {stats.totalAbsent + stats.totalLate}
+                <p className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wider text-cata-text/65">
+                  Ausencias / Tardanzas
                 </p>
-                <p className="mt-1 text-xs text-cata-text/40">
-                  {stats.totalAbsent} ausentes &middot; {stats.totalLate} tardanzas
+                <p className="shrink-0 text-2xl font-bold tracking-tight text-cata-text">
+                  {stats.totalAbsent + stats.totalLate}
                 </p>
               </div>
             </div>
@@ -227,10 +218,10 @@ export default function AttendancePage(): React.ReactElement {
             {/* Quick action: take attendance — replaces the removed
                 "Horarios de Entrenamiento" table (PR3), which added no
                 real value; admins can now register attendance too. */}
-            <div className="card-hover mb-8 flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center">
+            <div className="card-hover mb-8 flex flex-col items-start justify-between gap-4 p-4 sm:flex-row sm:items-center sm:p-5">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cata-red/15">
-                  <ClipboardCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                  <ClipboardCheck size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-cata-text">Tomar asistencia</h2>

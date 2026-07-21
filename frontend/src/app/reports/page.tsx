@@ -207,7 +207,6 @@ function ReportsContent(): React.ReactElement {
     <AppShell
       eyebrow="Reportes"
       title="Reportes y Analítica"
-      subtitle="Consulte y filtre información de miembros del club."
     >
       {/* Tab selector */}
       <div className="mb-6 flex gap-1 rounded-xl bg-cata-bg p-1">

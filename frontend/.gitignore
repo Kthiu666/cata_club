@@ -1,5 +1,6 @@
 # Next.js
 .next/
+.next.bak-root/
 out/
 
 # Dependencies

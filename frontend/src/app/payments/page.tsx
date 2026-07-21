@@ -211,53 +211,44 @@ export default function PaymentsPage(): React.ReactElement {
       <AppShell
         eyebrow="Validación de Pagos"
         title="Membresías y Pagos"
-        subtitle="Valide comprobantes de pago de membresías y administre el estado de los miembros. Revise, apruebe o rechace solicitudes con trazabilidad completa."
       >
         {/* Stats cards */}
-        <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="card-hover p-5 sm:p-6">
-            <div className="mb-4 flex items-start justify-between">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
-                <ShieldCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-              </div>
+        <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="card-hover flex items-center gap-3 p-4 sm:p-5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+              <ShieldCheck size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
             </div>
-            <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Total Solicitudes</p>
-            <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">{counts.total}</p>
+            <p className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wider text-cata-text/65">
+              Total Solicitudes
+            </p>
+            <p className="shrink-0 text-2xl font-bold tracking-tight text-cata-text">{counts.total}</p>
           </div>
-          <div className="card-hover p-5 sm:p-6">
-            <div className="mb-4 flex items-start justify-between">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50">
-                <Clock size={22} strokeWidth={1.5} className="text-amber-700" aria-hidden="true" />
-              </div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                <AlertTriangle size={10} strokeWidth={2} aria-hidden="true" />
-                Pendientes
-              </span>
+          <div className="card-hover flex items-center gap-3 p-4 sm:p-5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50">
+              <Clock size={20} strokeWidth={1.5} className="text-amber-700" aria-hidden="true" />
             </div>
-            <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Pendientes</p>
-            <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">{counts.pending}</p>
+            <p className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wider text-cata-text/65">
+              Pendientes
+            </p>
+            <p className="shrink-0 text-2xl font-bold tracking-tight text-cata-text">{counts.pending}</p>
           </div>
-          <div className="card-hover p-5 sm:p-6">
-            <div className="mb-4 flex items-start justify-between">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-state-ok/10">
-                <CheckCircle2 size={22} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />
-              </div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-cata-state-ok/10 px-2 py-0.5 text-[10px] font-semibold text-cata-state-ok">
-                <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" />
-                Aprobados
-              </span>
+          <div className="card-hover flex items-center gap-3 p-4 sm:p-5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-state-ok/10">
+              <CheckCircle2 size={20} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />
             </div>
-            <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Aprobados</p>
-            <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">{counts.approved}</p>
+            <p className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wider text-cata-text/65">
+              Aprobados
+            </p>
+            <p className="shrink-0 text-2xl font-bold tracking-tight text-cata-text">{counts.approved}</p>
           </div>
-          <div className="card-hover p-5 sm:p-6">
-            <div className="mb-4 flex items-start justify-between">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50">
-                <XCircle size={22} strokeWidth={1.5} className="text-red-700" aria-hidden="true" />
-              </div>
+          <div className="card-hover flex items-center gap-3 p-4 sm:p-5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50">
+              <XCircle size={20} strokeWidth={1.5} className="text-red-700" aria-hidden="true" />
             </div>
-            <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Rechazados</p>
-            <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">{counts.rejected}</p>
+            <p className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wider text-cata-text/65">
+              Rechazados
+            </p>
+            <p className="shrink-0 text-2xl font-bold tracking-tight text-cata-text">{counts.rejected}</p>
           </div>
         </div>
 

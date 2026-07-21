@@ -300,7 +300,6 @@ export default function GroupsPage(): React.ReactElement {
       <AppShell
         eyebrow="Grupos de Entrenamiento"
         title="Gestión de Grupos"
-        subtitle="Grupos de entrenamiento, asignación de estudiantes y horarios. El nivel técnico pertenece al grupo, no al estudiante."
       >
         {loadError && (
           <div

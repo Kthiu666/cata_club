@@ -3,11 +3,11 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { derivePortalMode, isRepresentative, buildAccountLabel, describeRanking } from "../student-utils";
+import { derivePortalMode, isRepresentative, describeRanking } from "../student-utils";
 import type { StudentRankingSummary } from "@/services/api";
 
 // ---------------------------------------------------------------------------
-// derivePortalMode / isRepresentative / buildAccountLabel
+// derivePortalMode / isRepresentative
 // ---------------------------------------------------------------------------
 
 describe("derivePortalMode", () => {
@@ -36,21 +36,6 @@ describe("isRepresentative", () => {
   it("is true with one or more representados", () => {
     expect(isRepresentative(1)).toBe(true);
     expect(isRepresentative(3)).toBe(true);
-  });
-});
-
-describe("buildAccountLabel", () => {
-  it("labels a pending account", () => {
-    expect(buildAccountLabel(false, 0)).toBe("Pendiente de Matrícula");
-  });
-
-  it("labels a self-managed student with no dependents", () => {
-    expect(buildAccountLabel(true, 0)).toBe("Estudiante");
-  });
-
-  it("labels a representative managing dependents", () => {
-    expect(buildAccountLabel(false, 2)).toBe("Representante");
-    expect(buildAccountLabel(true, 2)).toBe("Representante");
   });
 });
 
