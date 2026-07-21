@@ -12,7 +12,7 @@
 
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -35,60 +35,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNavLinksForRole, type NavLinkDef } from "@/lib/auth-utils";
+import { useNotificaciones } from "@/lib/useNotificaciones";
 import NotificationBell from "@/components/NotificationBell";
-import { fetchNotificaciones, marcarNotificacionLeida } from "@/services/api";
-import type { Notificacion } from "@/types/domain";
-
-const NOTIFICACIONES_POLL_INTERVAL_MS = 60_000;
-
-/**
- * Fetch + 60s poll + mark-read live here, called exactly once by Header, so
- * both rendered <NotificationBell> instances (desktop nav + mobile drawer)
- * share one data source instead of polling independently and drifting out
- * of sync with each other.
- */
-function useNotificaciones(enabled: boolean): {
-  notificaciones: Notificacion[];
-  loadError: boolean;
-  markRead: (id: number) => void;
-} {
-  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
-  const [loadError, setLoadError] = useState(false);
-
-  const load = useCallback(async (): Promise<void> => {
-    try {
-      const data = await fetchNotificaciones();
-      setNotificaciones(data);
-      setLoadError(false);
-    } catch {
-      // Silent — the bell degrades to "no notifications" rather than
-      // interrupting the whole header on a transient failure.
-      setLoadError(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!enabled) return;
-    void load();
-    const intervalId = setInterval(() => void load(), NOTIFICACIONES_POLL_INTERVAL_MS);
-    return () => clearInterval(intervalId);
-  }, [enabled, load]);
-
-  const markRead = useCallback((id: number): void => {
-    // Snapshot before the optimistic update so a failed mark-read call can
-    // be restored explicitly, instead of relying on a reload to "revert" it
-    // (a reload can itself fail during the same outage, stranding the item
-    // as incorrectly read-with-no-retry).
-    let previous: Notificacion[] = [];
-    setNotificaciones((prev) => {
-      previous = prev;
-      return prev.map((n) => (n.id === id ? { ...n, leida: true } : n));
-    });
-    marcarNotificacionLeida(id).catch(() => setNotificaciones(previous));
-  }, []);
-
-  return { notificaciones, loadError, markRead };
-}
 
 interface NavLink {
   href: string;
@@ -278,6 +226,7 @@ const APP_SHELL_ROUTES = new Set([
   "/attendance",
   "/trainer",
   "/trainer/attendance",
+  "/reports",
 ]);
 
 export default function Header({ hideOnLanding = false }: HeaderProps): React.ReactElement | null {

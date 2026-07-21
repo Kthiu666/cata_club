@@ -54,6 +54,16 @@ vi.mock("@/contexts/AuthContext", (): { useAuth: typeof useAuth } => ({
   useAuth: vi.fn<typeof useAuth>(),
 }));
 
+// useNotificaciones (rendered via NotificationBell in the topbar) fetches on
+// mount — stub it out so AppShell's tests don't depend on network/timer
+// behavior unrelated to shell/nav rendering.
+const mockFetchNotificaciones = vi.fn().mockResolvedValue([]);
+const mockMarcarNotificacionLeida = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/services/api", () => ({
+  fetchNotificaciones: () => mockFetchNotificaciones(),
+  marcarNotificacionLeida: (id: number) => mockMarcarNotificacionLeida(id),
+}));
+
 import { useAuth } from "@/contexts/AuthContext";
 import { createAuthenticatedAuth } from "@/components/__tests__/test-utils";
 
@@ -64,6 +74,10 @@ describe("AppShell", (): void => {
     mockPush.mockReset();
     mockUseAuth.mockReset();
     mockUseAuth.mockReturnValue(createAuthenticatedAuth("admin", "Admin Cata Club"));
+    mockFetchNotificaciones.mockClear();
+    mockFetchNotificaciones.mockResolvedValue([]);
+    mockMarcarNotificacionLeida.mockClear();
+    mockMarcarNotificacionLeida.mockResolvedValue(undefined);
   });
 
   it("renders the title, subtitle, and eyebrow", (): void => {
@@ -112,6 +126,14 @@ describe("AppShell", (): void => {
     expect(screen.getByText("Admin Cata Club")).toBeInTheDocument();
     expect(screen.getByText("Administrador")).toBeInTheDocument();
     expect(screen.getByText("AC")).toBeInTheDocument();
+  });
+
+  // --- Notification bell ---
+
+  it("renders the notification bell in the topbar when a session is present", (): void => {
+    render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    expect(screen.getByRole("button", { name: /notificaciones/i })).toBeInTheDocument();
   });
 
   it("calls logout when the sidebar logout button is clicked", (): void => {

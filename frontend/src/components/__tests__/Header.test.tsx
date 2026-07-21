@@ -140,6 +140,7 @@ describe("Header", (): void => {
     "/attendance",
     "/trainer",
     "/trainer/attendance",
+    "/reports",
   ])("hides the header on the %s app-shell route", (route): void => {
     mockPathname.mockReturnValue(route);
     mockUseAuth.mockReturnValue(createAuthenticatedAuth("admin", "Admin"));

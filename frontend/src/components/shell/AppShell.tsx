@@ -24,7 +24,9 @@ import { Menu, X, Search, LogOut, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNavLinksForRole, getRoleLabel, getUserInitials, type NavLinkDef } from "@/lib/auth-utils";
 import { normalizeText } from "@/app/members/members-utils";
+import { useNotificaciones } from "@/lib/useNotificaciones";
 import { NAV_ICON_MAP } from "@/components/Header";
+import NotificationBell from "@/components/NotificationBell";
 
 export interface AppShellProps {
   /** Small uppercase label above the page title (defaults to "Panel de gestión"). */
@@ -46,6 +48,7 @@ export default function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const { session, logout } = useAuth();
+  const { notificaciones, loadError, markRead } = useNotificaciones(!!session);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -207,6 +210,9 @@ export default function AppShell({
             >
               <Menu size={18} strokeWidth={1.5} aria-hidden="true" />
             </button>
+            {session && (
+              <NotificationBell notificaciones={notificaciones} loadError={loadError} onMarkRead={markRead} />
+            )}
             <button
               type="button"
               onClick={(): void => setPaletteOpen(true)}
