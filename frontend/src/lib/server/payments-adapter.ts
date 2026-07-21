@@ -72,6 +72,7 @@ export interface BackendPagoListItem extends BackendPagoCore {
 }
 
 export interface BackendMembresia {
+  id: number;
   estado: BackendEstadoMembresia;
   tipoMembresiaId: number;
 }

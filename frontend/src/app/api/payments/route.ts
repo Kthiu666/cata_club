@@ -40,16 +40,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     tiposResult.ok && tiposResult.response.ok ? await tiposResult.response.json() : [];
   const tiposById = new Map(tipos.map((tipo) => [tipo.id, tipo]));
 
-  const items = await Promise.all(
-    paginated.items.map(async (pago) => {
-      const membresiaResult = await backendFetchAuthed(request, `/membresias/${pago.membresiaId}`);
-      const membresia: BackendMembresia =
-        membresiaResult.ok && membresiaResult.response.ok
-          ? await membresiaResult.response.json()
-          : { estado: "INACTIVA", tipoMembresiaId: 0 };
-      return buildPaymentValidationRequest(pago, pago.personaNombreCompleto, membresia, tiposById.get(membresia.tipoMembresiaId));
-    }),
-  );
+  const uniqueMembresiaIds = [...new Set(paginated.items.map((pago) => pago.membresiaId))];
+  const membresiasResult = await backendFetchAuthed(request, `/membresias/?limit=200`);
+  const allMembresias: BackendMembresia[] =
+    membresiasResult.ok && membresiasResult.response.ok
+      ? ((await membresiasResult.response.json()) as { items: BackendMembresia[] }).items
+      : [];
+  const membresiaById = new Map<number, BackendMembresia>();
+  for (const m of allMembresias) {
+    if (uniqueMembresiaIds.includes(m.id)) {
+      membresiaById.set(m.id, m);
+    }
+  }
+
+  const items = paginated.items.map((pago) => {
+    const membresia: BackendMembresia =
+      membresiaById.get(pago.membresiaId) ?? { id: pago.membresiaId, estado: "INACTIVA", tipoMembresiaId: 0 };
+    return buildPaymentValidationRequest(pago, pago.personaNombreCompleto, membresia, tiposById.get(membresia.tipoMembresiaId));
+  });
 
   const response = NextResponse.json(items);
   if (pagosResult.refreshedAccessToken) {

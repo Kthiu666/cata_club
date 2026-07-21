@@ -478,9 +478,9 @@ export async function registerAttendance(data: RegisterAttendanceRequest): Promi
 // Members & Groups API Methods (Fase 4)
 // ---------------------------------------------------------------------------
 
-/** List every account (responsible payer + managed students), aggregated server-side — see src/lib/server/members-adapter.ts. */
-export async function fetchMembers(): Promise<MemberAccount[]> {
-  return request<MemberAccount[]>(apiEndpoint("/members"));
+/** List every account (responsible payer + managed students) and ranking niveles with occupancy, aggregated server-side — see src/lib/server/members-adapter.ts. */
+export async function fetchMembers(): Promise<{ accounts: MemberAccount[]; niveles: NivelConOcupacion[] }> {
+  return request<{ accounts: MemberAccount[]; niveles: NivelConOcupacion[] }>(apiEndpoint("/members"));
 }
 
 /**

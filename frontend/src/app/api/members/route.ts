@@ -59,17 +59,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const uniqueMembresiaIds = [...new Set([...latestPagoByPersona.values()].map((pago) => pago.membresiaId))];
-  const membresiaEntries = await Promise.all(
-    uniqueMembresiaIds.map(async (membresiaId) => {
-      const result = await backendFetchAuthed(request, `/membresias/${membresiaId}`);
-      const membresia: BackendMembresia | undefined =
-        result.ok && result.response.ok ? await result.response.json() : undefined;
-      return [membresiaId, membresia] as const;
-    }),
-  );
-  const membresiaById = new Map(
-    membresiaEntries.filter((entry): entry is [number, BackendMembresia] => entry[1] !== undefined),
-  );
+  const membresiasResult = await backendFetchAuthed(request, `/membresias/?limit=200`);
+  const allMembresias: BackendMembresia[] =
+    membresiasResult.ok && membresiasResult.response.ok
+      ? ((await membresiasResult.response.json()) as { items: BackendMembresia[] }).items
+      : [];
+  const membresiaById = new Map<number, BackendMembresia>();
+  for (const m of allMembresias) {
+    if (uniqueMembresiaIds.includes(m.id)) {
+      membresiaById.set(m.id, m);
+    }
+  }
 
   const tipoById = new Map(tipos.map((tipo) => [tipo.id, tipo]));
 
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const accounts = buildMemberAccounts(personasBody.items, latestPagoByPersona, membresiaById, tipoById, nivelIdByPersona);
 
-  const response = NextResponse.json(accounts);
+  const response = NextResponse.json({ accounts, niveles });
   if (personasResult.refreshedAccessToken) {
     setAuthCookies(response, { accessToken: personasResult.refreshedAccessToken });
   }
