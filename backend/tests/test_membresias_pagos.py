@@ -94,6 +94,114 @@ def test_pago_aprobado_activa_membresia(client):
     assert membresia_actualizada["estado"] == "ACTIVA"
 
 
+def test_rechazar_pago_sin_motivo_falla(client):
+    persona = _crear_persona(client)
+    tipo = _crear_tipo_membresia(client)
+    membresia = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": persona["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+    pago = client.post(
+        "/api/v1/membresias/pagos",
+        json={
+            "monto": "35.00", "tipo_pago": "EFECTIVO",
+            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+            "persona_id": persona["id"], "membresia_id": membresia["id"],
+        },
+    ).json()
+
+    resp = client.patch(
+        f"/api/v1/membresias/pagos/{pago['id']}/validar",
+        json={"estado_pago": "RECHAZADO"},
+    )
+    assert resp.status_code == 422
+
+
+def test_rechazar_pago_con_motivo_solo_espacios_falla(client):
+    persona = _crear_persona(client)
+    tipo = _crear_tipo_membresia(client)
+    membresia = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": persona["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+    pago = client.post(
+        "/api/v1/membresias/pagos",
+        json={
+            "monto": "35.00", "tipo_pago": "EFECTIVO",
+            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+            "persona_id": persona["id"], "membresia_id": membresia["id"],
+        },
+    ).json()
+
+    resp = client.patch(
+        f"/api/v1/membresias/pagos/{pago['id']}/validar",
+        json={"estado_pago": "RECHAZADO", "motivo_rechazo": "   "},
+    )
+    assert resp.status_code == 422
+
+
+def test_rechazar_pago_con_motivo_valido_persiste(client):
+    persona = _crear_persona(client)
+    tipo = _crear_tipo_membresia(client)
+    membresia = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": persona["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+    pago = client.post(
+        "/api/v1/membresias/pagos",
+        json={
+            "monto": "35.00", "tipo_pago": "EFECTIVO",
+            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+            "persona_id": persona["id"], "membresia_id": membresia["id"],
+        },
+    ).json()
+
+    resp = client.patch(
+        f"/api/v1/membresias/pagos/{pago['id']}/validar",
+        json={"estado_pago": "RECHAZADO", "motivo_rechazo": "Comprobante ilegible"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["estadoPago"] == "RECHAZADO"
+    assert body["motivoRechazo"] == "Comprobante ilegible"
+
+
+def test_aprobar_pago_sin_motivo_rechazo_funciona(client):
+    persona = _crear_persona(client)
+    tipo = _crear_tipo_membresia(client)
+    membresia = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": persona["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+    pago = client.post(
+        "/api/v1/membresias/pagos",
+        json={
+            "monto": "35.00", "tipo_pago": "EFECTIVO",
+            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+            "persona_id": persona["id"], "membresia_id": membresia["id"],
+        },
+    ).json()
+
+    resp = client.patch(
+        f"/api/v1/membresias/pagos/{pago['id']}/validar",
+        json={"estado_pago": "APROBADO"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["estadoPago"] == "APROBADO"
+
+
 def test_pago_rechazado_no_reutiliza_estado_de_membresia(client):
     """Corrección D11: rechazar un pago NO debe forzar la membresía a un
     estado que en realidad pertenece al ciclo de vida de Pago."""
