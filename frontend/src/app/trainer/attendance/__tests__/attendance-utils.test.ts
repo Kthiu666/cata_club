@@ -10,6 +10,8 @@ import {
   countByState,
   buildAttendanceSummary,
   buildRosterFromTabla,
+  resolveEntrenadorId,
+  resolveDisplayTrainerName,
   type SessionStudent,
 } from "../attendance-utils";
 import type { TablaRankingItem } from "@/services/api";
@@ -121,5 +123,45 @@ describe("buildRosterFromTabla", () => {
   it("stringifies personaId for use as a stable React key / POST payload id", () => {
     const roster = buildRosterFromTabla(tabla);
     expect(roster.every((s) => typeof s.id === "string")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveEntrenadorId / resolveDisplayTrainerName (PR8 — admin can take
+// attendance on a trainer's behalf; backend requires entrenador_id to belong
+// to an actual ENTRENADOR, so an admin's own id is never valid).
+// ---------------------------------------------------------------------------
+
+const SCHEDULE = { entrenadorId: 42, entrenadorNombre: "Coach Martinez" };
+
+describe("resolveEntrenadorId", () => {
+  it("uses the trainer's own session id when the current user is a trainer", () => {
+    expect(resolveEntrenadorId("trainer", "17", SCHEDULE)).toBe(17);
+  });
+
+  it("uses the selected schedule's titular trainer id when the current user is an admin", () => {
+    expect(resolveEntrenadorId("admin", "99", SCHEDULE)).toBe(42);
+  });
+
+  it("returns null for an admin when no schedule is selected yet", () => {
+    expect(resolveEntrenadorId("admin", "99", null)).toBeNull();
+  });
+
+  it("returns null for a trainer with no session id", () => {
+    expect(resolveEntrenadorId("trainer", null, SCHEDULE)).toBeNull();
+  });
+});
+
+describe("resolveDisplayTrainerName", () => {
+  it("shows the trainer's own session name when the current user is a trainer", () => {
+    expect(resolveDisplayTrainerName("trainer", "Coach Torres", SCHEDULE)).toBe("Coach Torres");
+  });
+
+  it("shows the selected schedule's titular trainer name when the current user is an admin", () => {
+    expect(resolveDisplayTrainerName("admin", "Admin User", SCHEDULE)).toBe("Coach Martinez");
+  });
+
+  it("falls back to a generic label for an admin when no schedule is selected yet", () => {
+    expect(resolveDisplayTrainerName("admin", "Admin User", null)).toBe("Entrenador");
   });
 });

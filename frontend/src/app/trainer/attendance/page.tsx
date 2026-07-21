@@ -51,6 +51,8 @@ import {
   countByState,
   buildAttendanceSummary,
   buildRosterFromTabla,
+  resolveEntrenadorId,
+  resolveDisplayTrainerName,
   type SessionStudent,
 } from "./attendance-utils";
 import { getAttendanceBadgeTokens, formatDay } from "@/app/attendance/attendance-utils";
@@ -102,8 +104,6 @@ const ATTENDANCE_ICONS: Record<EstadoAsistencia, React.ReactNode> = {
 
 export default function TrainerAttendancePage(): React.ReactElement {
   const { session } = useAuth();
-  const trainerName = session?.user?.name ?? "Entrenador";
-  const entrenadorPersonaId = session?.user?.id ? Number(session.user.id) : null;
 
   const [step, setStep] = useState<WizardStep>("select-session");
 
@@ -153,6 +153,23 @@ export default function TrainerAttendancePage(): React.ReactElement {
   const selectedSchedule = schedules.find((s) => s.id === selectedScheduleId) ?? null;
   const selectedNivel = niveles.find((n) => n.id === selectedNivelId) ?? null;
   const bothSelected = selectedScheduleId !== null && selectedNivelId !== null;
+
+  // Admins may register attendance on a trainer's behalf (backend requires
+  // entrenadorId to belong to an actual ENTRENADOR — see attendance-utils.ts).
+  const trainerName = resolveDisplayTrainerName(
+    session?.user?.role ?? null,
+    session?.user?.name,
+    selectedSchedule,
+  );
+  const entrenadorPersonaId = resolveEntrenadorId(
+    session?.user?.role ?? null,
+    session?.user?.id,
+    selectedSchedule,
+  );
+
+  // /trainer is gated to the "trainer" role only — an admin using this page
+  // must bounce back to their own attendance overview, not the trainer panel.
+  const backHref = session?.user?.role === "admin" ? "/attendance" : "/trainer";
 
   // ---- Navigation ----
 
@@ -578,7 +595,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
         : "Revise y confirme el registro de asistencia.";
 
   return (
-    <ProtectedRoute allowedRoles={["trainer"]}>
+    <ProtectedRoute allowedRoles={["trainer", "admin"]}>
       <AppShell
         eyebrow="Área de entrenadores"
         title="Registrar Asistencia"
@@ -627,7 +644,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
               <button type="button" onClick={handleReset} className="btn-primary shadow-soft">
                 Registrar Otra Asistencia
               </button>
-              <Link href="/trainer" className="btn-secondary">
+              <Link href={backHref} className="btn-secondary">
                 Volver al Panel
               </Link>
             </div>
@@ -744,10 +761,10 @@ export default function TrainerAttendancePage(): React.ReactElement {
               {/* Navigation link */}
               <p className="mt-6 text-center text-sm text-cata-text/65">
                 <Link
-                  href="/trainer"
+                  href={backHref}
                   className="font-medium text-cata-red transition-colors hover:text-cata-red-light"
                 >
-                  &larr; Volver al Panel del Entrenador
+                  &larr; {session?.user?.role === "admin" ? "Volver a Horarios y Asistencia" : "Volver al Panel del Entrenador"}
                 </Link>
               </p>
             </>

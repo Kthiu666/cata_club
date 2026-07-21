@@ -19,6 +19,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import {
@@ -26,7 +27,7 @@ import {
   Clock,
   UserCheck,
   GraduationCap,
-  Filter,
+  ClipboardCheck,
   CheckCircle2,
   XCircle,
   AlertTriangle,
@@ -39,11 +40,9 @@ import { fetchTrainingSchedules, fetchAttendanceRecords } from "@/services/api";
 import {
   buildAttendanceStats,
   getAttendanceBadgeTokens,
-  DIA_SEMANA_LABELS,
   ATTENDANCE_LABELS,
   paginateRecords,
   getTotalPages,
-  groupSchedulesByDay,
   type AttendanceRecord,
   type TrainingSchedule,
 } from "./attendance-utils";
@@ -89,23 +88,10 @@ function AttendanceBadge({ estado }: AttendanceBadgeProps): React.ReactElement {
 }
 
 // ---------------------------------------------------------------------------
-// Day filter buttons
-// ---------------------------------------------------------------------------
-
-const DAY_OPTIONS = [
-  { value: "all", label: "Todos los días" },
-  ...Object.entries(DIA_SEMANA_LABELS).map(([key, label]) => ({
-    value: key,
-    label,
-  })),
-] as const;
-
-// ---------------------------------------------------------------------------
 // Page component
 // ---------------------------------------------------------------------------
 
 export default function AttendancePage(): React.ReactElement {
-  const [dayFilter, setDayFilter] = useState<string>("all");
   const [schedules, setSchedules] = useState<TrainingSchedule[]>([]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,14 +127,6 @@ export default function AttendancePage(): React.ReactElement {
   }, [records]);
 
   const stats = buildAttendanceStats(records);
-
-  const filteredSchedules =
-    dayFilter === "all" ? schedules : schedules.filter((s) => s.diaSemana === dayFilter);
-
-  const scheduleDayGroups = useMemo(
-    () => groupSchedulesByDay(filteredSchedules),
-    [filteredSchedules],
-  );
 
   const recordsTotalPages = useMemo(() => getTotalPages(records.length), [records]);
   const paginatedRecords = useMemo(
@@ -246,81 +224,25 @@ export default function AttendancePage(): React.ReactElement {
               </div>
             </div>
 
-            {/* Schedules section */}
-            <div className="mb-8">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Clock size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                  <h2 className="text-lg font-bold text-cata-text">
-                    Horarios de Entrenamiento
-                  </h2>
+            {/* Quick action: take attendance — replaces the removed
+                "Horarios de Entrenamiento" table (PR3), which added no
+                real value; admins can now register attendance too. */}
+            <div className="card-hover mb-8 flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cata-red/15">
+                  <ClipboardCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                 </div>
-                <div className="flex items-center gap-2">
-                  <Filter size={13} strokeWidth={1.5} className="text-cata-text/65" aria-hidden="true" />
-                  <select
-                    value={dayFilter}
-                    onChange={(e) => setDayFilter(e.target.value)}
-                    className="input-field py-1.5 pl-3 pr-8 text-xs"
-                    aria-label="Filtrar por día"
-                  >
-                    {DAY_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {scheduleDayGroups.length > 0 ? (
-                <div className="space-y-5">
-                  {scheduleDayGroups.map((group) => (
-                    <div key={group.day}>
-                      <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-cata-text">
-                        <Calendar size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                        {group.label}
-                      </h3>
-                      <div className="card overflow-hidden">
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-sm">
-                            <thead>
-                              <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
-                                <th className="px-4 py-2 font-medium">Horario</th>
-                                <th className="px-4 py-2 font-medium">Entrenador</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-cata-border">
-                              {group.schedules.map((slot) => (
-                                <tr key={slot.id} className="transition-colors hover:bg-cata-bg">
-                                  <td className="px-4 py-2 text-xs text-cata-text">
-                                    <span className="flex items-center gap-1.5">
-                                      <Clock size={12} strokeWidth={1.5} className="text-cata-red/70" aria-hidden="true" />
-                                      {slot.horaInicio}–{slot.horaFin}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-2 text-xs text-cata-text/65">
-                                    <span className="flex items-center gap-1.5">
-                                      <UserCheck size={12} strokeWidth={1.5} aria-hidden="true" />
-                                      {slot.entrenadorNombre}
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="card flex flex-col items-center py-12 text-center">
-                  <Calendar size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
-                  <p className="text-sm text-cata-text/50">
-                    No hay horarios para el día seleccionado.
+                <div>
+                  <h2 className="text-base font-bold text-cata-text">Tomar asistencia</h2>
+                  <p className="text-sm text-cata-text/65">
+                    Registra la asistencia de una sesión de entrenamiento.
                   </p>
                 </div>
-              )}
+              </div>
+              <Link href="/trainer/attendance" className="btn-primary w-full shadow-soft sm:w-auto">
+                Tomar asistencia
+                <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+              </Link>
             </div>
 
             {/* Recent attendance section */}
