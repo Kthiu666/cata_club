@@ -63,15 +63,16 @@ describe("GET /api/members", () => {
       .mockResolvedValueOnce(jsonResponse({ items: [persona], total: 1, skip: 0, limit: 200 })) // /personas/
       .mockResolvedValueOnce(jsonResponse({ items: [] })) // /membresias/pagos
       .mockResolvedValueOnce(jsonResponse([])) // /membresias/tipos
-      .mockResolvedValueOnce(jsonResponse([])); // /ranking/niveles
+      .mockResolvedValueOnce(jsonResponse([])) // /ranking/niveles
+      .mockResolvedValueOnce(jsonResponse({ items: [] })); // /membresias/?limit=200 (bulk)
 
     const access = makeJwt(3600);
     const response = await GET(getRequest(`${ACCESS_TOKEN_COOKIE}=${access}`));
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body).toHaveLength(1);
-    expect(body[0]).toMatchObject({ id: "3", role: "estudiante" });
+    expect(body.accounts).toHaveLength(1);
+    expect(body.accounts[0]).toMatchObject({ id: "3", role: "estudiante" });
   });
 
   it("propagates the backend's status and message when /personas/ fails", async () => {
@@ -90,14 +91,15 @@ describe("GET /api/members", () => {
       .mockResolvedValueOnce(jsonResponse({ items: [persona], total: 1, skip: 0, limit: 200 })) // /personas/
       .mockResolvedValueOnce(jsonResponse({ detail: "Forbidden" }, 403)) // /membresias/pagos
       .mockResolvedValueOnce(jsonResponse({ detail: "Forbidden" }, 403)) // /membresias/tipos
-      .mockResolvedValueOnce(jsonResponse({ detail: "Forbidden" }, 403)); // /ranking/niveles
+      .mockResolvedValueOnce(jsonResponse({ detail: "Forbidden" }, 403)) // /ranking/niveles
+      .mockResolvedValueOnce(jsonResponse({ items: [] })); // /membresias/?limit=200 (bulk)
 
     const access = makeJwt(3600);
     const response = await GET(getRequest(`${ACCESS_TOKEN_COOKIE}=${access}`));
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body[0].estudiantes[0].membresia).toBeNull();
-    expect(body[0].estudiantes[0].grupoId).toBeNull();
+    expect(body.accounts[0].estudiantes[0].membresia).toBeNull();
+    expect(body.accounts[0].estudiantes[0].grupoId).toBeNull();
   });
 });

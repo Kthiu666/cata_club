@@ -51,7 +51,7 @@ const pagoListItem = {
 };
 
 const tipos = [{ id: 5, categoria: "Mensual", franjaHoraria: "Mañana" }];
-const membresia = { estado: "VENCIDA", tipoMembresiaId: 5 };
+const membresia = { id: 1, estado: "VENCIDA", tipoMembresiaId: 5 };
 
 beforeEach(() => {
   vi.spyOn(global, "fetch");
@@ -74,7 +74,8 @@ describe("GET /api/payments", () => {
   it("calls /membresias/pagos with Authorization: Bearer using the cookie's access token", async () => {
     vi.mocked(global.fetch)
       .mockResolvedValueOnce(jsonResponse({ items: [] }))
-      .mockResolvedValueOnce(jsonResponse([]));
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse({ items: [] }));
 
     const access = makeJwt(3600);
     await GET(getRequest(`${ACCESS_TOKEN_COOKIE}=${access}`));
@@ -90,7 +91,7 @@ describe("GET /api/payments", () => {
     vi.mocked(global.fetch)
       .mockResolvedValueOnce(jsonResponse({ items: [pagoListItem] }))
       .mockResolvedValueOnce(jsonResponse(tipos))
-      .mockResolvedValueOnce(jsonResponse(membresia));
+      .mockResolvedValueOnce(jsonResponse({ items: [membresia] }));
 
     const access = makeJwt(3600);
     const response = await GET(getRequest(`${ACCESS_TOKEN_COOKIE}=${access}`));
@@ -115,11 +116,11 @@ describe("GET /api/payments", () => {
     ]);
   });
 
-  it("falls back to an inactive/untyped membership when the per-row membresia lookup fails", async () => {
+  it("falls back to an inactive/untyped membership when the bulk membresia lookup returns empty", async () => {
     vi.mocked(global.fetch)
       .mockResolvedValueOnce(jsonResponse({ items: [pagoListItem] }))
       .mockResolvedValueOnce(jsonResponse(tipos))
-      .mockResolvedValueOnce(jsonResponse({}, 404));
+      .mockResolvedValueOnce(jsonResponse({ items: [] }));
 
     const access = makeJwt(3600);
     const response = await GET(getRequest(`${ACCESS_TOKEN_COOKIE}=${access}`));
