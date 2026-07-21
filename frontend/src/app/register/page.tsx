@@ -12,6 +12,7 @@ import { useState, type FormEvent, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastContext";
 import { getDefaultRoute } from "@/lib/auth-utils";
 import AuthShell from "@/components/auth/AuthShell";
 import {
@@ -30,6 +31,7 @@ import {
 export default function RegisterPage(): React.ReactElement {
   const router = useRouter();
   const { isAuthenticated, isLoading, session } = useAuth();
+  const toast = useToast();
 
   // Redirect to role-appropriate page if already authenticated
   useEffect(() => {
@@ -41,12 +43,10 @@ export default function RegisterPage(): React.ReactElement {
   const [navigating, setNavigating] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
   const [demoSuccess, setDemoSuccess] = useState(false);
 
   function handleSubmit(e: FormEvent<HTMLFormElement>): void {
     e.preventDefault();
-    setFormError(null);
 
     const form = e.currentTarget;
     const formData = new FormData(form);
@@ -59,7 +59,7 @@ export default function RegisterPage(): React.ReactElement {
     const confirmPassword = typeof confirmPasswordEntry === "string" ? confirmPasswordEntry : "";
 
     if (password !== confirmPassword) {
-      setFormError("Las contraseñas no coinciden.");
+      toast.showError("Las contraseñas no coinciden.");
       return;
     }
 
@@ -135,7 +135,6 @@ export default function RegisterPage(): React.ReactElement {
               type="button"
               onClick={(): void => {
                 setDemoSuccess(false);
-                setFormError(null);
               }}
               className="btn-secondary w-full justify-center"
             >
@@ -441,12 +440,6 @@ export default function RegisterPage(): React.ReactElement {
             {/* Note: Club context (technical level, health/medical info) is intentionally
                 absent from registration. Those details are captured during the student
                 enrollment flow — see /student/enroll. */}
-
-            {formError && (
-              <div className="alert-error" role="alert">
-                {formError}
-              </div>
-            )}
 
             <button type="submit" disabled={submitting} className="btn-primary mt-2 w-full shadow-soft">
               {submitting ? "Creando cuenta..." : "Crear Cuenta"}
