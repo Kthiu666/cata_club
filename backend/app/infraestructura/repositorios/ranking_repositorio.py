@@ -173,6 +173,16 @@ class JustificativoRankingRepositorio:
             .all()
         )
 
+    def listar_por_persona(self, persona_id: int) -> list[JustificativoRanking]:
+        """Historial completo (cualquier estado) de una persona, para que el
+        propio alumno o su representante puedan ver también los rechazados
+        con su motivo."""
+        return (
+            self.db.query(JustificativoRanking)
+            .filter(JustificativoRanking.persona_id == persona_id)
+            .all()
+        )
+
     def crear(self, justificativo: JustificativoRanking) -> JustificativoRanking:
         self.db.add(justificativo)
         self.db.commit()

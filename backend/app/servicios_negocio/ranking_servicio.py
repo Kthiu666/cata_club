@@ -438,16 +438,10 @@ class RankingServicio:
     def crear_justificativo(
         self, persona_id_solicitante: int, datos: JustificativoCreateDTO, persona_objetivo_id: int
     ) -> JustificativoRanking:
-        persona_objetivo = self.repo_persona.obtener_por_id(persona_objetivo_id)
-        if not persona_objetivo:
-            raise EntidadNoEncontrada(f"Persona con id {persona_objetivo_id} no encontrada")
-
-        es_el_propio = persona_id_solicitante == persona_objetivo_id
-        es_su_representante = persona_objetivo.representante_id == persona_id_solicitante
-        if not (es_el_propio or es_su_representante):
-            raise PermisosInsuficientes(
-                "Solo el propio alumno o su representante pueden registrar este justificativo"
-            )
+        persona_objetivo = self._obtener_persona_verificando_dueno_o_representante(
+            persona_id_solicitante, persona_objetivo_id,
+            mensaje_error="Solo el propio alumno o su representante pueden registrar este justificativo",
+        )
 
         if self.repo_justificativo.obtener_por_persona_y_periodo(
             persona_objetivo_id, datos.anio, datos.mes
@@ -468,6 +462,35 @@ class RankingServicio:
         """Listado de justificativos con estado PENDIENTE, para revisión del
         administrador (E03-RF006b)."""
         return self.repo_justificativo.listar_pendientes()
+
+    # --- E04-RF012 ampliado: alumno/representante ve su propio historial ---
+    def listar_justificativos_de_persona(
+        self, persona_id_solicitante: int, persona_id_objetivo: int
+    ) -> list[JustificativoRanking]:
+        """Historial completo (cualquier estado, incluyendo RECHAZADO con su
+        motivo) de los justificativos de una persona. Mismo criterio de
+        autorización que `crear_justificativo`: el propio alumno o su
+        representante."""
+        self._obtener_persona_verificando_dueno_o_representante(
+            persona_id_solicitante, persona_id_objetivo,
+            mensaje_error="Solo el propio alumno o su representante pueden ver este historial",
+        )
+        return self.repo_justificativo.listar_por_persona(persona_id_objetivo)
+
+    def _obtener_persona_verificando_dueno_o_representante(
+        self, persona_id_solicitante: int, persona_objetivo_id: int, mensaje_error: str
+    ):
+        """Helper compartido: 404 si la persona objetivo no existe, 403 si
+        quien solicita no es ni la propia persona ni su representante."""
+        persona_objetivo = self.repo_persona.obtener_por_id(persona_objetivo_id)
+        if not persona_objetivo:
+            raise EntidadNoEncontrada(f"Persona con id {persona_objetivo_id} no encontrada")
+
+        es_el_propio = persona_id_solicitante == persona_objetivo_id
+        es_su_representante = persona_objetivo.representante_id == persona_id_solicitante
+        if not (es_el_propio or es_su_representante):
+            raise PermisosInsuficientes(mensaje_error)
+        return persona_objetivo
 
     # --- E03-RF006b: administrador evalúa ------------------------------------
     def evaluar_justificativo(

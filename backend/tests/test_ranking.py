@@ -423,6 +423,77 @@ def test_listar_justificativos_pendientes_requiere_admin(client_sin_permisos):
     assert resp.status_code == 403
 
 
+# --- Historial de justificativos de una persona (E04-RF012 ampliado) --------
+def test_alumno_ve_su_propio_historial_incluyendo_rechazados_con_motivo(client):
+    """El fixture `client` autentica como persona_id=1; al crear la primera
+    persona en un test con base de datos limpia, ésta recibe id=1, con lo que
+    queda siendo "el propio" desde la perspectiva del token."""
+    nivel = _crear_nivel(client, 1, "Elite")
+    persona = _crear_persona(client, "1722233344")
+    assert persona["id"] == 1
+    _asignar_nivel(client, persona["id"], nivel["id"])
+
+    justificativo = client.post(
+        f"/api/v1/ranking/{persona['id']}/justificativos",
+        json={"anio": 2026, "mes": 7, "motivo": "Excusa"},
+    ).json()
+    client.patch(
+        f"/api/v1/ranking/justificativos/{justificativo['id']}/evaluar",
+        json={"estado": "RECHAZADO", "motivo_rechazo": "Comprobante ilegible"},
+    )
+
+    resp = client.get(f"/api/v1/ranking/{persona['id']}/justificativos")
+    assert resp.status_code == 200
+    historial = resp.json()
+    assert len(historial) == 1
+    assert historial[0]["estado"] == "RECHAZADO"
+    assert historial[0]["motivoRechazo"] == "Comprobante ilegible"
+
+
+def test_representante_ve_el_historial_de_su_representado(client):
+    nivel = _crear_nivel(client, 1, "Elite")
+    representante = _crear_persona(client, "1733344455")
+    assert representante["id"] == 1
+    alumno = client.post(
+        "/api/v1/personas/",
+        json={
+            "nombres": "Hijo", "apellidos": "Representado", "cedula": "1744455566",
+            "fecha_nacimiento": "2015-05-14", "telefono": "0991234567",
+            "representante_id": representante["id"],
+        },
+    ).json()
+    _asignar_nivel(client, alumno["id"], nivel["id"])
+    client.post(
+        f"/api/v1/ranking/{alumno['id']}/justificativos",
+        json={"anio": 2026, "mes": 7, "motivo": "Viaje familiar"},
+    )
+
+    resp = client.get(f"/api/v1/ranking/{alumno['id']}/justificativos")
+    assert resp.status_code == 200
+    historial = resp.json()
+    assert len(historial) == 1
+    assert historial[0]["personaId"] == alumno["id"]
+
+
+def test_persona_sin_relacion_no_puede_ver_historial_ajeno(client):
+    # Relleno para que `otra_persona` no quede con id=1 (el token de
+    # `client` autentica como persona_id=1).
+    _crear_persona(client, "1700000002")
+    otra_persona = _crear_persona(client, "1799999997")
+
+    resp = client.get(f"/api/v1/ranking/{otra_persona['id']}/justificativos")
+    assert resp.status_code == 403
+
+
+def test_historial_de_justificativos_vacio_cuando_no_hay(client):
+    persona = _crear_persona(client, "1755566677")
+    assert persona["id"] == 1
+
+    resp = client.get(f"/api/v1/ranking/{persona['id']}/justificativos")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
 # --- Reingreso (RF008) -------------------------------------------------------
 def test_reingreso_requiere_justificativo_aprobado(client):
     nivel = _crear_nivel(client, 1, "Elite")

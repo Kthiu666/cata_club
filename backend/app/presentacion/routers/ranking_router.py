@@ -165,6 +165,25 @@ async def crear_justificativo(
     )
 
 
+@router.get(
+    "/{persona_id}/justificativos", response_model=List[JustificativoResponseDTO],
+    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
+)
+async def listar_justificativos_de_persona(
+    persona_id: int,
+    db: Session = Depends(obtener_sesion),
+    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
+):
+    """Historial completo (cualquier estado, incluyendo RECHAZADO con su
+    motivo) de los justificativos de una persona. Alumno o Representante; la
+    autorización (dueño o representante) se valida en el servicio, igual que
+    en `crear_justificativo`."""
+    return RankingServicio(db).listar_justificativos_de_persona(
+        persona_id_solicitante=token_payload.get("persona_id"),
+        persona_id_objetivo=persona_id,
+    )
+
+
 @router.patch(
     "/justificativos/{justificativo_id}/evaluar", response_model=JustificativoResponseDTO,
     dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
