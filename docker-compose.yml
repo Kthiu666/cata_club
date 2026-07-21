@@ -44,6 +44,12 @@ services:
       CLOUDINARY_CARPETA_VOUCHERS: cataclub/vouchers
       CELERY_HORA_AUTOMATIZACIONES: "02:30"
       AMBIENTE: ${AMBIENTE:-production}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
     depends_on:
       db:
         condition: service_healthy
@@ -100,7 +106,8 @@ services:
       # over the compose network, not through localhost.
       BACKEND_API_URL: http://backend:8000/api/v1
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   cataclub_db_data:
