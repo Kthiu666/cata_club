@@ -18,22 +18,22 @@
 
 import { type FormEvent, useState } from "react";
 import Link from "next/link";
-import { KeyRound, ArrowLeft, Mail, AlertCircle, CheckCircle2 } from "lucide-react";
+import { KeyRound, ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
 import AuthShell from "@/components/auth/AuthShell";
 import { solicitarRecuperacion, ApiClientError } from "@/services/api";
+import { useToast } from "@/contexts/ToastContext";
 
 export default function ForgotPasswordPage(): React.ReactElement {
+  const toast = useToast();
   const [correo, setCorreo] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    setError(null);
 
     if (!correo.trim()) {
-      setError("Ingrese su correo electrónico.");
+      toast.showError("Ingrese su correo electrónico.");
       return;
     }
 
@@ -42,7 +42,7 @@ export default function ForgotPasswordPage(): React.ReactElement {
       await solicitarRecuperacion(correo.trim());
       setSubmitted(true);
     } catch (err) {
-      setError(
+      toast.showError(
         err instanceof ApiClientError
           ? err.message
           : "No se pudo procesar la solicitud. Intente nuevamente.",
@@ -111,13 +111,6 @@ export default function ForgotPasswordPage(): React.ReactElement {
                 />
               </div>
             </div>
-
-            {error && (
-              <div className="alert-error" role="alert">
-                <AlertCircle size={14} strokeWidth={1.5} className="mt-0.5 shrink-0" aria-hidden="true" />
-                <span>{error}</span>
-              </div>
-            )}
 
             <button type="submit" disabled={submitting} className="btn-primary w-full shadow-soft">
               {submitting ? "Enviando..." : "Enviar enlace de recuperación"}
