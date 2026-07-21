@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date, datetime, time, timezone
@@ -72,6 +72,11 @@ async def reporte_nuevos_por_periodo(
     fecha_fin: date = Query(...),
     db: Session = Depends(obtener_sesion),
 ):
+    if fecha_inicio >= fecha_fin:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="La fecha de inicio debe ser anterior a la fecha de fin.",
+        )
     inicio = datetime.combine(fecha_inicio, time.min, tzinfo=timezone.utc)
     fin = datetime.combine(fecha_fin, time.max, tzinfo=timezone.utc)
     return PersonaServicio(db).reporte_nuevos_por_periodo(inicio, fin)

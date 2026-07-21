@@ -163,6 +163,10 @@ function ReportsContent(): React.ReactElement {
       setError("Seleccione ambas fechas.");
       return;
     }
+    if (fechaInicio > fechaFin) {
+      setError("La fecha de inicio debe ser anterior a la fecha de fin.");
+      return;
+    }
 
     setLoading(true);
     setError(null);
