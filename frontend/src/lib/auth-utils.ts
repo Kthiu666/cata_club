@@ -55,16 +55,21 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
         // an abrupt context switch.
         { href: "/groups/seleccion-oficial", label: "Selección Oficial" },
         { href: "/reports", label: "Reportes" },
+        { href: "/perfil", label: "Perfil" },
       );
       break;
     case "trainer":
       links.push(
         { href: "/trainer", label: "Entrenador" },
         { href: "/trainer/ranking", label: "Ranking" },
+        { href: "/perfil", label: "Perfil" },
       );
       break;
     case "tesorero":
-      links.push({ href: "/payments", label: "Membresías y Pagos" });
+      links.push(
+        { href: "/payments", label: "Membresías y Pagos" },
+        { href: "/perfil", label: "Perfil" },
+      );
       break;
     case "representante":
     case "estudiante":

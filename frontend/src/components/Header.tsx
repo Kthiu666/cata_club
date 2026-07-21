@@ -66,6 +66,7 @@ export const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
   "/groups/seleccion-oficial": Award,
   "/reports": FileText,
   "/student": GraduationCap,
+  "/perfil": User,
 };
 
 /**
