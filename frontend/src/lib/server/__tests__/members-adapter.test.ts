@@ -50,7 +50,7 @@ const pago: BackendPagoListItem = {
   voucherFormato: null,
 };
 
-const membresia: BackendMembresia = { estado: "ACTIVA", tipoMembresiaId: 5 };
+const membresia: BackendMembresia = { id: 100, estado: "ACTIVA", tipoMembresiaId: 5 };
 const tipo: BackendTipoMembresia = { id: 5, categoria: "Mensual Adultos", franjaHoraria: "18:00-20:00" };
 
 describe("buildMemberAccounts", () => {
