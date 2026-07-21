@@ -463,6 +463,12 @@ class RankingServicio:
         )
         return self.repo_justificativo.crear(justificativo)
 
+    # --- E03-RF006b: administrador lista pendientes de evaluación ----------
+    def listar_justificativos_pendientes(self) -> list[JustificativoRanking]:
+        """Listado de justificativos con estado PENDIENTE, para revisión del
+        administrador (E03-RF006b)."""
+        return self.repo_justificativo.listar_pendientes()
+
     # --- E03-RF006b: administrador evalúa ------------------------------------
     def evaluar_justificativo(
         self, justificativo_id: int, datos: JustificativoEvaluarDTO

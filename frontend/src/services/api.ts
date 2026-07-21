@@ -1045,14 +1045,13 @@ export async function evaluarJustificativo(
 }
 
 /**
- * List pending justificativos for admin review.
- *
- * No backend endpoint exists for this yet — see src/mocks/justificativos.ts.
- * Mock mode returns the (mutable) curated sample data — evaluated entries
- * are removed by `evaluarJustificativo` above; real mode returns an empty
- * list rather than pretending the listing contract exists.
+ * List pending justificativos for admin review (E03-RF006b) — `GET
+ * /ranking/justificativos/pendientes`. Mock mode returns the (mutable)
+ * curated sample data from src/mocks/justificativos.ts — evaluated entries
+ * are removed by `evaluarJustificativo` above so a subsequent call reflects
+ * the change, same as the real backend would after approve/reject.
  */
 export async function fetchJustificativosPendientes(): Promise<Justificativo[]> {
-  if (!isMockMode()) return [];
-  return mockJustificativosPendientes;
+  if (isMockMode()) return mockJustificativosPendientes;
+  return request<Justificativo[]>(apiEndpoint("/ranking/justificativos/pendientes"));
 }
