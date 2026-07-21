@@ -115,11 +115,54 @@ describe("GET /api/payments", () => {
     ]);
   });
 
+  it("calls /personas/ with limit=200 (auth cookie forwarded) to resolve responsablePagoName", async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(jsonResponse({ items: [] })) // /membresias/pagos
+      .mockResolvedValueOnce(jsonResponse({ items: [] })) // /personas/
+      .mockResolvedValueOnce(jsonResponse([])) // /membresias/tipos
+      .mockResolvedValueOnce(jsonResponse({ items: [] })); // /membresias/
+
+    const access = makeJwt(3600);
+    await GET(getRequest(`${ACCESS_TOKEN_COOKIE}=${access}`));
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:8000/api/v1/personas/?limit=200",
+      expect.objectContaining({ headers: expect.objectContaining({ Authorization: `Bearer ${access}` }) }),
+    );
+  });
+
+  it("resolves responsablePagoName from the bulk personas fetch (self-managed vs represented)", async () => {
+    const selfManagedPago = { ...pagoListItem, id: 2, personaId: 5, personaNombreCompleto: "Carlos Padre" };
+    const personas = [
+      { id: 3, nombres: "Sofia", apellidos: "Alumna", representanteId: 5 }, // represented
+      { id: 5, nombres: "Carlos", apellidos: "Padre", representanteId: null }, // self-managed representante
+    ];
+    const membresiaWithId = { id: 1, estado: "VENCIDA", tipoMembresiaId: 5 };
+
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(jsonResponse({ items: [pagoListItem, selfManagedPago] })) // /membresias/pagos
+      .mockResolvedValueOnce(jsonResponse({ items: personas })) // /personas/
+      .mockResolvedValueOnce(jsonResponse(tipos)) // /membresias/tipos
+      .mockResolvedValueOnce(jsonResponse({ items: [membresiaWithId] })); // /membresias/
+
+    const access = makeJwt(3600);
+    const response = await GET(getRequest(`${ACCESS_TOKEN_COOKIE}=${access}`));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    const represented = body.find((item: { id: string }) => item.id === "1");
+    const selfManaged = body.find((item: { id: string }) => item.id === "2");
+    expect(represented.responsablePagoName).toBe("Carlos Padre");
+    expect(selfManaged.responsablePagoName).toBe("Carlos Padre");
+  });
+
   it("falls back to an inactive/untyped membership when the per-row membresia lookup fails", async () => {
     vi.mocked(global.fetch)
-      .mockResolvedValueOnce(jsonResponse({ items: [pagoListItem] }))
-      .mockResolvedValueOnce(jsonResponse(tipos))
-      .mockResolvedValueOnce(jsonResponse({}, 404));
+      .mockResolvedValueOnce(jsonResponse({ items: [pagoListItem] })) // /membresias/pagos
+      .mockResolvedValueOnce(jsonResponse({ items: [] })) // /personas/
+      .mockResolvedValueOnce(jsonResponse(tipos)) // /membresias/tipos
+      .mockResolvedValueOnce(jsonResponse({}, 404)); // /membresias/
 
     const access = makeJwt(3600);
     const response = await GET(getRequest(`${ACCESS_TOKEN_COOKIE}=${access}`));
