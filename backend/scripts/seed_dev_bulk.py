@@ -2,19 +2,19 @@
 manually test every flow end-to-end (admin dashboard, members, groups,
 payments, attendance, trainer ranking, student portal).
 
-Unlike seed_dev_admin.py / seed_dev_trainer.py, this script is NOT wired into
-docker-compose's automatic startup -- it must be run manually:
+Unlike seed_dev_base.py which runs automatically on container start and
+creates the minimum viable dataset, this script must be run manually:
 
     docker compose exec backend uv run python scripts/seed_dev_bulk.py
 
-It depends on seed_dev_trainer.py having already run at least once (needs the
-ENTRENADOR account, the 11 NivelRanking rows, the 5 HorarioEntrenamiento
+It depends on seed_dev_base.py having already run at least once (needs the
+ENTRENADOR account, the 11 NivelRanking rows, the 25 HorarioEntrenamiento
 schedules, and the 2 TipoMembresia rows it creates). If any of those are
 missing, this script prints a warning and skips the dependent section instead
 of crashing.
 
 Creates (idempotent -- safe to run multiple times, following the same
-`_obtener_o_crear` check-before-insert pattern as seed_dev_trainer.py):
+`_obtener_o_crear` check-before-insert pattern as seed_dev_base.py):
 
   - ~16 representante (parent) accounts, each with 1-4 managed children.
   - ~20 self-managed adult student accounts (student IS their own payer).
@@ -22,7 +22,7 @@ Creates (idempotent -- safe to run multiple times, following the same
   - Students spread across all 11 real niveles de ranking; a handful left
     unassigned (nivel_ranking_id = None) to exercise "sin grupo" in /groups.
   - Membresias in a mix of estados (ACTIVA / VENCIDA / INACTIVA), across both
-    TipoMembresia categories seeded by seed_dev_trainer.py.
+    TipoMembresia categories seeded by seed_dev_base.py.
   - Pagos in a mix of estados (APROBADO / PENDIENTE_VALIDACION / RECHAZADO),
     with a ComprobantePago for some approved payments and a voucher attached
     to pending ones, so /payments has a real validation queue.
@@ -73,7 +73,7 @@ CONTRASENIA_COMPARTIDA = "alumno123"
 
 # ---------------------------------------------------------------------------
 # Rango de cédulas propio para este seed: 0000000001-0000000005 ya están
-# tomadas por seed_dev_admin.py / seed_dev_trainer.py (admin, entrenador, Ana,
+# tomadas por seed_dev_admin.py / seed_dev_base.py (admin, entrenador, Ana,
 # Luis, Maria). Arrancamos en 1000000001 para garantizar cero colisiones,
 # incluso si este script corre contra una BD ya sembrada por esos otros dos.
 # ---------------------------------------------------------------------------
@@ -114,13 +114,13 @@ HIJOS_POR_REPRESENTANTE = [3, 2, 4, 1, 3, 2, 4, 1, 2, 3, 2, 4, 1, 3, 2, 2]
 # frontend (members/page.tsx).
 CANTIDAD_AUTOGESTIONADOS = 20
 
-# Números de nivel reales sembrados por seed_dev_trainer.py (1..11).
+# Números de nivel reales sembrados por seed_dev_base.py (1..11).
 NUMEROS_NIVEL = list(range(1, 12))
 
 
 def _obtener_o_crear(db, modelo, filtro, defaults):
     """Return existing row or create a new one (idempotent helper, same
-    pattern as seed_dev_trainer.py)."""
+    pattern as seed_dev_base.py)."""
     obj = db.query(modelo).filter(filtro).first()
     if obj:
         return obj, False
@@ -273,7 +273,7 @@ def _asignar_membresia_y_pago(
 ) -> None:
     """Crea, si no existe todavía, una Membresia + un Pago para esta persona.
     Idempotente por chequeo de existencia previa (una membresía por alumno,
-    como en seed_dev_trainer.py)."""
+    como en seed_dev_base.py)."""
     existente = db.query(Membresia).filter(Membresia.persona_id == persona.id).first()
     if existente:
         return
@@ -399,7 +399,7 @@ def main() -> None:
     db = SessionLocal()
     try:
         # ------------------------------------------------------------------
-        # 0. Dependencias sembradas por seed_dev_trainer.py
+        # 0. Dependencias sembradas por seed_dev_base.py
         # ------------------------------------------------------------------
         rol_alumno, _ = _obtener_o_crear(
             db, Rol, Rol.tipo_rol == TipoRol.ALUMNO,
@@ -413,7 +413,7 @@ def main() -> None:
         if len(niveles) < len(NUMEROS_NIVEL):
             print(
                 "[seed] AVISO: no se encontraron los 11 NivelRanking esperados "
-                "(corra primero seed_dev_trainer.py). La asignación de nivel "
+                "(corra primero seed_dev_base.py). La asignación de nivel "
                 "usará solo los niveles disponibles."
             )
 
@@ -422,7 +422,7 @@ def main() -> None:
         if not tipo_infantil or not tipo_adultos:
             print(
                 "[seed] AVISO: no se encontraron los TipoMembresia de "
-                "seed_dev_trainer.py -- las membresías/pagos se omitirán."
+                "seed_dev_base.py -- las membresías/pagos se omitirán."
             )
 
         entrenador_usuario = db.query(Usuario).filter(Usuario.correo == "entrenador@cataclub.test").first()
@@ -438,7 +438,7 @@ def main() -> None:
         if not entrenador_usuario or not horarios_entrenador:
             print(
                 "[seed] AVISO: no se encontró el Entrenador o sus horarios "
-                "(corra primero seed_dev_trainer.py). La asistencia se omitirá."
+                "(corra primero seed_dev_base.py). La asistencia se omitirá."
             )
 
         # ------------------------------------------------------------------

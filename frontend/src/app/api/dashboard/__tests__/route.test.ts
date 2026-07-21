@@ -1,8 +1,8 @@
 /**
  * Route Handler Tests — GET /api/dashboard
  *
- * The dashboard must obtain membership totals from the backend aggregate and
- * never make a request for every membership referenced by payment records.
+ * The dashboard proxies to the backend's single aggregate endpoint
+ * GET /dashboard/stats, which returns all four metrics in one call.
  *
  * @vitest-environment node
  */
@@ -43,23 +43,25 @@ describe("GET /api/dashboard", () => {
     delete process.env.BACKEND_API_URL;
   });
 
-  it("uses the aggregate membership count without requesting individual memberships", async () => {
-    vi.mocked(global.fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      if (url.endsWith("/personas/?limit=1")) return jsonResponse({ items: [], total: 12 });
-      if (url.endsWith("/membresias/estadisticas")) return jsonResponse({ activeMemberships: 7 });
-      if (url.includes("/membresias/pagos?estado_pago=PENDIENTE_VALIDACION")) return jsonResponse({ items: [], total: 3 });
-      if (url.endsWith("/asistencias/horarios")) return jsonResponse([]);
-      throw new Error(`Unexpected backend request: ${url}`);
-    });
+  it("proxies to the single /dashboard/stats endpoint", async () => {
+    const stats = { totalPersonas: 12, activeMemberships: 7, pendingPayments: 3, todaySchedules: 5 };
+    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse(stats));
 
     const response = await GET(getRequest());
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ totalPersonas: 12, activeMemberships: 7, pendingPayments: 3, todaySchedules: 0 });
-    expect(global.fetch).toHaveBeenCalledTimes(4);
-    expect(vi.mocked(global.fetch).mock.calls.map(([url]) => String(url))).not.toContainEqual(
-      expect.stringMatching(/\/membresias\/\d+$/),
-    );
+    expect(await response.json()).toEqual(stats);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(global.fetch).mock.calls[0][0]).toContain("/dashboard/stats");
+  });
+
+  it("propagates the backend's status when /dashboard/stats fails", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse({ detail: "Service unavailable" }, 503));
+
+    const response = await GET(getRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.message).toBe("Service unavailable");
   });
 });

@@ -51,7 +51,7 @@ const pagoListItem = {
 };
 
 const tipos = [{ id: 5, categoria: "Mensual", franjaHoraria: "Mañana" }];
-const membresia = { estado: "VENCIDA", tipoMembresiaId: 5 };
+const membresia = { id: 1, estado: "VENCIDA", tipoMembresiaId: 5 };
 
 beforeEach(() => {
   vi.spyOn(global, "fetch");
@@ -73,8 +73,10 @@ describe("GET /api/payments", () => {
 
   it("calls /membresias/pagos with Authorization: Bearer using the cookie's access token", async () => {
     vi.mocked(global.fetch)
-      .mockResolvedValueOnce(jsonResponse({ items: [] }))
-      .mockResolvedValueOnce(jsonResponse([]));
+      .mockResolvedValueOnce(jsonResponse({ items: [] })) // /membresias/pagos
+      .mockResolvedValueOnce(jsonResponse({ items: [] })) // /personas/
+      .mockResolvedValueOnce(jsonResponse([])) // /membresias/tipos
+      .mockResolvedValueOnce(jsonResponse({ items: [] })); // /membresias/
 
     const access = makeJwt(3600);
     await GET(getRequest(`${ACCESS_TOKEN_COOKIE}=${access}`));
@@ -91,7 +93,7 @@ describe("GET /api/payments", () => {
       .mockResolvedValueOnce(jsonResponse({ items: [pagoListItem] })) // /membresias/pagos
       .mockResolvedValueOnce(jsonResponse({ items: [] })) // /personas/
       .mockResolvedValueOnce(jsonResponse(tipos)) // /membresias/tipos
-      .mockResolvedValueOnce(jsonResponse({ items: [{ id: 1, ...membresia }] })); // /membresias/
+      .mockResolvedValueOnce(jsonResponse({ items: [membresia] })); // /membresias/
 
     const access = makeJwt(3600);
     const response = await GET(getRequest(`${ACCESS_TOKEN_COOKIE}=${access}`));
@@ -164,6 +166,22 @@ describe("GET /api/payments", () => {
       .mockResolvedValueOnce(jsonResponse({ items: [] })) // /personas/
       .mockResolvedValueOnce(jsonResponse(tipos)) // /membresias/tipos
       .mockResolvedValueOnce(jsonResponse({}, 404)); // /membresias/
+
+    const access = makeJwt(3600);
+    const response = await GET(getRequest(`${ACCESS_TOKEN_COOKIE}=${access}`));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body[0].currentMembershipStatus).toBe("vencida");
+    expect(body[0].membershipType).toBe("Sin tipo");
+  });
+
+  it("falls back to an inactive/untyped membership when the bulk membresia lookup returns empty", async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(jsonResponse({ items: [pagoListItem] })) // /membresias/pagos
+      .mockResolvedValueOnce(jsonResponse({ items: [] })) // /personas/
+      .mockResolvedValueOnce(jsonResponse(tipos)) // /membresias/tipos
+      .mockResolvedValueOnce(jsonResponse({ items: [] })); // /membresias/
 
     const access = makeJwt(3600);
     const response = await GET(getRequest(`${ACCESS_TOKEN_COOKIE}=${access}`));
