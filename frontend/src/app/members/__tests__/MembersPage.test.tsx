@@ -171,3 +171,29 @@ describe("MembersPage — Roles popover", () => {
     });
   });
 });
+
+describe("MembersPage — Crear membresía inline form width (live-QA bugfix)", () => {
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchMembers.mockResolvedValue({ accounts: [ACCOUNT], niveles: [] });
+  });
+
+  it("widens the Membresía block to the full row when the create-membership form is open, instead of staying cramped in a single grid column", async () => {
+    render(<MembersPage />);
+    await findAccountRow();
+
+    // Single account with a single student is expanded by default (defaultOpen),
+    // so the student detail row (and its "Crear membresía" button) is already visible.
+    const crearButton = await screen.findByRole("button", { name: /crear membresía/i });
+    fireEvent.click(crearButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).toBeInTheDocument();
+    });
+
+    const membershipBlock = screen.getByText("Membresía", { exact: true }).parentElement;
+    expect(membershipBlock).not.toBeNull();
+    expect(membershipBlock?.className).toMatch(/lg:col-span-4/);
+    expect(membershipBlock?.className).toMatch(/sm:col-span-2/);
+  });
+});

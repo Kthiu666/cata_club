@@ -444,8 +444,12 @@ function StudentRow({ student, grupos }: StudentRowProps): React.ReactElement {
             </div>
           </div>
 
-          {/* Membership */}
-          <div>
+          {/* Membership — spans the full row while the "Crear membresía" form is
+              open so the type select and Crear/Cancelar buttons have room; a
+              single grid column is too narrow for the long option labels
+              ("{categoria} — ${precio} ({modalidad})") and made the form look
+              cut off (reported in live QA). */}
+          <div className={showCreateMembership ? "sm:col-span-2 lg:col-span-4" : undefined}>
             <p className="mb-1 text-xs font-medium uppercase tracking-wider text-cata-text/40">
               Membresía
             </p>
@@ -470,7 +474,7 @@ function StudentRow({ student, grupos }: StudentRowProps): React.ReactElement {
                 Membresía creada. Recarga para verla.
               </span>
             ) : showCreateMembership ? (
-              <div className="space-y-2">
+              <div className="max-w-md space-y-2">
                 <select
                   value={selectedTipoId}
                   onChange={(e) => setSelectedTipoId(e.target.value ? Number(e.target.value) : "")}
@@ -486,7 +490,7 @@ function StudentRow({ student, grupos }: StudentRowProps): React.ReactElement {
                 {membershipError && (
                   <p className="text-xs text-cata-red">{membershipError}</p>
                 )}
-                <div className="flex gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   <button
                     type="button"
                     onClick={() => handleCreateMembership()}
