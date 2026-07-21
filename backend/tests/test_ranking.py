@@ -285,6 +285,76 @@ def test_evaluar_justificativo_requiere_admin(client_sin_permisos):
     assert resp.status_code == 403
 
 
+def test_listar_justificativos_pendientes_vacio_cuando_no_hay(client):
+    resp = client.get("/api/v1/ranking/justificativos/pendientes")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_listar_justificativos_pendientes_retorna_los_creados(client):
+    nivel = _crear_nivel(client, 1, "Elite")
+    persona = _crear_persona(client, "1799990001")
+    _asignar_nivel(client, persona["id"], nivel["id"])
+
+    creado = client.post(
+        f"/api/v1/ranking/{persona['id']}/justificativos",
+        json={"anio": 2026, "mes": 7, "motivo": "Viaje familiar"},
+    ).json()
+
+    resp = client.get("/api/v1/ranking/justificativos/pendientes")
+    assert resp.status_code == 200
+    ids = [j["id"] for j in resp.json()]
+    assert creado["id"] in ids
+
+
+def test_listar_justificativos_pendientes_excluye_evaluados(client):
+    """Ambos justificativos se registran vía representante (persona_id=1,
+    igual al token de `client`) porque `crear_justificativo` solo permite al
+    propio alumno o a su representante -- y solo la primera persona creada en
+    una BD en memoria vacía obtiene id=1 (ver `_crear_persona`)."""
+    nivel = _crear_nivel(client, 1, "Elite")
+    representante = _crear_persona(client, "1799990002")
+
+    def _crear_alumno_representado(cedula):
+        return client.post(
+            "/api/v1/personas/",
+            json={
+                "nombres": "Hijo", "apellidos": "Representado", "cedula": cedula,
+                "fecha_nacimiento": "2015-05-14", "telefono": "0991234567",
+                "representante_id": representante["id"],
+            },
+        ).json()
+
+    pendiente = _crear_alumno_representado("1799990003")
+    evaluado = _crear_alumno_representado("1799990004")
+    _asignar_nivel(client, pendiente["id"], nivel["id"])
+    _asignar_nivel(client, evaluado["id"], nivel["id"])
+
+    justificativo_pendiente = client.post(
+        f"/api/v1/ranking/{pendiente['id']}/justificativos",
+        json={"anio": 2026, "mes": 7, "motivo": "Viaje familiar"},
+    ).json()
+    justificativo_evaluado = client.post(
+        f"/api/v1/ranking/{evaluado['id']}/justificativos",
+        json={"anio": 2026, "mes": 7, "motivo": "Certificado médico"},
+    ).json()
+    client.patch(
+        f"/api/v1/ranking/justificativos/{justificativo_evaluado['id']}/evaluar",
+        json={"estado": "APROBADO"},
+    )
+
+    resp = client.get("/api/v1/ranking/justificativos/pendientes")
+    assert resp.status_code == 200
+    ids = [j["id"] for j in resp.json()]
+    assert justificativo_pendiente["id"] in ids
+    assert justificativo_evaluado["id"] not in ids
+
+
+def test_listar_justificativos_pendientes_requiere_admin(client_sin_permisos):
+    resp = client_sin_permisos.get("/api/v1/ranking/justificativos/pendientes")
+    assert resp.status_code == 403
+
+
 # --- Reingreso (RF008) -------------------------------------------------------
 def test_reingreso_requiere_justificativo_aprobado(client):
     nivel = _crear_nivel(client, 1, "Elite")

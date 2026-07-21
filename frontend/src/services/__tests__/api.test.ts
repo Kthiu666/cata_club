@@ -467,13 +467,18 @@ describe("fetchJustificativosPendientes", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it("returns an empty list instead of fabricating data when mocks are disabled", async () => {
+  it("calls the real BFF route GET /api/ranking/justificativos/pendientes when mocks are disabled", async () => {
     process.env.NEXT_PUBLIC_USE_MOCKS = "false";
+    const items = [makeJustificativo()];
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(items));
 
     const result = await fetchJustificativosPendientes();
 
-    expect(result).toEqual([]);
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/ranking/justificativos/pendientes",
+      expect.anything(),
+    );
+    expect(result).toEqual(items);
   });
 });
 

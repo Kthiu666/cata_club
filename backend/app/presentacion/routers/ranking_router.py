@@ -135,6 +135,16 @@ async def cerrar_mes(
 
 
 # --- Justificativos (E03-RF006a/RF006b) -------------------------------------
+@router.get(
+    "/justificativos/pendientes", response_model=List[JustificativoResponseDTO],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
+)
+async def listar_justificativos_pendientes(db: Session = Depends(obtener_sesion)):
+    """Listado de justificativos pendientes de evaluación, para el panel de
+    revisión del administrador (E03-RF006b)."""
+    return RankingServicio(db).listar_justificativos_pendientes()
+
+
 @router.post(
     "/{persona_id}/justificativos", response_model=JustificativoResponseDTO, status_code=201,
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
