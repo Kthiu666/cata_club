@@ -59,7 +59,7 @@ import {
   evaluarJustificativo,
   ApiClientError,
 } from "@/services/api";
-import type { NivelConOcupacion } from "@/services/api";
+import type { EvaluarJustificativoDTO, NivelConOcupacion } from "@/services/api";
 import type { Justificativo } from "@/types/domain";
 import { getUnassignedStudents, getLevelLabel, type StudentRef, type GroupCardData } from "@/lib/groups-utils";
 import { buildGroupCardsFromNiveles, getLevelBadgeClass, getCapacityBarColor } from "./groups-page-utils";
@@ -146,10 +146,15 @@ export default function GroupsPage(): React.ReactElement {
   const [justificativosPendientes, setJustificativosPendientes] = useState<Justificativo[]>([]);
   const [justificativosLoading, setJustificativosLoading] = useState(true);
   const [evaluandoId, setEvaluandoId] = useState<number | null>(null);
-  const [confirmingJustificativo, setConfirmingJustificativo] = useState<{
-    id: number;
-    estado: "APROBADO" | "RECHAZADO";
-  } | null>(null);
+  const [confirmingApproveId, setConfirmingApproveId] = useState<number | null>(null);
+
+  // Rechazar requires a typed reason (owner-mandated, PR13) — a single
+  // reason/error pair is reused across rows, keyed by which row currently
+  // has its inline reject form open. Reset whenever the form opens for a
+  // different justificativo or is canceled.
+  const [rejectingJustificativoId, setRejectingJustificativoId] = useState<number | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectionValidationError, setRejectionValidationError] = useState<string | null>(null);
 
   // Quick-assign dropdown selection per unassigned student, keyed by
   // estudianteId -> nivel id (as a string, matching the <select> value).
@@ -211,10 +216,16 @@ export default function GroupsPage(): React.ReactElement {
     setTimeout(() => setNotification(null), 4000);
   }, []);
 
-  async function handleEvaluarJustificativo(id: number, estado: "APROBADO" | "RECHAZADO"): Promise<void> {
+  async function handleEvaluarJustificativo(
+    id: number,
+    estado: "APROBADO" | "RECHAZADO",
+    motivoRechazo?: string,
+  ): Promise<void> {
     setEvaluandoId(id);
     try {
-      await evaluarJustificativo(id, { estado });
+      const dto: EvaluarJustificativoDTO =
+        motivoRechazo !== undefined ? { estado, motivoRechazo } : { estado };
+      await evaluarJustificativo(id, dto);
       setJustificativosPendientes((prev) => prev.filter((j) => j.id !== id));
       showNotification("success", estado === "APROBADO" ? "Justificativo aprobado." : "Justificativo rechazado.");
     } catch (err) {
@@ -222,6 +233,30 @@ export default function GroupsPage(): React.ReactElement {
     } finally {
       setEvaluandoId(null);
     }
+  }
+
+  function handleRejectClick(id: number): void {
+    setRejectingJustificativoId(id);
+    setRejectionReason("");
+    setRejectionValidationError(null);
+  }
+
+  function handleRejectCancel(): void {
+    setRejectingJustificativoId(null);
+    setRejectionReason("");
+    setRejectionValidationError(null);
+  }
+
+  async function handleRejectSubmit(id: number): Promise<void> {
+    if (!rejectionReason.trim()) {
+      setRejectionValidationError("El motivo de rechazo es obligatorio.");
+      return;
+    }
+    const motivo = rejectionReason.trim();
+    await handleEvaluarJustificativo(id, "RECHAZADO", motivo);
+    setRejectingJustificativoId(null);
+    setRejectionReason("");
+    setRejectionValidationError(null);
   }
 
   async function handleAssignStudent(estudianteId: string, targetGroupId: string): Promise<void> {
@@ -699,6 +734,7 @@ export default function GroupsPage(): React.ReactElement {
               {justificativosPendientes.map((j) => {
                 const student = allStudents.find((s) => Number(s.id) === j.personaId);
                 const isEvaluando = evaluandoId === j.id;
+                const isRejecting = rejectingJustificativoId === j.id;
                 return (
                   <div
                     key={j.id}
@@ -712,26 +748,72 @@ export default function GroupsPage(): React.ReactElement {
                       </p>
                       <p className="text-xs text-cata-text/65">{j.motivo}</p>
                     </div>
-                    <div className="flex gap-1.5">
-                      <button
-                        type="button"
-                        disabled={isEvaluando}
-                        onClick={() => setConfirmingJustificativo({ id: j.id, estado: "APROBADO" })}
-                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
-                      >
-                        <CheckCircle2 size={12} strokeWidth={1.5} aria-hidden="true" />
-                        Aprobar
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isEvaluando}
-                        onClick={() => setConfirmingJustificativo({ id: j.id, estado: "RECHAZADO" })}
-                        className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-medium text-cata-red transition-colors hover:bg-red-100 disabled:opacity-50"
-                      >
-                        <XCircle size={12} strokeWidth={1.5} aria-hidden="true" />
-                        Rechazar
-                      </button>
-                    </div>
+                    {isRejecting ? (
+                      <div className="w-full space-y-2 sm:max-w-xs">
+                        <div>
+                          <label
+                            htmlFor={`motivo-rechazo-${j.id}`}
+                            className="mb-1 block text-xs font-medium text-cata-text"
+                          >
+                            Motivo de Rechazo <span className="text-cata-red">*</span>
+                          </label>
+                          <textarea
+                            id={`motivo-rechazo-${j.id}`}
+                            rows={2}
+                            value={rejectionReason}
+                            onChange={(e) => {
+                              setRejectionReason(e.target.value);
+                              setRejectionValidationError(null);
+                            }}
+                            placeholder="Explique por qué se rechaza el justificativo..."
+                            className="input-field resize-y text-xs"
+                            disabled={isEvaluando}
+                          />
+                          {rejectionValidationError && (
+                            <p className="mt-1 text-xs text-cata-red">{rejectionValidationError}</p>
+                          )}
+                        </div>
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            disabled={isEvaluando}
+                            onClick={() => void handleRejectSubmit(j.id)}
+                            className="btn-primary flex-1 py-1.5 text-xs"
+                          >
+                            {isEvaluando ? "Procesando..." : "Confirmar"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isEvaluando}
+                            onClick={handleRejectCancel}
+                            className="btn-secondary py-1.5 text-xs"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          disabled={isEvaluando}
+                          onClick={() => setConfirmingApproveId(j.id)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
+                        >
+                          <CheckCircle2 size={12} strokeWidth={1.5} aria-hidden="true" />
+                          Aprobar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isEvaluando}
+                          onClick={() => handleRejectClick(j.id)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-medium text-cata-red transition-colors hover:bg-red-100 disabled:opacity-50"
+                        >
+                          <XCircle size={12} strokeWidth={1.5} aria-hidden="true" />
+                          Rechazar
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -761,25 +843,17 @@ export default function GroupsPage(): React.ReactElement {
         </div>
 
         <ConfirmDialog
-          open={confirmingJustificativo !== null}
-          variant={confirmingJustificativo?.estado === "APROBADO" ? "state-ok" : "danger"}
-          title={
-            confirmingJustificativo?.estado === "APROBADO"
-              ? "Aprobar justificativo"
-              : "Rechazar justificativo"
-          }
-          message={
-            confirmingJustificativo?.estado === "APROBADO"
-              ? "¿Confirma que aprueba este justificativo de ausencia?"
-              : "¿Confirma que rechaza este justificativo de ausencia?"
-          }
+          open={confirmingApproveId !== null}
+          variant="state-ok"
+          title="Aprobar justificativo"
+          message="¿Confirma que aprueba este justificativo de ausencia?"
           onConfirm={() => {
-            if (!confirmingJustificativo) return;
-            const { id, estado } = confirmingJustificativo;
-            setConfirmingJustificativo(null);
-            void handleEvaluarJustificativo(id, estado);
+            if (confirmingApproveId === null) return;
+            const id = confirmingApproveId;
+            setConfirmingApproveId(null);
+            void handleEvaluarJustificativo(id, "APROBADO");
           }}
-          onCancel={() => setConfirmingJustificativo(null)}
+          onCancel={() => setConfirmingApproveId(null)}
         />
       </AppShell>
     </ProtectedRoute>

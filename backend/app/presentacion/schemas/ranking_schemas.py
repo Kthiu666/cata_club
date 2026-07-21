@@ -4,7 +4,7 @@ frontend. El "nivel de ranking" reemplaza al concepto de "Grupo" que se
 había explorado del lado frontend: aquí un nivel ES el grupo de
 entrenamiento (confirmado con el equipo), no dos cosas separadas.
 """
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, model_validator
 from datetime import datetime
 from typing import Optional, List
 
@@ -126,6 +126,13 @@ class JustificativoCreateDTO(BaseModel):
 class JustificativoEvaluarDTO(BaseModel):
     estado: EstadoJustificativoRanking
     motivo_rechazo: Optional[str] = Field(default=None, max_length=255)
+
+    @model_validator(mode="after")
+    def _motivo_rechazo_requerido_si_rechazado(self) -> "JustificativoEvaluarDTO":
+        if self.estado == EstadoJustificativoRanking.RECHAZADO:
+            if self.motivo_rechazo is None or not self.motivo_rechazo.strip():
+                raise ValueError("motivo_rechazo es obligatorio al rechazar un justificativo")
+        return self
 
 
 class JustificativoResponseDTO(ResponseBase, BaseModel):

@@ -285,6 +285,74 @@ def test_evaluar_justificativo_requiere_admin(client_sin_permisos):
     assert resp.status_code == 403
 
 
+def test_rechazar_justificativo_sin_motivo_falla(client):
+    nivel = _crear_nivel(client, 1, "Elite")
+    persona = _crear_persona(client, "1711122234")
+    _asignar_nivel(client, persona["id"], nivel["id"])
+    justificativo = client.post(
+        f"/api/v1/ranking/{persona['id']}/justificativos",
+        json={"anio": 2026, "mes": 7, "motivo": "Certificado médico"},
+    ).json()
+
+    resp = client.patch(
+        f"/api/v1/ranking/justificativos/{justificativo['id']}/evaluar",
+        json={"estado": "RECHAZADO"},
+    )
+    assert resp.status_code == 422
+
+
+def test_rechazar_justificativo_con_motivo_solo_espacios_falla(client):
+    nivel = _crear_nivel(client, 1, "Elite")
+    persona = _crear_persona(client, "1711122235")
+    _asignar_nivel(client, persona["id"], nivel["id"])
+    justificativo = client.post(
+        f"/api/v1/ranking/{persona['id']}/justificativos",
+        json={"anio": 2026, "mes": 7, "motivo": "Certificado médico"},
+    ).json()
+
+    resp = client.patch(
+        f"/api/v1/ranking/justificativos/{justificativo['id']}/evaluar",
+        json={"estado": "RECHAZADO", "motivo_rechazo": "   "},
+    )
+    assert resp.status_code == 422
+
+
+def test_rechazar_justificativo_con_motivo_valido_persiste(client):
+    nivel = _crear_nivel(client, 1, "Elite")
+    persona = _crear_persona(client, "1711122236")
+    _asignar_nivel(client, persona["id"], nivel["id"])
+    justificativo = client.post(
+        f"/api/v1/ranking/{persona['id']}/justificativos",
+        json={"anio": 2026, "mes": 7, "motivo": "Certificado médico"},
+    ).json()
+
+    resp = client.patch(
+        f"/api/v1/ranking/justificativos/{justificativo['id']}/evaluar",
+        json={"estado": "RECHAZADO", "motivo_rechazo": "No corresponde al mes declarado"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["estado"] == "RECHAZADO"
+    assert body["motivoRechazo"] == "No corresponde al mes declarado"
+
+
+def test_aprobar_justificativo_sin_motivo_rechazo_funciona(client):
+    nivel = _crear_nivel(client, 1, "Elite")
+    persona = _crear_persona(client, "1711122237")
+    _asignar_nivel(client, persona["id"], nivel["id"])
+    justificativo = client.post(
+        f"/api/v1/ranking/{persona['id']}/justificativos",
+        json={"anio": 2026, "mes": 7, "motivo": "Certificado médico"},
+    ).json()
+
+    resp = client.patch(
+        f"/api/v1/ranking/justificativos/{justificativo['id']}/evaluar",
+        json={"estado": "APROBADO"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["estado"] == "APROBADO"
+
+
 def test_listar_justificativos_pendientes_vacio_cuando_no_hay(client):
     resp = client.get("/api/v1/ranking/justificativos/pendientes")
     assert resp.status_code == 200
