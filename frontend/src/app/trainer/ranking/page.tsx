@@ -39,7 +39,6 @@ import {
 import type { ResultadoMensual, CierreMensual } from "@/types/domain";
 import {
   fetchMembers,
-  fetchNivelesConOcupacion,
   assignStudentToNivel,
   moveStudentToNivel,
   registrarResultadoMensual,
@@ -80,7 +79,7 @@ export default function RankingPage(): React.ReactElement {
   const { session } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>("asignar");
 
-  const [members, setMembers] = useState<Awaited<ReturnType<typeof fetchMembers>>>([]);
+  const [members, setMembers] = useState<Awaited<ReturnType<typeof fetchMembers>>["accounts"]>([]);
   const [niveles, setNiveles] = useState<NivelConOcupacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -95,10 +94,7 @@ export default function RankingPage(): React.ReactElement {
     setLoading(true);
     setLoadError(null);
     try {
-      const [membersData, nivelesData] = await Promise.all([
-        fetchMembers(),
-        fetchNivelesConOcupacion(),
-      ]);
+      const { accounts: membersData, niveles: nivelesData } = await fetchMembers();
       setMembers(membersData);
       setNiveles(nivelesData);
     } catch {

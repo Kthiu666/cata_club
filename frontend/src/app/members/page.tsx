@@ -40,7 +40,7 @@ import {
   ToggleLeft,
   ToggleRight,
 } from "lucide-react";
-import { fetchMembers, fetchNivelesConOcupacion, asignarRol, quitarRol, cambiarEstadoCuenta, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia } from "@/services/api";
+import { fetchMembers, asignarRol, quitarRol, cambiarEstadoCuenta, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia } from "@/services/api";
 import type { TipoMembresiaCatalogo } from "@/services/api";
 import { nivelToGrupo } from "@/app/groups/groups-page-utils";
 import {
@@ -791,7 +791,7 @@ export default function MembersPage(): React.ReactElement {
     setLoading(true);
     setError(null);
     try {
-      const [membersData, niveles] = await Promise.all([fetchMembers(), fetchNivelesConOcupacion()]);
+      const { accounts: membersData, niveles } = await fetchMembers();
       setAccounts(membersData);
       setGrupos(niveles.map(nivelToGrupo));
     } catch {

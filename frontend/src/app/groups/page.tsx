@@ -52,7 +52,6 @@ import {
 } from "lucide-react";
 import {
   fetchMembers,
-  fetchNivelesConOcupacion,
   assignStudentToNivel,
   moveStudentToNivel,
   reingresar,
@@ -178,7 +177,7 @@ export default function GroupsPage(): React.ReactElement {
     setLoading(true);
     setLoadError(null);
     try {
-      const [nivelesData, members] = await Promise.all([fetchNivelesConOcupacion(), fetchMembers()]);
+      const { niveles: nivelesData, accounts: members } = await fetchMembers();
       setNiveles(nivelesData);
       const students: StudentRef[] = members.flatMap((account) =>
         account.estudiantes.map((estudiante) => ({
