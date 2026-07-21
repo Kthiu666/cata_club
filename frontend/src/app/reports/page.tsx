@@ -13,7 +13,6 @@
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import {
-  FileText,
   Users,
   Calendar,
   Search,
@@ -24,6 +23,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/components/shell/AppShell";
 import {
   fetchPersonasPorEtiquetas,
   fetchNuevosPorPeriodo,
@@ -204,24 +204,11 @@ function ReportsContent(): React.ReactElement {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cata-navy/10">
-            <FileText size={20} className="text-cata-navy" strokeWidth={1.5} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-cata-text">
-              Reportes
-            </h1>
-            <p className="text-sm text-cata-text/65">
-              Consulte y filtre información de miembros del club
-            </p>
-          </div>
-        </div>
-      </div>
-
+    <AppShell
+      eyebrow="Reportes"
+      title="Reportes y Analítica"
+      subtitle="Consulte y filtre información de miembros del club."
+    >
       {/* Tab selector */}
       <div className="mb-6 flex gap-1 rounded-xl bg-cata-bg p-1">
         <button
@@ -622,6 +609,6 @@ function ReportsContent(): React.ReactElement {
           )}
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }
