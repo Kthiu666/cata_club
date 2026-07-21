@@ -1,7 +1,7 @@
 from typing import Optional, List
 from datetime import date
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.dominio.modelos import Membresia, TipoMembresia
 from app.dominio.enums import EstadoMembresia
@@ -29,7 +29,15 @@ class MembresiaRepositorio:
         self.db = db
 
     def obtener_por_id(self, membresia_id: int) -> Optional[Membresia]:
-        return self.db.get(Membresia, membresia_id)
+        stmt = (
+            select(Membresia)
+            .options(
+                joinedload(Membresia.persona),
+                joinedload(Membresia.tipo_membresia),
+            )
+            .where(Membresia.id == membresia_id)
+        )
+        return self.db.execute(stmt).scalars().first()
 
     def contar_activas(self) -> int:
         stmt = (
@@ -94,19 +102,27 @@ class MembresiaRepositorio:
         return len(self.listar_membresias_activas_por_representante(representante_id, en_fecha))
 
     def listar_por_persona(self, persona_id: int) -> List[Membresia]:
-        return list(
-            self.db.query(Membresia)
-            .filter(Membresia.persona_id == persona_id)
-            .all()
+        stmt = (
+            select(Membresia)
+            .options(
+                joinedload(Membresia.persona),
+                joinedload(Membresia.tipo_membresia),
+            )
+            .where(Membresia.persona_id == persona_id)
         )
+        return list(self.db.execute(stmt).scalars().unique().all())
 
     def listar(self, skip: int = 0, limit: int = 200) -> List[Membresia]:
         """Listado paginado de todas las membresías. Útil para dashboards
         que necesitan conocer el estado de todas las membresías sin hacer
         N+1 consultas individuales."""
-        return list(
-            self.db.query(Membresia)
+        stmt = (
+            select(Membresia)
+            .options(
+                joinedload(Membresia.persona),
+                joinedload(Membresia.tipo_membresia),
+            )
             .offset(skip)
             .limit(limit)
-            .all()
         )
+        return list(self.db.execute(stmt).scalars().unique().all())

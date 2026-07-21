@@ -98,6 +98,10 @@ class ResultadoRankingMensualRepositorio:
     ) -> list[ResultadoRankingMensual]:
         return (
             self.db.query(ResultadoRankingMensual)
+            .options(
+                joinedload(ResultadoRankingMensual.persona),
+                joinedload(ResultadoRankingMensual.nivel_ranking),
+            )
             .filter(
                 ResultadoRankingMensual.nivel_ranking_id == nivel_id,
                 ResultadoRankingMensual.anio == anio,
@@ -238,6 +242,10 @@ class CierreMensualRankingRepositorio:
     def listar_por_nivel(self, nivel_id: int) -> list[CierreMensualRanking]:
         return (
             self.db.query(CierreMensualRanking)
+            .options(
+                joinedload(CierreMensualRanking.nivel_ranking),
+                joinedload(CierreMensualRanking.cerrado_por),
+            )
             .filter(CierreMensualRanking.nivel_ranking_id == nivel_id)
             .order_by(
                 CierreMensualRanking.anio.desc(),

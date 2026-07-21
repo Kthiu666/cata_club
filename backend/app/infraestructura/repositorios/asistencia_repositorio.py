@@ -1,5 +1,6 @@
 from typing import Optional, List
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, joinedload
 
 from app.dominio.modelos import Asistencia, HorarioEntrenamiento
 
@@ -12,7 +13,11 @@ class HorarioRepositorio:
         return self.db.get(HorarioEntrenamiento, horario_id)
 
     def listar(self) -> List[HorarioEntrenamiento]:
-        return self.db.query(HorarioEntrenamiento).all()
+        stmt = (
+            select(HorarioEntrenamiento)
+            .options(joinedload(HorarioEntrenamiento.entrenador))
+        )
+        return list(self.db.execute(stmt).scalars().unique().all())
 
     def crear(self, horario: HorarioEntrenamiento) -> HorarioEntrenamiento:
         self.db.add(horario)
@@ -32,7 +37,16 @@ class AsistenciaRepositorio:
         return asistencia
 
     def listar_por_persona(self, persona_id: int) -> List[Asistencia]:
-        return self.db.query(Asistencia).filter(Asistencia.persona_id == persona_id).all()
+        stmt = (
+            select(Asistencia)
+            .options(
+                joinedload(Asistencia.persona),
+                joinedload(Asistencia.entrenador),
+                joinedload(Asistencia.horario),
+            )
+            .where(Asistencia.persona_id == persona_id)
+        )
+        return list(self.db.execute(stmt).scalars().all())
 
     def listar_reporte(
         self,
@@ -43,7 +57,11 @@ class AsistenciaRepositorio:
     ) -> List[Asistencia]:
         """E02-RF005: reporte de asistencia por horario, periodo o alumno.
         Los tres filtros son opcionales y combinables."""
-        query = self.db.query(Asistencia)
+        query = self.db.query(Asistencia).options(
+            joinedload(Asistencia.persona),
+            joinedload(Asistencia.entrenador),
+            joinedload(Asistencia.horario),
+        )
         if horario_id is not None:
             query = query.filter(Asistencia.horario_id == horario_id)
         if persona_id is not None:
