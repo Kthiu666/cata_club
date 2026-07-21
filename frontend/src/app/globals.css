@@ -106,24 +106,28 @@
   }
 
   .badge-success {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium tracking-wide;
     background-color: rgba(21,128,61,0.12);
     color: #15803D;
     border: 1px solid rgba(21,128,61,0.3);
   }
 
   .badge-warning {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium tracking-wide;
     background-color: rgba(146,64,14,0.12);
     color: #92400E;
     border: 1px solid rgba(146,64,14,0.3);
   }
 
   .badge-error {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium tracking-wide;
     background-color: rgba(185,28,28,0.1);
     color: #B91C1C;
     border: 1px solid rgba(185,28,28,0.3);
   }
 
   .badge-neutral {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium tracking-wide;
     background-color: rgba(55,65,81,0.08);
     color: #374151;
     border: 1px solid rgba(55,65,81,0.15);
