@@ -22,6 +22,31 @@ interface MockImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   priority?: boolean;
 }
 
+// jsdom in this environment doesn't ship a working `localStorage` (Node's
+// experimental global shadows it — see `enrollment-session.test.ts`'s
+// pre-existing failure). Stub a real in-memory implementation so the
+// collapse-persistence tests exercise the actual get/set contract instead
+// of skipping storage assertions altogether.
+function createMemoryStorage(): Storage {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string): string | null => (key in store ? store[key] : null),
+    setItem: (key: string, value: string): void => {
+      store[key] = String(value);
+    },
+    removeItem: (key: string): void => {
+      delete store[key];
+    },
+    clear: (): void => {
+      store = {};
+    },
+    key: (index: number): string | null => Object.keys(store)[index] ?? null,
+    get length(): number {
+      return Object.keys(store).length;
+    },
+  } as Storage;
+}
+
 const mockPush = vi.fn();
 
 vi.mock("next/navigation", (): { usePathname: () => string; useRouter: () => { push: typeof mockPush } } => ({
@@ -78,6 +103,7 @@ describe("AppShell", (): void => {
     mockFetchNotificaciones.mockResolvedValue([]);
     mockMarcarNotificacionLeida.mockClear();
     mockMarcarNotificacionLeida.mockResolvedValue(undefined);
+    vi.stubGlobal("localStorage", createMemoryStorage());
   });
 
   it("renders the title, subtitle, and eyebrow", (): void => {
@@ -230,5 +256,50 @@ describe("AppShell", (): void => {
     fireEvent.keyDown(input, { key: "Enter" });
 
     expect(mockPush).toHaveBeenCalledWith("/attendance");
+  });
+
+  // --- Desktop sidebar collapse ---
+
+  it("collapses the sidebar: compact aside width, hidden nav labels, icon tooltips", (): void => {
+    const { container } = render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    fireEvent.click(screen.getByRole("button", { name: /Colapsar menú/i }));
+
+    expect(container.querySelector("aside")).toHaveClass("lg:w-[76px]");
+    const groupsLink = screen.getByRole("link", { name: /Grupos/i });
+    expect(groupsLink).toHaveAttribute("title", "Grupos");
+    expect(groupsLink.querySelector("span")).toHaveClass("lg:hidden");
+    expect(screen.getByRole("button", { name: /Expandir menú/i })).toBeInTheDocument();
+  });
+
+  it("initializes as collapsed when localStorage has a persisted collapsed flag", (): void => {
+    localStorage.setItem("cata_sidebar_collapsed", "true");
+
+    const { container } = render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    expect(screen.getByRole("button", { name: /Expandir menú/i })).toBeInTheDocument();
+    expect(container.querySelector("aside")).toHaveClass("lg:w-[76px]");
+  });
+
+  it("persists the collapsed flag to localStorage when toggled", (): void => {
+    render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    fireEvent.click(screen.getByRole("button", { name: /Colapsar menú/i }));
+    expect(localStorage.getItem("cata_sidebar_collapsed")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: /Expandir menú/i }));
+    expect(localStorage.getItem("cata_sidebar_collapsed")).toBe("false");
+  });
+
+  it("keeps the mobile drawer independent of the desktop collapse state", (): void => {
+    render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    fireEvent.click(screen.getByRole("button", { name: /Colapsar menú/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Abrir menú/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Cerrar menú/i }));
+
+    // Mobile open/close still works after collapsing the desktop sidebar —
+    // the two toggles remain functionally independent.
+    expect(screen.getByRole("button", { name: /Abrir menú/i })).toBeInTheDocument();
   });
 });

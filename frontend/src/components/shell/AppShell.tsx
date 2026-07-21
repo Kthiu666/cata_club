@@ -20,7 +20,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X, Search, LogOut, User } from "lucide-react";
+import { Menu, X, Search, LogOut, User, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNavLinksForRole, getRoleLabel, getUserInitials, type NavLinkDef } from "@/lib/auth-utils";
 import { normalizeText } from "@/app/members/members-utils";
@@ -39,6 +39,30 @@ export interface AppShellProps {
   children: React.ReactNode;
 }
 
+const SIDEBAR_COLLAPSED_KEY = "cata_sidebar_collapsed";
+
+// `localStorage` can be unavailable (SSR, private browsing, some test
+// environments without a full jsdom storage polyfill) — guard both reads and
+// writes so the collapse preference degrades to "not persisted" instead of
+// crashing the shell.
+function readCollapsedPreference(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage?.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function persistCollapsedPreference(value: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage?.setItem(SIDEBAR_COLLAPSED_KEY, String(value));
+  } catch {
+    // Ignore — persistence is a nice-to-have, not required for the shell to work.
+  }
+}
+
 export default function AppShell({
   eyebrow = "Panel de gestión",
   title,
@@ -50,6 +74,11 @@ export default function AppShell({
   const { session, logout } = useAuth();
   const { notificaciones, loadError, markRead } = useNotificaciones(!!session);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Desktop-only collapse state, independent from the mobile drawer
+  // (`sidebarOpen` above). Initialized from localStorage so the preference
+  // survives navigation/reload; scoped entirely via `lg:` classes so it has
+  // no effect on the mobile drawer's own open/close behavior.
+  const [collapsed, setCollapsed] = useState<boolean>(readCollapsedPreference);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -90,6 +119,14 @@ export default function AppShell({
     }
   }, [paletteOpen]);
 
+  function toggleCollapsed(): void {
+    setCollapsed((prev): boolean => {
+      const next = !prev;
+      persistCollapsedPreference(next);
+      return next;
+    });
+  }
+
   function goTo(href: string): void {
     setPaletteOpen(false);
     setSidebarOpen(false);
@@ -115,21 +152,33 @@ export default function AppShell({
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-cata-black text-white transition-transform duration-200 lg:static lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+          collapsed ? "lg:w-[76px]" : ""
+        } ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
           <Link href="/" className="flex min-w-0 flex-1 items-center gap-3">
             <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg">
               <Image src="/brand/cata-club-logo.jpeg" alt="Cata Club" fill className="object-cover" sizes="36px" />
             </div>
-            <div className="min-w-0 leading-tight">
+            <div className={`min-w-0 leading-tight ${collapsed ? "lg:hidden" : ""}`}>
               <p className="truncate text-sm font-bold">Cata Club</p>
               <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-white/45">
                 Panel de gestión
               </p>
             </div>
           </Link>
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="hidden rounded-lg p-1.5 text-white/55 hover:bg-white/10 hover:text-white lg:flex"
+            aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
+          >
+            {collapsed ? (
+              <ChevronRight size={18} strokeWidth={1.5} aria-hidden="true" />
+            ) : (
+              <ChevronLeft size={18} strokeWidth={1.5} aria-hidden="true" />
+            )}
+          </button>
           <button
             type="button"
             onClick={(): void => setSidebarOpen(false)}
@@ -150,12 +199,13 @@ export default function AppShell({
                 href={link.href}
                 onClick={(): void => setSidebarOpen(false)}
                 aria-current={isActive ? "page" : undefined}
+                title={link.label}
                 className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                   isActive ? "bg-cata-red/20 text-white" : "text-white/65 hover:bg-white/[0.08] hover:text-white"
                 }`}
               >
                 <Icon size={17} strokeWidth={1.5} aria-hidden="true" />
-                {link.label}
+                <span className={collapsed ? "lg:hidden" : undefined}>{link.label}</span>
               </Link>
             );
           })}
