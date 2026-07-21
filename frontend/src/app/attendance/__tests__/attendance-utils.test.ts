@@ -18,7 +18,12 @@ import {
   getScheduleLevelLabel,
   getAttendanceBadgeTokens,
   getAttendanceRatePercent,
+  paginateRecords,
+  getTotalPages,
+  ATTENDANCE_PAGE_SIZE,
+  groupSchedulesByDay,
   type AttendanceRecord,
+  type TrainingSchedule,
 } from "../attendance-utils";
 import type { EstadoAsistencia, Grupo, NivelTecnico } from "@/types/domain";
 import type { ScheduleSlot } from "../attendance-utils";
@@ -451,5 +456,96 @@ describe("getAttendanceRatePercent", () => {
     };
     // 2/3 = 66.66...% → rounds to 67
     expect(getAttendanceRatePercent(stats)).toBe(67);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// paginateRecords / getTotalPages (PR3 — client-side attendance pagination)
+// ---------------------------------------------------------------------------
+
+function buildRecords(count: number): AttendanceRecord[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `rec-${i}`,
+    fecha: "2026-07-01",
+    horario: "Test",
+    estudiante: `Student ${i}`,
+    estado: "present" as EstadoAsistencia,
+    entrenador: "Trainer X",
+  }));
+}
+
+describe("paginateRecords", () => {
+  it("slices records to ATTENDANCE_PAGE_SIZE for page 1, and the remainder for a later page", () => {
+    expect(ATTENDANCE_PAGE_SIZE).toBe(25);
+    const records = buildRecords(60);
+    const page1 = paginateRecords(records, 1);
+    expect(page1).toHaveLength(25);
+    expect(page1[0].id).toBe("rec-0");
+    expect(page1[24].id).toBe("rec-24");
+    const page3 = paginateRecords(records, 3);
+    expect(page3).toHaveLength(10);
+    expect(page3[0].id).toBe("rec-50");
+  });
+
+  it("returns an empty array for a page beyond the data", () => {
+    expect(paginateRecords(buildRecords(10), 5)).toEqual([]);
+  });
+
+  it("reflects a filtered subset, not the unfiltered total", () => {
+    const records = buildRecords(288);
+    const filtered = records.filter((r) => r.id === "rec-0" || r.id === "rec-1");
+    expect(paginateRecords(filtered, 1)).toEqual(filtered);
+    expect(getTotalPages(filtered.length)).toBe(1);
+  });
+});
+
+describe("getTotalPages", () => {
+  it("rounds up to a whole page count, floored at 1 (never 0 pages)", () => {
+    expect(getTotalPages(288)).toBe(12);
+    expect(getTotalPages(26)).toBe(2);
+    expect(getTotalPages(25)).toBe(1);
+    expect(getTotalPages(0)).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// groupSchedulesByDay (PR3 — Horarios de Entrenamiento density)
+// ---------------------------------------------------------------------------
+
+function buildSchedule(id: number, diaSemana: TrainingSchedule["diaSemana"]): TrainingSchedule {
+  return {
+    id,
+    diaSemana,
+    horaInicio: "15:00",
+    horaFin: "16:00",
+    entrenadorId: 1,
+    entrenadorNombre: `Entrenador ${id}`,
+  };
+}
+
+describe("groupSchedulesByDay", () => {
+  it("groups schedules under their diaSemana, ordered Lunes..Domingo regardless of input order, with day labels", () => {
+    const schedules = [
+      buildSchedule(1, "vie"),
+      buildSchedule(2, "lun"),
+      buildSchedule(3, "lun"),
+      buildSchedule(4, "dom"),
+    ];
+    const groups = groupSchedulesByDay(schedules);
+    expect(groups.map((g) => g.day)).toEqual(["lun", "vie", "dom"]);
+    expect(groups[0].schedules).toHaveLength(2);
+    expect(groups[0].label).toBe("Lunes");
+  });
+
+  it("omits days with no schedules and loses none across the full week (25 horarios)", () => {
+    const days: TrainingSchedule["diaSemana"][] = ["lun", "mar", "mie", "jue", "vie", "sab", "dom"];
+    const schedules = Array.from({ length: 25 }, (_, i) => buildSchedule(i, days[i % days.length]));
+    const groups = groupSchedulesByDay(schedules);
+    expect(groups).toHaveLength(7);
+    expect(groups.reduce((sum, g) => sum + g.schedules.length, 0)).toBe(25);
+  });
+
+  it("returns an empty array for no schedules", () => {
+    expect(groupSchedulesByDay([])).toEqual([]);
   });
 });

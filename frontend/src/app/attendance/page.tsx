@@ -18,7 +18,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import {
@@ -32,14 +32,18 @@ import {
   AlertTriangle,
   Clock3,
   HelpCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { fetchTrainingSchedules, fetchAttendanceRecords } from "@/services/api";
 import {
   buildAttendanceStats,
-  formatDay,
   getAttendanceBadgeTokens,
   DIA_SEMANA_LABELS,
   ATTENDANCE_LABELS,
+  paginateRecords,
+  getTotalPages,
+  groupSchedulesByDay,
   type AttendanceRecord,
   type TrainingSchedule,
 } from "./attendance-utils";
@@ -106,6 +110,7 @@ export default function AttendancePage(): React.ReactElement {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recordsPage, setRecordsPage] = useState(1);
 
   const loadData = useCallback(async (): Promise<void> => {
     try {
@@ -129,10 +134,27 @@ export default function AttendancePage(): React.ReactElement {
     loadData();
   }, [loadData]);
 
+  // Reset to page 1 whenever the underlying records set changes (e.g. after
+  // a reload), so the paginator never gets stuck on a stale/out-of-range page.
+  useEffect(() => {
+    setRecordsPage(1);
+  }, [records]);
+
   const stats = buildAttendanceStats(records);
 
   const filteredSchedules =
     dayFilter === "all" ? schedules : schedules.filter((s) => s.diaSemana === dayFilter);
+
+  const scheduleDayGroups = useMemo(
+    () => groupSchedulesByDay(filteredSchedules),
+    [filteredSchedules],
+  );
+
+  const recordsTotalPages = useMemo(() => getTotalPages(records.length), [records]);
+  const paginatedRecords = useMemo(
+    () => paginateRecords(records, recordsPage),
+    [records, recordsPage],
+  );
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
@@ -250,34 +272,43 @@ export default function AttendancePage(): React.ReactElement {
                 </div>
               </div>
 
-              {filteredSchedules.length > 0 ? (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {filteredSchedules.map((slot) => (
-                    <div key={slot.id} className="card-hover p-5">
-                      <div className="mb-3 flex items-center gap-2.5">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
-                          <Calendar size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+              {scheduleDayGroups.length > 0 ? (
+                <div className="space-y-5">
+                  {scheduleDayGroups.map((group) => (
+                    <div key={group.day}>
+                      <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-cata-text">
+                        <Calendar size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                        {group.label}
+                      </h3>
+                      <div className="card overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-sm">
+                            <thead>
+                              <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
+                                <th className="px-4 py-2 font-medium">Horario</th>
+                                <th className="px-4 py-2 font-medium">Entrenador</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-cata-border">
+                              {group.schedules.map((slot) => (
+                                <tr key={slot.id} className="transition-colors hover:bg-cata-bg">
+                                  <td className="px-4 py-2 text-xs text-cata-text">
+                                    <span className="flex items-center gap-1.5">
+                                      <Clock size={12} strokeWidth={1.5} className="text-cata-red/70" aria-hidden="true" />
+                                      {slot.horaInicio}–{slot.horaFin}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-2 text-xs text-cata-text/65">
+                                    <span className="flex items-center gap-1.5">
+                                      <UserCheck size={12} strokeWidth={1.5} aria-hidden="true" />
+                                      {slot.entrenadorNombre}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                        <div>
-                          <span className="block text-sm font-bold text-cata-text">
-                            {formatDay(slot.diaSemana)}
-                          </span>
-                          <span className="text-xs text-cata-text/50">
-                            {slot.horaInicio}–{slot.horaFin}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-cata-bg/60 px-3 py-2">
-                        <p className="flex items-center gap-1.5 text-xs text-cata-text/70">
-                          <Clock size={13} strokeWidth={1.5} className="text-cata-red/70" aria-hidden="true" />
-                          <span className="font-semibold text-cata-text">{slot.horaInicio}</span>
-                          <span className="text-cata-text/40">a</span>
-                          <span className="font-semibold text-cata-text">{slot.horaFin}</span>
-                        </p>
-                        <p className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/55">
-                          <UserCheck size={12} strokeWidth={1.5} aria-hidden="true" />
-                          {slot.entrenadorNombre}
-                        </p>
                       </div>
                     </div>
                   ))}
@@ -302,45 +333,75 @@ export default function AttendancePage(): React.ReactElement {
               </div>
 
               {records.length > 0 ? (
-                <div className="card overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                      <thead>
-                        <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
-                          <th className="px-4 py-3 font-medium">Fecha</th>
-                          <th className="px-4 py-3 font-medium">Horario</th>
-                          <th className="px-4 py-3 font-medium">Estudiante</th>
-                          <th className="px-4 py-3 font-medium">Estado</th>
-                          <th className="px-4 py-3 font-medium">Registrado por</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-cata-border">
-                        {records.map((record) => (
-                          <tr key={record.id} className="transition-colors hover:bg-cata-bg">
-                            <td className="px-4 py-3 text-xs text-cata-text/65">
-                              {record.fecha}
-                            </td>
-                            <td className="px-4 py-3 text-xs text-cata-text">
-                              {record.horario}
-                            </td>
-                            <td className="px-4 py-3 text-sm font-medium text-cata-text">
-                              {record.estudiante}
-                            </td>
-                            <td className="px-4 py-3">
-                              <AttendanceBadge estado={record.estado} />
-                            </td>
-                            <td className="px-4 py-3 text-xs text-cata-text/65">
-                              <span className="flex items-center gap-1.5">
-                                <UserCheck size={11} strokeWidth={1.5} aria-hidden="true" />
-                                {record.entrenador}
-                              </span>
-                            </td>
+                <>
+                  <div className="card overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead>
+                          <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
+                            <th className="px-4 py-3 font-medium">Fecha</th>
+                            <th className="px-4 py-3 font-medium">Horario</th>
+                            <th className="px-4 py-3 font-medium">Estudiante</th>
+                            <th className="px-4 py-3 font-medium">Estado</th>
+                            <th className="px-4 py-3 font-medium">Registrado por</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-cata-border">
+                          {paginatedRecords.map((record) => (
+                            <tr key={record.id} className="transition-colors hover:bg-cata-bg">
+                              <td className="px-4 py-3 text-xs text-cata-text/65">
+                                {record.fecha}
+                              </td>
+                              <td className="px-4 py-3 text-xs text-cata-text">
+                                {record.horario}
+                              </td>
+                              <td className="px-4 py-3 text-sm font-medium text-cata-text">
+                                {record.estudiante}
+                              </td>
+                              <td className="px-4 py-3">
+                                <AttendanceBadge estado={record.estado} />
+                              </td>
+                              <td className="px-4 py-3 text-xs text-cata-text/65">
+                                <span className="flex items-center gap-1.5">
+                                  <UserCheck size={11} strokeWidth={1.5} aria-hidden="true" />
+                                  {record.entrenador}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
+
+                  {recordsTotalPages > 1 && (
+                    <div className="mt-3 flex items-center justify-between">
+                      <p className="text-xs text-cata-text/50">
+                        Página {recordsPage} de {recordsTotalPages}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setRecordsPage((p) => Math.max(1, p - 1))}
+                          disabled={recordsPage <= 1}
+                          className="btn-ghost px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                          aria-label="Página anterior"
+                        >
+                          <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRecordsPage((p) => Math.min(recordsTotalPages, p + 1))}
+                          disabled={recordsPage >= recordsTotalPages}
+                          className="btn-ghost px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                          aria-label="Página siguiente"
+                        >
+                          <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="card flex flex-col items-center py-12 text-center">
                   <UserCheck size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
