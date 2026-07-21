@@ -88,9 +88,10 @@ describe("GET /api/payments", () => {
 
   it("translates the backend queue into PaymentValidationRequest[]", async () => {
     vi.mocked(global.fetch)
-      .mockResolvedValueOnce(jsonResponse({ items: [pagoListItem] }))
-      .mockResolvedValueOnce(jsonResponse(tipos))
-      .mockResolvedValueOnce(jsonResponse(membresia));
+      .mockResolvedValueOnce(jsonResponse({ items: [pagoListItem] })) // /membresias/pagos
+      .mockResolvedValueOnce(jsonResponse({ items: [] })) // /personas/
+      .mockResolvedValueOnce(jsonResponse(tipos)) // /membresias/tipos
+      .mockResolvedValueOnce(jsonResponse({ items: [{ id: 1, ...membresia }] })); // /membresias/
 
     const access = makeJwt(3600);
     const response = await GET(getRequest(`${ACCESS_TOKEN_COOKIE}=${access}`));
