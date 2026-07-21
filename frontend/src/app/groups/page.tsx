@@ -50,6 +50,7 @@ import {
   XCircle,
   Loader2,
 } from "lucide-react";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   fetchMembers,
   assignStudentToNivel,
@@ -156,6 +157,33 @@ export default function GroupsPage(): React.ReactElement {
   const [justificativosPendientes, setJustificativosPendientes] = useState<Justificativo[]>([]);
   const [justificativosLoading, setJustificativosLoading] = useState(true);
   const [evaluandoId, setEvaluandoId] = useState<number | null>(null);
+  const [confirmingJustificativo, setConfirmingJustificativo] = useState<{
+    id: number;
+    estado: "APROBADO" | "RECHAZADO";
+  } | null>(null);
+
+  // Quick-assign dropdown selection per unassigned student, keyed by
+  // estudianteId -> nivel id (as a string, matching the <select> value).
+  const [pendingAssignment, setPendingAssignment] = useState<Record<string, string>>({});
+
+  // Selección Oficial nav link (`/groups#seleccion-oficial`) — smooth-scroll
+  // + brief highlight on arrival, on mount and on in-page hash changes.
+  const [highlightSeleccion, setHighlightSeleccion] = useState(false);
+
+  useEffect(() => {
+    function scrollToSeleccionIfHashed(): void {
+      if (window.location.hash !== "#seleccion-oficial") return;
+      const target = document.getElementById("seleccion-oficial");
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      setHighlightSeleccion(true);
+      setTimeout(() => setHighlightSeleccion(false), 600);
+    }
+
+    scrollToSeleccionIfHashed();
+    window.addEventListener("hashchange", scrollToSeleccionIfHashed);
+    return () => window.removeEventListener("hashchange", scrollToSeleccionIfHashed);
+  }, []);
 
   const loadJustificativos = useCallback(async (): Promise<void> => {
     setJustificativosLoading(true);
@@ -466,21 +494,35 @@ export default function GroupsPage(): React.ReactElement {
                         </div>
                       </div>
 
-                      <div className="flex gap-1.5">
-                        {niveles.map((nivel) => (
-                          <button
-                            key={nivel.id}
-                            type="button"
-                            disabled={actionPending}
-                            onClick={() =>
-                              void handleAssignStudent(student.id, String(nivel.id))
-                            }
-                            className="rounded-lg border border-cata-border px-2 py-1 text-[10px] font-medium transition-colors hover:bg-cata-red/15 hover:text-cata-red disabled:opacity-50 whitespace-nowrap"
-                            title={`Asignar a ${nivel.nombre ?? `Nivel ${nivel.numeroNivel}`}`}
-                          >
-                            {nivel.nombre ?? `Nivel ${nivel.numeroNivel}`}
-                          </button>
-                        ))}
+                      <div className="flex items-center gap-1.5">
+                        <label className="sr-only" htmlFor={`assign-nivel-${student.id}`}>
+                          Nivel para {student.nombres} {student.apellidos}
+                        </label>
+                        <select
+                          id={`assign-nivel-${student.id}`}
+                          className="input-field text-xs"
+                          value={pendingAssignment[student.id] ?? ""}
+                          onChange={(e) =>
+                            setPendingAssignment((prev) => ({ ...prev, [student.id]: e.target.value }))
+                          }
+                        >
+                          <option value="">Seleccionar nivel...</option>
+                          {niveles.map((nivel) => (
+                            <option key={nivel.id} value={nivel.id}>
+                              {nivel.nombre ?? `Nivel ${nivel.numeroNivel}`}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={actionPending || !pendingAssignment[student.id]}
+                          onClick={() =>
+                            void handleAssignStudent(student.id, pendingAssignment[student.id])
+                          }
+                          className="rounded-lg border border-cata-border px-2.5 py-1 text-[10px] font-medium transition-colors hover:bg-cata-red/15 hover:text-cata-red disabled:opacity-50 whitespace-nowrap"
+                        >
+                          Asignar
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -537,8 +579,9 @@ export default function GroupsPage(): React.ReactElement {
             </div>
           </div>
 
-          {/* Right column: Group detail panel */}
-          <div className="space-y-4">
+          {/* Right column: Group detail panel — sticky on desktop so it
+              stays visible while the left column scrolls further. */}
+          <div className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
             {selectedNivel ? (
               <>
                 {/* Group detail */}
@@ -691,7 +734,12 @@ export default function GroupsPage(): React.ReactElement {
         </div>
 
         {/* Selección Oficial (Ranking track) — admin-managed roster, independent of the trainer-managed monthly ranking flow */}
-        <div id="seleccion-oficial" className="card mt-8 scroll-mt-24 p-6">
+        <div
+          id="seleccion-oficial"
+          className={`card mt-8 scroll-mt-24 p-6 transition-shadow ${
+            highlightSeleccion ? "ring-2 ring-cata-red/50" : ""
+          }`}
+        >
           <div className="mb-4 flex items-center gap-2">
             <Award size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
             <h3 className="text-sm font-bold text-cata-text">Selección Oficial</h3>
@@ -831,7 +879,7 @@ export default function GroupsPage(): React.ReactElement {
                       <button
                         type="button"
                         disabled={isEvaluando}
-                        onClick={() => void handleEvaluarJustificativo(j.id, "APROBADO")}
+                        onClick={() => setConfirmingJustificativo({ id: j.id, estado: "APROBADO" })}
                         className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
                       >
                         <CheckCircle2 size={12} strokeWidth={1.5} aria-hidden="true" />
@@ -840,7 +888,7 @@ export default function GroupsPage(): React.ReactElement {
                       <button
                         type="button"
                         disabled={isEvaluando}
-                        onClick={() => void handleEvaluarJustificativo(j.id, "RECHAZADO")}
+                        onClick={() => setConfirmingJustificativo({ id: j.id, estado: "RECHAZADO" })}
                         className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-medium text-cata-red transition-colors hover:bg-red-100 disabled:opacity-50"
                       >
                         <XCircle size={12} strokeWidth={1.5} aria-hidden="true" />
@@ -874,6 +922,28 @@ export default function GroupsPage(): React.ReactElement {
             un Administrador puede mover a un estudiante ya asignado entre grupos.
           </p>
         </div>
+
+        <ConfirmDialog
+          open={confirmingJustificativo !== null}
+          variant={confirmingJustificativo?.estado === "APROBADO" ? "state-ok" : "danger"}
+          title={
+            confirmingJustificativo?.estado === "APROBADO"
+              ? "Aprobar justificativo"
+              : "Rechazar justificativo"
+          }
+          message={
+            confirmingJustificativo?.estado === "APROBADO"
+              ? "¿Confirma que aprueba este justificativo de ausencia?"
+              : "¿Confirma que rechaza este justificativo de ausencia?"
+          }
+          onConfirm={() => {
+            if (!confirmingJustificativo) return;
+            const { id, estado } = confirmingJustificativo;
+            setConfirmingJustificativo(null);
+            void handleEvaluarJustificativo(id, estado);
+          }}
+          onCancel={() => setConfirmingJustificativo(null)}
+        />
       </AppShell>
     </ProtectedRoute>
   );
