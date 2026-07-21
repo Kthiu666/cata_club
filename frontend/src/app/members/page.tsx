@@ -583,14 +583,25 @@ interface AccountRowProps {
   account: MemberAccount;
   defaultOpen: boolean;
   grupos: Grupo[];
+  rolesMenuOpen: boolean;
+  onToggleRolesMenu: () => void;
 }
 
 const ALL_BACKEND_ROLES: BackendTipoRol[] = ["ADMINISTRADOR", "ENTRENADOR", "TESORERO", "ALUMNO"];
+
+const ROLE_LABELS: Record<BackendTipoRol, string> = {
+  ADMINISTRADOR: "Admin",
+  ENTRENADOR: "Entrenador",
+  TESORERO: "Tesorero",
+  ALUMNO: "Alumno",
+};
 
 function AccountRow({
   account,
   defaultOpen,
   grupos,
+  rolesMenuOpen,
+  onToggleRolesMenu,
 }: AccountRowProps): React.ReactElement {
   const [expanded, setExpanded] = useState(defaultOpen);
   const [roles, setRoles] = useState<BackendTipoRol[]>([]);
@@ -714,31 +725,41 @@ function AccountRow({
             <span className={`badge ${statusBadge.className}`}>
               {statusBadge.label}
             </span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {ALL_BACKEND_ROLES.map((role) => {
-                const selected = roles.includes(role);
-                const isLoading = roleLoading === role;
-                return (
-                  <button
-                    key={role}
-                    type="button"
-                    onClick={() => void toggleRole(role)}
-                    disabled={roleLoading !== null}
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                      selected
-                        ? "bg-cata-red text-white"
-                        : "bg-cata-bg text-cata-text/65 hover:bg-cata-border/40"
-                    } disabled:opacity-50`}
-                    title={selected ? "Quitar rol" : "Asignar rol"}
-                  >
-                    {isLoading && <Loader2 size={10} className="animate-spin" aria-hidden="true" />}
-                    {role === "ADMINISTRADOR" && "Admin"}
-                    {role === "ENTRENADOR" && "Entrenador"}
-                    {role === "TESORERO" && "Tesorero"}
-                    {role === "ALUMNO" && "Alumno"}
-                  </button>
-                );
-              })}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={onToggleRolesMenu}
+                aria-haspopup="true"
+                aria-expanded={rolesMenuOpen}
+                className="inline-flex items-center gap-1.5 rounded-full border border-cata-border px-2.5 py-1 text-xs font-medium text-cata-text/65 transition-colors hover:bg-cata-bg"
+              >
+                <ShieldCheck size={11} strokeWidth={1.5} aria-hidden="true" />
+                Roles
+              </button>
+              {rolesMenuOpen && (
+                <div className="absolute left-0 top-full z-50 mt-1.5 w-40 rounded-xl border border-cata-border bg-cata-surface p-1.5 shadow-elevated">
+                  {ALL_BACKEND_ROLES.map((role) => {
+                    const selected = roles.includes(role);
+                    const isLoading = roleLoading === role;
+                    return (
+                      <label
+                        key={role}
+                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-cata-text transition-colors hover:bg-cata-bg"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => void toggleRole(role)}
+                          disabled={roleLoading !== null}
+                          className="h-3.5 w-3.5 rounded border-cata-border text-cata-red focus:ring-cata-red"
+                        />
+                        {isLoading && <Loader2 size={10} className="animate-spin" aria-hidden="true" />}
+                        {ROLE_LABELS[role]}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             {roleError && (
               <p className="text-[10px] text-cata-red" role="alert">
@@ -786,6 +807,19 @@ export default function MembersPage(): React.ReactElement {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [rolesMenuOpen, setRolesMenuOpen] = useState<Set<string>>(new Set());
+
+  const toggleRolesMenu = useCallback((accountId: string) => {
+    setRolesMenuOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(accountId)) {
+        next.delete(accountId);
+      } else {
+        next.add(accountId);
+      }
+      return next;
+    });
+  }, []);
 
   const loadMembers = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -932,6 +966,8 @@ export default function MembersPage(): React.ReactElement {
                       account={account}
                       defaultOpen={index === 0 && filteredAccounts.length === 1}
                       grupos={grupos}
+                      rolesMenuOpen={rolesMenuOpen.has(account.id)}
+                      onToggleRolesMenu={() => toggleRolesMenu(account.id)}
                     />
                   ))}
                 </tbody>
