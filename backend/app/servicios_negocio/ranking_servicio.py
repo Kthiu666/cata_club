@@ -583,6 +583,30 @@ class RankingServicio:
             actualizados.append(self.repo.guardar_cambios(ranking))
         return actualizados
 
+    def listar_seleccion_oficial(self, anio: int | None = None) -> list["SeleccionOficialItemDTO"]:
+        from app.presentacion.schemas.ranking_schemas import SeleccionOficialItemDTO
+        rankings = self.repo.listar_seleccion_oficial(anio)
+        resultado = []
+        for r in rankings:
+            resultado.append(
+                SeleccionOficialItemDTO(
+                    persona_id=r.persona_id,
+                    persona_nombre_completo=f"{r.persona.nombres} {r.persona.apellidos}",
+                    anio_seleccion=r.anio_seleccion,
+                )
+            )
+        return resultado
+
+    def quitar_seleccion_oficial(self, persona_id: int) -> None:
+        ranking = self.repo.obtener_por_persona(persona_id)
+        if not ranking:
+            raise EntidadNoEncontrada(f"No existe ranking para la persona {persona_id}")
+        if not ranking.seleccion_oficial:
+            raise OperacionInvalida(f"La persona {persona_id} no está en la selección oficial")
+        ranking.seleccion_oficial = False
+        ranking.anio_seleccion = None
+        self.repo.guardar_cambios(ranking)
+
     # --- E04-RF012: perfil privado del alumno -----------------------------
     def obtener_perfil_alumno(self, persona_id: int) -> PerfilRankingAlumnoDTO:
         ranking = self.repo.obtener_por_persona(persona_id)

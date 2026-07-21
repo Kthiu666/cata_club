@@ -7,11 +7,8 @@
  * live-tested it and said it still felt like an abrupt context switch, so
  * it now gets its own dedicated screen instead.
  *
- * Frontend-only session list — same reasoning as `groups/page.tsx`'s
- * Reingreso section: there's no backend GET yet to refresh the roster, so
- * entries added this session are tracked locally. Data layer (types, API
- * call) is unchanged — see `@/services/api`'s `seleccionOficial` and
- * `src/app/api/ranking/seleccion-oficial/route.ts`.
+ * Roster is fetched from the backend (GET /ranking/seleccion-oficial) and
+ * displayed with a "Quitar" button to remove members (DELETE).
  */
 
 "use client";
@@ -19,19 +16,25 @@
 import { useCallback, useEffect, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
-import { Award, AlertTriangle } from "lucide-react";
-import { fetchMembers, seleccionOficial, ApiClientError } from "@/services/api";
-import type { SeleccionOficial } from "@/types/domain";
+import { Award, AlertTriangle, X } from "lucide-react";
+import {
+  fetchMembers,
+  seleccionOficial,
+  fetchSeleccionOficial,
+  quitarDeSeleccionOficial,
+  ApiClientError,
+} from "@/services/api";
+import type { SeleccionOficialRosterItem } from "@/services/api";
 import type { StudentRef } from "@/lib/groups-utils";
 
 export default function SeleccionOficialPage(): React.ReactElement {
   const [allStudents, setAllStudents] = useState<StudentRef[]>([]);
+  const [roster, setRoster] = useState<SeleccionOficialRosterItem[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [seleccionEstudianteId, setSeleccionEstudianteId] = useState("");
   const [seleccionLoading, setSeleccionLoading] = useState(false);
   const [seleccionError, setSeleccionError] = useState<string | null>(null);
-  const [seleccionesOficiales, setSeleccionesOficiales] = useState<SeleccionOficial[]>([]);
 
   const loadStudents = useCallback(async (): Promise<void> => {
     setLoadError(null);
@@ -52,9 +55,19 @@ export default function SeleccionOficialPage(): React.ReactElement {
     }
   }, []);
 
+  const loadRoster = useCallback(async (): Promise<void> => {
+    try {
+      const data = await fetchSeleccionOficial();
+      setRoster(data);
+    } catch {
+      // Silently fail — the roster table just won't show persisted entries
+    }
+  }, []);
+
   useEffect(() => {
     void loadStudents();
-  }, [loadStudents]);
+    void loadRoster();
+  }, [loadStudents, loadRoster]);
 
   async function handleSeleccionOficialSubmit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -67,11 +80,9 @@ export default function SeleccionOficialPage(): React.ReactElement {
 
     setSeleccionLoading(true);
     try {
-      const entry = await seleccionOficial({
-        estudianteId: seleccionEstudianteId,
-      });
-      setSeleccionesOficiales((prev) => [entry, ...prev]);
+      await seleccionOficial({ estudianteId: seleccionEstudianteId });
       setSeleccionEstudianteId("");
+      await loadRoster();
     } catch (err) {
       console.error("[seleccion-oficial] seleccionOficial failed", err);
       setSeleccionError(
@@ -79,6 +90,18 @@ export default function SeleccionOficialPage(): React.ReactElement {
       );
     } finally {
       setSeleccionLoading(false);
+    }
+  }
+
+  async function handleQuitar(personaId: number): Promise<void> {
+    try {
+      await quitarDeSeleccionOficial(personaId);
+      setRoster((prev) => prev.filter((item) => item.persona_id !== personaId));
+    } catch (err) {
+      console.error("[seleccion-oficial] quitarDeSeleccionOficial failed", err);
+      setSeleccionError(
+        err instanceof ApiClientError ? err.message : "Error al quitar de la selección oficial.",
+      );
     }
   }
 
@@ -143,25 +166,34 @@ export default function SeleccionOficialPage(): React.ReactElement {
             </div>
           </form>
 
-          {seleccionesOficiales.length > 0 && (
+          {roster.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
                     <th className="px-4 py-2 font-medium">Estudiante</th>
+                    <th className="px-4 py-2 font-medium text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cata-border">
-                  {seleccionesOficiales.map((entry) => {
-                    const student = allStudents.find((s) => s.id === entry.estudianteId);
-                    return (
-                      <tr key={entry.id}>
-                        <td className="px-4 py-2 text-cata-text">
-                          {student ? `${student.nombres} ${student.apellidos}` : entry.estudianteId}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {roster.map((item) => (
+                    <tr key={item.persona_id}>
+                      <td className="px-4 py-2 text-cata-text">
+                        {item.persona_nombre_completo}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => void handleQuitar(item.persona_id)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-cata-red/20 bg-cata-red/10 px-2 py-1 text-xs font-medium text-cata-red transition-colors hover:bg-cata-red/20"
+                          title={`Quitar ${item.persona_nombre_completo} de la selección oficial`}
+                        >
+                          <X size={12} strokeWidth={2} aria-hidden="true" />
+                          Quitar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

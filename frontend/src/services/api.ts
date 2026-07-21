@@ -687,6 +687,29 @@ export async function seleccionOficial(
   });
 }
 
+/** Fetch the persisted official-selection roster. */
+export async function fetchSeleccionOficial(): Promise<SeleccionOficialRosterItem[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<SeleccionOficialRosterItem[]>(apiEndpoint("/ranking/seleccion-oficial"), {
+    headers: mockHeaders,
+  });
+}
+
+/** Remove a student from the official-selection roster. */
+export async function quitarDeSeleccionOficial(personaId: number): Promise<void> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  await request<unknown>(apiEndpoint(`/ranking/seleccion-oficial/${personaId}`), {
+    method: "DELETE",
+    headers: mockHeaders,
+  });
+}
+
+export interface SeleccionOficialRosterItem {
+  persona_id: number;
+  persona_nombre_completo: string;
+  anio_seleccion: number | null;
+}
+
 // ---------------------------------------------------------------------------
 // Ranking Data Fetching (GET endpoints — replace mock data)
 // ---------------------------------------------------------------------------

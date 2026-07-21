@@ -77,6 +77,17 @@ class RankingRepositorio:
         self.db.refresh(ranking)
         return ranking
 
+    def listar_seleccion_oficial(self, anio: int | None = None) -> list[Ranking]:
+        stmt = (
+            select(Ranking)
+            .options(joinedload(Ranking.persona))
+            .where(Ranking.seleccion_oficial.is_(True))
+        )
+        if anio is not None:
+            stmt = stmt.where(Ranking.anio_seleccion == anio)
+        stmt = stmt.order_by(Ranking.persona_id)
+        return list(self.db.execute(stmt).scalars().unique().all())
+
 
 class ResultadoRankingMensualRepositorio:
     def __init__(self, db: Session):

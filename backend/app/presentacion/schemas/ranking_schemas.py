@@ -162,6 +162,13 @@ class SeleccionOficialDTO(BaseModel):
     anio: int = Field(..., ge=2020)
 
 
+class SeleccionOficialItemDTO(ResponseBase, BaseModel):
+    """Item del roster de selección oficial para listado."""
+    persona_id: int
+    persona_nombre_completo: str
+    anio_seleccion: Optional[int] = None
+
+
 # --- Perfil del alumno (E04-RF012) ------------------------------------------
 class PerfilRankingAlumnoDTO(ResponseBase, BaseModel):
     persona_id: int
