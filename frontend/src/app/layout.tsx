@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Header from "@/components/Header";
 import AuthProviderWrapper from "@/components/AuthProviderWrapper";
+import { ToastProvider } from "@/contexts/ToastContext";
+import ToastContainer from "@/components/ToastContainer";
 import "./globals.css";
 
 const inter = Inter({
@@ -34,12 +36,15 @@ export default function RootLayout({
   return (
     <html lang="es" className={inter.variable}>
       <body className="min-h-screen bg-cata-bg font-sans text-cata-text antialiased">
-        <AuthProviderWrapper>
-          <Header hideOnLanding />
-          <main className="app-main mx-auto max-w-8xl px-4 py-10 sm:px-8 lg:px-12">
-            {children}
-          </main>
-        </AuthProviderWrapper>
+        <ToastProvider>
+          <ToastContainer />
+          <AuthProviderWrapper>
+            <Header hideOnLanding />
+            <main className="app-main mx-auto max-w-8xl px-4 py-10 sm:px-8 lg:px-12">
+              {children}
+            </main>
+          </AuthProviderWrapper>
+        </ToastProvider>
       </body>
     </html>
   );
