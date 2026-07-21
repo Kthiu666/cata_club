@@ -37,12 +37,6 @@ export function isRepresentative(representadosCount: number): boolean {
   return representadosCount > 0;
 }
 
-export function buildAccountLabel(hasAlumnoRole: boolean, representadosCount: number): string {
-  if (derivePortalMode(hasAlumnoRole, representadosCount) === "pending") return "Pendiente de Matrícula";
-  if (isRepresentative(representadosCount)) return "Representante";
-  return "Estudiante";
-}
-
 // ---------------------------------------------------------------------------
 // Ranking display
 // ---------------------------------------------------------------------------

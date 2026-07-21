@@ -1,5 +1,7 @@
 # Guía de implementación de mockups
 
+> **Nota (obsoleta):** la excepción de `/student` respecto de `AppShell` descrita en este documento quedó obsoleta — `/student` ahora usa `AppShell` igual que el resto de las pantallas autenticadas (ver `src/app/student/page.tsx` y `src/components/shell/AppShell.tsx`). El resto de la guía (wizard de inscripción, validaciones, modelo de datos) sigue vigente.
+
 Esta guía permite implementar los 11 mockups HTML de `design/` sobre la aplicación Next.js existente sin cambiar el modelo de dominio, los permisos ni el flujo de inscripción de estudiante que está en desarrollo. Los mockups son especificaciones de interfaz e interacción, no código para copiar: se deben traducir a componentes React, rutas existentes, datos tipados y clases Tailwind.
 
 ## Camino recomendado

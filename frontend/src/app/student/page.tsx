@@ -3,23 +3,22 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/components/shell/AppShell";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchStudentPortal, fetchMembresiasPorPersona, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra, submitJustificativo, fetchJustificativosDePersona, fetchPagosDePersona } from "@/services/api";
 import type { StudentPortalSummary, StudentProfileSummary, MembresiaPorPersona, PagoPersona } from "@/services/api";
 import type { SolicitudClaseExtra, Justificativo } from "@/types/domain";
 import type { TrainingSchedule } from "@/app/attendance/attendance-utils";
 import { ATTENDANCE_LABELS, ATTENDANCE_BADGE_TOKENS } from "@/app/attendance/attendance-utils";
-import { derivePortalMode, isRepresentative, buildAccountLabel, describeRanking } from "./student-utils";
+import { derivePortalMode, isRepresentative, describeRanking } from "./student-utils";
 import {
   Calendar,
   ShieldCheck,
   CreditCard,
   AlertTriangle,
-  UserCircle,
   User,
   ChevronDown,
   GraduationCap,
-  Building2,
   UserPlus,
   ArrowRight,
   Trophy,
@@ -71,9 +70,9 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void 
 /** Honest placeholder for membership/payment — no backend endpoint lets a student/representante read their own Membresia/Pago (see src/lib/server/student-adapter.ts). */
 function MembershipUnavailableCard(): React.ReactElement {
   return (
-    <div className="card-hover p-5 sm:p-6">
-      <div className="mb-4 flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+    <div className="card-hover p-4 sm:p-5">
+      <div className="mb-2 flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
           <ShieldCheck size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
@@ -81,9 +80,8 @@ function MembershipUnavailableCard(): React.ReactElement {
           <p className="text-lg font-bold tracking-tight text-cata-text">No disponible</p>
         </div>
       </div>
-      <p className="text-sm leading-relaxed text-cata-text/65">
-        El estado de su membresía no está disponible desde este portal por el momento. Consulte con
-        administración del club.
+      <p className="text-xs leading-relaxed text-cata-text/55">
+        No disponible desde este portal por el momento. Consulte con administración del club.
       </p>
     </div>
   );
@@ -92,9 +90,9 @@ function MembershipUnavailableCard(): React.ReactElement {
 function RankingCard({ profile }: { profile: StudentProfileSummary }): React.ReactElement {
   const display = describeRanking(profile.ranking);
   return (
-    <div className="card-hover mb-8 p-5 sm:p-6">
+    <div className="card-hover p-4 sm:p-5">
       <div className="mb-3 flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
           <Trophy size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
@@ -874,28 +872,15 @@ function ActivePortalView({
   }, [managedProfiles.map((p) => p.personaId).join(",")]);
 
   const representative = isRepresentative(data.representados.length);
-  const accountLabel = buildAccountLabel(hasAlumnoRole, data.representados.length);
   const selectedProfile = managedProfiles.find((p) => p.personaId === selectedId) ?? managedProfiles[0] ?? null;
 
   return (
     <>
-      <div className="mb-4 flex items-center gap-2">
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
-            representative ? "bg-blue-50 text-blue-700" : "bg-emerald-50 text-emerald-700"
-          }`}
-        >
-          {representative ? (
-            <Building2 size={12} strokeWidth={1.5} aria-hidden="true" />
-          ) : (
-            <GraduationCap size={12} strokeWidth={1.5} aria-hidden="true" />
-          )}
-          {accountLabel}
-        </span>
-        {representative && (
+      {representative && (
+        <div className="mb-4 flex items-center gap-2">
           <span className="text-xs text-cata-text/65">Gestiona {managedProfiles.length} estudiante(s)</span>
-        )}
-      </div>
+        </div>
+      )}
 
       {managedProfiles.length > 1 && (
         <div className="mb-4">
@@ -928,7 +913,7 @@ function ActivePortalView({
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Link
           href="/student/enroll?type=child"
-          className="inline-flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 transition-all duration-200 hover:bg-blue-100"
+          className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
         >
           <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
           {representative ? "Agregar hijo/dependiente" : "Inscribir hijo/dependiente"}
@@ -953,9 +938,8 @@ function ActivePortalView({
         </div>
       ) : (
         <>
-          <RankingCard profile={selectedProfile} />
-
-          <div className="mb-8">
+          <div className="mb-8 grid gap-4 sm:grid-cols-2">
+            <RankingCard profile={selectedProfile} />
             <MembershipUnavailableCard />
           </div>
 
@@ -1001,28 +985,8 @@ function StudentPortalContent(): React.ReactElement {
     };
   }, [personaId, reloadToken]);
 
-  const heroSubtitle =
-    state.status === "ready"
-      ? derivePortalMode(hasAlumnoRole, state.data.representados.length) === "pending"
-        ? "Cuenta creada — aún no inscrito como estudiante."
-        : "Membresía, ranking y actividad de su cuenta."
-      : "Cargando información de su cuenta...";
-
   return (
-    <div>
-      {/* Hero Banner */}
-      <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
-        <div className="absolute inset-0 bg-logo-glow" />
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
-            <UserCircle size={14} strokeWidth={2} aria-hidden="true" />
-            Área de Estudiantes
-          </div>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">Portal de Cuenta</h1>
-          <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">{heroSubtitle}</p>
-        </div>
-      </div>
-
+    <AppShell eyebrow="Área de Estudiantes" title="Portal de Cuenta">
       {state.status === "loading" && <LoadingCard />}
       {state.status === "error" && <ErrorCard message={state.message} onRetry={() => setReloadToken((n) => n + 1)} />}
       {state.status === "ready" &&
@@ -1031,7 +995,7 @@ function StudentPortalContent(): React.ReactElement {
         ) : (
           <ActivePortalView data={state.data} hasAlumnoRole={hasAlumnoRole} />
         ))}
-    </div>
+    </AppShell>
   );
 }
 

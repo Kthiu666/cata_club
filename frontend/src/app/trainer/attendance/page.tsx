@@ -587,20 +587,9 @@ export default function TrainerAttendancePage(): React.ReactElement {
 
   // ---- Render ----
 
-  const stepSubtitle =
-    step === "select-session"
-      ? "Seleccione la sesión en la que desea registrar asistencia."
-      : step === "mark-attendance"
-        ? "Marque la asistencia de cada estudiante en la sesión seleccionada."
-        : "Revise y confirme el registro de asistencia.";
-
   return (
     <ProtectedRoute allowedRoles={["trainer", "admin"]}>
-      <AppShell
-        eyebrow="Área de entrenadores"
-        title="Registrar Asistencia"
-        subtitle={confirmed ? "Asistencia registrada." : stepSubtitle}
-      >
+      <AppShell eyebrow="Área de entrenadores" title="Registrar Asistencia">
       {confirmed ? (
         <div className="flex min-h-[50vh] items-center justify-center py-8">
           <div className="w-full max-w-lg text-center">

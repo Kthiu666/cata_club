@@ -21,8 +21,6 @@ import {
   Calendar,
   Users,
   UserCheck,
-  TrendingUp,
-  CheckCircle2,
   ClipboardList,
   ArrowRight,
   Clock,
@@ -32,7 +30,6 @@ import {
 import { fetchTrainingSchedules, fetchAttendanceRecords } from "@/services/api";
 import {
   buildAttendanceStats,
-  formatDay,
   jsDayIndexToDiaSemana,
   type AttendanceRecord,
   type TrainingSchedule,
@@ -76,19 +73,11 @@ export default function TrainerPage(): React.ReactElement {
   const stats = buildAttendanceStats(todayRecords);
   const presentPercent = stats.totalStudents > 0 ? Math.round((stats.totalPresent / stats.totalStudents) * 100) : 0;
 
-  const todayLongLabel = new Date().toLocaleDateString("es-EC", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-
   return (
     <ProtectedRoute allowedRoles={["trainer"]}>
       <AppShell
         eyebrow="Área de entrenadores"
         title="Panel del Entrenador"
-        subtitle={`Resumen de entrenamiento de hoy — ${todayLongLabel}.`}
       >
         {/* Interactive Attendance CTA */}
         <div className="mb-6 flex flex-wrap gap-3">
@@ -141,88 +130,37 @@ export default function TrainerPage(): React.ReactElement {
         {!loading && !error && (
           <>
           <div className="mb-10 grid gap-5 sm:grid-cols-3">
-            <div className="card-hover p-5 sm:p-6">
-              <div className="mb-4 flex items-start justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
-                  <Calendar size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                </div>
-                <span className="inline-flex items-center gap-1 rounded-full bg-cata-state-ok/10 px-2 py-0.5 text-[10px] font-semibold text-cata-state-ok">
-                  <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" />
-                  Hoy
-                </span>
+            <div className="card-hover flex items-center gap-3 p-4 sm:p-5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                <Calendar size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
               </div>
-              <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Horarios de Hoy</p>
-              <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">
-                {todaySchedules.length}
+              <p className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wider text-cata-text/65">
+                Horarios de Hoy
               </p>
+              <p className="shrink-0 text-2xl font-bold tracking-tight text-cata-text">{todaySchedules.length}</p>
             </div>
-            <div className="card-hover p-5 sm:p-6">
-              <div className="mb-4 flex items-start justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
-                  <Users size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                </div>
+            <div className="card-hover flex items-center gap-3 p-4 sm:p-5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                <Users size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
               </div>
-              <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Asistencias Registradas Hoy</p>
-              <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">
-                {stats.totalStudents}
+              <p className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wider text-cata-text/65">
+                Asistencias Registradas Hoy
               </p>
+              <p className="shrink-0 text-2xl font-bold tracking-tight text-cata-text">{stats.totalStudents}</p>
             </div>
-            <div className="card-hover p-5 sm:p-6">
-              <div className="mb-4 flex items-start justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
-                  <UserCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                </div>
-                <span className="inline-flex items-center gap-1 rounded-full bg-cata-state-ok/10 px-2 py-0.5 text-[10px] font-semibold text-cata-state-ok">
-                  <TrendingUp size={10} strokeWidth={2} aria-hidden="true" />
-                  {presentPercent}%
-                </span>
+            <div className="card-hover flex items-center gap-3 p-4 sm:p-5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                <UserCheck size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
               </div>
-              <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">Presentes Hoy</p>
-              <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">
+              <p className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wider text-cata-text/65">
+                Presentes Hoy
+              </p>
+              <p className="flex shrink-0 items-baseline gap-1.5 text-2xl font-bold tracking-tight text-cata-text">
                 {stats.totalPresent}/{stats.totalStudents}
+                <span className="text-xs font-semibold text-cata-state-ok">{presentPercent}%</span>
               </p>
             </div>
           </div>
-
-          {/* Today's schedule cards */}
-          {todaySchedules.length > 0 && (
-            <div className="mt-8">
-              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-cata-text/45">
-                Horarios de Hoy
-              </h2>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {todaySchedules.map((sched) => (
-                  <div key={sched.id} className="card-hover p-5">
-                    <div className="mb-2.5 flex items-center gap-2.5">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
-                        <Calendar size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                      </div>
-                      <div>
-                        <span className="block text-sm font-bold text-cata-text">
-                          {formatDay(sched.diaSemana)}
-                        </span>
-                        <span className="text-xs text-cata-text/50">
-                          {sched.horaInicio}–{sched.horaFin}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="rounded-lg bg-cata-bg/60 px-3 py-2">
-                      <p className="flex items-center gap-1.5 text-xs text-cata-text/70">
-                        <Clock size={13} strokeWidth={1.5} className="text-cata-red/70" aria-hidden="true" />
-                        <span className="font-semibold text-cata-text">{sched.horaInicio}</span>
-                        <span className="text-cata-text/40">a</span>
-                        <span className="font-semibold text-cata-text">{sched.horaFin}</span>
-                      </p>
-                      <p className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/55">
-                        <UserCheck size={12} strokeWidth={1.5} aria-hidden="true" />
-                        {sched.entrenadorNombre}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           </>
         )}
       </AppShell>

@@ -105,16 +105,14 @@ interface StatCardProps {
 
 function StatCard({ icon, label, value }: StatCardProps): React.ReactElement {
   return (
-    <div className="card-hover p-5 sm:p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cata-red/15">
-          {icon}
-        </div>
+    <div className="card-hover flex items-center gap-3 p-4 sm:p-5">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+        {icon}
       </div>
-      <p className="text-xs font-medium uppercase tracking-wider text-cata-text/65">{label}</p>
-      <p className="mt-1 text-3xl font-extrabold tracking-tight text-cata-text">
-        {value}
+      <p className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wider text-cata-text/65">
+        {label}
       </p>
+      <p className="shrink-0 text-2xl font-bold tracking-tight text-cata-text">{value}</p>
     </div>
   );
 }
@@ -229,7 +227,7 @@ function MedicalRecordEditor({ personaId }: MedicalRecordEditorProps): React.Rea
 
   return (
     <div className="mt-4 rounded-2xl border border-cata-border bg-cata-surface p-4 sm:p-5">
-      <h4 className="mb-4 flex items-center gap-2 text-sm font-bold text-cata-text">
+      <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-cata-text">
         <Stethoscope size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
         Ficha médica
         {state.isNew && (
@@ -238,7 +236,7 @@ function MedicalRecordEditor({ personaId }: MedicalRecordEditorProps): React.Rea
             Nueva
           </span>
         )}
-      </h4>
+      </h3>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div>
@@ -853,7 +851,6 @@ export default function MembersPage(): React.ReactElement {
       <AppShell
         eyebrow="Gestión de Miembros"
         title="Miembros del Club"
-        subtitle="Responsables de pago, estudiantes y resumen de membresías. Administre cuentas, estudiantes y estados de membresía desde un solo lugar."
       >
         {error && (
           <div
@@ -873,24 +870,24 @@ export default function MembersPage(): React.ReactElement {
           <ShieldCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
           <h2 className="text-lg font-bold text-cata-text">Resumen</h2>
         </div>
-        <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
-            icon={<Users size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
+            icon={<Users size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
             label="Cuentas"
             value={stats.totalAccounts}
           />
           <StatCard
-            icon={<UserCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
+            icon={<UserCheck size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
             label="Estudiantes"
             value={stats.totalStudents}
           />
           <StatCard
-            icon={<ShieldCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
+            icon={<ShieldCheck size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
             label="Membresías activas"
             value={stats.activeMemberships}
           />
           <StatCard
-            icon={<Clock size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
+            icon={<Clock size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />}
             label="Pagos pendientes"
             value={stats.pendingPayments}
           />

@@ -141,6 +141,7 @@ describe("Header", (): void => {
     "/trainer",
     "/trainer/attendance",
     "/reports",
+    "/student",
   ])("hides the header on the %s app-shell route", (route): void => {
     mockPathname.mockReturnValue(route);
     mockUseAuth.mockReturnValue(createAuthenticatedAuth("admin", "Admin"));
@@ -148,15 +149,6 @@ describe("Header", (): void => {
     render(<Header />);
 
     expect(screen.queryByRole("banner")).not.toBeInTheDocument();
-  });
-
-  it("still shows the header on /student (student exception)", (): void => {
-    mockPathname.mockReturnValue("/student");
-    mockUseAuth.mockReturnValue(createAuthenticatedAuth("representante", "Rep"));
-
-    render(<Header />);
-
-    expect(screen.getByRole("banner")).toBeInTheDocument();
   });
 
   // --- Loading skeleton ---
@@ -313,26 +305,26 @@ describe("Header", (): void => {
 
   // --- Active link highlighting ---
 
-  // Every admin/trainer nav destination is now an app-shell route (hidden
-  // header, see the describe block below) — /student is the only
-  // remaining route where the top header renders AND matches one of its
-  // own nav links, so it's the realistic case for active-link coverage.
+  // Every admin/trainer/student nav destination is now an app-shell route
+  // (hidden header, see the describe block above) except /trainer/ranking,
+  // which stays on the top header and matches one of its own nav links —
+  // the realistic case left for active-link coverage.
   it("marks the active link with aria-current=\"page\"", (): void => {
-    mockPathname.mockReturnValue("/student");
+    mockPathname.mockReturnValue("/trainer/ranking");
     mockUseAuth.mockReturnValue(
-      createAuthenticatedAuth("representante", "Rep"),
+      createAuthenticatedAuth("trainer", "Carlos Entrenador"),
     );
 
     render(<Header />);
 
-    const accountLink = screen.getByRole("link", { name: /Mi Cuenta/i });
-    expect(accountLink).toHaveAttribute("aria-current", "page");
+    const rankingLink = screen.getByRole("link", { name: /Ranking/i });
+    expect(rankingLink).toHaveAttribute("aria-current", "page");
   });
 
   it("does not apply aria-current to non-current route links", (): void => {
-    mockPathname.mockReturnValue("/student");
+    mockPathname.mockReturnValue("/trainer/ranking");
     mockUseAuth.mockReturnValue(
-      createAuthenticatedAuth("representante", "Rep"),
+      createAuthenticatedAuth("trainer", "Carlos Entrenador"),
     );
 
     render(<Header />);

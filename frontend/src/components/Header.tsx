@@ -109,7 +109,7 @@ function InstitutionalHeader({ pathname }: InstitutionalHeaderProps): React.Reac
           <div className="relative h-10 w-10 overflow-hidden rounded-lg">
             <Image
               src="/brand/cata-club-logo.jpeg"
-              alt="Cata Club"
+              alt=""
               fill
               className="object-cover"
               sizes="40px"
@@ -211,12 +211,10 @@ interface HeaderProps {
 const AUTH_SHELL_ROUTES = new Set(["/login", "/register", "/forgot-password"]);
 
 /**
- * Admin and trainer routes render their own sidebar shell (see
- * `AppShell`), which already carries identity, navigation, and a logout
- * control — the top header would duplicate that. `/student` and
- * `/student/enroll` are intentionally NOT in this set: they keep the
- * existing top-nav header per the implementation guide's student
- * exception.
+ * Routes that render their own sidebar shell (see `AppShell`), which
+ * already carries identity, navigation, and a logout control — the top
+ * header would duplicate that. `/student/enroll` keeps the top-nav
+ * header since its wizard is out of scope for the AppShell migration.
  */
 const APP_SHELL_ROUTES = new Set([
   "/dashboard",
@@ -228,6 +226,7 @@ const APP_SHELL_ROUTES = new Set([
   "/trainer",
   "/trainer/attendance",
   "/reports",
+  "/student",
 ]);
 
 export default function Header({ hideOnLanding = false }: HeaderProps): React.ReactElement | null {

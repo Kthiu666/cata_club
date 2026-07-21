@@ -93,7 +93,6 @@ export default function SeleccionOficialPage(): React.ReactElement {
       <AppShell
         eyebrow="Grupos de Entrenamiento"
         title="Selección Oficial"
-        subtitle="Roster de selección oficial gestionado por administración — independiente del flujo mensual de ranking a cargo del entrenador."
       >
         {loadError && (
           <div
