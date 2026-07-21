@@ -27,7 +27,6 @@ import type {
   BackendTipoRol,
   FichaMedicaEditable,
   FichaMedicaUpdatePayload,
-  CategoriaRanking,
   ResultadoMensual,
   CierreMensual,
   SeleccionOficial,
@@ -640,9 +639,6 @@ export interface CerrarMesDTO {
 /** DTO for POST /ranking/seleccion-oficial — register/update the official-selection roster. */
 export interface SeleccionOficialDTO {
   estudianteId: string;
-  categoria: CategoriaRanking;
-  /** "YYYY-MM" */
-  periodo: string;
 }
 
 /** Register a monthly ranking result for a student (CU — Resultados Mensuales). */

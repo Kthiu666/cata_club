@@ -13,8 +13,6 @@ const BACKEND_TIMEOUT_MS = 10_000;
 
 interface FrontendBody {
   estudianteId: string;
-  categoria?: number;
-  periodo?: string;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -33,7 +31,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const { estudianteId, categoria, periodo } = body as FrontendBody;
+  const { estudianteId } = body as FrontendBody;
 
   if (!estudianteId) {
     return NextResponse.json(
@@ -50,11 +48,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const anio = periodo ? Number(periodo.split("-")[0]) : new Date().getFullYear();
-
   const backendPayload = {
     persona_ids: [personaId],
-    anio,
+    anio: new Date().getFullYear(),
   };
 
   const controller = new AbortController();
@@ -91,8 +87,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const mapped = {
       id: String(first.id ?? ""),
       estudianteId,
-      categoria: categoria ?? null,
-      periodo: periodo ?? `${anio}`,
       seleccionadoPor: "",
       createdAt: new Date().toISOString(),
     };

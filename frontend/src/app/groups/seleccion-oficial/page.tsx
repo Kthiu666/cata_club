@@ -21,7 +21,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import { Award, AlertTriangle } from "lucide-react";
 import { fetchMembers, seleccionOficial, ApiClientError } from "@/services/api";
-import type { CategoriaRanking, SeleccionOficial } from "@/types/domain";
+import type { SeleccionOficial } from "@/types/domain";
 import type { StudentRef } from "@/lib/groups-utils";
 
 export default function SeleccionOficialPage(): React.ReactElement {
@@ -29,8 +29,6 @@ export default function SeleccionOficialPage(): React.ReactElement {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [seleccionEstudianteId, setSeleccionEstudianteId] = useState("");
-  const [seleccionCategoria, setSeleccionCategoria] = useState<CategoriaRanking | "">("");
-  const [seleccionPeriodo, setSeleccionPeriodo] = useState("");
   const [seleccionLoading, setSeleccionLoading] = useState(false);
   const [seleccionError, setSeleccionError] = useState<string | null>(null);
   const [seleccionesOficiales, setSeleccionesOficiales] = useState<SeleccionOficial[]>([]);
@@ -62,8 +60,8 @@ export default function SeleccionOficialPage(): React.ReactElement {
     event.preventDefault();
     setSeleccionError(null);
 
-    if (!seleccionEstudianteId || !seleccionCategoria || !seleccionPeriodo) {
-      setSeleccionError("Completá estudiante, categoría y período.");
+    if (!seleccionEstudianteId) {
+      setSeleccionError("Seleccioná un estudiante.");
       return;
     }
 
@@ -71,13 +69,9 @@ export default function SeleccionOficialPage(): React.ReactElement {
     try {
       const entry = await seleccionOficial({
         estudianteId: seleccionEstudianteId,
-        categoria: seleccionCategoria,
-        periodo: seleccionPeriodo,
       });
       setSeleccionesOficiales((prev) => [entry, ...prev]);
       setSeleccionEstudianteId("");
-      setSeleccionCategoria("");
-      setSeleccionPeriodo("");
     } catch (err) {
       console.error("[seleccion-oficial] seleccionOficial failed", err);
       setSeleccionError(
@@ -127,7 +121,7 @@ export default function SeleccionOficialPage(): React.ReactElement {
             onSubmit={handleSeleccionOficialSubmit}
             className="mb-5 grid gap-3 sm:grid-cols-4"
           >
-            <label className="block text-sm sm:col-span-2">
+            <label className="block text-sm sm:col-span-3">
               <span className="mb-1 block text-xs font-medium text-cata-text/65">Estudiante</span>
               <select
                 className="input-field"
@@ -142,32 +136,6 @@ export default function SeleccionOficialPage(): React.ReactElement {
                 ))}
               </select>
             </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-xs font-medium text-cata-text/65">Categoría</span>
-              <select
-                className="input-field"
-                value={seleccionCategoria}
-                onChange={(e) =>
-                  setSeleccionCategoria(e.target.value ? Number(e.target.value) : "")
-                }
-              >
-                <option value="">—</option>
-                {Array.from({ length: 10 }, (_, i) => i + 1).map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-xs font-medium text-cata-text/65">Período</span>
-              <input
-                type="month"
-                className="input-field"
-                value={seleccionPeriodo}
-                onChange={(e) => setSeleccionPeriodo(e.target.value)}
-              />
-            </label>
             <div className="sm:col-span-4">
               <button type="submit" disabled={seleccionLoading} className="btn-primary">
                 {seleccionLoading ? "Guardando..." : "Agregar a selección oficial"}
@@ -181,8 +149,6 @@ export default function SeleccionOficialPage(): React.ReactElement {
                 <thead>
                   <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
                     <th className="px-4 py-2 font-medium">Estudiante</th>
-                    <th className="px-4 py-2 font-medium">Categoría</th>
-                    <th className="px-4 py-2 font-medium">Período</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cata-border">
@@ -193,8 +159,6 @@ export default function SeleccionOficialPage(): React.ReactElement {
                         <td className="px-4 py-2 text-cata-text">
                           {student ? `${student.nombres} ${student.apellidos}` : entry.estudianteId}
                         </td>
-                        <td className="px-4 py-2 text-cata-text/65">{entry.categoria}</td>
-                        <td className="px-4 py-2 text-cata-text/65">{entry.periodo}</td>
                       </tr>
                     );
                   })}

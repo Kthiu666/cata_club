@@ -440,9 +440,6 @@ export interface CierreMensual {
 export interface SeleccionOficial {
   id: string;
   estudianteId: string;
-  categoria: CategoriaRanking;
-  /** Period this selection applies to, "YYYY-MM". */
-  periodo: string;
   seleccionadoPor: string;
   createdAt: string;
 }
