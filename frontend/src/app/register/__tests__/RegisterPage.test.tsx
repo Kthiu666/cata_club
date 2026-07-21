@@ -5,6 +5,9 @@
  *   - filling + submitting the form transitions to success state
  *   - clicking "Inscribirse" calls login with demo credentials and navigates
  *   - the navigating guard prevents double-click / repeated activation
+ *   - the client-only password-mismatch check reports via
+ *     `useToast().showError(...)` instead of an inline `.alert-error` box —
+ *     see issue #51
  *
  * @vitest-environment jsdom
  */
@@ -32,6 +35,15 @@ vi.mock("@/contexts/AuthContext", () => ({
     isAuthenticated: false,
     isLoading: false,
     logout: vi.fn(),
+  }),
+}));
+
+const mockShowError = vi.fn();
+vi.mock("@/contexts/ToastContext", () => ({
+  useToast: () => ({
+    showToast: vi.fn(),
+    showError: mockShowError,
+    showSuccess: vi.fn(),
   }),
 }));
 
@@ -90,6 +102,7 @@ describe("RegisterPage", () => {
   beforeEach(() => {
     mockPush.mockReset();
     mockLogin.mockReset();
+    mockShowError.mockReset();
     // Simulate successful login by default
     mockLogin.mockResolvedValue({
       ok: true,
@@ -178,6 +191,45 @@ describe("RegisterPage", () => {
       fireEvent.click(button);
 
       expect(mockPush).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("password mismatch", () => {
+    it("reports the mismatch via toast.showError instead of an inline alert", () => {
+      render(<RegisterPage />);
+
+      fireEvent.change(screen.getByLabelText("Correo electrónico"), {
+        target: { value: "test@catclub.com" },
+      });
+      fireEvent.change(screen.getByLabelText("Contraseña"), {
+        target: { value: "password123" },
+      });
+      fireEvent.change(screen.getByLabelText("Confirmar Contraseña"), {
+        target: { value: "password456" },
+      });
+      fireEvent.change(screen.getByLabelText("Nombres"), {
+        target: { value: "Juan" },
+      });
+      fireEvent.change(screen.getByLabelText("Apellidos"), {
+        target: { value: "Pérez" },
+      });
+      fireEvent.change(screen.getByLabelText("Cédula de Identidad"), {
+        target: { value: "1712345678" },
+      });
+      fireEvent.change(screen.getByLabelText("Fecha de Nacimiento"), {
+        target: { value: "2000-01-15" },
+      });
+      fireEvent.change(screen.getByLabelText("Teléfono Celular"), {
+        target: { value: "0991234567" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /crear cuenta/i }));
+
+      expect(mockShowError).toHaveBeenCalledWith("Las contraseñas no coinciden.");
+      expect(document.querySelector(".alert-error")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/registro de demostración completado/i),
+      ).not.toBeInTheDocument();
     });
   });
 });
