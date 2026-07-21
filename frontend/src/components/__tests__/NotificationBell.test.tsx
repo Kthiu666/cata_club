@@ -92,4 +92,27 @@ describe("NotificationBell", () => {
 
     expect(screen.getByText(/no se pudieron cargar/i)).toBeInTheDocument();
   });
+
+  // --- Trigger theming (variant prop) ---
+  // Header.tsx renders this on a dark `bg-cata-dark/95` topbar; AppShell.tsx
+  // renders it on a light `bg-cata-surface` topbar. The trigger's idle/hover
+  // colors must branch so the icon stays legible in both contexts.
+
+  it("defaults to dark-topbar trigger styling (Header usage, unchanged)", () => {
+    render(<NotificationBell notificaciones={[]} loadError={false} onMarkRead={vi.fn()} />);
+
+    const trigger = screen.getByRole("button", { name: /notificaciones/i });
+
+    expect(trigger).toHaveClass("text-white/65");
+    expect(trigger).not.toHaveClass("text-cata-text/65");
+  });
+
+  it("applies light-topbar trigger styling when variant is light (AppShell usage)", () => {
+    render(<NotificationBell notificaciones={[]} loadError={false} onMarkRead={vi.fn()} variant="light" />);
+
+    const trigger = screen.getByRole("button", { name: /notificaciones/i });
+
+    expect(trigger).toHaveClass("text-cata-text/65");
+    expect(trigger).not.toHaveClass("text-white/65");
+  });
 });

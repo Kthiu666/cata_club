@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import AppShell from "@/components/shell/AppShell";
 
 interface MockLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
@@ -20,6 +20,31 @@ interface MockLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
 interface MockImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   fill?: boolean;
   priority?: boolean;
+}
+
+// jsdom in this environment doesn't ship a working `localStorage` (Node's
+// experimental global shadows it — see `enrollment-session.test.ts`'s
+// pre-existing failure). Stub a real in-memory implementation so the
+// collapse-persistence tests exercise the actual get/set contract instead
+// of skipping storage assertions altogether.
+function createMemoryStorage(): Storage {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string): string | null => (key in store ? store[key] : null),
+    setItem: (key: string, value: string): void => {
+      store[key] = String(value);
+    },
+    removeItem: (key: string): void => {
+      delete store[key];
+    },
+    clear: (): void => {
+      store = {};
+    },
+    key: (index: number): string | null => Object.keys(store)[index] ?? null,
+    get length(): number {
+      return Object.keys(store).length;
+    },
+  } as Storage;
 }
 
 const mockPush = vi.fn();
@@ -78,6 +103,7 @@ describe("AppShell", (): void => {
     mockFetchNotificaciones.mockResolvedValue([]);
     mockMarcarNotificacionLeida.mockClear();
     mockMarcarNotificacionLeida.mockResolvedValue(undefined);
+    vi.stubGlobal("localStorage", createMemoryStorage());
   });
 
   it("renders the title, subtitle, and eyebrow", (): void => {
@@ -230,5 +256,105 @@ describe("AppShell", (): void => {
     fireEvent.keyDown(input, { key: "Enter" });
 
     expect(mockPush).toHaveBeenCalledWith("/attendance");
+  });
+
+  // --- Desktop sidebar collapse ---
+
+  it("collapses the sidebar: compact aside width, hidden nav labels, icon tooltips", (): void => {
+    const { container } = render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    fireEvent.click(screen.getByRole("button", { name: /Colapsar menú/i }));
+
+    expect(container.querySelector("aside")).toHaveClass("lg:w-[76px]");
+    const groupsLink = screen.getByRole("link", { name: /Grupos/i });
+    expect(groupsLink).toHaveAttribute("title", "Grupos");
+    expect(groupsLink.querySelector("span")).toHaveClass("lg:hidden");
+    expect(screen.getByRole("button", { name: /Expandir menú/i })).toBeInTheDocument();
+  });
+
+  it("initializes as collapsed when localStorage has a persisted collapsed flag", (): void => {
+    localStorage.setItem("cata_sidebar_collapsed", "true");
+
+    const { container } = render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    expect(screen.getByRole("button", { name: /Expandir menú/i })).toBeInTheDocument();
+    expect(container.querySelector("aside")).toHaveClass("lg:w-[76px]");
+  });
+
+  it("persists the collapsed flag to localStorage when toggled", (): void => {
+    render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    fireEvent.click(screen.getByRole("button", { name: /Colapsar menú/i }));
+    expect(localStorage.getItem("cata_sidebar_collapsed")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: /Expandir menú/i }));
+    expect(localStorage.getItem("cata_sidebar_collapsed")).toBe("false");
+  });
+
+  it("keeps the mobile drawer independent of the desktop collapse state", (): void => {
+    render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    fireEvent.click(screen.getByRole("button", { name: /Colapsar menú/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Abrir menú/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Cerrar menú/i }));
+
+    // Mobile open/close still works after collapsing the desktop sidebar —
+    // the two toggles remain functionally independent.
+    expect(screen.getByRole("button", { name: /Abrir menú/i })).toBeInTheDocument();
+  });
+
+  // --- Regression: collapse toggle must stay reachable in both states ---
+  // Bug: the toggle previously lived inside the same flex row as the 36px
+  // logo. At the collapsed 76px width, px-5 padding (40px) + the logo (36px)
+  // + the toggle button left zero room, squeezing the toggle out of the
+  // sidebar with no way to re-expand. Fix: the toggle is now anchored
+  // directly to the `<aside>`, outside that header row, so it is never
+  // subject to the row's width constraints.
+
+  it("keeps the collapse toggle outside the logo header row so it can't be squeezed out when collapsed", (): void => {
+    const { container } = render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    const headerRow = container.querySelector("aside > div.border-b");
+    expect(headerRow).not.toBeNull();
+    expect(
+      within(headerRow as HTMLElement).queryByRole("button", { name: /Colapsar menú/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Colapsar menú/i })).toBeInTheDocument();
+  });
+
+  it("keeps the collapse toggle clickable across repeated collapse/expand cycles", (): void => {
+    render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent.click(screen.getByRole("button", { name: /Colapsar menú/i }));
+      expect(screen.getByRole("button", { name: /Expandir menú/i })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /Expandir menú/i }));
+      expect(screen.getByRole("button", { name: /Colapsar menú/i })).toBeInTheDocument();
+    }
+  });
+
+  // --- Regression: sidebar must stay pinned to the viewport, not page height ---
+  // Bug: `.app-shell` is `flex min-h-screen` and `<aside>` was `lg:static`, so
+  // as a flex item it stretched (default `align-items: stretch`) to match the
+  // main content's height. On long pages the bottom user/logout block ended
+  // up thousands of pixels down. Fix: pin the aside to the viewport at `lg:`.
+
+  it("pins the sidebar to the viewport instead of stretching with page content", (): void => {
+    const { container } = render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    const aside = container.querySelector("aside");
+    expect(aside).toHaveClass("lg:sticky", "lg:top-0", "lg:h-screen");
+    expect(aside).not.toHaveClass("lg:static");
+  });
+
+  // --- Notification bell theming in AppShell's light topbar ---
+
+  it("renders the notification bell with the light variant matching AppShell's light topbar", (): void => {
+    render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    const bell = screen.getByRole("button", { name: /notificaciones/i });
+    expect(bell).toHaveClass("text-cata-text/65");
+    expect(bell).not.toHaveClass("text-white/65");
   });
 });

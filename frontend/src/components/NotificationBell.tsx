@@ -27,12 +27,26 @@ export interface NotificationBellProps {
   notificaciones: Notificacion[];
   loadError: boolean;
   onMarkRead: (id: number) => void;
+  /**
+   * Trigger button theme. `"dark"` (default) matches `Header.tsx`'s dark
+   * `bg-cata-dark/95` topbar — its original and only host until `AppShell`
+   * hoisted this component onto its light `bg-cata-surface` topbar, where
+   * the dark-only colors made the icon unreadable. `"light"` matches
+   * AppShell's other topbar buttons (`text-cata-text/65`).
+   */
+  variant?: "dark" | "light";
 }
+
+const TRIGGER_VARIANT_CLASSES: Record<"dark" | "light", string> = {
+  dark: "relative rounded-xl p-2 text-white/65 transition-colors hover:bg-white/[0.08] hover:text-white",
+  light: "relative rounded-xl p-2 text-cata-text/65 transition-colors hover:bg-cata-bg hover:text-cata-text",
+};
 
 export default function NotificationBell({
   notificaciones,
   loadError,
   onMarkRead,
+  variant = "dark",
 }: NotificationBellProps): React.ReactElement {
   const [open, setOpen] = useState(false);
   const unreadCount = notificaciones.filter((n) => !n.leida).length;
@@ -42,7 +56,7 @@ export default function NotificationBell({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="relative rounded-xl p-2 text-white/65 transition-colors hover:bg-white/[0.08] hover:text-white"
+        className={TRIGGER_VARIANT_CLASSES[variant]}
         aria-haspopup="true"
         aria-expanded={open}
         aria-label={unreadCount > 0 ? `Notificaciones — ${unreadCount} sin leer` : "Notificaciones"}

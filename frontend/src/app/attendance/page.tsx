@@ -18,7 +18,8 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import {
@@ -26,20 +27,22 @@ import {
   Clock,
   UserCheck,
   GraduationCap,
-  Filter,
+  ClipboardCheck,
   CheckCircle2,
   XCircle,
   AlertTriangle,
   Clock3,
   HelpCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { fetchTrainingSchedules, fetchAttendanceRecords } from "@/services/api";
 import {
   buildAttendanceStats,
-  formatDay,
   getAttendanceBadgeTokens,
-  DIA_SEMANA_LABELS,
   ATTENDANCE_LABELS,
+  paginateRecords,
+  getTotalPages,
   type AttendanceRecord,
   type TrainingSchedule,
 } from "./attendance-utils";
@@ -85,27 +88,15 @@ function AttendanceBadge({ estado }: AttendanceBadgeProps): React.ReactElement {
 }
 
 // ---------------------------------------------------------------------------
-// Day filter buttons
-// ---------------------------------------------------------------------------
-
-const DAY_OPTIONS = [
-  { value: "all", label: "Todos los días" },
-  ...Object.entries(DIA_SEMANA_LABELS).map(([key, label]) => ({
-    value: key,
-    label,
-  })),
-] as const;
-
-// ---------------------------------------------------------------------------
 // Page component
 // ---------------------------------------------------------------------------
 
 export default function AttendancePage(): React.ReactElement {
-  const [dayFilter, setDayFilter] = useState<string>("all");
   const [schedules, setSchedules] = useState<TrainingSchedule[]>([]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recordsPage, setRecordsPage] = useState(1);
 
   const loadData = useCallback(async (): Promise<void> => {
     try {
@@ -129,10 +120,19 @@ export default function AttendancePage(): React.ReactElement {
     loadData();
   }, [loadData]);
 
+  // Reset to page 1 whenever the underlying records set changes (e.g. after
+  // a reload), so the paginator never gets stuck on a stale/out-of-range page.
+  useEffect(() => {
+    setRecordsPage(1);
+  }, [records]);
+
   const stats = buildAttendanceStats(records);
 
-  const filteredSchedules =
-    dayFilter === "all" ? schedules : schedules.filter((s) => s.diaSemana === dayFilter);
+  const recordsTotalPages = useMemo(() => getTotalPages(records.length), [records]);
+  const paginatedRecords = useMemo(
+    () => paginateRecords(records, recordsPage),
+    [records, recordsPage],
+  );
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
@@ -224,72 +224,25 @@ export default function AttendancePage(): React.ReactElement {
               </div>
             </div>
 
-            {/* Schedules section */}
-            <div className="mb-8">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Clock size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                  <h2 className="text-lg font-bold text-cata-text">
-                    Horarios de Entrenamiento
-                  </h2>
+            {/* Quick action: take attendance — replaces the removed
+                "Horarios de Entrenamiento" table (PR3), which added no
+                real value; admins can now register attendance too. */}
+            <div className="card-hover mb-8 flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cata-red/15">
+                  <ClipboardCheck size={22} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                 </div>
-                <div className="flex items-center gap-2">
-                  <Filter size={13} strokeWidth={1.5} className="text-cata-text/65" aria-hidden="true" />
-                  <select
-                    value={dayFilter}
-                    onChange={(e) => setDayFilter(e.target.value)}
-                    className="input-field py-1.5 pl-3 pr-8 text-xs"
-                    aria-label="Filtrar por día"
-                  >
-                    {DAY_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {filteredSchedules.length > 0 ? (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {filteredSchedules.map((slot) => (
-                    <div key={slot.id} className="card-hover p-5">
-                      <div className="mb-3 flex items-center gap-2.5">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
-                          <Calendar size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                        </div>
-                        <div>
-                          <span className="block text-sm font-bold text-cata-text">
-                            {formatDay(slot.diaSemana)}
-                          </span>
-                          <span className="text-xs text-cata-text/50">
-                            {slot.horaInicio}–{slot.horaFin}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-cata-bg/60 px-3 py-2">
-                        <p className="flex items-center gap-1.5 text-xs text-cata-text/70">
-                          <Clock size={13} strokeWidth={1.5} className="text-cata-red/70" aria-hidden="true" />
-                          <span className="font-semibold text-cata-text">{slot.horaInicio}</span>
-                          <span className="text-cata-text/40">a</span>
-                          <span className="font-semibold text-cata-text">{slot.horaFin}</span>
-                        </p>
-                        <p className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/55">
-                          <UserCheck size={12} strokeWidth={1.5} aria-hidden="true" />
-                          {slot.entrenadorNombre}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="card flex flex-col items-center py-12 text-center">
-                  <Calendar size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
-                  <p className="text-sm text-cata-text/50">
-                    No hay horarios para el día seleccionado.
+                <div>
+                  <h2 className="text-base font-bold text-cata-text">Tomar asistencia</h2>
+                  <p className="text-sm text-cata-text/65">
+                    Registra la asistencia de una sesión de entrenamiento.
                   </p>
                 </div>
-              )}
+              </div>
+              <Link href="/trainer/attendance" className="btn-primary w-full shadow-soft sm:w-auto">
+                Tomar asistencia
+                <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+              </Link>
             </div>
 
             {/* Recent attendance section */}
@@ -302,45 +255,75 @@ export default function AttendancePage(): React.ReactElement {
               </div>
 
               {records.length > 0 ? (
-                <div className="card overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                      <thead>
-                        <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
-                          <th className="px-4 py-3 font-medium">Fecha</th>
-                          <th className="px-4 py-3 font-medium">Horario</th>
-                          <th className="px-4 py-3 font-medium">Estudiante</th>
-                          <th className="px-4 py-3 font-medium">Estado</th>
-                          <th className="px-4 py-3 font-medium">Registrado por</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-cata-border">
-                        {records.map((record) => (
-                          <tr key={record.id} className="transition-colors hover:bg-cata-bg">
-                            <td className="px-4 py-3 text-xs text-cata-text/65">
-                              {record.fecha}
-                            </td>
-                            <td className="px-4 py-3 text-xs text-cata-text">
-                              {record.horario}
-                            </td>
-                            <td className="px-4 py-3 text-sm font-medium text-cata-text">
-                              {record.estudiante}
-                            </td>
-                            <td className="px-4 py-3">
-                              <AttendanceBadge estado={record.estado} />
-                            </td>
-                            <td className="px-4 py-3 text-xs text-cata-text/65">
-                              <span className="flex items-center gap-1.5">
-                                <UserCheck size={11} strokeWidth={1.5} aria-hidden="true" />
-                                {record.entrenador}
-                              </span>
-                            </td>
+                <>
+                  <div className="card overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead>
+                          <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
+                            <th className="px-4 py-3 font-medium">Fecha</th>
+                            <th className="px-4 py-3 font-medium">Horario</th>
+                            <th className="px-4 py-3 font-medium">Estudiante</th>
+                            <th className="px-4 py-3 font-medium">Estado</th>
+                            <th className="px-4 py-3 font-medium">Registrado por</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-cata-border">
+                          {paginatedRecords.map((record) => (
+                            <tr key={record.id} className="transition-colors hover:bg-cata-bg">
+                              <td className="px-4 py-3 text-xs text-cata-text/65">
+                                {record.fecha}
+                              </td>
+                              <td className="px-4 py-3 text-xs text-cata-text">
+                                {record.horario}
+                              </td>
+                              <td className="px-4 py-3 text-sm font-medium text-cata-text">
+                                {record.estudiante}
+                              </td>
+                              <td className="px-4 py-3">
+                                <AttendanceBadge estado={record.estado} />
+                              </td>
+                              <td className="px-4 py-3 text-xs text-cata-text/65">
+                                <span className="flex items-center gap-1.5">
+                                  <UserCheck size={11} strokeWidth={1.5} aria-hidden="true" />
+                                  {record.entrenador}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
+
+                  {recordsTotalPages > 1 && (
+                    <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
+                      <p className="text-sm font-semibold text-cata-text">
+                        Página {recordsPage} de {recordsTotalPages}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setRecordsPage((p) => Math.max(1, p - 1))}
+                          disabled={recordsPage <= 1}
+                          className="btn-secondary px-4 py-2 text-xs"
+                        >
+                          <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+                          Anterior
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRecordsPage((p) => Math.min(recordsTotalPages, p + 1))}
+                          disabled={recordsPage >= recordsTotalPages}
+                          className="btn-secondary px-4 py-2 text-xs"
+                        >
+                          Siguiente
+                          <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="card flex flex-col items-center py-12 text-center">
                   <UserCheck size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />

@@ -45,23 +45,22 @@ import {
   MapPin,
   ArrowRight,
   RotateCcw,
-  Award,
   FileText,
   XCircle,
   Loader2,
 } from "lucide-react";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   fetchMembers,
   assignStudentToNivel,
   moveStudentToNivel,
   reingresar,
-  seleccionOficial,
   fetchJustificativosPendientes,
   evaluarJustificativo,
   ApiClientError,
 } from "@/services/api";
 import type { NivelConOcupacion } from "@/services/api";
-import type { CategoriaRanking, SeleccionOficial, Justificativo } from "@/types/domain";
+import type { Justificativo } from "@/types/domain";
 import { getUnassignedStudents, getLevelLabel, type StudentRef, type GroupCardData } from "@/lib/groups-utils";
 import { buildGroupCardsFromNiveles, getLevelBadgeClass, getCapacityBarColor } from "./groups-page-utils";
 
@@ -139,15 +138,6 @@ export default function GroupsPage(): React.ReactElement {
   const [reingresandoId, setReingresandoId] = useState<string | null>(null);
   const [reingresados, setReingresados] = useState<Set<string>>(new Set());
 
-  // Selección Oficial (Ranking track) — frontend-only session list, same
-  // reasoning as above. See src/app/api/ranking/seleccion-oficial/route.ts.
-  const [seleccionEstudianteId, setSeleccionEstudianteId] = useState("");
-  const [seleccionCategoria, setSeleccionCategoria] = useState<CategoriaRanking | "">("");
-  const [seleccionPeriodo, setSeleccionPeriodo] = useState("");
-  const [seleccionLoading, setSeleccionLoading] = useState(false);
-  const [seleccionError, setSeleccionError] = useState<string | null>(null);
-  const [seleccionesOficiales, setSeleccionesOficiales] = useState<SeleccionOficial[]>([]);
-
   // Justificativos pendientes (Ranking track, E03-RF006b) — admin review
   // queue. No backend endpoint lists pending justificativos yet (only
   // POST .../justificativos and PATCH .../evaluar exist — see
@@ -156,6 +146,14 @@ export default function GroupsPage(): React.ReactElement {
   const [justificativosPendientes, setJustificativosPendientes] = useState<Justificativo[]>([]);
   const [justificativosLoading, setJustificativosLoading] = useState(true);
   const [evaluandoId, setEvaluandoId] = useState<number | null>(null);
+  const [confirmingJustificativo, setConfirmingJustificativo] = useState<{
+    id: number;
+    estado: "APROBADO" | "RECHAZADO";
+  } | null>(null);
+
+  // Quick-assign dropdown selection per unassigned student, keyed by
+  // estudianteId -> nivel id (as a string, matching the <select> value).
+  const [pendingAssignment, setPendingAssignment] = useState<Record<string, string>>({});
 
   const loadJustificativos = useCallback(async (): Promise<void> => {
     setJustificativosLoading(true);
@@ -259,37 +257,6 @@ export default function GroupsPage(): React.ReactElement {
       );
     } finally {
       setReingresandoId(null);
-    }
-  }
-
-  async function handleSeleccionOficialSubmit(event: React.FormEvent): Promise<void> {
-    event.preventDefault();
-    setSeleccionError(null);
-
-    if (!seleccionEstudianteId || !seleccionCategoria || !seleccionPeriodo) {
-      setSeleccionError("Completá estudiante, categoría y período.");
-      return;
-    }
-
-    setSeleccionLoading(true);
-    try {
-      const entry = await seleccionOficial({
-        estudianteId: seleccionEstudianteId,
-        categoria: seleccionCategoria,
-        periodo: seleccionPeriodo,
-      });
-      setSeleccionesOficiales((prev) => [entry, ...prev]);
-      setSeleccionEstudianteId("");
-      setSeleccionCategoria("");
-      setSeleccionPeriodo("");
-      showNotification("success", "Estudiante agregado a la selección oficial.");
-    } catch (err) {
-      console.error("[groups] seleccionOficial failed", err);
-      setSeleccionError(
-        err instanceof ApiClientError ? err.message : "Error al registrar la selección oficial.",
-      );
-    } finally {
-      setSeleccionLoading(false);
     }
   }
 
@@ -466,21 +433,35 @@ export default function GroupsPage(): React.ReactElement {
                         </div>
                       </div>
 
-                      <div className="flex gap-1.5">
-                        {niveles.map((nivel) => (
-                          <button
-                            key={nivel.id}
-                            type="button"
-                            disabled={actionPending}
-                            onClick={() =>
-                              void handleAssignStudent(student.id, String(nivel.id))
-                            }
-                            className="rounded-lg border border-cata-border px-2 py-1 text-[10px] font-medium transition-colors hover:bg-cata-red/15 hover:text-cata-red disabled:opacity-50 whitespace-nowrap"
-                            title={`Asignar a ${nivel.nombre ?? `Nivel ${nivel.numeroNivel}`}`}
-                          >
-                            {nivel.nombre ?? `Nivel ${nivel.numeroNivel}`}
-                          </button>
-                        ))}
+                      <div className="flex items-center gap-1.5">
+                        <label className="sr-only" htmlFor={`assign-nivel-${student.id}`}>
+                          Nivel para {student.nombres} {student.apellidos}
+                        </label>
+                        <select
+                          id={`assign-nivel-${student.id}`}
+                          className="input-field text-xs"
+                          value={pendingAssignment[student.id] ?? ""}
+                          onChange={(e) =>
+                            setPendingAssignment((prev) => ({ ...prev, [student.id]: e.target.value }))
+                          }
+                        >
+                          <option value="">Seleccionar nivel...</option>
+                          {niveles.map((nivel) => (
+                            <option key={nivel.id} value={nivel.id}>
+                              {nivel.nombre ?? `Nivel ${nivel.numeroNivel}`}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={actionPending || !pendingAssignment[student.id]}
+                          onClick={() =>
+                            void handleAssignStudent(student.id, pendingAssignment[student.id])
+                          }
+                          className="rounded-lg border border-cata-border px-2.5 py-1 text-[10px] font-medium transition-colors hover:bg-cata-red/15 hover:text-cata-red disabled:opacity-50 whitespace-nowrap"
+                        >
+                          Asignar
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -537,8 +518,9 @@ export default function GroupsPage(): React.ReactElement {
             </div>
           </div>
 
-          {/* Right column: Group detail panel */}
-          <div className="space-y-4">
+          {/* Right column: Group detail panel — sticky on desktop so it
+              stays visible while the left column scrolls further. */}
+          <div className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
             {selectedNivel ? (
               <>
                 {/* Group detail */}
@@ -690,108 +672,11 @@ export default function GroupsPage(): React.ReactElement {
           </div>
         </div>
 
-        {/* Selección Oficial (Ranking track) — admin-managed roster, independent of the trainer-managed monthly ranking flow */}
-        <div id="seleccion-oficial" className="card mt-8 scroll-mt-24 p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <Award size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <h3 className="text-sm font-bold text-cata-text">Selección Oficial</h3>
-          </div>
-          <p className="mb-4 text-sm leading-relaxed text-cata-text/65">
-            Roster de selección oficial gestionado por administración — independiente del flujo
-            mensual de ranking a cargo del entrenador.
-          </p>
-
-          {seleccionError && (
-            <div className="alert-error mb-4" role="alert">
-              {seleccionError}
-            </div>
-          )}
-
-          <form
-            onSubmit={handleSeleccionOficialSubmit}
-            className="mb-5 grid gap-3 sm:grid-cols-4"
-          >
-            <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block text-xs font-medium text-cata-text/65">Estudiante</span>
-              <select
-                className="input-field"
-                value={seleccionEstudianteId}
-                onChange={(e) => setSeleccionEstudianteId(e.target.value)}
-              >
-                <option value="">Seleccionar...</option>
-                {allStudents.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nombres} {s.apellidos}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-xs font-medium text-cata-text/65">Categoría</span>
-              <select
-                className="input-field"
-                value={seleccionCategoria}
-                onChange={(e) =>
-                  setSeleccionCategoria(e.target.value ? Number(e.target.value) : "")
-                }
-              >
-                <option value="">—</option>
-                {Array.from({ length: 10 }, (_, i) => i + 1).map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-xs font-medium text-cata-text/65">Período</span>
-              <input
-                type="month"
-                className="input-field"
-                value={seleccionPeriodo}
-                onChange={(e) => setSeleccionPeriodo(e.target.value)}
-              />
-            </label>
-            <div className="sm:col-span-4">
-              <button type="submit" disabled={seleccionLoading} className="btn-primary">
-                {seleccionLoading ? "Guardando..." : "Agregar a selección oficial"}
-              </button>
-            </div>
-          </form>
-
-          {seleccionesOficiales.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
-                    <th className="px-4 py-2 font-medium">Estudiante</th>
-                    <th className="px-4 py-2 font-medium">Categoría</th>
-                    <th className="px-4 py-2 font-medium">Período</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-cata-border">
-                  {seleccionesOficiales.map((entry) => {
-                    const student = allStudents.find((s) => s.id === entry.estudianteId);
-                    return (
-                      <tr key={entry.id}>
-                        <td className="px-4 py-2 text-cata-text">
-                          {student ? `${student.nombres} ${student.apellidos}` : entry.estudianteId}
-                        </td>
-                        <td className="px-4 py-2 text-cata-text/65">{entry.categoria}</td>
-                        <td className="px-4 py-2 text-cata-text/65">{entry.periodo}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
         {/* Justificativos pendientes (Ranking track) — admin review queue for
-            E03-RF006b, independent of the Reingreso/Selección Oficial panels
-            above. See the `justificativosPendientes` state doc comment: the
-            listing is mock-only (no backend GET yet), evaluating is real. */}
+            E03-RF006b, independent of the Reingreso panel above and the
+            dedicated Selección Oficial page (/groups/seleccion-oficial). See
+            the `justificativosPendientes` state doc comment: the listing is
+            mock-only (no backend GET yet), evaluating is real. */}
         <div id="justificativos-pendientes" className="card mt-8 scroll-mt-24 p-6">
           <div className="mb-4 flex items-center gap-2">
             <FileText size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
@@ -831,7 +716,7 @@ export default function GroupsPage(): React.ReactElement {
                       <button
                         type="button"
                         disabled={isEvaluando}
-                        onClick={() => void handleEvaluarJustificativo(j.id, "APROBADO")}
+                        onClick={() => setConfirmingJustificativo({ id: j.id, estado: "APROBADO" })}
                         className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
                       >
                         <CheckCircle2 size={12} strokeWidth={1.5} aria-hidden="true" />
@@ -840,7 +725,7 @@ export default function GroupsPage(): React.ReactElement {
                       <button
                         type="button"
                         disabled={isEvaluando}
-                        onClick={() => void handleEvaluarJustificativo(j.id, "RECHAZADO")}
+                        onClick={() => setConfirmingJustificativo({ id: j.id, estado: "RECHAZADO" })}
                         className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-medium text-cata-red transition-colors hover:bg-red-100 disabled:opacity-50"
                       >
                         <XCircle size={12} strokeWidth={1.5} aria-hidden="true" />
@@ -874,6 +759,28 @@ export default function GroupsPage(): React.ReactElement {
             un Administrador puede mover a un estudiante ya asignado entre grupos.
           </p>
         </div>
+
+        <ConfirmDialog
+          open={confirmingJustificativo !== null}
+          variant={confirmingJustificativo?.estado === "APROBADO" ? "state-ok" : "danger"}
+          title={
+            confirmingJustificativo?.estado === "APROBADO"
+              ? "Aprobar justificativo"
+              : "Rechazar justificativo"
+          }
+          message={
+            confirmingJustificativo?.estado === "APROBADO"
+              ? "¿Confirma que aprueba este justificativo de ausencia?"
+              : "¿Confirma que rechaza este justificativo de ausencia?"
+          }
+          onConfirm={() => {
+            if (!confirmingJustificativo) return;
+            const { id, estado } = confirmingJustificativo;
+            setConfirmingJustificativo(null);
+            void handleEvaluarJustificativo(id, estado);
+          }}
+          onCancel={() => setConfirmingJustificativo(null)}
+        />
       </AppShell>
     </ProtectedRoute>
   );

@@ -63,7 +63,7 @@ export const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
   "/attendance": Calendar,
   "/trainer": GraduationCap,
   "/trainer/ranking": Trophy,
-  "/groups#seleccion-oficial": Award,
+  "/groups/seleccion-oficial": Award,
   "/reports": FileText,
   "/student": GraduationCap,
 };
@@ -222,6 +222,7 @@ const APP_SHELL_ROUTES = new Set([
   "/dashboard",
   "/members",
   "/groups",
+  "/groups/seleccion-oficial",
   "/payments",
   "/attendance",
   "/trainer",

@@ -266,6 +266,77 @@ export function buildScheduleGroupMap(
   return map;
 }
 
+// ---------------------------------------------------------------------------
+// Client-side pagination (PR3 — no backend page-through capability exists;
+// see design.md decision #3)
+// ---------------------------------------------------------------------------
+
+/** Records per page for the attendance records table. */
+export const ATTENDANCE_PAGE_SIZE = 25;
+
+/**
+ * Slice a (possibly already filtered) records list to a single page.
+ *
+ * `page` is 1-indexed. Returns an empty array when `page` is beyond the
+ * available data — never throws or wraps around.
+ */
+export function paginateRecords<T>(
+  records: T[],
+  page: number,
+  pageSize: number = ATTENDANCE_PAGE_SIZE,
+): T[] {
+  const start = (page - 1) * pageSize;
+  return records.slice(start, start + pageSize);
+}
+
+/**
+ * Total number of pages for a given record count.
+ *
+ * Always returns at least 1 (never 0 pages, even for an empty list) so
+ * "Página 1 de 1" is a valid state to render.
+ */
+export function getTotalPages(
+  totalRecords: number,
+  pageSize: number = ATTENDANCE_PAGE_SIZE,
+): number {
+  return Math.max(1, Math.ceil(totalRecords / pageSize));
+}
+
+// ---------------------------------------------------------------------------
+// Schedule ↔ day grouping (PR3 — Horarios de Entrenamiento density)
+// ---------------------------------------------------------------------------
+
+/** One day's worth of schedules, in the grouped Horarios layout. */
+export interface ScheduleDayGroup {
+  day: DiaSemana;
+  label: string;
+  schedules: TrainingSchedule[];
+}
+
+/**
+ * Group schedules by `diaSemana`, ordered Lunes → Domingo regardless of
+ * input order (order derived from `DIA_SEMANA_LABELS`' key order). Days
+ * with no schedules are omitted — never renders an empty day section.
+ */
+export function groupSchedulesByDay(
+  schedules: TrainingSchedule[],
+): ScheduleDayGroup[] {
+  const grouped: Partial<Record<DiaSemana, TrainingSchedule[]>> = {};
+  for (const schedule of schedules) {
+    const bucket = grouped[schedule.diaSemana] ?? (grouped[schedule.diaSemana] = []);
+    bucket.push(schedule);
+  }
+
+  const dayOrder = Object.keys(DIA_SEMANA_LABELS) as DiaSemana[];
+  return Object.entries(grouped)
+    .map(([day, daySchedules]) => ({
+      day: day as DiaSemana,
+      label: DIA_SEMANA_LABELS[day as DiaSemana],
+      schedules: daySchedules ?? [],
+    }))
+    .sort((a, b) => dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day));
+}
+
 /**
  * Derive the display level label for a schedule slot.
  *

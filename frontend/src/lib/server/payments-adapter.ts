@@ -93,15 +93,47 @@ export function personaFullName(persona: BackendPersona | undefined): string {
   return persona ? `${persona.nombres} ${persona.apellidos}`.trim() : "Estudiante";
 }
 
+/**
+ * Fields of `PersonaResponseDTO` needed to resolve the "responsable de
+ * pago" (payer) name — a superset of `BackendPersona` with `id`/
+ * `representanteId`, mirrors `BackendPersonaFull` (members-adapter.ts).
+ */
+export interface BackendPersonaWithRepresentante extends BackendPersona {
+  id: number;
+  representanteId: number | null;
+}
+
+/**
+ * Resolve each persona's "responsable de pago" full name: the
+ * representante's name when the persona is represented, otherwise the
+ * persona's own name (self-managed). Derived locally from one paginated
+ * `/personas/` fetch — same avoid-N+1 tradeoff as
+ * `members-adapter.ts#buildMemberAccounts` and
+ * `attendance-adapter.ts#fetchPersonaNameMap`. A dangling `representanteId`
+ * (representante not present in the fetched batch) falls back to the
+ * persona's own name rather than a placeholder.
+ */
+export function buildRepresentanteNameMap(personas: BackendPersonaWithRepresentante[]): Map<number, string> {
+  const byId = new Map(personas.map((persona) => [persona.id, persona]));
+  const map = new Map<number, string>();
+  for (const persona of personas) {
+    const payer = persona.representanteId !== null ? byId.get(persona.representanteId) : undefined;
+    map.set(persona.id, personaFullName(payer ?? persona));
+  }
+  return map;
+}
+
 export function buildPaymentValidationRequest(
   pago: BackendPagoCore,
   studentName: string,
   membresia: BackendMembresia,
   tipoMembresia: BackendTipoMembresia | undefined,
+  responsablePagoName?: string,
 ): PaymentValidationRequest {
   return {
     id: String(pago.id),
     studentName,
+    responsablePagoName,
     membershipPeriod: `${pago.fechaInicio} – ${pago.fechaFin}`,
     membershipType: tipoMembresia ? `${tipoMembresia.categoria} (${tipoMembresia.franjaHoraria})` : "Sin tipo",
     expectedAmount: Number(pago.monto),

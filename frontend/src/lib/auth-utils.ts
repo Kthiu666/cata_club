@@ -47,12 +47,13 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
         { href: "/groups", label: "Grupos" },
         { href: "/payments", label: "Membresías y Pagos" },
         { href: "/attendance", label: "Horarios y Asistencia" },
-        // Selección Oficial UI lives inside /groups (admin-only page — see
-        // groups/page.tsx), not on the trainer-gated /trainer/ranking page,
-        // so this points to that section rather than widening
-        // ProtectedRoute on the trainer route. See auth-utils "Files to
-        // MODIFY" note in the ranking-track task for the full rationale.
-        { href: "/groups#seleccion-oficial", label: "Selección Oficial" },
+        // Selección Oficial is a dedicated admin-only route (PR9) nested
+        // under /groups, its conceptual home — not on the trainer-gated
+        // /trainer/ranking page. Previously an anchor-jump section inside
+        // groups/page.tsx; extracted to its own screen after live-QA
+        // feedback that a smooth-scroll+highlight (PR4/PR7) still felt like
+        // an abrupt context switch.
+        { href: "/groups/seleccion-oficial", label: "Selección Oficial" },
         { href: "/reports", label: "Reportes" },
       );
       break;
