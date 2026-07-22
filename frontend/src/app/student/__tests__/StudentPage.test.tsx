@@ -223,3 +223,13 @@ describe("StudentPage — Pagos section", () => {
     expect(screen.queryByText(/motivo de rechazo/i)).not.toBeInTheDocument();
   });
 });
+
+describe("StudentPage — unavailable membership recovery", () => {
+  it("labels the unavailable membership state and offers the honest next action", async () => {
+    render(<StudentPage />);
+
+    const recovery = await screen.findByRole("region", { name: /membresía no disponible/i });
+    expect(recovery).toHaveTextContent("No disponible desde este portal por el momento.");
+    expect(screen.getByRole("link", { name: /consultar con administración/i })).toHaveAttribute("href", "mailto:administracion@cataclub.local");
+  });
+});

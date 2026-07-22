@@ -136,3 +136,26 @@ describe("PaymentsPage — approve confirmation gating", () => {
     expect(mockUpdatePaymentValidation).not.toHaveBeenCalled();
   });
 });
+
+describe("PaymentsPage — voucher preview recovery", () => {
+  it("replaces a failed voucher preview with a labeled download fallback", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([{ ...PENDING_REQUEST, proofPreviewUrl: "https://files.example/voucher.png" }]);
+
+    await renderAndSelectPending();
+    fireEvent.error(screen.getByRole("img", { name: /vista previa del comprobante/i }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Comprobante no disponible");
+    expect(screen.getByRole("link", { name: /descargar comprobante/i })).toHaveAttribute("href", "https://files.example/voucher.png");
+  });
+
+  it("allows a reviewer to retry the preview without changing the payment", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([{ ...PENDING_REQUEST, proofPreviewUrl: "https://files.example/voucher.png" }]);
+
+    await renderAndSelectPending();
+    fireEvent.error(screen.getByRole("img", { name: /vista previa del comprobante/i }));
+    fireEvent.click(screen.getByRole("button", { name: /reintentar vista previa/i }));
+
+    expect(screen.getByRole("img", { name: /vista previa del comprobante/i })).toBeInTheDocument();
+    expect(mockUpdatePaymentValidation).not.toHaveBeenCalled();
+  });
+});
