@@ -6,7 +6,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ContextualHelp from "@/components/ContextualHelp";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchStudentPortal, fetchMembresiasPorPersona, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra, submitJustificativo, fetchJustificativosDePersona, fetchPagosDePersona, ApiClientError } from "@/services/api";
+import { fetchStudentPortal, fetchMisMembresias, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra, submitJustificativo, fetchJustificativosDePersona, fetchPagosDePersona, ApiClientError } from "@/services/api";
 import type { StudentPortalSummary, StudentProfileSummary, MembresiaPorPersona, PagoPersona } from "@/services/api";
 import type { SolicitudClaseExtra, Justificativo } from "@/types/domain";
 import type { TrainingSchedule } from "@/app/attendance/attendance-utils";
@@ -68,8 +68,25 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void 
   );
 }
 
-/** Honest placeholder for membership/payment — no backend endpoint lets a student/representante read their own Membresia/Pago (see src/lib/server/student-adapter.ts). */
-function MembershipUnavailableCard(): React.ReactElement {
+/** Shows the JWT-scoped membership state without fabricating payment data. */
+function MembershipCard({ memberships }: { memberships: StudentPortalSummary["memberships"] }): React.ReactElement {
+  const activeMembership = memberships.find((membership) => membership.estado === "ACTIVA" || membership.estado === "VENCIDA");
+  if (activeMembership) {
+    return (
+      <section className="card-hover p-4 sm:p-5" aria-labelledby="membership-status-title">
+        <div className="mb-2 flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+            <ShieldCheck size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-cata-text/65">Membresía</p>
+            <h2 id="membership-status-title" className="text-lg font-bold tracking-tight text-cata-text">Membresía {activeMembership.estado.toLowerCase()}</h2>
+          </div>
+        </div>
+        <p className="text-xs leading-relaxed text-cata-text/55">Tu membresía está disponible desde este portal.</p>
+      </section>
+    );
+  }
   return (
     <section className="card-hover p-4 sm:p-5" aria-labelledby="membership-unavailable-title">
       <div className="mb-2 flex items-start gap-3">
@@ -181,7 +198,7 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
     setSubmitSuccess(false);
 
     Promise.all([
-      fetchMembresiasPorPersona(numericPersonaId),
+      fetchMisMembresias(numericPersonaId),
       fetchTrainingSchedules(),
       listarClasesExtra(numericPersonaId),
     ])
@@ -952,7 +969,7 @@ function ActivePortalView({
         <>
           <div className="mb-8 grid gap-4 sm:grid-cols-2">
             <RankingCard profile={selectedProfile} />
-            <MembershipUnavailableCard />
+            <MembershipCard memberships={selectedProfile.personaId === data.self?.personaId ? data.memberships : []} />
           </div>
 
           <RecentSessionsSection profile={selectedProfile} />

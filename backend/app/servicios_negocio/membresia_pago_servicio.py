@@ -69,10 +69,41 @@ class MembresiaServicio:
         RolServicio(self.db).asignar_alumno_si_corresponde(datos.persona_id)
         return membresia
 
-    def obtener_membresia(self, membresia_id: int) -> Membresia:
+    def obtener_membresia(
+        self,
+        membresia_id: int,
+        persona_id_solicitante: int | None = None,
+        roles_solicitante: list[str] | None = None,
+    ) -> Membresia:
+        """Obtiene una membresía por ID, aplicando autorización
+        owner/representative/admin (mismo criterio que listar_membresias_por_persona).
+        Sin parámetros de autorización (todos None) se comporta como antes:
+        solo existencia; útil para contextos internos donde el caller ya validó."""
         membresia = self.repo.obtener_por_id(membresia_id)
         if not membresia:
             raise EntidadNoEncontrada(f"Membresía con id {membresia_id} no encontrada")
+
+        # Si no hay contexto de autorización, devolver sin filtro (comportamiento
+        # anterior preservado para usos internos).
+        if persona_id_solicitante is None and not roles_solicitante:
+            return membresia
+
+        roles_solicitante = roles_solicitante or []
+        es_duenio = persona_id_solicitante == membresia.persona_id
+        es_admin = "ADMINISTRADOR" in roles_solicitante
+        es_representante = False
+
+        if not es_duenio and not es_admin and persona_id_solicitante is not None:
+            persona_objetivo = self.repo_persona.obtener_por_id(membresia.persona_id)
+            es_representante = bool(
+                persona_objetivo and persona_objetivo.representante_id == persona_id_solicitante
+            )
+
+        if not (es_duenio or es_representante or es_admin):
+            raise PermisosInsuficientes(
+                "Solo la propia persona, su representante, o un administrador "
+                "pueden ver esta membresía"
+            )
         return membresia
 
     def contar_membresias_activas(self) -> int:
@@ -284,6 +315,13 @@ class PagoServicio:
             membresia = pago.membresia
             membresia.estado = EstadoMembresia.ACTIVA
             membresia.fecha_activacion = pago.fecha_validacion
+
+            # Flush pending changes before counting active family memberships.
+            # With autoflush=False, the ACTIVA state set above is not visible
+            # to subsequent DB queries unless we explicitly flush. The 4th-family
+            # gratuity rule (E04-RF002) depends on an accurate count, which
+            # includes the membership we just activated.
+            self.db.flush()
 
             self._aplicar_regla_familiar_si_corresponde(membresia, pago)
             self._aplicar_beca_si_corresponde(membresia, persona=pago.persona)

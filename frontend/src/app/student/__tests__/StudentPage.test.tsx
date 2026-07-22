@@ -63,7 +63,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 
 const mockFetchStudentPortal = vi.fn();
-const mockFetchMembresiasPorPersona = vi.fn();
+const mockFetchMisMembresias = vi.fn();
 const mockFetchTrainingSchedules = vi.fn();
 const mockListarClasesExtra = vi.fn();
 const mockSubmitJustificativo = vi.fn();
@@ -72,7 +72,7 @@ const mockFetchPagosDePersona = vi.fn();
 
 vi.mock("@/services/api", () => ({
   fetchStudentPortal: () => mockFetchStudentPortal(),
-  fetchMembresiasPorPersona: () => mockFetchMembresiasPorPersona(),
+  fetchMisMembresias: () => mockFetchMisMembresias(),
   fetchTrainingSchedules: () => mockFetchTrainingSchedules(),
   listarClasesExtra: () => mockListarClasesExtra(),
   solicitarClaseExtra: vi.fn(),
@@ -92,6 +92,7 @@ const PORTAL: StudentPortalSummary = {
   },
   representados: [],
   membershipPlans: [],
+  memberships: [],
 };
 
 const RECHAZADO: Justificativo = {
@@ -156,7 +157,7 @@ const PAGO_APROBADO: PagoPersona = {
 
 beforeEach(() => {
   mockFetchStudentPortal.mockReset().mockResolvedValue(PORTAL);
-  mockFetchMembresiasPorPersona.mockReset().mockResolvedValue([]);
+  mockFetchMisMembresias.mockReset().mockResolvedValue([]);
   mockFetchTrainingSchedules.mockReset().mockResolvedValue([]);
   mockListarClasesExtra.mockReset().mockResolvedValue([]);
   mockSubmitJustificativo.mockReset();
@@ -225,6 +226,18 @@ describe("StudentPage — Pagos section", () => {
 });
 
 describe("StudentPage — unavailable membership recovery", () => {
+  it("renders the JWT-scoped active membership instead of the unavailable recovery", async () => {
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      ...PORTAL,
+      memberships: [{ id: 4, estado: "ACTIVA", personaId: 9 }],
+    });
+
+    render(<StudentPage />);
+
+    expect(await screen.findByRole("region", { name: /membresía activa/i })).toHaveTextContent("disponible desde este portal");
+    expect(screen.queryByRole("link", { name: /consultar con administración/i })).not.toBeInTheDocument();
+  });
+
   it("labels the unavailable membership state and offers the honest next action", async () => {
     render(<StudentPage />);
 

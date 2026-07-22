@@ -559,3 +559,307 @@ def test_listar_membresias_por_persona_vacio_cuando_no_hay(client):
     resp = client.get(f"/api/v1/membresias/persona/{persona['id']}")
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+# --- GET /membresias/mias (lectura derivada del JWT) ------------------------
+def test_membresias_mias_aplica_matriz_de_propiedad_sin_exponer_al_extrano(client, client_sin_permisos):
+    from main import app
+
+    app.dependency_overrides[GestorAutenticacion.decodificar_token] = lambda: {
+        "sub": "admin@cataclub.test", "persona_id": 999, "roles": ["ADMINISTRADOR"],
+    }
+    representante = _crear_persona(client, cedula="1733344455")
+    alumno = client.post(
+        "/api/v1/personas/",
+        json={
+            "nombres": "Hijo", "apellidos": "Representado", "cedula": "1744455566",
+            "fecha_nacimiento": "2015-05-14", "telefono": "0991234567",
+            "representante_id": representante["id"],
+        },
+    ).json()
+    ajeno = _crear_persona(client, cedula="1799999996")
+    tipo = _crear_tipo_membresia(client)
+    client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": alumno["id"], "tipo_membresia_id": tipo["id"],
+        },
+    )
+
+    app.dependency_overrides[GestorAutenticacion.decodificar_token] = lambda: {
+        "sub": "representante@cataclub.test", "persona_id": representante["id"], "roles": ["ALUMNO"],
+    }
+    representante_resp = client_sin_permisos.get(f"/api/v1/membresias/mias?persona_id={alumno['id']}")
+    assert representante_resp.status_code == 200
+    assert representante_resp.json()[0]["personaId"] == alumno["id"]
+
+    app.dependency_overrides[GestorAutenticacion.decodificar_token] = lambda: {
+        "sub": "admin@cataclub.test", "persona_id": ajeno["id"], "roles": ["ADMINISTRADOR"],
+    }
+    admin_resp = client_sin_permisos.get(f"/api/v1/membresias/mias?persona_id={alumno['id']}")
+    assert admin_resp.status_code == 200
+    assert admin_resp.json()[0]["personaId"] == alumno["id"]
+
+    app.dependency_overrides[GestorAutenticacion.decodificar_token] = lambda: {
+        "sub": "ajeno@cataclub.test", "persona_id": ajeno["id"], "roles": ["ALUMNO"],
+    }
+    stranger_resp = client_sin_permisos.get(f"/api/v1/membresias/mias?persona_id={alumno['id']}")
+    assert stranger_resp.status_code == 403
+    assert str(alumno["id"]) not in stranger_resp.json()["detail"]
+
+    app.dependency_overrides[GestorAutenticacion.decodificar_token] = lambda: {
+        "sub": "alumno@cataclub.test", "persona_id": alumno["id"], "roles": ["ALUMNO"],
+    }
+    owner_resp = client_sin_permisos.get("/api/v1/membresias/mias")
+    assert owner_resp.status_code == 200
+    assert owner_resp.json()[0]["personaId"] == alumno["id"]
+
+
+# --- E04-RF002: gratuidad del 4to miembro familiar ---------------------------
+def _crear_alumno_con_representante(client, cedula, representante_id):
+    """Helper: crea un alumno cuya fecha_nacimiento da >18 años con FECHA_CONGELADA_HOY."""
+    return client.post(
+        "/api/v1/personas/",
+        json={
+            "nombres": "Alumno", "apellidos": f"Familia{cedula}", "cedula": cedula,
+            "fecha_nacimiento": "2010-05-14", "telefono": "0991234567",
+            "representante_id": representante_id,
+        },
+    ).json()
+
+
+def test_e04_rf002_primera_membresia_familiar_sin_gratuidad(client):
+    """1er miembro de la familia: precio normal, sin gratuidad."""
+    from decimal import Decimal
+
+    representante = _crear_persona(client, cedula="1700000011")
+    alumno = _crear_alumno_con_representante(client, "1700000012", representante["id"])
+    tipo = _crear_tipo_membresia(client)
+    membresia = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": alumno["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+    pago = client.post(
+        "/api/v1/membresias/pagos",
+        json={
+            "monto": "35.00", "tipo_pago": "EFECTIVO",
+            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+            "persona_id": alumno["id"], "membresia_id": membresia["id"],
+        },
+    ).json()
+    resp = client.patch(f"/api/v1/membresias/pagos/{pago['id']}/validar", json={"estado_pago": "APROBADO"})
+    assert resp.status_code == 200
+    membresia_actualizada = client.get(f"/api/v1/membresias/{membresia['id']}").json()
+    assert membresia_actualizada["estado"] == "ACTIVA"
+    # 1er miembro: sin gratuidad, precio completo
+    assert Decimal(membresia_actualizada["montoAplicado"]) == Decimal("35.00")
+
+
+def test_e04_rf002_cuarta_membresia_familiar_con_gratuidad(client):
+    """4to miembro de la familia (mismo representante, mismo periodo):
+    monto_aplicado debe quedar en 0 por gratuidad familiar E04-RF002."""
+    from decimal import Decimal
+
+    representante = _crear_persona(client, cedula="1700000021")
+    tipo = _crear_tipo_membresia(client)
+
+    # Crear 3 membresías aprobadas (familia con 3 miembros activos)
+    alum_ids = []
+    for i in range(3):
+        alumno = _crear_alumno_con_representante(client, f"170000002{i + 2}", representante["id"])
+        alum_ids.append(alumno["id"])
+        membresia = client.post(
+            "/api/v1/membresias/",
+            json={
+                "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+                "persona_id": alumno["id"], "tipo_membresia_id": tipo["id"],
+            },
+        ).json()
+        pago = client.post(
+            "/api/v1/membresias/pagos",
+            json={
+                "monto": "35.00", "tipo_pago": "EFECTIVO",
+                "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+                "persona_id": alumno["id"], "membresia_id": membresia["id"],
+            },
+        ).json()
+        resp = client.patch(f"/api/v1/membresias/pagos/{pago['id']}/validar", json={"estado_pago": "APROBADO"})
+        assert resp.status_code == 200
+
+    # 4ta membresía: debe recibir gratuidad familiar
+    alumno_4 = _crear_alumno_con_representante(client, "1700000025", representante["id"])
+    alum_ids.append(alumno_4["id"])
+    membresia_4 = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": alumno_4["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+    pago_4 = client.post(
+        "/api/v1/membresias/pagos",
+        json={
+            "monto": "35.00", "tipo_pago": "EFECTIVO",
+            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+            "persona_id": alumno_4["id"], "membresia_id": membresia_4["id"],
+        },
+    ).json()
+    resp = client.patch(f"/api/v1/membresias/pagos/{pago_4['id']}/validar", json={"estado_pago": "APROBADO"})
+    assert resp.status_code == 200
+    membresia_4_actualizada = client.get(f"/api/v1/membresias/{membresia_4['id']}").json()
+    assert membresia_4_actualizada["estado"] == "ACTIVA"
+    # La 4ta membresía debe tener monto 0 por gratuidad familiar E04-RF002
+    assert Decimal(membresia_4_actualizada["montoAplicado"]) == Decimal("0.00")
+
+
+def test_e04_rf002_tercera_membresia_familiar_sin_gratuidad(client):
+    """3er miembro de la familia: precio normal, aún no alcanza el umbral de 4."""
+    from decimal import Decimal
+
+    representante = _crear_persona(client, cedula="1700000031")
+    tipo = _crear_tipo_membresia(client)
+
+    # Crear 2 membresías activas primero
+    for i in range(2):
+        alumno = _crear_alumno_con_representante(client, f"170000003{i + 2}", representante["id"])
+        membresia = client.post(
+            "/api/v1/membresias/",
+            json={
+                "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+                "persona_id": alumno["id"], "tipo_membresia_id": tipo["id"],
+            },
+        ).json()
+        pago = client.post(
+            "/api/v1/membresias/pagos",
+            json={
+                "monto": "35.00", "tipo_pago": "EFECTIVO",
+                "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+                "persona_id": alumno["id"], "membresia_id": membresia["id"],
+            },
+        ).json()
+        client.patch(f"/api/v1/membresias/pagos/{pago['id']}/validar", json={"estado_pago": "APROBADO"})
+
+    # 3ra membresía: NO debe tener gratuidad (umbral es 4, no 3)
+    alumno_3 = _crear_alumno_con_representante(client, "1700000034", representante["id"])
+    membresia_3 = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": alumno_3["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+    pago_3 = client.post(
+        "/api/v1/membresias/pagos",
+        json={
+            "monto": "35.00", "tipo_pago": "EFECTIVO",
+            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+            "persona_id": alumno_3["id"], "membresia_id": membresia_3["id"],
+        },
+    ).json()
+    resp = client.patch(f"/api/v1/membresias/pagos/{pago_3['id']}/validar", json={"estado_pago": "APROBADO"})
+    assert resp.status_code == 200
+    membresia_3_actualizada = client.get(f"/api/v1/membresias/{membresia_3['id']}").json()
+    assert membresia_3_actualizada["estado"] == "ACTIVA"
+    # La 3ra membresía NO debe tener gratuidad
+    assert Decimal(membresia_3_actualizada["montoAplicado"]) == Decimal("35.00")
+
+
+# --- GET /membresias/{membresia_id} authorization -----------------------------
+def test_obtener_membresia_owner_puede_acceder(client):
+    """El dueño de la membresía puede consultarla."""
+    persona = _crear_persona(client)
+    tipo = _crear_tipo_membresia(client)
+    membresia = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": persona["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+
+    from main import app
+    app.dependency_overrides[GestorAutenticacion.decodificar_token] = lambda: {
+        "sub": "owner@cataclub.test", "persona_id": persona["id"], "roles": ["ALUMNO"],
+    }
+    resp = client.get(f"/api/v1/membresias/{membresia['id']}")
+    assert resp.status_code == 200
+    assert resp.json()["id"] == membresia["id"]
+
+
+def test_obtener_membresia_representante_puede_acceder(client_sin_permisos, client):
+    """El representante del dueño puede consultar la membresía."""
+    representante = _crear_persona(client, cedula="1700000041")
+    alumno = client.post(
+        "/api/v1/personas/",
+        json={
+            "nombres": "Hijo", "apellidos": "Representado", "cedula": "1700000042",
+            "fecha_nacimiento": "2015-05-14", "telefono": "0991234567",
+            "representante_id": representante["id"],
+        },
+    ).json()
+    tipo = _crear_tipo_membresia(client)
+    membresia = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": alumno["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+
+    from main import app
+    app.dependency_overrides[GestorAutenticacion.decodificar_token] = lambda: {
+        "sub": "representante@cataclub.test", "persona_id": representante["id"], "roles": ["ALUMNO"],
+    }
+    resp = client_sin_permisos.get(f"/api/v1/membresias/{membresia['id']}")
+    assert resp.status_code == 200
+    assert resp.json()["id"] == membresia["id"]
+
+
+def test_obtener_membresia_admin_puede_acceder(client_sin_permisos, client):
+    """Un administrador puede consultar cualquier membresía."""
+    persona = _crear_persona(client, cedula="1700000051")
+    tipo = _crear_tipo_membresia(client)
+    membresia = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": persona["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+
+    from main import app
+    app.dependency_overrides[GestorAutenticacion.decodificar_token] = lambda: {
+        "sub": "admin@cataclub.test", "persona_id": 9999, "roles": ["ADMINISTRADOR"],
+    }
+    resp = client_sin_permisos.get(f"/api/v1/membresias/{membresia['id']}")
+    assert resp.status_code == 200
+    assert resp.json()["id"] == membresia["id"]
+
+
+def test_obtener_membresia_stranger_no_puede_acceder(client_sin_permisos, client):
+    """Un usuario sin vínculo no puede consultar una membresía ajena (403)."""
+    persona = _crear_persona(client, cedula="1700000061")
+    tipo = _crear_tipo_membresia(client)
+    membresia = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": persona["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+
+    # "extraña" persona con id=9998
+    otra_persona = _crear_persona(client, cedula="1700000062")
+
+    from main import app
+    app.dependency_overrides[GestorAutenticacion.decodificar_token] = lambda: {
+        "sub": "stranger@cataclub.test", "persona_id": otra_persona["id"], "roles": ["ALUMNO"],
+    }
+    resp = client_sin_permisos.get(f"/api/v1/membresias/{membresia['id']}")
+    assert resp.status_code == 403
+    # El mensaje de error no debe filtrar el id de la membresia
+    assert str(membresia["id"]) not in resp.json()["detail"]
