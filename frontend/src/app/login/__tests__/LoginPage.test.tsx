@@ -8,8 +8,8 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import LoginPage from "@/app/login/page";
 
 // ---------------------------------------------------------------------------
@@ -25,6 +25,10 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: vi.fn(),
+}));
+
+vi.mock("@/components/auth/AuthShell", () => ({
+  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 // ---------------------------------------------------------------------------
@@ -73,5 +77,36 @@ describe("LoginPage", () => {
     expect(screen.getByLabelText("Correo electrónico")).toBeInTheDocument();
     expect(screen.queryByText("Cargando sesión...")).not.toBeInTheDocument();
     expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("trims credentials before submitting them", () => {
+    const auth = createUnauthenticatedAuth();
+    const mockLogin = vi.mocked(auth.login);
+    mockLogin.mockResolvedValue({ ok: false, error: "invalid_credentials" });
+    mockUseAuth.mockReturnValue(auth);
+
+    render(<LoginPage />);
+
+    fireEvent.change(screen.getByLabelText(/correo electrónico/i), { target: { value: "  user@example.com  " } });
+    fireEvent.change(screen.getByLabelText(/^contraseña$/i), { target: { value: "  safe-password  " } });
+    fireEvent.submit(screen.getByRole("button", { name: /iniciar sesión/i }).closest("form") as HTMLFormElement);
+
+    expect(mockLogin).toHaveBeenCalledWith("user@example.com", "safe-password");
+  });
+
+  it("blocks a whitespace-only email without sending an authentication request", () => {
+    const auth = createUnauthenticatedAuth();
+    const mockLogin = vi.mocked(auth.login);
+    mockUseAuth.mockReturnValue(auth);
+
+    render(<LoginPage />);
+
+    fireEvent.change(screen.getByLabelText(/correo electrónico/i), { target: { value: "   " } });
+    fireEvent.change(screen.getByLabelText(/^contraseña$/i), { target: { value: "safe-password" } });
+    fireEvent.submit(screen.getByRole("button", { name: /iniciar sesión/i }).closest("form") as HTMLFormElement);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Ingrese su correo electrónico.");
+    expect(screen.getByLabelText(/correo electrónico/i)).toHaveAttribute("aria-invalid", "true");
+    expect(mockLogin).not.toHaveBeenCalled();
   });
 });

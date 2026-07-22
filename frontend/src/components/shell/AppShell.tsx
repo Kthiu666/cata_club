@@ -317,6 +317,7 @@ export default function AppShell({
             <button
               type="button"
               onClick={(): void => setPaletteOpen(true)}
+              aria-label="Buscar secciones"
               className="flex items-center gap-2 rounded-xl border border-cata-border bg-cata-bg px-3.5 py-2.5 text-sm text-cata-text/50 transition-colors hover:border-cata-text/20"
             >
               <Search size={15} strokeWidth={1.5} aria-hidden="true" />
