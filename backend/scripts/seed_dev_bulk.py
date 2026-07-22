@@ -70,6 +70,12 @@ from app.seguridad.gestor_auth import GestorAutenticacion
 from app.servicios_negocio.ranking_servicio import calcular_puntos_por_posicion
 
 CONTRASENIA_COMPARTIDA = "alumno123"
+DEFAULT_SEED_VOUCHER_BASE_URL = "https://placehold.co/600x400.png?text=Cata+Club+Voucher"
+
+
+def voucher_fixture_url() -> str:
+    """Return the environment-approved URL used by dev payment fixtures."""
+    return os.environ.get("SEED_VOUCHER_BASE_URL", "").strip() or DEFAULT_SEED_VOUCHER_BASE_URL
 
 # ---------------------------------------------------------------------------
 # Rango de cédulas propio para este seed: 0000000001-0000000005 ya están
@@ -323,7 +329,7 @@ def _asignar_membresia_y_pago(
         db.flush()
         if indice % 2 == 0:
             db.add(ComprobantePago(
-                archivo_url=f"https://cataclub.local/comprobantes/dev-{persona.id}.pdf",
+                archivo_url=voucher_fixture_url(),
                 formato_archivo="application/pdf",
                 pago_id=pago.id,
             ))
@@ -348,7 +354,7 @@ def _asignar_membresia_y_pago(
             fecha_fin=hoy + timedelta(days=20),
             persona_id=persona.id,
             membresia_id=membresia.id,
-            voucher_url=f"https://cataclub.local/vouchers/dev-{persona.id}.jpg",
+            voucher_url=voucher_fixture_url(),
             voucher_formato="image/jpeg",
             voucher_fecha_carga=ahora,
         ))
@@ -363,7 +369,7 @@ def _asignar_membresia_y_pago(
             fecha_fin=hoy + timedelta(days=20),
             persona_id=persona.id,
             membresia_id=membresia.id,
-            voucher_url=f"https://cataclub.local/vouchers/dev-{persona.id}-rechazado.jpg",
+            voucher_url=voucher_fixture_url(),
             voucher_formato="image/jpeg",
             voucher_fecha_carga=ahora - timedelta(days=2),
         ))
