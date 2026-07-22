@@ -165,7 +165,8 @@ describe("LoginPage", () => {
   });
 
   describe("successful submission", () => {
-    it("shows an 'Inicio de sesión exitoso' toast and redirects to the role's default route", async () => {
+    it("shows a centered welcome overlay instead of a toast, then redirects to the role's default route", async () => {
+      vi.useFakeTimers();
       const session = createMockSession();
       const mockLogin = vi.fn().mockResolvedValue({ ok: true, session });
       mockUseAuth.mockReturnValue({
@@ -175,11 +176,18 @@ describe("LoginPage", () => {
 
       render(<LoginPage />);
       submitLoginForm();
+      await vi.advanceTimersByTimeAsync(0);
 
-      await waitFor(() => {
-        expect(mockShowSuccess).toHaveBeenCalledWith("Inicio de sesión exitoso");
-      });
+      const overlay = screen.getByRole("status");
+      expect(overlay).toHaveTextContent("Inicio de sesión exitoso");
+      expect(overlay).toHaveTextContent(session.user.name);
+      expect(mockShowSuccess).not.toHaveBeenCalled();
+      expect(mockReplace).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(2000);
+
       expect(mockReplace).toHaveBeenCalledWith("/dashboard");
+      vi.useRealTimers();
     });
   });
 });

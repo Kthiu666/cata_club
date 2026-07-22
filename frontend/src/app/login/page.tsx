@@ -23,6 +23,10 @@ import { useToast } from "@/contexts/ToastContext";
 import { getDefaultRoute } from "@/lib/auth-utils";
 import type { AuthErrorKind } from "@/services/auth";
 import AuthShell from "@/components/auth/AuthShell";
+import LoginSuccessOverlay from "@/components/auth/LoginSuccessOverlay";
+
+/** How long the welcome overlay stays on screen before redirecting. */
+const WELCOME_OVERLAY_MS = 1400;
 
 /** Distinct, user-readable message per login failure kind. */
 function loginErrorMessage(error: AuthErrorKind): string {
@@ -50,13 +54,24 @@ export default function LoginPage(): React.ReactElement {
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({ email: "", password: "" });
+  const [welcome, setWelcome] = useState<{ name: string; route: string } | null>(null);
 
-  // Redirect to role-appropriate page if already authenticated
+  // Redirect to role-appropriate page if already authenticated. Skipped
+  // while the welcome overlay is up — a login just completed, and that
+  // effect below owns the (delayed) redirect instead.
   useEffect((): void => {
-    if (!isLoading && isAuthenticated && session) {
+    if (!isLoading && isAuthenticated && session && !welcome) {
       router.replace(getDefaultRoute(session.user.role));
     }
-  }, [isLoading, isAuthenticated, session, router]);
+  }, [isLoading, isAuthenticated, session, welcome, router]);
+
+  // Hold the welcome overlay on screen briefly before navigating away, so a
+  // successful login is actually seen instead of flashing past.
+  useEffect((): (() => void) | void => {
+    if (!welcome) return;
+    const timer = setTimeout((): void => router.replace(welcome.route), WELCOME_OVERLAY_MS);
+    return (): void => clearTimeout(timer);
+  }, [welcome, router]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
@@ -78,8 +93,14 @@ export default function LoginPage(): React.ReactElement {
       return;
     }
 
-    toast.showSuccess("Inicio de sesión exitoso");
-    router.replace(getDefaultRoute(result.session.user.role));
+    setWelcome({
+      name: result.session.user.name,
+      route: getDefaultRoute(result.session.user.role),
+    });
+  }
+
+  if (welcome) {
+    return <LoginSuccessOverlay name={welcome.name} />;
   }
 
   // Show loading during session hydration, and keep showing it while an
