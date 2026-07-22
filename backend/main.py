@@ -13,7 +13,6 @@ from app.presentacion.routers import (
     clases_extra_router,
     geografia_router,
     ranking_router,
-    tesoreria_router,
     enrollment_router,
     dashboard_router,
 )
@@ -78,7 +77,6 @@ app.include_router(ficha_medica_router.router, prefix="/api/v1")
 app.include_router(clases_extra_router.router, prefix="/api/v1")
 app.include_router(geografia_router.router, prefix="/api/v1")
 app.include_router(ranking_router.router, prefix="/api/v1")
-app.include_router(tesoreria_router.router, prefix="/api/v1")
 app.include_router(enrollment_router.router, prefix="/api/v1")
 app.include_router(dashboard_router.router, prefix="/api/v1")
 

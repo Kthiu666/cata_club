@@ -9,24 +9,15 @@ class TipoRol(str, enum.Enum):
     ALUMNO = "ALUMNO"
     ENTRENADOR = "ENTRENADOR"
     ADMINISTRADOR = "ADMINISTRADOR"
-    # Agregado: E04-RF010/011/012 (gestión de eventos de recaudación) exige
-    # un actor "Tesorero" con sus propios permisos, distinto de ADMINISTRADOR.
     # "Representante" NO se agrega aquí a propósito: sigue siendo un hecho
     # relacional (Persona.representante_id), no un rol -- ver justificación
     # en persona_servicio.py y en el análisis de diseño ya acordado.
-    TESORERO = "TESORERO"
 
 
 class TipoManoDominante(str, enum.Enum):
     """E01-RF008: dato técnico del alumno."""
     DIESTRO = "DIESTRO"
     ZURDO = "ZURDO"
-
-
-class TipoMovimientoEvento(str, enum.Enum):
-    """E04-RF011: ingresos/egresos de un evento de recaudación."""
-    INGRESO = "INGRESO"
-    EGRESO = "EGRESO"
 
 
 class EstadoMembresia(str, enum.Enum):

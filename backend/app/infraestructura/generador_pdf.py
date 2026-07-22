@@ -152,54 +152,6 @@ def generar_comprobante_pago_pdf(
     return pdf_bytes
 
 
-def generar_reporte_pdf(*, titulo: str, subtitulo: str, filas: list[list[str]], encabezados: list[str]) -> bytes:
-    """
-    Reporte tabular genérico en PDF (E04-RF013: reportes administrativos y
-    financieros). Reusa el mismo estilo visual que `generar_comprobante_pago_pdf`
-    para mantener consistencia entre los documentos que emite el sistema.
-    """
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buffer, pagesize=A4,
-        leftMargin=18 * mm, rightMargin=18 * mm, topMargin=18 * mm, bottomMargin=16 * mm,
-        title=titulo, author="Cata Club - Academia de Tenis",
-    )
-    estilos = getSampleStyleSheet()
-    titulo_estilo = ParagraphStyle(
-        "TituloReporte", parent=estilos["Title"],
-        fontSize=18, textColor=colors.HexColor("#0B3D91"), spaceAfter=4,
-    )
-    subtitulo_estilo = ParagraphStyle(
-        "SubReporte", parent=estilos["Normal"], fontSize=10, textColor=colors.grey, spaceAfter=10,
-    )
-
-    elementos = [
-        Paragraph("Cata Club - Academia de Tenis", titulo_estilo),
-        Paragraph(subtitulo, subtitulo_estilo),
-        HRFlowable(width="100%", thickness=1, color=colors.HexColor("#0B3D91")),
-        Spacer(1, 10),
-        Paragraph(titulo, estilos["Heading2"]),
-        Spacer(1, 8),
-    ]
-
-    tabla_datos = [encabezados] + filas
-    tabla = Table(tabla_datos, hAlign="LEFT")
-    tabla.setStyle(_estilo_tabla())
-    elementos.append(tabla)
-    elementos.append(Spacer(1, 24))
-    elementos.append(HRFlowable(width="50%", thickness=0.5, color=colors.grey))
-    elementos.append(Paragraph(
-        f"Documento generado electrónicamente el "
-        f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}.",
-        ParagraphStyle("PieReporte", parent=estilos["Normal"], fontSize=8, textColor=colors.grey),
-    ))
-
-    doc.build(elementos)
-    pdf_bytes = buffer.getvalue()
-    buffer.close()
-    return pdf_bytes
-
-
 def _estilo_tabla() -> TableStyle:
     """Devuelve los estilos de la tabla de detalle (TableStyle)."""
     return TableStyle([
