@@ -632,6 +632,7 @@ function JustificativosSection({ personaId }: { personaId: string }): React.Reac
   const [anio, setAnio] = useState(now.getFullYear());
   const [mes, setMes] = useState(now.getMonth() + 1);
   const [motivo, setMotivo] = useState("");
+  const [observaciones, setObservaciones] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [historial, setHistorial] = useState<Justificativo[]>([]);
@@ -667,8 +668,10 @@ function JustificativosSection({ personaId }: { personaId: string }): React.Reac
         anio,
         mes,
         motivo: motivo.trim(),
+        observaciones: observaciones.trim() || undefined,
       });
       setMotivo("");
+      setObservaciones("");
       await cargarHistorial();
     } catch (error: unknown) {
       setSubmitError(error instanceof Error ? error.message : "No se pudo enviar el justificativo.");
@@ -735,6 +738,20 @@ function JustificativosSection({ personaId }: { personaId: string }): React.Reac
               maxLength={255}
               className="input-field w-full"
               required
+            />
+          </div>
+          <div className="sm:col-span-2 lg:col-span-4">
+            <label htmlFor="justificativo-observaciones" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Observaciones <span className="text-cata-text/40">(opcional)</span>
+            </label>
+            <textarea
+              id="justificativo-observaciones"
+              value={observaciones}
+              onChange={(e) => setObservaciones(e.target.value)}
+              placeholder="Detalles adicionales sobre la ausencia..."
+              maxLength={500}
+              rows={3}
+              className="input-field w-full resize-none"
             />
           </div>
           <div className="sm:col-span-2 lg:col-span-4">

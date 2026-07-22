@@ -13,7 +13,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import SeleccionOficialPage from "@/app/groups/seleccion-oficial/page";
+import SeleccionOficialPage from "@/app/ranking/seleccion-oficial/page";
 import type { MemberAccount } from "@/app/members/members-utils";
 
 vi.mock("@/components/ProtectedRoute", () => ({
@@ -21,7 +21,7 @@ vi.mock("@/components/ProtectedRoute", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/groups/seleccion-oficial",
+  usePathname: () => "/ranking/seleccion-oficial",
   useRouter: () => ({ push: vi.fn() }),
 }));
 
@@ -64,6 +64,10 @@ const mockFetchMembers = vi.fn();
 const mockSeleccionOficial = vi.fn();
 const mockFetchNotificaciones = vi.fn().mockResolvedValue([]);
 const mockMarcarNotificacionLeida = vi.fn().mockResolvedValue(undefined);
+const mockFetchSeleccionOficial = vi.fn().mockResolvedValue([
+  { persona_id: 10, persona_nombre_completo: "Sofía González" },
+]);
+const mockQuitarDeSeleccionOficial = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@/services/api", () => {
   class MockApiClientError extends Error {
@@ -77,6 +81,8 @@ vi.mock("@/services/api", () => {
   return {
     fetchMembers: () => mockFetchMembers(),
     seleccionOficial: (dto: unknown) => mockSeleccionOficial(dto),
+    fetchSeleccionOficial: () => mockFetchSeleccionOficial(),
+    quitarDeSeleccionOficial: (id: number) => mockQuitarDeSeleccionOficial(id),
     fetchNotificaciones: () => mockFetchNotificaciones(),
     marcarNotificacionLeida: (id: number) => mockMarcarNotificacionLeida(id),
     ApiClientError: MockApiClientError,

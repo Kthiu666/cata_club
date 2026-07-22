@@ -6,7 +6,8 @@ en un solo request transaccional. Endpoint público (sin auth), rate-limited.
 
 Flujo:
   1. Validar edad del alumno (5-74 años).
-  2. Si hay representante: crear Persona del representante + Usuario (credenciales).
+  2. Si hay representante: crear Persona del representante + Usuario (credenciales)
+     + asignar roles REPRESENTANTE y ALUMNO.
   3. Crear Persona del alumno (con representante_id si aplica).
   4. Crear FichaMedica (si se proporcionó).
   5. Crear AntecedentesClub (si se proporcionó y tiene nivel_tecnico_alumno).
@@ -16,12 +17,14 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from app.dominio.modelos import Persona, Usuario, FichaMedica, Enfermedades, AntecedentesClub
+from app.dominio.enums import TipoRol
 from app.dominio.excepciones import EntidadDuplicada, OperacionInvalida
 from app.infraestructura.repositorios.persona_repositorio import PersonaRepositorio
 from app.infraestructura.repositorios.usuario_ficha_repositorio import (
     UsuarioRepositorio, FichaMedicaRepositorio,
 )
 from app.infraestructura.repositorios.antecedentes_club_repositorio import AntecedentesClubRepositorio
+from app.infraestructura.repositorios.rol_repositorio import RolRepositorio
 from app.presentacion.schemas.enrollment_schemas import EnrollmentCreateDTO
 from app.seguridad.gestor_auth import GestorAutenticacion
 from app.servicios_negocio.persona_servicio import (
@@ -38,6 +41,7 @@ class EnrollmentServicio:
         self.repo_usuario = UsuarioRepositorio(db)
         self.repo_ficha = FichaMedicaRepositorio(db)
         self.repo_antecedentes = AntecedentesClubRepositorio(db)
+        self.repo_rol = RolRepositorio(db)
 
     def enroll(self, datos: EnrollmentCreateDTO) -> dict:
         """
@@ -144,6 +148,8 @@ class EnrollmentServicio:
                 persona_id=representante_id,
             )
             self.repo_usuario.crear(usuario)
+            self._asignar_rol(usuario, TipoRol.REPRESENTANTE)
+            self._asignar_rol(usuario, TipoRol.ALUMNO)
             return self._emitir_tokens(usuario)
 
         if datos.credenciales_alumno:
@@ -159,6 +165,7 @@ class EnrollmentServicio:
                 persona_id=alumno.id,
             )
             self.repo_usuario.crear(usuario)
+            self._asignar_rol(usuario, TipoRol.ALUMNO)
             return self._emitir_tokens(usuario)
 
         # Sin credenciales (caso admin que registra sin auto-login)
@@ -166,6 +173,14 @@ class EnrollmentServicio:
             "persona_id": alumno.id,
             "mensaje": "Alumno registrado exitosamente. Las credenciales de acceso se crearán posteriormente.",
         }
+
+    def _asignar_rol(self, usuario: Usuario, tipo_rol: TipoRol) -> None:
+        """Asigna un rol al usuario si aún no lo tiene (idempotente)."""
+        if any(r.tipo_rol == tipo_rol for r in usuario.roles):
+            return
+        rol = self.repo_rol.obtener_o_crear(tipo_rol)
+        usuario.roles.append(rol)
+        self.db.flush()
 
     def _emitir_tokens(self, usuario: Usuario) -> dict:
         """Emite el par access + refresh tokens para auto-login."""

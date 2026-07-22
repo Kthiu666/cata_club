@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -13,7 +13,7 @@ from app.presentacion.schemas.ranking_schemas import (
     AsignarNivelInicialDTO, RankingResponseDTO, TablaRankingItemDTO,
     ResultadoMensualRegistrarDTO, ResultadoMensualResponseDTO, CierreMensualResponseDTO,
     JustificativoCreateDTO, JustificativoEvaluarDTO, JustificativoResponseDTO,
-    ReingresoResponseDTO, SeleccionOficialDTO, PerfilRankingAlumnoDTO,
+    ReingresoResponseDTO, SeleccionOficialDTO, SeleccionOficialItemDTO, PerfilRankingAlumnoDTO,
     NotificacionResponseDTO, AsignacionRankingResponseDTO,
     ResultadoMensualRankingResponseDTO, CierreMensualRankingResponseDTO,
 )
@@ -209,12 +209,34 @@ async def reingresar(persona_id: int, db: Session = Depends(obtener_sesion)):
 
 
 # --- Selección oficial (E03-RF011) ------------------------------------------
+@router.get(
+    "/seleccion-oficial", response_model=List[SeleccionOficialItemDTO],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
+)
+async def listar_seleccion_oficial(
+    anio: int | None = Query(default=None),
+    db: Session = Depends(obtener_sesion),
+):
+    """Listar el roster actual de selección oficial, filtrable por año."""
+    return RankingServicio(db).listar_seleccion_oficial(anio)
+
+
 @router.post(
     "/seleccion-oficial", response_model=List[RankingResponseDTO],
     dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
 )
 async def marcar_seleccion_oficial(datos: SeleccionOficialDTO, db: Session = Depends(obtener_sesion)):
     return RankingServicio(db).marcar_seleccion_oficial(datos)
+
+
+@router.delete(
+    "/seleccion-oficial/{persona_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
+)
+async def quitar_seleccion_oficial(persona_id: int, db: Session = Depends(obtener_sesion)):
+    """Quitar a una persona de la selección oficial."""
+    RankingServicio(db).quitar_seleccion_oficial(persona_id)
 
 
 # --- Perfil privado del alumno (E04-RF012) ----------------------------------
