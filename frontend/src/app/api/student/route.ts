@@ -27,6 +27,7 @@ import {
   buildRankingView,
   buildRecentSessions,
   buildStudentProfileView,
+  type BackendMembresiaPropia,
   type BackendPerfilRanking,
   type BackendTipoMembresiaCatalogo,
   type StudentPortalView,
@@ -71,10 +72,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ message: "personaId inválido." }, { status: 400 });
   }
 
-  const [representadosResult, horariosResult, tiposResult] = await Promise.all([
+  const [representadosResult, horariosResult, tiposResult, membresiasResult] = await Promise.all([
     backendFetchAuthed(request, `/personas/${personaId}/representados`),
     backendFetchAuthed(request, "/asistencias/horarios"),
     backendFetchAuthed(request, "/membresias/tipos"),
+    backendFetchAuthed(request, "/membresias/mias"),
   ]);
 
   if (!representadosResult.ok) {
@@ -91,6 +93,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const tipos: BackendTipoMembresiaCatalogo[] =
     tiposResult.ok && tiposResult.response.ok ? await tiposResult.response.json() : [];
+  const memberships: BackendMembresiaPropia[] =
+    membresiasResult.ok && membresiasResult.response.ok ? await membresiasResult.response.json() : [];
 
   const [self, ...representados] = await Promise.all([
     fetchProfile(request, personaId, horariosById),
@@ -101,6 +105,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     self,
     representados: representados.filter((profile): profile is StudentProfileView => profile !== null),
     membershipPlans: buildMembershipPlans(tipos),
+    memberships,
   };
 
   const response = NextResponse.json(portal);

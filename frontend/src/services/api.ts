@@ -597,6 +597,13 @@ export interface StudentPortalSummary {
   self: StudentProfileSummary | null;
   representados: StudentProfileSummary[];
   membershipPlans: MembershipPlanSummary[];
+  memberships: StudentMembershipSummary[];
+}
+
+export interface StudentMembershipSummary {
+  id: number;
+  estado: string;
+  personaId: number;
 }
 
 /** Fetch the logged-in persona's own portal data (profile, representados, ranking, recent attendance) — `GET /api/student`. */
@@ -849,6 +856,13 @@ export async function fetchMembresiasPorPersona(personaId: number): Promise<Memb
   return request<MembresiaPorPersona[]>(apiEndpoint(`/membresias/persona/${personaId}`), {
     headers: mockHeaders,
   });
+}
+
+/** JWT-derived membership read for the student portal and represented dependents. */
+export async function fetchMisMembresias(personaId?: number): Promise<MembresiaPorPersona[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  const query = personaId === undefined ? "" : `?persona_id=${encodeURIComponent(personaId)}`;
+  return request<MembresiaPorPersona[]>(apiEndpoint(`/membresias/mias${query}`), { headers: mockHeaders });
 }
 
 /**
