@@ -102,6 +102,14 @@ describe("LoginPage", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it("does not add contextual help to the unrelated login journey", () => {
+    mockUseAuth.mockReturnValue(createUnauthenticatedAuth(false));
+
+    render(<LoginPage />);
+
+    expect(screen.queryByRole("button", { name: /ayuda sobre/i })).not.toBeInTheDocument();
+  });
+
   it("trims credentials before submitting them", () => {
     const auth = createUnauthenticatedAuth();
     const mockLogin = vi.mocked(auth.login);

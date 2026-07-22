@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import ContextualHelp from "@/components/ContextualHelp";
 import {
   Users,
   UserCheck,
@@ -1064,6 +1065,11 @@ export default function MembersPage(): React.ReactElement {
         </div>
 
         {/* Members table */}
+        {!loading && (
+          <ContextualHelp title="Ayuda sobre límite de resultados">
+            <p>Este listado puede incluir hasta 200 registros y no confirma que se hayan cargado todos los miembros.</p>
+          </ContextualHelp>
+        )}
         {loading ? (
           <div className="card flex flex-col items-center py-16 text-center">
             <p className="text-sm text-cata-text/50">Cargando miembros…</p>

@@ -146,4 +146,26 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
       }));
     });
   });
+
+  it("opens named help that preserves the existing Justificado semantics", async () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    mockFetchTrainingSchedules.mockResolvedValue([
+      { id: 12, diaSemana: "lunes", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+    ]);
+    mockFetchNivelesConOcupacion.mockResolvedValue([
+      { id: 4, numeroNivel: 2, nombre: "Intermedio", nivelCategoria: "intermedio", personasActuales: 1 },
+    ]);
+    mockFetchNivelRoster.mockResolvedValue([
+      { personaId: 9, personaNombreCompleto: "Ana López", posicionActual: 1, puntajeAcumulado: 20, estaEnRanking: true },
+    ]);
+
+    render(<TrainerAttendancePage />);
+    fireEvent.click(await screen.findByRole("button", { name: /lunes/i }));
+    fireEvent.click(screen.getByRole("button", { name: /intermedio/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ayuda sobre el estado Justificado" }));
+
+    const help = screen.getByRole("region", { name: "Ayuda sobre el estado Justificado" });
+    expect(help).toHaveTextContent("no modifica la validación ni el significado actual");
+  });
 });
