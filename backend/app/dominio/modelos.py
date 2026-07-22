@@ -38,6 +38,9 @@ class Base(DeclarativeBase):
     pass
 
 
+_HORARIO_FK = "horario_entrenamiento.id"
+
+
 # ---------------------------------------------------------------------------
 # Tabla de asociación Usuario <-> Rol (muchos a muchos)
 # ---------------------------------------------------------------------------
@@ -399,7 +402,7 @@ class Asistencia(Base):
         back_populates="asistencias_dictadas", foreign_keys=[entrenador_id]
     )
 
-    horario_id: Mapped[int] = mapped_column(ForeignKey("horario_entrenamiento.id"))
+    horario_id: Mapped[int] = mapped_column(ForeignKey(_HORARIO_FK))
     horario: Mapped["HorarioEntrenamiento"] = relationship(back_populates="asistencias")
 
 
@@ -411,7 +414,7 @@ class AlumnoHorario(Base):
     __tablename__ = "alumno_horario"
     id: Mapped[int] = mapped_column(primary_key=True)
     persona_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
-    horario_id: Mapped[int] = mapped_column(ForeignKey("horario_entrenamiento.id"))
+    horario_id: Mapped[int] = mapped_column(ForeignKey(_HORARIO_FK))
     fecha_asignacion: Mapped[datetime] = mapped_column(DateTime, default=_ahora_utc)
 
     persona: Mapped["Persona"] = relationship(back_populates="alumno_horarios")
@@ -476,7 +479,7 @@ class SolicitudClaseExtra(Base):
     membresia_id: Mapped[int] = mapped_column(ForeignKey("membresia.id"))
     membresia: Mapped["Membresia"] = relationship(back_populates="solicitudes_clase_extra")
 
-    horario_id: Mapped[int] = mapped_column(ForeignKey("horario_entrenamiento.id"))
+    horario_id: Mapped[int] = mapped_column(ForeignKey(_HORARIO_FK))
     horario: Mapped["HorarioEntrenamiento"] = relationship(back_populates="solicitudes_clase_extra")
 
 

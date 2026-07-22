@@ -120,23 +120,17 @@ describe("SeleccionOficialPage", () => {
     mockSeleccionOficial.mockResolvedValue({
       id: "so-1",
       estudianteId: "10",
-      categoria: 3,
-      periodo: "2026-07",
     });
 
     render(<SeleccionOficialPage />);
 
     const studentSelect = await screen.findByLabelText(/estudiante/i);
     fireEvent.change(studentSelect, { target: { value: "10" } });
-    fireEvent.change(screen.getByLabelText(/categoría/i), { target: { value: "3" } });
-    fireEvent.change(screen.getByLabelText(/período/i), { target: { value: "2026-07" } });
     fireEvent.click(screen.getByRole("button", { name: /agregar a selección oficial/i }));
 
     await waitFor(() => {
       expect(mockSeleccionOficial).toHaveBeenCalledWith({
         estudianteId: "10",
-        categoria: 3,
-        periodo: "2026-07",
       });
     });
 
