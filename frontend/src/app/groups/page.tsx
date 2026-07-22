@@ -31,7 +31,7 @@ import {
   CheckCircle2,
   Loader2,
   Clock,
-  GraduationCap,
+  Users,
   UserPlus,
   UserMinus,
 } from "lucide-react";
@@ -725,7 +725,6 @@ export default function GroupsPage(): React.ReactElement {
         ) : horarios.length > 0 ? (
           <div className="space-y-3">
             {groupHorarios(horarios).map((group) => {
-              const nivel = niveles.find((n) => n.id === group.nivelRankingId);
               // Asignar-alumnos opens the tab on the first día in the group
               // (per-día switching happens inside the tab via the día-pill
               // selector — PR3b). The trash icon, unlike that, deletes the
@@ -740,7 +739,10 @@ export default function GroupsPage(): React.ReactElement {
                         <Calendar size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                       </div>
                       <div>
-                        <div className="flex flex-wrap gap-1">
+                        <div className="text-xs font-extrabold uppercase tracking-wide text-cata-red">
+                          {(CATEGORIA_METADATA[group.categoria as Categoria] ?? CATEGORIA_METADATA[DEFAULT_CATEGORIA]).label}
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-1">
                           {group.rows.map((row) => (
                             <span
                               key={row.id}
@@ -754,10 +756,6 @@ export default function GroupsPage(): React.ReactElement {
                           <Clock size={11} strokeWidth={1.5} aria-hidden="true" />
                           {formatTime(group.horaInicio)} – {formatTime(group.horaFin)}
                         </div>
-                        <div className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/50">
-                          <GraduationCap size={11} strokeWidth={1.5} aria-hidden="true" />
-                          {nivel ? (nivel.nombre ?? `Nivel ${nivel.numeroNivel}`) : "Sin nivel asignado"}
-                        </div>
                       </div>
                     </div>
 
@@ -766,10 +764,11 @@ export default function GroupsPage(): React.ReactElement {
                         type="button"
                         onClick={() => openAlumnosTab(group)}
                         disabled={isDeleting}
-                        className="rounded-lg border border-cata-border p-1.5 text-cata-text/50 transition-colors hover:bg-cata-red/10 hover:text-cata-red disabled:opacity-50"
-                        title="Asignar alumnos a este horario"
+                        aria-label="Ver alumnos del horario"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-cata-red/10 px-2.5 py-1.5 text-xs font-bold text-cata-red transition-colors hover:bg-cata-red/20 disabled:opacity-50"
                       >
-                        <UserPlus size={13} strokeWidth={1.5} aria-hidden="true" />
+                        <Users size={13} strokeWidth={1.5} aria-hidden="true" />
+                        Ver alumnos
                       </button>
                       <button
                         type="button"

@@ -433,6 +433,67 @@ describe("GroupsPage — grouped weekly schedule display (PR2a)", () => {
   });
 });
 
+describe("GroupsPage — categoria title + labeled Ver alumnos button (PR1 layout/UX fixes)", () => {
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchJustificativosPendientes.mockReset();
+    mockFetchHorarios.mockReset();
+    mockFetchNivelesConOcupacion.mockReset();
+    mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
+    mockFetchJustificativosPendientes.mockResolvedValue([]);
+    mockFetchHorarios.mockResolvedValue([
+      { id: 801, diaSemana: "LUNES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 1, nivelRankingId: 2 },
+    ]);
+    mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
+  });
+
+  function card(): HTMLElement {
+    return document.querySelector(".space-y-3 > .card.p-5") as HTMLElement;
+  }
+
+  it("shows the categoria label instead of the nivel line", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    expect(within(card()).getByText("Competitivo")).toBeInTheDocument();
+    expect(within(card()).queryByText(/sin nivel asignado/i)).not.toBeInTheDocument();
+    expect(within(card()).queryByText(/nivel intermedio/i)).not.toBeInTheDocument();
+  });
+
+  it("renders 'Ver alumnos' as a labeled button that calls openAlumnosTab (opens the alumnos panel)", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const verAlumnosButton = within(card()).getByRole("button", { name: /ver alumnos/i });
+    expect(verAlumnosButton).toHaveTextContent(/ver alumnos/i);
+
+    fireEvent.click(verAlumnosButton);
+    await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
+  });
+});
+
+describe("GroupsPage — unknown categoria value does not crash the card (bugfix)", () => {
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchJustificativosPendientes.mockReset();
+    mockFetchHorarios.mockReset();
+    mockFetchNivelesConOcupacion.mockReset();
+    mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
+    mockFetchJustificativosPendientes.mockResolvedValue([]);
+    mockFetchHorarios.mockResolvedValue([
+      { id: 901, diaSemana: "LUNES", horaInicio: "18:00", horaFin: "20:00", categoria: "NO_EXISTE", entrenadorId: 1, nivelRankingId: 2 },
+    ]);
+    mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
+  });
+
+  it("falls back to DEFAULT_CATEGORIA's label instead of crashing when categoria doesn't match any known key", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    expect(screen.getByText("Formativo")).toBeInTheDocument();
+  });
+});
+
 describe("GroupsPage — day-diffing unified save (PR2b)", () => {
   const GROUP_ROWS = [
     { id: 301, diaSemana: "LUNES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 7, nivelRankingId: 2 },
@@ -600,7 +661,7 @@ describe("GroupsPage — accordion single-expand mechanics (PR3a)", () => {
     fireEvent.click(within(cardA).getByTitle("Editar horario"));
     await screen.findByRole("heading", { name: "Editar Horario" });
 
-    fireEvent.click(within(cardB).getByTitle("Asignar alumnos a este horario"));
+    fireEvent.click(within(cardB).getByRole("button", { name: /ver alumnos/i }));
     await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
 
     expect(screen.queryByRole("heading", { name: "Editar Horario" })).not.toBeInTheDocument();
@@ -614,7 +675,7 @@ describe("GroupsPage — accordion single-expand mechanics (PR3a)", () => {
     fireEvent.click(within(cardA).getByTitle("Editar horario"));
     await screen.findByRole("heading", { name: "Editar Horario" });
 
-    fireEvent.click(within(cardA).getByTitle("Asignar alumnos a este horario"));
+    fireEvent.click(within(cardA).getByRole("button", { name: /ver alumnos/i }));
     const alumnosHeading = await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
     expect(cardA.contains(alumnosHeading)).toBe(true);
     expect(screen.queryByRole("heading", { name: "Editar Horario" })).not.toBeInTheDocument();
@@ -708,7 +769,7 @@ describe("GroupsPage — real roster via fetchAlumnosPorHorario + día-pill sele
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [multiDiaCard] = cards();
-    fireEvent.click(within(multiDiaCard).getByTitle("Asignar alumnos a este horario"));
+    fireEvent.click(within(multiDiaCard).getByRole("button", { name: /ver alumnos/i }));
     await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
 
     await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(601));
@@ -726,7 +787,7 @@ describe("GroupsPage — real roster via fetchAlumnosPorHorario + día-pill sele
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [, singleDiaCard] = cards();
-    fireEvent.click(within(singleDiaCard).getByTitle("Asignar alumnos a este horario"));
+    fireEvent.click(within(singleDiaCard).getByRole("button", { name: /ver alumnos/i }));
     await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
 
     expect(screen.queryByRole("button", { name: "Vie" })).not.toBeInTheDocument();
@@ -739,7 +800,7 @@ describe("GroupsPage — real roster via fetchAlumnosPorHorario + día-pill sele
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [multiDiaCard] = cards();
-    fireEvent.click(within(multiDiaCard).getByTitle("Asignar alumnos a este horario"));
+    fireEvent.click(within(multiDiaCard).getByRole("button", { name: /ver alumnos/i }));
     await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
     await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(601));
 
