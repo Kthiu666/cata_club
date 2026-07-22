@@ -1,11 +1,11 @@
 /**
- * Trainer Attendance Registration — real, persisted flow (Fase 3).
+ * Trainer Attendance Registration — real, persisted flow.
  *
  * Multi-step wizard for registering attendance in training sessions,
  * backed by real data end-to-end:
- *   - Schedule (Horario) and roster (NivelRanking "Grupo" roster) selection
- *     from `GET /api/attendance/schedules` and `GET /api/ranking/niveles`
- *     + `GET /api/ranking/niveles/:id/tabla`.
+ *   - Schedule (Horario) selection from `GET /api/attendance/schedules`,
+ *     with the roster loaded directly from that Horario's assigned alumnos
+ *     (`GET /api/groups/horarios/:id/alumnos`).
  *   - Student attendance marking (present/absent/late/justified).
  *   - Confirmation + real persistence via `POST /api/attendance/records`
  *     (one real `POST /asistencias` per student, see
@@ -15,11 +15,6 @@
  *   - Horario/session is NOT owned by one trainer.
  *   - Any trainer can register attendance in any available session.
  *   - The system records which trainer took the attendance.
- *
- * Schedule and roster are selected independently rather than as one combined
- * "session": the backend has no API exposing which NivelRanking a Horario
- * belongs to (see attendance-utils.ts docstring) — asking the trainer to
- * pick both is the honest adaptation to that gap, not a stylistic choice.
  */
 
 "use client";
@@ -33,7 +28,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   Calendar,
   Clock,
-  GraduationCap,
   Users,
   UserCheck,
   UserX,
@@ -52,7 +46,7 @@ import {
   ATTENDANCE_STATES,
   countByState,
   buildAttendanceSummary,
-  buildRosterFromTabla,
+  buildRosterFromAlumnoHorarios,
   resolveEntrenadorId,
   resolveDisplayTrainerName,
   type SessionStudent,
@@ -62,10 +56,8 @@ import type { TrainingSchedule } from "@/app/attendance/attendance-utils";
 import type { DiaSemana } from "@/types/domain";
 import {
   fetchTrainingSchedules,
-  fetchNivelesConOcupacion,
-  fetchNivelRoster,
+  fetchAlumnosPorHorario,
   registerAttendance,
-  type NivelConOcupacion,
   type RegisterAttendanceResult,
 } from "@/services/api";
 import type { EstadoAsistencia } from "@/types/domain";
@@ -79,15 +71,9 @@ type WizardStep = "select-session" | "mark-attendance" | "confirm";
 const STEP_ORDER: WizardStep[] = ["select-session", "mark-attendance", "confirm"];
 
 const STEP_LABELS: Record<WizardStep, string> = {
-  "select-session": "Seleccionar Horario y Grupo",
+  "select-session": "Seleccionar Horario",
   "mark-attendance": "Registrar Asistencia",
   confirm: "Confirmar y Finalizar",
-};
-
-const NIVEL_CATEGORIA_LABELS: Record<NivelConOcupacion["nivelCategoria"], string> = {
-  principiante: "Principiante",
-  intermedio: "Intermedio",
-  avanzado: "Avanzado",
 };
 
 // ---------------------------------------------------------------------------
@@ -111,12 +97,10 @@ export default function TrainerAttendancePage(): React.ReactElement {
   const [step, setStep] = useState<WizardStep>("select-session");
 
   const [schedules, setSchedules] = useState<TrainingSchedule[]>([]);
-  const [niveles, setNiveles] = useState<NivelConOcupacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
-  const [selectedNivelId, setSelectedNivelId] = useState<number | null>(null);
   const [expandedDays, setExpandedDays] = useState<Set<DiaSemana>>(new Set());
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterError, setRosterError] = useState<string | null>(null);
@@ -131,15 +115,11 @@ export default function TrainerAttendancePage(): React.ReactElement {
     try {
       setLoading(true);
       setLoadError(null);
-      const [scheduleData, nivelData] = await Promise.all([
-        fetchTrainingSchedules(),
-        fetchNivelesConOcupacion(),
-      ]);
+      const scheduleData = await fetchTrainingSchedules();
       setSchedules(scheduleData);
-      setNiveles(nivelData);
     } catch (err) {
       console.error("[trainer/attendance] loadOptions failed", err);
-      setLoadError("Error al cargar horarios y grupos");
+      setLoadError("Error al cargar horarios");
     } finally {
       setLoading(false);
     }
@@ -155,8 +135,6 @@ export default function TrainerAttendancePage(): React.ReactElement {
   const progress = ((currentIndex + 1) / STEP_ORDER.length) * 100;
 
   const selectedSchedule = schedules.find((s) => s.id === selectedScheduleId) ?? null;
-  const selectedNivel = niveles.find((n) => n.id === selectedNivelId) ?? null;
-  const bothSelected = selectedScheduleId !== null && selectedNivelId !== null;
 
   // Admins may register attendance on a trainer's behalf (backend requires
   // entrenadorId to belong to an actual ENTRENADOR — see attendance-utils.ts).
@@ -178,16 +156,16 @@ export default function TrainerAttendancePage(): React.ReactElement {
   // ---- Navigation ----
 
   async function handleContinueToRoster(): Promise<void> {
-    if (selectedNivelId === null) return;
+    if (selectedScheduleId === null) return;
     setRosterLoading(true);
     setRosterError(null);
     try {
-      const tabla = await fetchNivelRoster(selectedNivelId);
-      setStudents(buildRosterFromTabla(tabla));
+      const alumnoHorarios = await fetchAlumnosPorHorario(selectedScheduleId);
+      setStudents(buildRosterFromAlumnoHorarios(alumnoHorarios));
       setStep("mark-attendance");
     } catch (err) {
-      console.error("[trainer/attendance] fetchNivelRoster failed", err);
-      setRosterError("No se pudo cargar el listado de estudiantes de este grupo.");
+      console.error("[trainer/attendance] fetchAlumnosPorHorario failed", err);
+      setRosterError("No se pudo cargar el listado de estudiantes de este horario.");
     } finally {
       setRosterLoading(false);
     }
@@ -249,7 +227,6 @@ export default function TrainerAttendancePage(): React.ReactElement {
   function handleReset(): void {
     setStep("select-session");
     setSelectedScheduleId(null);
-    setSelectedNivelId(null);
     setStudents([]);
     setConfirmed(false);
     setSubmitting(false);
@@ -341,41 +318,6 @@ export default function TrainerAttendancePage(): React.ReactElement {
           )}
         </div>
 
-        <div>
-          <p className="mb-3 text-sm leading-relaxed text-cata-text/65">
-            Seleccione el grupo cuya asistencia va a registrar:
-          </p>
-          {niveles.length === 0 ? (
-            <p className="text-sm text-cata-text/45">No hay grupos registrados.</p>
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {niveles.map((nivel) => {
-                const isActive = nivel.id === selectedNivelId;
-                return (
-                  <button
-                    key={nivel.id}
-                    type="button"
-                    onClick={() => setSelectedNivelId(nivel.id)}
-                    className={`rounded-xl border p-4 text-left transition-all duration-150 ${
-                      isActive
-                        ? "border-cata-red bg-cata-red/10"
-                        : "border-cata-border bg-cata-surface hover:border-cata-red/40"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 text-sm font-semibold text-cata-text">
-                      <GraduationCap size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                      {nivel.nombre ?? `Nivel ${nivel.numeroNivel}`}
-                    </div>
-                    <p className="mt-1 text-xs text-cata-text/65">
-                      {NIVEL_CATEGORIA_LABELS[nivel.nivelCategoria]} &middot; {nivel.personasActuales} estudiantes
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
         {rosterError && (
           <div className="alert-error" role="alert">
             {rosterError}
@@ -385,7 +327,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
         <button
           type="button"
           onClick={handleContinueToRoster}
-          disabled={!bothSelected || rosterLoading}
+          disabled={!selectedScheduleId || rosterLoading}
           className="btn-primary w-full shadow-soft"
         >
           {rosterLoading ? "Cargando estudiantes..." : "Continuar"}
@@ -408,7 +350,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
   }
 
   function renderMarkAttendance(): React.ReactElement | null {
-    if (!selectedSchedule || !selectedNivel) return null;
+    if (!selectedSchedule) return null;
 
     const presentCount = countByState(students, "present");
     const absentCount = countByState(students, "absent");
@@ -424,10 +366,8 @@ export default function TrainerAttendancePage(): React.ReactElement {
               <Calendar size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
             </div>
             <span className="font-medium text-cata-text">
-              {selectedNivel.nombre ?? `Nivel ${selectedNivel.numeroNivel}`}
+              {formatDay(selectedSchedule.diaSemana)}
             </span>
-            <span className="text-cata-text/65">—</span>
-            <span className="text-cata-text/65">{formatDay(selectedSchedule.diaSemana)}</span>
             <span className="text-cata-text/65">&middot;</span>
             <span className="text-cata-text/65">
               {selectedSchedule.horaInicio} — {selectedSchedule.horaFin}
@@ -461,7 +401,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
         {students.length === 0 ? (
           <div className="card flex flex-col items-center py-10 text-center">
             <Users size={28} strokeWidth={1.5} className="mb-2 text-cata-text/20" aria-hidden="true" />
-            <p className="text-sm text-cata-text/50">Este grupo no tiene estudiantes asignados.</p>
+            <p className="text-sm text-cata-text/50">Este horario no tiene alumnos asignados.</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -520,7 +460,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
   }
 
   function renderConfirmation(): React.ReactElement | null {
-    if (!selectedSchedule || !selectedNivel) return null;
+    if (!selectedSchedule) return null;
 
     const presentCount = countByState(students, "present");
     const absentCount = countByState(students, "absent");
@@ -543,10 +483,6 @@ export default function TrainerAttendancePage(): React.ReactElement {
             </h3>
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <dt className="text-cata-text/65">Grupo</dt>
-            <dd className="font-medium text-cata-text">
-              {selectedNivel.nombre ?? `Nivel ${selectedNivel.numeroNivel}`}
-            </dd>
             <dt className="text-cata-text/65">Horario</dt>
             <dd className="font-medium text-cata-text">
               {formatDay(selectedSchedule.diaSemana)} {selectedSchedule.horaInicio} — {selectedSchedule.horaFin}
@@ -627,7 +563,9 @@ export default function TrainerAttendancePage(): React.ReactElement {
             <p className="mb-2 text-sm leading-relaxed text-cata-text/65">
               La asistencia para{" "}
               <strong className="text-cata-text">
-                {selectedNivel?.nombre ?? "el grupo seleccionado"}
+                {selectedSchedule
+                  ? `${formatDay(selectedSchedule.diaSemana)} ${selectedSchedule.horaInicio} — ${selectedSchedule.horaFin}`
+                  : "el horario seleccionado"}
               </strong>{" "}
               ha sido registrada exitosamente.
             </p>
@@ -753,7 +691,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
                         {isLast && (
                           <button
                             type="submit"
-                            disabled={submitting || entrenadorPersonaId === null}
+                            disabled={submitting || entrenadorPersonaId === null || students.length === 0}
                             className="btn-primary shadow-soft"
                           >
                             {submitting ? (

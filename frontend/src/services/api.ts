@@ -472,11 +472,6 @@ export async function fetchNivelesConOcupacion(): Promise<NivelConOcupacion[]> {
   return request<NivelConOcupacion[]>(apiEndpoint("/ranking/niveles"));
 }
 
-/** Fetch a nivel's roster (E03-RF010) — used to derive who to mark attendance for. */
-export async function fetchNivelRoster(nivelId: number): Promise<TablaRankingItem[]> {
-  return request<TablaRankingItem[]>(apiEndpoint(`/ranking/niveles/${nivelId}/tabla`));
-}
-
 /** Persist attendance for a session (one real `POST /asistencias` per student, partial-failure-tolerant). */
 export async function registerAttendance(data: RegisterAttendanceRequest): Promise<RegisterAttendanceResult> {
   return request<RegisterAttendanceResult>(apiEndpoint("/attendance/records"), {

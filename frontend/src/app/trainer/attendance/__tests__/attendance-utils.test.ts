@@ -9,12 +9,12 @@ import {
   nextAttendanceState,
   countByState,
   buildAttendanceSummary,
-  buildRosterFromTabla,
+  buildRosterFromAlumnoHorarios,
   resolveEntrenadorId,
   resolveDisplayTrainerName,
   type SessionStudent,
 } from "../attendance-utils";
-import type { TablaRankingItem } from "@/services/api";
+import type { AlumnoHorario } from "@/services/api";
 
 describe("nextAttendanceState", () => {
   it("cycles absent → present", () => {
@@ -102,26 +102,44 @@ describe("buildAttendanceSummary", () => {
   });
 });
 
-describe("buildRosterFromTabla", () => {
-  const tabla: TablaRankingItem[] = [
-    { personaId: 3, personaNombreCompleto: "Sofia Alumna", estaEnRanking: true },
-    { personaId: 7, personaNombreCompleto: "Mateo Rodríguez", estaEnRanking: true },
+describe("buildRosterFromAlumnoHorarios", () => {
+  const alumnoHorarios: AlumnoHorario[] = [
+    {
+      id: 1,
+      persona_id: 3,
+      persona_nombre_completo: "Sofia Alumna",
+      horario_id: 12,
+      horario_dia: "lun",
+      horario_hora_inicio: "18:00",
+      horario_hora_fin: "19:00",
+      fecha_asignacion: "2026-01-01",
+    },
+    {
+      id: 2,
+      persona_id: 7,
+      persona_nombre_completo: "Mateo Rodríguez",
+      horario_id: 12,
+      horario_dia: "lun",
+      horario_hora_inicio: "18:00",
+      horario_hora_fin: "19:00",
+      fecha_asignacion: "2026-01-01",
+    },
   ];
 
-  it("maps each roster row to a SessionStudent defaulted to absent", () => {
-    const roster = buildRosterFromTabla(tabla);
+  it("maps each alumno-horario row to a SessionStudent defaulted to absent", () => {
+    const roster = buildRosterFromAlumnoHorarios(alumnoHorarios);
     expect(roster).toEqual([
       { id: "3", name: "Sofia Alumna", attendance: "absent" },
       { id: "7", name: "Mateo Rodríguez", attendance: "absent" },
     ]);
   });
 
-  it("returns an empty roster for an empty tabla", () => {
-    expect(buildRosterFromTabla([])).toEqual([]);
+  it("returns an empty roster for an empty array", () => {
+    expect(buildRosterFromAlumnoHorarios([])).toEqual([]);
   });
 
-  it("stringifies personaId for use as a stable React key / POST payload id", () => {
-    const roster = buildRosterFromTabla(tabla);
+  it("stringifies persona_id for use as a stable React key / POST payload id", () => {
+    const roster = buildRosterFromAlumnoHorarios(alumnoHorarios);
     expect(roster.every((s) => typeof s.id === "string")).toBe(true);
   });
 });

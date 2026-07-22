@@ -3,23 +3,14 @@
  *
  * Extracted from page.tsx for testability — no React dependencies.
  *
- * Domain (Fase 3): the wizard now selects a real Horario
- * (`GET /api/attendance/schedules`) and a real NivelRanking/"Grupo" roster
- * (`GET /api/ranking/niveles` + `GET /api/ranking/niveles/:id/tabla`)
- * *independently*, instead of deriving a single combined "session" from
- * Grupo.estudiantesIds like the old mock-backed AVAILABLE_SESSIONS did.
- *
- * That's not a UI preference — it's forced by a real backend gap: neither
- * `HorarioResponseDTO` nor `NivelRankingResponseDTO` exposes the
- * `nivel_ranking_id` link that exists on the `HorarioEntrenamiento` model,
- * so there is currently no way, through the API, to know which nivel a
- * horario belongs to (see src/lib/server/attendance-adapter.ts for the full
- * writeup). Asking the trainer to pick both explicitly is the honest
- * adaptation until that link is exposed.
+ * Domain: the wizard selects a real Horario (`GET /api/attendance/schedules`)
+ * and derives the roster directly from that Horario's assigned alumnos
+ * (`GET /api/groups/horarios/:id/alumnos`) — no separate nivel/grupo
+ * selection is involved.
  */
 
 import type { EstadoAsistencia, UserRole } from "@/types/domain";
-import type { TablaRankingItem } from "@/services/api";
+import type { AlumnoHorario } from "@/services/api";
 import type { TrainingSchedule } from "@/app/attendance/attendance-utils";
 
 // ---------------------------------------------------------------------------
@@ -101,15 +92,14 @@ export function buildAttendanceSummary(students: SessionStudent[]): string {
 }
 
 /**
- * Build the roster to mark attendance for from a nivel's real ranking table
- * (`GET /ranking/niveles/:id/tabla`), defaulting every student to "absent"
- * — the trainer marks who was actually present from there. Replaces the old
- * mock-derived AVAILABLE_SESSIONS roster.
+ * Build the roster to mark attendance for from a Horario's assigned alumnos
+ * (`GET /groups/horarios/:id/alumnos`), defaulting every student to "absent"
+ * — the trainer marks who was actually present from there.
  */
-export function buildRosterFromTabla(items: TablaRankingItem[]): SessionStudent[] {
+export function buildRosterFromAlumnoHorarios(items: AlumnoHorario[]): SessionStudent[] {
   return items.map((item) => ({
-    id: String(item.personaId),
-    name: item.personaNombreCompleto,
+    id: String(item.persona_id),
+    name: item.persona_nombre_completo,
     attendance: "absent" as EstadoAsistencia,
   }));
 }
