@@ -116,6 +116,19 @@ beforeEach(() => {
   mockFetchStudentPortal.mockReset();
   mockSubirFotoPerfil.mockReset();
   mockUseAuth.mockReset();
+  // Default so the student/representante branch's supplementary
+  // fetchMiPerfil() call (fetched only to read `fotoUrl` for the hero
+  // avatar — see ProfileContent) doesn't crash tests that don't care about
+  // it. Staff-branch tests override this per-call via mockResolvedValueOnce.
+  mockFetchMiPerfil.mockResolvedValue({
+    correo: "sin-foto@cataclub.com",
+    personaId: 0,
+    nombres: "",
+    apellidos: "",
+    roles: [],
+    telefono: "",
+    fechaCreacion: "2024-01-01T00:00:00",
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -212,7 +225,6 @@ describe("ProfilePage — student/representante summary view", () => {
     // cuenta" column's highlighted box.
     expect(screen.getAllByText("Activa").length).toBe(3);
     expect(mockReplace).not.toHaveBeenCalled();
-    expect(mockFetchMiPerfil).not.toHaveBeenCalled();
   });
 
   it("shows the honest 'no disponible' fallback (hero + status column) when self has no matching membership row", async () => {
@@ -276,7 +288,6 @@ describe("ProfilePage — student/representante summary view", () => {
     // cards contribute the fallback text.
     expect(screen.getAllByText("No disponible — consulte con administración")).toHaveLength(2);
     expect(screen.queryByText("Vencida")).not.toBeInTheDocument();
-    expect(mockFetchMiPerfil).not.toHaveBeenCalled();
     // Hero center blocks (Ranking / Membresía) use "No aplica" for a
     // self:null account — distinct from "No disponible", which would
     // wrongly imply the account itself has an unreported status.
@@ -565,7 +576,7 @@ describe("ProfilePage — unified layout structure", () => {
   });
 });
 
-describe("ProfilePage — profile photo upload (staff, own hero avatar only)", () => {
+describe("ProfilePage — profile photo upload (staff branch, own hero avatar)", () => {
   it("shows the generic icon (no <img>) when the staff profile has no fotoUrl yet", async () => {
     mockUseAuth.mockReturnValue(sessionForRole("admin"));
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
@@ -645,7 +656,10 @@ describe("ProfilePage — profile photo upload (staff, own hero avatar only)", (
     expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo actualizar la foto de perfil.");
   });
 
-  it("does not offer a photo-upload trigger for the student/representante branch", async () => {
+});
+
+describe("ProfilePage — profile photo upload (student/representante branch, own hero avatar)", () => {
+  it("offers the photo-upload trigger for an estudiante session too", async () => {
     mockUseAuth.mockReturnValue(sessionForRole("estudiante"));
     mockFetchStudentPortal.mockResolvedValueOnce({
       self: {
@@ -664,6 +678,79 @@ describe("ProfilePage — profile photo upload (staff, own hero avatar only)", (
     render(<ProfilePage />);
 
     await screen.findAllByText("Sofía Alumna");
-    expect(screen.queryByTestId("foto-perfil-input")).not.toBeInTheDocument();
+    expect(screen.getByTestId("foto-perfil-input")).toHaveAttribute("accept", "image/jpeg,image/png");
+  });
+
+  it("uploads the selected file and updates the hero avatar for a representante session (triangulation)", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("representante"));
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      self: {
+        personaId: "1",
+        nombres: "Rosa",
+        apellidos: "Representante",
+        fechaNacimiento: "1985-03-01",
+        ranking: { status: "unavailable", reason: "forbidden" },
+        recentSessions: [],
+      },
+      representados: [],
+      membershipPlans: [],
+      memberships: [],
+    });
+    mockSubirFotoPerfil.mockResolvedValueOnce({
+      correo: "rosa@cataclub.com",
+      personaId: 1,
+      nombres: "Rosa",
+      apellidos: "Representante",
+      roles: ["ESTUDIANTE"],
+      telefono: "",
+      fechaCreacion: "2024-01-01T00:00:00",
+      fotoUrl: "https://res.cloudinary.com/test/image/upload/perfil-rosa.jpg",
+    });
+
+    render(<ProfilePage />);
+    await screen.findAllByText("Rosa Representante");
+
+    const input = screen.getByTestId("foto-perfil-input");
+    const archivo = new File(["contenido"], "foto.png", { type: "image/png" });
+    fireEvent.change(input, { target: { files: [archivo] } });
+
+    await waitFor(() => {
+      expect(mockSubirFotoPerfil).toHaveBeenCalledWith(archivo);
+    });
+
+    const hero = await screen.findByTestId("profile-hero");
+    await waitFor(() => {
+      expect(within(hero).getByRole("img", { name: /foto de perfil/i })).toHaveAttribute(
+        "src",
+        "https://res.cloudinary.com/test/image/upload/perfil-rosa.jpg",
+      );
+    });
+  });
+
+  it("shows an error message when the upload fails for a student session", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("estudiante"));
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      self: {
+        personaId: "1",
+        nombres: "Sofía",
+        apellidos: "Alumna",
+        fechaNacimiento: "2012-05-10",
+        ranking: { status: "unavailable", reason: "error" },
+        recentSessions: [],
+      },
+      representados: [],
+      membershipPlans: [],
+      memberships: [],
+    });
+    mockSubirFotoPerfil.mockRejectedValueOnce(new Error("No se pudo actualizar la foto de perfil."));
+
+    render(<ProfilePage />);
+    await screen.findAllByText("Sofía Alumna");
+
+    const input = screen.getByTestId("foto-perfil-input");
+    const archivo = new File(["contenido"], "foto.jpg", { type: "image/jpeg" });
+    fireEvent.change(input, { target: { files: [archivo] } });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo actualizar la foto de perfil.");
   });
 });

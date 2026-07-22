@@ -21,12 +21,21 @@
  *   (ranking + membership, with the honest "no disponible" fallback for
  *   membership since the backend never scopes a dependent's membership to
  *   the caller — only the caller's own `/membresias/mias` row is real).
+ *   `fetchStudentPortal` carries no photo field, so this branch ALSO makes
+ *   a supplementary `fetchMiPerfil()` call purely to read `fotoUrl` for the
+ *   hero avatar — failures there are swallowed silently (cosmetic only,
+ *   never blocks the rest of the student portal).
+ *
+ * Profile photo upload (`POST /api/auth/me/foto`) is self-service and
+ * role-agnostic on the backend, so BOTH branches can upload/replace their
+ * own hero avatar — not staff-only.
  *
  * History: issue #35 was a same-for-all-roles "under construction"
  * placeholder. Issue #36 first pass redirected estudiante/representante to
  * `/student`; a follow-up replaced that redirect with a read-only summary
- * view; this pass unifies the staff and student views into one shared page
- * structure per the updated visual design.
+ * view; a later pass unified the staff and student views into one shared
+ * page structure; this pass extends photo upload (originally staff-only)
+ * to the student/representante branch too.
  */
 
 "use client";
@@ -221,6 +230,8 @@ type ProfileLayoutProps =
       data: StudentPortalSummary;
       sessionEmail: string;
       sessionName: string;
+      fotoUrl?: string | null;
+      onFotoUpdated: (fotoUrl: string | null | undefined) => void;
     };
 
 function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
@@ -237,18 +248,19 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  // ---- Profile photo upload (staff-only, caller's own hero avatar). Only
-  // built for the account that OWNS the profile being viewed; student/
-  // representante roles never fetch `PerfilPropio` (hard invariant, see
-  // `ProfileContent` below), so they have no `fotoUrl` to display or update
-  // in this pass — the hero avatar stays the generic icon for them. ----
+  // ---- Profile photo upload — the caller's own hero avatar, for BOTH
+  // branches. `POST /auth/me/foto` is self-service and role-agnostic; only
+  // the SOURCE of the current `fotoUrl` differs (the staff branch's fetched
+  // `PerfilPropio`, vs the student branch's separately-fetched `fotoUrl`
+  // prop, since `fetchStudentPortal` itself carries no photo field). ----
   const fotoInputRef = useRef<HTMLInputElement>(null);
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [fotoError, setFotoError] = useState<string | null>(null);
   const [fotoSuccess, setFotoSuccess] = useState(false);
 
+  const currentFotoUrl = props.kind === "staff" ? props.perfil.fotoUrl : props.fotoUrl;
+
   async function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
-    if (props.kind !== "staff") return;
     const archivo = e.target.files?.[0];
     e.target.value = ""; // reset so re-selecting the same file re-triggers onChange
     if (!archivo) return;
@@ -258,7 +270,11 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
     setFotoSuccess(false);
     try {
       const updated = await subirFotoPerfil(archivo);
-      props.onSaved(updated);
+      if (props.kind === "staff") {
+        props.onSaved(updated);
+      } else {
+        props.onFotoUpdated(updated.fotoUrl);
+      }
       setFotoSuccess(true);
     } catch (error: unknown) {
       setFotoError(toErrorMessage(error, "No se pudo actualizar la foto de perfil."));
@@ -375,10 +391,10 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
           <div className="flex items-center gap-4">
             <div className="relative shrink-0">
               <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-cata-red/10">
-                {props.kind === "staff" && props.perfil.fotoUrl ? (
+                {currentFotoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element -- external Cloudinary URL, not a local/static asset
                   <img
-                    src={props.perfil.fotoUrl}
+                    src={currentFotoUrl}
                     alt="Foto de perfil"
                     className="h-16 w-16 rounded-full object-cover"
                   />
@@ -386,31 +402,27 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
                   <User size={28} className="text-cata-red" strokeWidth={1.5} aria-hidden="true" />
                 )}
               </div>
-              {props.kind === "staff" && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => fotoInputRef.current?.click()}
-                    disabled={uploadingFoto}
-                    aria-label="Cambiar foto de perfil"
-                    className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-cata-red text-white shadow-sm disabled:opacity-50"
-                  >
-                    {uploadingFoto ? (
-                      <Loader2 size={12} className="animate-spin" aria-hidden="true" />
-                    ) : (
-                      <Camera size={12} strokeWidth={2} aria-hidden="true" />
-                    )}
-                  </button>
-                  <input
-                    ref={fotoInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png"
-                    onChange={(e) => void handleFotoChange(e)}
-                    className="hidden"
-                    data-testid="foto-perfil-input"
-                  />
-                </>
-              )}
+              <button
+                type="button"
+                onClick={() => fotoInputRef.current?.click()}
+                disabled={uploadingFoto}
+                aria-label="Cambiar foto de perfil"
+                className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-cata-red text-white shadow-sm disabled:opacity-50"
+              >
+                {uploadingFoto ? (
+                  <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <Camera size={12} strokeWidth={2} aria-hidden="true" />
+                )}
+              </button>
+              <input
+                ref={fotoInputRef}
+                type="file"
+                accept="image/jpeg,image/png"
+                onChange={(e) => void handleFotoChange(e)}
+                className="hidden"
+                data-testid="foto-perfil-input"
+              />
             </div>
             <div>
               <h2 className="text-lg font-bold tracking-tight text-cata-text">{fullName}</h2>
@@ -429,12 +441,12 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
                   )
                 ) : null}
               </div>
-              {props.kind === "staff" && fotoError && (
+              {fotoError && (
                 <p role="alert" className="mt-1 text-xs text-cata-red">
                   {fotoError}
                 </p>
               )}
-              {props.kind === "staff" && fotoSuccess && (
+              {fotoSuccess && (
                 <p role="status" className="mt-1 text-xs text-cata-state-ok">
                   Foto actualizada.
                 </p>
@@ -821,6 +833,27 @@ function ProfileContent(): React.ReactElement | null {
     };
   }, [isStudentRole, personaId, studentReload]);
 
+  // `fetchStudentPortal` carries no photo field — fetched separately, purely
+  // supplementary to the hero avatar. Failure here must never block or error
+  // the rest of the student portal (ranking/membership), so it's silently
+  // ignored (the avatar just falls back to the generic icon).
+  const [studentFotoUrl, setStudentFotoUrl] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (!isStudentRole) return;
+    let cancelled = false;
+    fetchMiPerfil()
+      .then((perfil) => {
+        if (!cancelled) setStudentFotoUrl(perfil.fotoUrl);
+      })
+      .catch(() => {
+        // Supplementary only — see comment above.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isStudentRole]);
+
   if (role === null) return null;
 
   if (isStudentRole) {
@@ -841,6 +874,8 @@ function ProfileContent(): React.ReactElement | null {
         data={studentState.data}
         sessionEmail={session?.user.email ?? ""}
         sessionName={session?.user.name ?? ""}
+        fotoUrl={studentFotoUrl}
+        onFotoUpdated={setStudentFotoUrl}
       />
     );
   }
