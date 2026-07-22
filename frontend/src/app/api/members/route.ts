@@ -19,8 +19,11 @@ import { buildMemberAccounts, type BackendPersonaFull } from "@/lib/server/membe
 import type { BackendMembresia, BackendPagoListItem, BackendTipoMembresia } from "@/lib/server/payments-adapter";
 import type { NivelConOcupacion, TablaRankingItem } from "@/services/api";
 
+const PERSONAS_PAGE_LIMIT = 200;
+
 interface PaginatedPersonas {
   items: BackendPersonaFull[];
+  total: number;
 }
 
 interface PaginatedPagos {
@@ -28,7 +31,7 @@ interface PaginatedPagos {
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const personasResult = await backendFetchAuthed(request, "/personas/?limit=200");
+  const personasResult = await backendFetchAuthed(request, `/personas/?limit=${PERSONAS_PAGE_LIMIT}`);
   if (!personasResult.ok) {
     return NextResponse.json({ message: "No se pudieron cargar las personas." }, { status: personasResult.status });
   }
@@ -84,7 +87,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const accounts = buildMemberAccounts(personasBody.items, latestPagoByPersona, membresiaById, tipoById, nivelIdByPersona);
 
-  const response = NextResponse.json({ accounts, niveles });
+  const personasCapped = personasBody.total >= PERSONAS_PAGE_LIMIT;
+  const response = NextResponse.json({ accounts, niveles, personasCapped });
   if (personasResult.refreshedAccessToken) {
     setAuthCookies(response, { accessToken: personasResult.refreshedAccessToken });
   }
