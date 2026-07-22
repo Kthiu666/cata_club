@@ -3,13 +3,15 @@
  *
  * Covers the redirect-in-progress state for an already-authenticated user:
  * the form must never paint (not even for one frame) while the redirect
- * effect is pending — see issue #31.
+ * effect is pending — see issue #31. Also covers failed-submit error
+ * reporting, which is routed through `useToast().showError(...)` instead of
+ * an inline `.alert-error` box — see issue #51.
  *
  * @vitest-environment jsdom
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import LoginPage from "@/app/login/page";
 
 // ---------------------------------------------------------------------------
@@ -31,6 +33,16 @@ vi.mock("@/components/auth/AuthShell", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+const mockShowError = vi.fn();
+const mockShowSuccess = vi.fn();
+vi.mock("@/contexts/ToastContext", () => ({
+  useToast: () => ({
+    showToast: vi.fn(),
+    showError: mockShowError,
+    showSuccess: mockShowSuccess,
+  }),
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -40,14 +52,28 @@ import {
   createUnauthenticatedAuth,
   createAuthenticatedAuth,
   createLoadingAuth,
+  createMockSession,
 } from "@/components/__tests__/test-utils";
 
 const mockUseAuth = vi.mocked(useAuth);
+
+/** Fill and submit the login form with the given credentials. */
+function submitLoginForm(email = "user@cataclub.com", password = "secret123"): void {
+  fireEvent.change(screen.getByLabelText("Correo electrónico"), {
+    target: { value: email },
+  });
+  fireEvent.change(screen.getByLabelText("Contraseña"), {
+    target: { value: password },
+  });
+  fireEvent.click(screen.getByRole("button", { name: /iniciar sesión/i }));
+}
 
 describe("LoginPage", () => {
   beforeEach(() => {
     mockReplace.mockReset();
     mockUseAuth.mockReset();
+    mockShowError.mockReset();
+    mockShowSuccess.mockReset();
   });
 
   it("shows the loading state, never the form, while session is hydrating", () => {
@@ -79,6 +105,14 @@ describe("LoginPage", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it("does not add contextual help to the unrelated login journey", () => {
+    mockUseAuth.mockReturnValue(createUnauthenticatedAuth(false));
+
+    render(<LoginPage />);
+
+    expect(screen.queryByRole("button", { name: /ayuda sobre/i })).not.toBeInTheDocument();
+  });
+
   it("trims credentials before submitting them", () => {
     const auth = createUnauthenticatedAuth();
     const mockLogin = vi.mocked(auth.login);
@@ -108,5 +142,44 @@ describe("LoginPage", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Ingrese su correo electrónico.");
     expect(screen.getByLabelText(/correo electrónico/i)).toHaveAttribute("aria-invalid", "true");
     expect(mockLogin).not.toHaveBeenCalled();
+  });
+
+  describe("failed submission", () => {
+    it("shows the mapped error via toast.showError instead of an inline alert", async () => {
+      const mockLogin = vi.fn().mockResolvedValue({ ok: false, error: "invalid_credentials" });
+      mockUseAuth.mockReturnValue({
+        ...createUnauthenticatedAuth(false),
+        login: mockLogin,
+      });
+
+      render(<LoginPage />);
+      submitLoginForm();
+
+      await waitFor(() => {
+        expect(mockShowError).toHaveBeenCalledWith(
+          "Credenciales inválidas. Verifique su correo y contraseña.",
+        );
+      });
+      expect(document.querySelector(".alert-error")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("successful submission", () => {
+    it("shows an 'Inicio de sesión exitoso' toast and redirects to the role's default route", async () => {
+      const session = createMockSession();
+      const mockLogin = vi.fn().mockResolvedValue({ ok: true, session });
+      mockUseAuth.mockReturnValue({
+        ...createUnauthenticatedAuth(false),
+        login: mockLogin,
+      });
+
+      render(<LoginPage />);
+      submitLoginForm();
+
+      await waitFor(() => {
+        expect(mockShowSuccess).toHaveBeenCalledWith("Inicio de sesión exitoso");
+      });
+      expect(mockReplace).toHaveBeenCalledWith("/dashboard");
+    });
   });
 });

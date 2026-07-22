@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import ContextualHelp from "@/components/ContextualHelp";
 import {
   Users,
   UserCheck,
@@ -53,6 +54,7 @@ import {
   countAccountsMatchingFlag,
   getAccountStatusBadge,
   getNivelLabelFromGrupo,
+  MEMBERS_AGGREGATE_LIMIT,
   MEMBERSHIP_STATUS_LABELS,
   MEMBERSHIP_STATUS_BADGE,
   PAYMENT_STATUS_LABELS,
@@ -819,10 +821,13 @@ function AccountRow({
               <p className="text-xs text-cata-text/65">
                 {getPayerTypeLabel(account.role)}
               </p>
+              <span className={`mt-1 inline-flex sm:hidden ${statusBadge.className}`}>
+                {statusBadge.label}
+              </span>
             </div>
           </div>
         </td>
-        <td className="px-4 py-3.5 text-xs text-cata-text/65">
+        <td className="hidden px-4 py-3.5 text-xs text-cata-text/65 sm:table-cell">
           {account.email && (
             <div className="flex items-center gap-1.5">
               <Mail size={11} strokeWidth={1.5} aria-hidden="true" />
@@ -834,17 +839,17 @@ function AccountRow({
             {account.telefono}
           </div>
         </td>
-        <td className="px-4 py-3.5 text-center">
+        <td className="hidden px-4 py-3.5 text-center sm:table-cell">
           <span className="text-sm font-medium text-cata-text">
             {account.estudiantes.length}
           </span>
         </td>
-        <td className="px-4 py-3.5 text-center">
+        <td className="hidden px-4 py-3.5 text-center sm:table-cell">
           <span className="text-sm font-medium text-cata-text">
             {activeCount}
           </span>
         </td>
-        <td className="px-4 py-3.5">
+        <td className="hidden px-4 py-3.5 sm:table-cell">
           <div className="flex flex-wrap items-center gap-2">
             <span className={`badge ${statusBadge.className}`}>
               {statusBadge.label}
@@ -929,6 +934,7 @@ export default function MembersPage(): React.ReactElement {
   const [activeFlag, setActiveFlag] = useState<MemberFilterFlag>("all");
   const [accounts, setAccounts] = useState<MemberAccount[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
+  const [personasCapped, setPersonasCapped] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rolesMenuOpen, setRolesMenuOpen] = useState<Set<string>>(new Set());
@@ -948,10 +954,12 @@ export default function MembersPage(): React.ReactElement {
   const loadMembers = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
+    setPersonasCapped(false);
     try {
-      const { accounts: membersData, niveles } = await fetchMembers();
+      const { accounts: membersData, niveles, personasCapped: upstreamPersonasCapped } = await fetchMembers();
       setAccounts(membersData);
       setGrupos(niveles.map(nivelToGrupo));
+      setPersonasCapped(upstreamPersonasCapped);
     } catch {
       setError("No se pudieron cargar los miembros. Intente nuevamente.");
     } finally {
@@ -967,6 +975,7 @@ export default function MembersPage(): React.ReactElement {
   const filteredAccounts = filterAccounts(accounts, searchTerm).filter((account) =>
     accountMatchesFlag(account, activeFlag),
   );
+  const aggregateIsCapped = personasCapped;
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
@@ -1064,22 +1073,37 @@ export default function MembersPage(): React.ReactElement {
         </div>
 
         {/* Members table */}
+        {!loading && (
+          <ContextualHelp title="Ayuda sobre límite de resultados">
+            <p>Este listado puede incluir hasta {MEMBERS_AGGREGATE_LIMIT} registros y no confirma que se hayan cargado todos los miembros.</p>
+          </ContextualHelp>
+        )}
         {loading ? (
           <div className="card flex flex-col items-center py-16 text-center">
             <p className="text-sm text-cata-text/50">Cargando miembros…</p>
           </div>
         ) : filteredAccounts.length > 0 ? (
           <div className="card overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-cata-border px-4 py-3 text-xs text-cata-text/65">
+              <p role="status" aria-label="Resultados mostrados">
+                {filteredAccounts.length} resultados mostrados
+              </p>
+              {aggregateIsCapped && (
+                <p role="alert" className="max-w-md text-cata-red">
+                  La fuente devuelve hasta {MEMBERS_AGGREGATE_LIMIT} registros; este listado puede estar incompleto.
+                </p>
+              )}
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
                     <th className="w-10 px-4 py-3 font-medium" />
                     <th className="px-4 py-3 font-medium">Responsable de pago</th>
-                    <th className="px-4 py-3 font-medium">Contacto</th>
-                    <th className="px-4 py-3 text-center font-medium">Estudiantes</th>
-                    <th className="px-4 py-3 text-center font-medium">Activos</th>
-                    <th className="px-4 py-3 font-medium">Estado</th>
+                    <th className="hidden px-4 py-3 font-medium sm:table-cell">Contacto</th>
+                    <th className="hidden px-4 py-3 text-center font-medium sm:table-cell">Estudiantes</th>
+                    <th className="hidden px-4 py-3 text-center font-medium sm:table-cell">Activos</th>
+                    <th className="hidden px-4 py-3 font-medium sm:table-cell">Estado</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cata-border">

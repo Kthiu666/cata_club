@@ -13,8 +13,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Lock, Eye, EyeOff, ArrowLeft, AlertCircle, CheckCircle2 } from "lucide-react";
 import { restablecerContrasenia } from "@/services/api";
+import { useToast } from "@/contexts/ToastContext";
 
 function ResetPasswordContent(): React.ReactElement {
+  const toast = useToast();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
@@ -22,7 +24,6 @@ function ResetPasswordContent(): React.ReactElement {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   // Client-side validation
@@ -69,14 +70,13 @@ function ResetPasswordContent(): React.ReactElement {
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
-    setError(null);
 
     if (password !== confirmPassword) {
-      setError("Las contraseñas no coinciden.");
+      toast.showError("Las contraseñas no coinciden.");
       return;
     }
     if (password.length < 8) {
-      setError("La contraseña debe tener al menos 8 caracteres.");
+      toast.showError("La contraseña debe tener al menos 8 caracteres.");
       return;
     }
 
@@ -85,10 +85,11 @@ function ResetPasswordContent(): React.ReactElement {
       // token is guaranteed non-null here by the early return above (line 41)
       await restablecerContrasenia(token as string, password);
       setSuccess(true);
+      toast.showSuccess("Contraseña actualizada correctamente");
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Ocurrió un error inesperado.";
-      setError(message);
+      toast.showError(message);
     } finally {
       setSubmitting(false);
     }
@@ -211,14 +212,6 @@ function ResetPasswordContent(): React.ReactElement {
               {/* Client-side validation error */}
               {passwordError && (
                 <p className="text-xs text-cata-red">{passwordError}</p>
-              )}
-
-              {/* Server error */}
-              {error && (
-                <div className="alert-error" role="alert">
-                  <AlertCircle size={14} strokeWidth={1.5} className="mt-0.5 shrink-0" aria-hidden="true" />
-                  <span>{error}</span>
-                </div>
               )}
 
               <button

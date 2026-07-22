@@ -73,6 +73,28 @@ describe("GET /api/members", () => {
     expect(response.status).toBe(200);
     expect(body.accounts).toHaveLength(1);
     expect(body.accounts[0]).toMatchObject({ id: "3", role: "estudiante" });
+    expect(body.personasCapped).toBe(false);
+  });
+
+  it("preserves the upstream cap when 200 personas collapse into fewer accounts", async () => {
+    const personas = Array.from({ length: 200 }, (_, index) => ({
+      ...persona,
+      id: index + 1,
+      representanteId: index === 0 ? null : 1,
+    }));
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(jsonResponse({ items: personas, total: 200, skip: 0, limit: 200 }))
+      .mockResolvedValueOnce(jsonResponse({ items: [] }))
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse({ items: [] }));
+
+    const response = await GET(getRequest(`${ACCESS_TOKEN_COOKIE}=${makeJwt(3600)}`));
+    const body = await response.json();
+
+    expect(body.accounts).toHaveLength(1);
+    expect(body.accounts[0].estudiantes).toHaveLength(199);
+    expect(body.personasCapped).toBe(true);
   });
 
   it("propagates the backend's status and message when /personas/ fails", async () => {

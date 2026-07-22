@@ -301,10 +301,11 @@ export default function AppShell({
             <button
               type="button"
               onClick={(): void => setSidebarOpen(true)}
-              className="rounded-xl border border-cata-border p-2.5 text-cata-text/65 hover:bg-cata-bg lg:hidden"
-              aria-label="Abrir menú"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-cata-border px-3 py-2.5 text-sm font-medium text-cata-text/65 hover:bg-cata-bg lg:hidden"
+              aria-label="Abrir menú principal"
             >
               <Menu size={18} strokeWidth={1.5} aria-hidden="true" />
+              <span>Menú</span>
             </button>
             {session && (
               <NotificationBell

@@ -17,8 +17,9 @@
 import { type FormEvent, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Lock, Mail, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastContext";
 import { getDefaultRoute } from "@/lib/auth-utils";
 import type { AuthErrorKind } from "@/services/auth";
 import AuthShell from "@/components/auth/AuthShell";
@@ -43,11 +44,11 @@ function loginErrorMessage(error: AuthErrorKind): string {
 export default function LoginPage(): React.ReactElement {
   const router = useRouter();
   const { login, isAuthenticated, isLoading, session } = useAuth();
+  const toast = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState({ email: "", password: "" });
 
   // Redirect to role-appropriate page if already authenticated
@@ -59,7 +60,6 @@ export default function LoginPage(): React.ReactElement {
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
-    setError(null);
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
     const nextFieldErrors = {
@@ -73,11 +73,12 @@ export default function LoginPage(): React.ReactElement {
     const result = await login(trimmedEmail, trimmedPassword);
 
     if (!result.ok) {
-      setError(loginErrorMessage(result.error));
+      toast.showError(loginErrorMessage(result.error));
       setSubmitting(false);
       return;
     }
 
+    toast.showSuccess("Inicio de sesión exitoso");
     router.replace(getDefaultRoute(result.session.user.role));
   }
 
@@ -178,14 +179,6 @@ export default function LoginPage(): React.ReactElement {
           </div>
           {fieldErrors.password && <p id="password-error" role="alert" className="mt-1.5 text-xs text-cata-red">{fieldErrors.password}</p>}
         </div>
-
-        {/* Error message */}
-        {error && (
-          <div className="alert-error" role="alert">
-            <AlertCircle size={14} strokeWidth={1.5} className="mt-0.5 shrink-0" aria-hidden="true" />
-            <span>{error}</span>
-          </div>
-        )}
 
         <div className="flex justify-end">
           <Link

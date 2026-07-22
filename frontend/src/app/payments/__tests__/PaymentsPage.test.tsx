@@ -159,3 +159,11 @@ describe("PaymentsPage — voucher preview recovery", () => {
     expect(mockUpdatePaymentValidation).not.toHaveBeenCalled();
   });
 });
+
+describe("PaymentsPage — unrelated happy path", () => {
+  it("does not add contextual help to the unrelated payment-review journey", async () => {
+    await renderAndSelectPending();
+
+    expect(screen.queryByRole("button", { name: /ayuda sobre/i })).not.toBeInTheDocument();
+  });
+});

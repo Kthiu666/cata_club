@@ -202,6 +202,12 @@ describe("AppShell", (): void => {
     expect(screen.getByRole("button", { name: /Abrir menú/i })).toBeInTheDocument();
   });
 
+  it("makes the mobile navigation entry point visibly discoverable", (): void => {
+    render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    expect(screen.getByRole("button", { name: "Abrir menú principal" })).toHaveTextContent("Menú");
+  });
+
   // --- Command palette ---
 
   it("opens the command palette from the search trigger button", (): void => {

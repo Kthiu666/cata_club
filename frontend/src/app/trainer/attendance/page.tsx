@@ -28,6 +28,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import ContextualHelp from "@/components/ContextualHelp";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Calendar,
@@ -201,18 +202,6 @@ export default function TrainerAttendancePage(): React.ReactElement {
     if (nextIdx < STEP_ORDER.length) {
       setStep(STEP_ORDER[nextIdx]);
     }
-  }
-
-  function handleToggleAttendance(studentIndex: number): void {
-    setStudents((prev) =>
-      prev.map((s, i) => {
-        if (i !== studentIndex) return s;
-        const order: EstadoAsistencia[] = ["absent", "present", "late", "justified"];
-        const idx = order.indexOf(s.attendance);
-        const next = idx === -1 || idx === order.length - 1 ? order[0] : order[idx + 1];
-        return { ...s, attendance: next };
-      }),
-    );
   }
 
   function handleDirectAttendanceSet(studentIndex: number, state: EstadoAsistencia): void {
@@ -417,6 +406,9 @@ export default function TrainerAttendancePage(): React.ReactElement {
               {justifiedCount} Justificados
             </span>
           </div>
+          <ContextualHelp title="Ayuda sobre el estado Justificado">
+            <p>Use Justificado según el criterio actual del club. Esta selección no modifica la validación ni el significado actual del estado.</p>
+          </ContextualHelp>
         </div>
 
         {/* Student list with attendance toggle */}
@@ -441,10 +433,9 @@ export default function TrainerAttendancePage(): React.ReactElement {
                   </span>
                 </div>
 
-                {/* Quick-toggle button cycles through states */}
-                <div className="flex items-center gap-1.5">
-                  {/* Quick-state buttons for each attendance option */}
-                  <div className="hidden gap-1 sm:flex">
+                <fieldset>
+                  <legend className="sr-only">Estado de asistencia de {student.name}</legend>
+                  <div className="grid grid-cols-2 gap-1 sm:flex">
                     {ATTENDANCE_STATES.map((state) => {
                       const isActive = student.attendance === state;
                       return (
@@ -452,7 +443,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
                           key={state}
                           type="button"
                           onClick={() => handleDirectAttendanceSet(idx, state)}
-                          title={ATTENDANCE_LABELS[state]}
+                          aria-pressed={isActive}
                           className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
                             isActive
                               ? `border-current/20 ${getAttendanceBadgeTokens(state).badgeClass}`
@@ -460,24 +451,12 @@ export default function TrainerAttendancePage(): React.ReactElement {
                           }`}
                         >
                           {ATTENDANCE_ICONS[state]}
-                          <span className="hidden lg:inline">{ATTENDANCE_LABELS[state]}</span>
+                          <span>{ATTENDANCE_LABELS[state]}</span>
                         </button>
                       );
                     })}
                   </div>
-
-                  {/* Mobile/compact toggle (cycle) */}
-                  <button
-                    type="button"
-                    onClick={() => handleToggleAttendance(idx)}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 sm:hidden ${
-                      getAttendanceBadgeTokens(student.attendance).badgeClass
-                    }`}
-                  >
-                    {ATTENDANCE_ICONS[student.attendance]}
-                    {ATTENDANCE_LABELS[student.attendance]}
-                  </button>
-                </div>
+                </fieldset>
               </div>
             ))}
           </div>

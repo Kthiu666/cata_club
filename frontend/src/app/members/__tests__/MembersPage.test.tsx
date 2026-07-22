@@ -108,6 +108,14 @@ const ACCOUNT: MemberAccount = {
   ],
 };
 
+function createAccounts(count: number): MemberAccount[] {
+  return Array.from({ length: count }, (_, index) => ({
+    ...ACCOUNT,
+    id: String(index + 1),
+    nombres: `Responsable ${index + 1}`,
+  }));
+}
+
 async function findAccountRow(): Promise<HTMLElement> {
   return (await screen.findByText("María González")).closest("tr") as HTMLElement;
 }
@@ -195,5 +203,47 @@ describe("MembersPage — Crear membresía inline form width (live-QA bugfix)", 
     expect(membershipBlock).not.toBeNull();
     expect(membershipBlock?.className).toMatch(/lg:col-span-4/);
     expect(membershipBlock?.className).toMatch(/sm:col-span-2/);
+  });
+});
+
+describe("MembersPage — capped results help", () => {
+  it("opens named help that truthfully describes the known 200-result cap", async () => {
+    render(<MembersPage />);
+    await findAccountRow();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ayuda sobre límite de resultados" }));
+
+    const help = screen.getByRole("region", { name: "Ayuda sobre límite de resultados" });
+    expect(help).toHaveTextContent("hasta 200 registros");
+    expect(help).toHaveTextContent("no confirma que se hayan cargado todos los miembros");
+  });
+});
+
+describe("MembersPage — honest aggregate coverage", () => {
+  it("shows the incomplete-coverage notice when the upstream persona cap is reached after accounts collapse", async () => {
+    mockFetchMembers.mockResolvedValue({ accounts: [ACCOUNT], niveles: [], personasCapped: true });
+
+    render(<MembersPage />);
+
+    expect(await screen.findByRole("status", { name: "Resultados mostrados" })).toHaveTextContent(
+      "1 resultados mostrados",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "puede estar incompleto",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("200 registros");
+    expect(screen.queryByRole("navigation", { name: /paginación/i })).not.toBeInTheDocument();
+  });
+
+  it("hides the incomplete-coverage notice below the cap without adding pagination controls", async () => {
+    mockFetchMembers.mockResolvedValue({ accounts: createAccounts(199), niveles: [], personasCapped: false });
+
+    render(<MembersPage />);
+
+    expect(await screen.findByRole("status", { name: "Resultados mostrados" })).toHaveTextContent(
+      "199 resultados mostrados",
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: /paginación/i })).not.toBeInTheDocument();
   });
 });
