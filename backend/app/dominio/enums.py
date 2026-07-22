@@ -45,6 +45,19 @@ class DiaSemana(str, enum.Enum):
     DOMINGO = "DOMINGO"
 
 
+class Categoria(str, enum.Enum):
+    """
+    5 categorías fijas de horario (edad/audiencia, franja horaria y días
+    permitidos), definidas como constantes de negocio no editables por el
+    administrador -- ver `app.dominio.categoria_metadata.CATEGORIA_METADATA`.
+    """
+    FORMATIVO = "FORMATIVO"
+    INFANTIL = "INFANTIL"
+    JUVENIL = "JUVENIL"
+    COMPETITIVO = "COMPETITIVO"
+    ADULTOS = "ADULTOS"
+
+
 class TipoModalidad(str, enum.Enum):
     PERSONALIZADA = "PERSONALIZADA"
     MENSUAL = "MENSUAL"

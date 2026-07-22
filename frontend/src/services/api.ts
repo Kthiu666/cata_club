@@ -34,6 +34,8 @@ import type {
   PersonaResponse,
   Notificacion,
   Justificativo,
+  PerfilPropio,
+  ActualizarPerfilPropioPayload,
 } from "@/types/domain";
 import type { EnrollmentRequest, EnrollmentResponse } from "@/types/enrollment";
 import type { AttendanceRecord, TrainingSchedule } from "@/app/attendance/attendance-utils";
@@ -1134,6 +1136,33 @@ export async function actualizarFichaMedica(
   if (data.telefonoEmergencia !== undefined) body.telefono_emergencia = data.telefonoEmergencia;
 
   return request<FichaMedicaEditable>(apiEndpoint(`/fichas-medicas/persona/${personaId}`), {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Perfil propio (Issue #36) — dedicated self-profile fetch/mutate, distinct
+// from the global session (AuthContext). Only the staff /profile view uses
+// this — see PerfilPropio's doc comment in types/domain.ts for why.
+// ---------------------------------------------------------------------------
+
+/** Fetch the logged-in user's own profile — GET /api/auth/me (now includes telefono). */
+export async function fetchMiPerfil(): Promise<PerfilPropio> {
+  return request<PerfilPropio>(apiEndpoint("/auth/me"));
+}
+
+/**
+ * Update the logged-in user's own correo/teléfono — PATCH /api/auth/me.
+ * If correo changes, the backend reissues tokens; the BFF route rotates the
+ * HttpOnly cookies transparently and this client never sees a token.
+ */
+export async function actualizarMiPerfil(data: ActualizarPerfilPropioPayload): Promise<PerfilPropio> {
+  const body: Record<string, unknown> = {};
+  if (data.correo !== undefined) body.correo = data.correo;
+  if (data.telefono !== undefined) body.telefono = data.telefono;
+
+  return request<PerfilPropio>(apiEndpoint("/auth/me"), {
     method: "PATCH",
     body: JSON.stringify(body),
   });

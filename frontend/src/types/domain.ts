@@ -300,6 +300,28 @@ export interface RolesResponse {
   activo: boolean;
 }
 
+/**
+ * The authenticated user's own profile — GET/PATCH `/auth/me` (self-service).
+ * Deliberately distinct from the global `Usuario`/`ServerSession` shape (see
+ * `src/lib/server/auth.ts`): only `/profile`'s dedicated fetch uses this, so
+ * adding `telefono` here doesn't touch `AuthContext` or every session reader.
+ * Backend source: `UsuarioMeResponseDTO` / `ActualizarPerfilPropioResponseDTO`.
+ */
+export interface PerfilPropio {
+  correo: string;
+  personaId: number;
+  nombres: string;
+  apellidos: string;
+  roles: BackendTipoRol[];
+  telefono: string;
+}
+
+/** Payload to update the logged-in user's own correo/teléfono — both optional (partial edit). */
+export interface ActualizarPerfilPropioPayload {
+  correo?: string;
+  telefono?: string;
+}
+
 /** One disease item as returned by the backend (id + name). */
 export interface Enfermedad {
   id: number;

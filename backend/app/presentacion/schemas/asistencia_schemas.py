@@ -2,28 +2,31 @@ from pydantic import BaseModel
 from datetime import date, time, datetime
 from typing import Optional
 
-from app.dominio.enums import EstadoAsistencia, DiaSemana
+from app.dominio.enums import EstadoAsistencia, DiaSemana, Categoria
 from app.presentacion.schemas.base import ResponseBase
 
 
 class HorarioCreateDTO(BaseModel):
+    """`hora_inicio`/`hora_fin` NO son campos de entrada: el servicio los
+    deriva server-side de `CATEGORIA_METADATA[categoria]` para que el
+    contrato nunca pueda desviarse de los 5 horarios fijos de negocio."""
+    categoria: Categoria
     dia_semana: DiaSemana
-    hora_inicio: time
-    hora_fin: time
     entrenador_id: int
     nivel_ranking_id: Optional[int] = None
 
 
 class HorarioUpdateDTO(BaseModel):
+    categoria: Optional[Categoria] = None
     dia_semana: Optional[DiaSemana] = None
-    hora_inicio: Optional[time] = None
-    hora_fin: Optional[time] = None
     entrenador_id: Optional[int] = None
     nivel_ranking_id: Optional[int] = None
 
 
 class HorarioResponseDTO(ResponseBase, HorarioCreateDTO):
     id: int
+    hora_inicio: time
+    hora_fin: time
 
 
 class AsistenciaCreateDTO(BaseModel):

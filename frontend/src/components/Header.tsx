@@ -70,7 +70,6 @@ export const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
   "/reports": FileText,
   "/clases-extra": BookOpen,
   "/student": GraduationCap,
-  "/perfil": User,
 };
 
 /**

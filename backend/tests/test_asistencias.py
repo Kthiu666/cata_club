@@ -35,7 +35,7 @@ def test_no_permite_horario_con_entrenador_sin_rol(client):
     resp = client.post(
         "/api/v1/asistencias/horarios",
         json={
-            "dia_semana": "LUNES", "hora_inicio": "18:00:00", "hora_fin": "19:00:00",
+            "categoria": "JUVENIL", "dia_semana": "LUNES",
             "entrenador_id": persona["id"],
         },
     )
@@ -50,7 +50,7 @@ def test_crear_horario_con_entrenador_valido(client, db_session):
     resp = client.post(
         "/api/v1/asistencias/horarios",
         json={
-            "dia_semana": "LUNES", "hora_inicio": "18:00:00", "hora_fin": "19:00:00",
+            "categoria": "JUVENIL", "dia_semana": "LUNES",
             "entrenador_id": entrenador["id"],
         },
     )
@@ -72,7 +72,7 @@ def test_asistencia_permite_entrenador_sustituto_distinto_al_titular(client, db_
     horario = client.post(
         "/api/v1/asistencias/horarios",
         json={
-            "dia_semana": "LUNES", "hora_inicio": "18:00:00", "hora_fin": "19:00:00",
+            "categoria": "JUVENIL", "dia_semana": "LUNES",
             "entrenador_id": titular["id"],
         },
     ).json()

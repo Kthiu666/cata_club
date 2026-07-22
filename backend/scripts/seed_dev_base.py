@@ -7,7 +7,7 @@ AMBIENTE=development). Safe to re-run — uses check-before-insert everywhere.
 Creates:
   - 1 Admin account         (admin@cataclub.com / admin12345)
   - 1 Trainer account       (entrenador@cataclub.com / trainer12345)
-  - 5 weekly schedules      (Mon-Fri, 5 categories)
+  - 26 weekly schedules     (5 categories; Competitivo also runs Saturday)
   - 11 ranking levels       (1A .. 10)
   - 2 membership types      (Mensual Infantil, Mensual Adultos)
   - 2 representantes (padres/tutores) con 1 hijo cada uno
@@ -47,11 +47,13 @@ from app.dominio.modelos import (
 from app.dominio.enums import (
     TipoRol,
     DiaSemana,
+    Categoria,
     TipoModalidad,
     EstadoMembresia,
     EstadoPago,
     TipoPago,
 )
+from app.dominio.categoria_metadata import CATEGORIA_METADATA, dias_permitidos as dias_para
 from app.seguridad.gestor_auth import GestorAutenticacion
 
 
@@ -67,21 +69,15 @@ TRAINER_CORREO = "entrenador@cataclub.com"
 TRAINER_CONTRASENIA = "trainer12345"
 
 # ---------------------------------------------------------------------------
-# Horarios (5 categories x Mon-Fri = 25)
+# Horarios (5 categorías fijas de negocio; días permitidos varían por
+# categoría -- Competitivo corre Lun-Sáb, las otras 4 solo Lun-Vie -- ver
+# `app.dominio.categoria_metadata.CATEGORIA_METADATA`, única fuente de
+# verdad para hora_inicio/hora_fin/días. 4 categorías x 5 días + Competitivo
+# x 6 días (agrega Sábado) = 26 horarios en total).
 # ---------------------------------------------------------------------------
 HORARIOS = [
-    ("Formativo",   time(15, 0), time(16, 0)),
-    ("Infantil",    time(16, 0), time(17, 0)),
-    ("Juvenil",     time(17, 0), time(18, 0)),
-    ("Competitivo", time(18, 0), time(20, 0)),
-    ("Adultos",     time(20, 0), time(21, 0)),
-]
-DIAS = [
-    DiaSemana.LUNES,
-    DiaSemana.MARTES,
-    DiaSemana.MIERCOLES,
-    DiaSemana.JUEVES,
-    DiaSemana.VIERNES,
+    (categoria, info.hora_inicio, info.hora_fin)
+    for categoria, info in CATEGORIA_METADATA.items()
 ]
 
 # ---------------------------------------------------------------------------
@@ -290,12 +286,12 @@ def main() -> None:
             print(f"[seed] Entrenador creado: {TRAINER_CORREO} / {TRAINER_CONTRASENIA}")
 
         # ==================================================================
-        # 3. Horarios (5 categories x 5 days = 25)
+        # 3. Horarios (5 categorías; Competitivo corre Lun-Sáb = 26 filas)
         # ==================================================================
         trainer_persona_id = db.query(Usuario).filter(Usuario.correo == TRAINER_CORREO).first().persona_id
         horario_count = 0
-        for _, h_inicio, h_fin in HORARIOS:
-            for dia in DIAS:
+        for categoria, h_inicio, h_fin in HORARIOS:
+            for dia in dias_para(categoria):
                 _, created = _obtener_o_crear(
                     db, HorarioEntrenamiento,
                     (
@@ -304,6 +300,7 @@ def main() -> None:
                         & (HorarioEntrenamiento.hora_inicio == h_inicio)
                     ),
                     {
+                        "categoria": categoria,
                         "dia_semana": dia,
                         "hora_inicio": h_inicio,
                         "hora_fin": h_fin,
@@ -312,7 +309,7 @@ def main() -> None:
                 )
                 if created:
                     horario_count += 1
-        print(f"[seed] Horarios creados: {horario_count} (de 25 posibles)")
+        print(f"[seed] Horarios creados: {horario_count} (de 26 posibles)")
 
         # ==================================================================
         # 4. NivelRanking (1 = best ... 11 = lowest)
