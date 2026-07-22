@@ -50,7 +50,9 @@ async def obtener_perfil(
 
 # --- Issue #36: perfil propio (self-service, cualquier rol autenticado) -----
 @router.patch("/me", response_model=ActualizarPerfilPropioResponseDTO)
+@limiter.limit("10/minute")
 async def actualizar_perfil_propio(
+    request: Request,
     cambios: ActualizarPerfilPropioDTO,
     token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
     db: Session = Depends(obtener_sesion),

@@ -53,7 +53,7 @@ class ActualizarPerfilPropioDTO(BaseModel):
     parcial); solo los campos presentes en el request se actualizan
     (`exclude_unset=True` en el servicio)."""
     correo: Optional[EmailStr] = None
-    telefono: Optional[str] = None
+    telefono: Optional[str] = Field(default=None, max_length=15)
 
 
 class ActualizarPerfilPropioResponseDTO(ResponseBase, BaseModel):
