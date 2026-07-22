@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getRoleLabel } from "@/lib/auth-utils";
 import type { UserRole } from "@/types/domain";
 
-const STAFF_ROLES: UserRole[] = ["admin", "trainer", "representante"];
+const REDIRECT_TO_STUDENT_ROLES: ReadonlySet<UserRole> = new Set(["representante", "estudiante"]);
 
 export default function PerfilPage(): React.ReactElement {
   const { session } = useAuth();
