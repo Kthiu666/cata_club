@@ -25,7 +25,7 @@ from app.dominio.enums import (
     TipoRol, EstadoMembresia, TipoModalidad, EstadoPago,
     TipoPago, EstadoAsistencia, TipoEscuela, NivelTecnicoAlumno, TipoSangre, DiaSemana,
     EstadoSolicitudExtra, EstadoJustificativoRanking, TipoNotificacion,
-    TipoManoDominante, TipoMovimientoEvento,
+    TipoManoDominante,
 )
 
 
@@ -646,49 +646,3 @@ class Notificacion(Base):
 
     persona_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
     persona: Mapped["Persona"] = relationship(back_populates="notificaciones")
-
-
-# ---------------------------------------------------------------------------
-# Tesorería (E04-RF009/RF010/RF011/RF012)
-# ---------------------------------------------------------------------------
-class Egreso(Base):
-    """E04-RF009: egresos generales del club (servicios, implementos, etc.),
-    gestionados por el Administrador. Independiente de los movimientos de un
-    evento de recaudación (esos los gestiona el Tesorero, ver abajo)."""
-    __tablename__ = "egreso"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    concepto: Mapped[str] = mapped_column(String(150))
-    categoria: Mapped[str] = mapped_column(String(80))  # libre: "servicios", "implementos", etc.
-    monto: Mapped[Decimal] = mapped_column(Numeric(10, 2))
-    fecha: Mapped[date] = mapped_column(Date)
-    registrado_por_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
-    registrado_por: Mapped["Persona"] = relationship()
-
-
-class EventoRecaudacion(Base):
-    """E04-RF010: eventos de recaudación gestionados por el Tesorero."""
-    __tablename__ = "evento_recaudacion"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    nombre: Mapped[str] = mapped_column(String(150))
-    descripcion: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    fecha_inicio: Mapped[date] = mapped_column(Date)
-    fecha_fin: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    meta_monto: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
-
-    movimientos: Mapped[List["MovimientoEvento"]] = relationship(back_populates="evento")
-
-
-class MovimientoEvento(Base):
-    """E04-RF011: ingresos y egresos vinculados a un evento de recaudación."""
-    __tablename__ = "movimiento_evento"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    tipo: Mapped[TipoMovimientoEvento] = mapped_column(SAEnum(TipoMovimientoEvento))
-    monto: Mapped[Decimal] = mapped_column(Numeric(10, 2))
-    descripcion: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    fecha: Mapped[date] = mapped_column(Date)
-
-    evento_id: Mapped[int] = mapped_column(ForeignKey("evento_recaudacion.id"))
-    evento: Mapped["EventoRecaudacion"] = relationship(back_populates="movimientos")
-
-    registrado_por_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
-    registrado_por: Mapped["Persona"] = relationship()
