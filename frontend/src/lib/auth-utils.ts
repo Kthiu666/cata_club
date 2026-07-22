@@ -47,6 +47,7 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
         { href: "/groups", label: "Grupos" },
         { href: "/payments", label: "Membresías y Pagos" },
         { href: "/attendance", label: "Horarios y Asistencia" },
+        { href: "/clases-extra", label: "Clases Extra" },
         // Selección Oficial is a dedicated admin-only route (PR9) nested
         // under /groups, its conceptual home — not on the trainer-gated
         // /trainer/ranking page. Previously an anchor-jump section inside
