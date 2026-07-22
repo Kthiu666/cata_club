@@ -341,6 +341,14 @@ async function request<T>(
       throw new ApiClientError(message, response.status);
     }
 
+    // 204 No Content never carries a body — calling response.json() on it
+    // throws ("Unexpected end of JSON input"). Callers expecting no data
+    // (Promise<void>, e.g. eliminarHorario/desasignarAlumnoDeHorario) get
+    // undefined instead of a spurious parse error.
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
     return response.json() as Promise<T>;
   } finally {
     if (timeoutId !== undefined) {
@@ -480,27 +488,38 @@ export async function registerAttendance(data: RegisterAttendanceRequest): Promi
 // Horarios (Training Schedules) CRUD
 // ---------------------------------------------------------------------------
 
+/**
+ * A persisted training schedule. `horaInicio`/`horaFin` are always
+ * server-derived from `categoria` (see `CATEGORIA_METADATA` in
+ * `@/services/categorias`) — the response still carries them for display,
+ * but `CrearHorarioDTO`/`ActualizarHorarioDTO` below no longer accept them
+ * as client input.
+ */
 export interface Horario {
   id: number;
   diaSemana: string;
   horaInicio: string;
   horaFin: string;
+  categoria: string;
   entrenadorId: number;
   nivelRankingId: number | null;
 }
 
+/** `hora_inicio`/`hora_fin` are intentionally absent: the backend derives and
+ *  validates them from `categoria` + `dia_semana` (`OperacionInvalida` if
+ *  `dia_semana` isn't in that categoria's allowed day-set) — the client can
+ *  no longer submit them directly. */
 export interface CrearHorarioDTO {
   dia_semana: string;
-  hora_inicio: string;
-  hora_fin: string;
+  categoria: string;
   entrenador_id: number;
   nivel_ranking_id?: number | null;
 }
 
+/** See `CrearHorarioDTO` — `hora_inicio`/`hora_fin` are dropped here too. */
 export interface ActualizarHorarioDTO {
   dia_semana?: string;
-  hora_inicio?: string;
-  hora_fin?: string;
+  categoria?: string;
   entrenador_id?: number;
   nivel_ranking_id?: number | null;
 }
@@ -508,7 +527,7 @@ export interface ActualizarHorarioDTO {
 /** Fetch all training schedules. */
 export async function fetchHorarios(): Promise<Horario[]> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<Horario[]>(apiEndpoint("/asistencias/horarios"), {
+  return request<Horario[]>(apiEndpoint("/groups/horarios"), {
     headers: mockHeaders,
   });
 }
@@ -516,7 +535,7 @@ export async function fetchHorarios(): Promise<Horario[]> {
 /** Create a new training schedule. */
 export async function crearHorario(data: CrearHorarioDTO): Promise<Horario> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<Horario>(apiEndpoint("/asistencias/horarios"), {
+  return request<Horario>(apiEndpoint("/groups/horarios"), {
     method: "POST",
     body: JSON.stringify(data),
     headers: mockHeaders,
@@ -526,7 +545,7 @@ export async function crearHorario(data: CrearHorarioDTO): Promise<Horario> {
 /** Update an existing training schedule. */
 export async function actualizarHorario(id: number, data: ActualizarHorarioDTO): Promise<Horario> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<Horario>(apiEndpoint(`/asistencias/horarios/${id}`), {
+  return request<Horario>(apiEndpoint(`/groups/horarios/${id}`), {
     method: "PUT",
     body: JSON.stringify(data),
     headers: mockHeaders,
@@ -536,7 +555,7 @@ export async function actualizarHorario(id: number, data: ActualizarHorarioDTO):
 /** Delete a training schedule. */
 export async function eliminarHorario(id: number): Promise<void> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  await request<unknown>(apiEndpoint(`/asistencias/horarios/${id}`), {
+  await request<unknown>(apiEndpoint(`/groups/horarios/${id}`), {
     method: "DELETE",
     headers: mockHeaders,
   });
@@ -1313,7 +1332,7 @@ export interface AsignarAlumnoHorarioDTO {
 /** Assign a student directly to a schedule. */
 export async function asignarAlumnoAHorario(data: AsignarAlumnoHorarioDTO): Promise<AlumnoHorario> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<AlumnoHorario>(apiEndpoint("/asistencias/asignar-alumno"), {
+  return request<AlumnoHorario>(apiEndpoint("/groups/asignar-alumno"), {
     method: "POST",
     body: JSON.stringify(data),
     headers: mockHeaders,
@@ -1324,7 +1343,7 @@ export async function asignarAlumnoAHorario(data: AsignarAlumnoHorarioDTO): Prom
 export async function desasignarAlumnoDeHorario(personaId: number, horarioId: number): Promise<void> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
   await request<unknown>(
-    apiEndpoint(`/asistencias/desasignar-alumno?persona_id=${personaId}&horario_id=${horarioId}`),
+    apiEndpoint(`/groups/desasignar-alumno?persona_id=${personaId}&horario_id=${horarioId}`),
     { method: "DELETE", headers: mockHeaders },
   );
 }
@@ -1332,7 +1351,7 @@ export async function desasignarAlumnoDeHorario(personaId: number, horarioId: nu
 /** List all students assigned to a specific schedule. */
 export async function fetchAlumnosPorHorario(horarioId: number): Promise<AlumnoHorario[]> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<AlumnoHorario[]>(apiEndpoint(`/asistencias/horarios/${horarioId}/alumnos`), {
+  return request<AlumnoHorario[]>(apiEndpoint(`/groups/horarios/${horarioId}/alumnos`), {
     headers: mockHeaders,
   });
 }

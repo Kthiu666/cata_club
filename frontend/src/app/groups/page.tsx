@@ -1,5 +1,5 @@
 /**
- * Grupos y Horarios — Admin page for managing training schedules.
+ * Gestión de Horarios — Admin page for managing training schedules.
  *
  * Lists all HorarioEntrenamiento records with day, time, trainer, and
  * assigned training level. Shows which students belong to each schedule
@@ -8,6 +8,13 @@
  *
  * Rebuilt for issue #43 — replaces the old NivelRanking-as-Grupo placeholder
  * with real HorarioEntrenamiento management.
+ *
+ * v2 (Gestión de Horarios): once a `categoria` is picked, its day-set and
+ * time range are LOCKED (not just pre-filled) — see
+ * `backend/app/dominio/categoria_metadata.py` for the single source of
+ * truth this mirrors via `@/services/categorias`. The backend derives and
+ * validates `hora_inicio`/`hora_fin`/`dia_semana` server-side; the client
+ * never submits them as freeform values anymore.
  */
 
 "use client";
@@ -44,6 +51,7 @@ import {
 } from "@/services/api";
 import type { Horario, CrearHorarioDTO, ActualizarHorarioDTO, NivelConOcupacion, AlumnoHorario } from "@/services/api";
 import type { StudentRef } from "@/lib/groups-utils";
+import { CATEGORIA_METADATA, CATEGORIA_OPTIONS, diasPermitidos, horarioDe, type Categoria } from "@/services/categorias";
 
 const DIA_LABELS: Record<string, string> = {
   LUNES: "Lunes",
@@ -67,20 +75,26 @@ function extractErrorMessage(err: unknown, fallback: string): string {
 }
 
 interface HorarioFormData {
+  categoria: Categoria;
   dia_semana: string;
-  hora_inicio: string;
-  hora_fin: string;
   entrenador_id: number | null;
   nivel_ranking_id: number | null;
 }
 
+const DEFAULT_CATEGORIA: Categoria = CATEGORIA_OPTIONS[0];
+
 const EMPTY_FORM: HorarioFormData = {
-  dia_semana: "LUNES",
-  hora_inicio: "08:00",
-  hora_fin: "10:00",
+  categoria: DEFAULT_CATEGORIA,
+  dia_semana: diasPermitidos(DEFAULT_CATEGORIA)[0],
   entrenador_id: null,
   nivel_ranking_id: null,
 };
+
+/** Pick a día still valid for the new categoria, falling back to its first allowed day. */
+function resolveDiaForCategoria(categoria: Categoria, currentDia: string): string {
+  const diasValidos = diasPermitidos(categoria);
+  return diasValidos.includes(currentDia) ? currentDia : diasValidos[0];
+}
 
 export default function GroupsPage(): React.ReactElement {
   const [horarios, setHorarios] = useState<Horario[]>([]);
@@ -195,9 +209,8 @@ export default function GroupsPage(): React.ReactElement {
   function openEditForm(horario: Horario): void {
     setEditingId(horario.id);
     setFormData({
+      categoria: (horario.categoria as Categoria) ?? DEFAULT_CATEGORIA,
       dia_semana: horario.diaSemana,
-      hora_inicio: horario.horaInicio.slice(0, 5),
-      hora_fin: horario.horaFin.slice(0, 5),
       entrenador_id: horario.entrenadorId,
       nivel_ranking_id: horario.nivelRankingId,
     });
@@ -223,9 +236,8 @@ export default function GroupsPage(): React.ReactElement {
     try {
       if (editingId !== null) {
         const dto: ActualizarHorarioDTO = {
+          categoria: formData.categoria,
           dia_semana: formData.dia_semana,
-          hora_inicio: formData.hora_inicio + ":00",
-          hora_fin: formData.hora_fin + ":00",
           entrenador_id: formData.entrenador_id,
           nivel_ranking_id: formData.nivel_ranking_id,
         };
@@ -233,9 +245,8 @@ export default function GroupsPage(): React.ReactElement {
         showNotification("success", "Horario actualizado correctamente.");
       } else {
         const dto: CrearHorarioDTO = {
+          categoria: formData.categoria,
           dia_semana: formData.dia_semana,
-          hora_inicio: formData.hora_inicio + ":00",
-          hora_fin: formData.hora_fin + ":00",
           entrenador_id: formData.entrenador_id,
           nivel_ranking_id: formData.nivel_ranking_id,
         };
@@ -269,7 +280,7 @@ export default function GroupsPage(): React.ReactElement {
     <ProtectedRoute allowedRoles={["admin"]}>
       <AppShell
         eyebrow="Gestión Operativa"
-        title="Grupos y Horarios"
+        title="Gestión de Horarios"
       >
         {loadError && (
           <div
@@ -329,6 +340,29 @@ export default function GroupsPage(): React.ReactElement {
             )}
             <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div>
+                <label htmlFor="horario-categoria" className="mb-1 block text-xs font-medium text-cata-text/65">
+                  Categoría
+                </label>
+                <select
+                  id="horario-categoria"
+                  className="input-field w-full"
+                  value={formData.categoria}
+                  onChange={(e) => {
+                    const categoria = e.target.value as Categoria;
+                    setFormData((prev) => ({
+                      ...prev,
+                      categoria,
+                      dia_semana: resolveDiaForCategoria(categoria, prev.dia_semana),
+                    }));
+                  }}
+                  required
+                >
+                  {CATEGORIA_OPTIONS.map((cat) => (
+                    <option key={cat} value={cat}>{CATEGORIA_METADATA[cat].label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label htmlFor="horario-dia" className="mb-1 block text-xs font-medium text-cata-text/65">
                   Día de la semana
                 </label>
@@ -339,36 +373,21 @@ export default function GroupsPage(): React.ReactElement {
                   onChange={(e) => setFormData((prev) => ({ ...prev, dia_semana: e.target.value }))}
                   required
                 >
-                  {DIA_OPTIONS.map((dia) => (
+                  {diasPermitidos(formData.categoria).map((dia) => (
                     <option key={dia} value={dia}>{DIA_LABELS[dia]}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label htmlFor="horario-inicio" className="mb-1 block text-xs font-medium text-cata-text/65">
-                  Hora inicio
-                </label>
-                <input
-                  id="horario-inicio"
-                  type="time"
-                  className="input-field w-full"
-                  value={formData.hora_inicio}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, hora_inicio: e.target.value }))}
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="horario-fin" className="mb-1 block text-xs font-medium text-cata-text/65">
-                  Hora fin
-                </label>
-                <input
-                  id="horario-fin"
-                  type="time"
-                  className="input-field w-full"
-                  value={formData.hora_fin}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, hora_fin: e.target.value }))}
-                  required
-                />
+                <span className="mb-1 block text-xs font-medium text-cata-text/65">
+                  Horario (fijo según categoría)
+                </span>
+                <p
+                  className="input-field flex w-full items-center text-cata-text/70"
+                  aria-readonly="true"
+                >
+                  {horarioDe(formData.categoria).horaInicio} – {horarioDe(formData.categoria).horaFin}
+                </p>
               </div>
               <div>
                 <label htmlFor="horario-nivel" className="mb-1 block text-xs font-medium text-cata-text/65">

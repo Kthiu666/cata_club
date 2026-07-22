@@ -1,8 +1,10 @@
 /**
- * BFF proxy — POST /api/groups/horarios
+ * BFF proxy — GET/POST /api/groups/horarios
  *
- * Creates a new training schedule. Proxies to FastAPI's
- * POST /asistencias/horarios.
+ * GET: lists training schedules (optionally filtered by `?categoria=`).
+ *      Proxies to FastAPI's GET /asistencias/horarios.
+ * POST: creates a new training schedule. Proxies to FastAPI's
+ *       POST /asistencias/horarios.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -24,6 +26,38 @@ interface CrearHorarioBody {
   hora_fin?: unknown;
   entrenador_id?: unknown;
   nivel_ranking_id?: unknown;
+}
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const accessToken = extractAccessToken(request);
+  if (!accessToken) return unauthorizedResponse();
+
+  const categoria = request.nextUrl.searchParams.get("categoria");
+  const query = categoria ? `?categoria=${encodeURIComponent(categoria)}` : "";
+
+  const [controller, done] = backendTimeout();
+  try {
+    const response = await fetch(backendUrl(`/asistencias/horarios${query}`), {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: controller.signal,
+    });
+
+    const data = await parseJsonResponse(response);
+
+    if (!response.ok) {
+      return NextResponse.json(
+        { message: extractBackendErrorMessage(data, response.status) },
+        { status: response.status },
+      );
+    }
+
+    return NextResponse.json(data, { status: 200 });
+  } catch (error: unknown) {
+    return handleProxyError(error);
+  } finally {
+    done();
+  }
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
