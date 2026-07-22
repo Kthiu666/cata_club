@@ -1173,6 +1173,11 @@ export async function actualizarMiPerfil(data: ActualizarPerfilPropioPayload): P
   });
 }
 
+/** Longer than DEFAULT_TIMEOUT_MS (10s) — subirFotoPerfil is the only caller
+ * that uploads a binary body (up to the backend's 5MB cap), which can take
+ * longer than a small JSON payload on a slow connection. */
+const FOTO_PERFIL_UPLOAD_TIMEOUT_MS = 30_000;
+
 /**
  * Upload/replace the logged-in user's own profile photo — POST /api/auth/me/foto.
  * Sends `multipart/form-data` (a `FormData` body, NOT `JSON.stringify`) — see
@@ -1184,10 +1189,11 @@ export async function subirFotoPerfil(archivo: File): Promise<PerfilPropio> {
   const formData = new FormData();
   formData.append("archivo", archivo);
 
-  return request<PerfilPropio>(apiEndpoint("/auth/me/foto"), {
-    method: "POST",
-    body: formData,
-  });
+  return request<PerfilPropio>(
+    apiEndpoint("/auth/me/foto"),
+    { method: "POST", body: formData },
+    FOTO_PERFIL_UPLOAD_TIMEOUT_MS,
+  );
 }
 
 // ---------------------------------------------------------------------------
