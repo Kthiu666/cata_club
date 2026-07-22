@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import TrainerAttendancePage from "@/app/trainer/attendance/page";
 import { createAuthenticatedAuth } from "@/components/__tests__/test-utils";
 
@@ -43,12 +43,14 @@ const mockUseAuth = vi.mocked(useAuth);
 
 const mockFetchTrainingSchedules = vi.fn().mockResolvedValue([]);
 const mockFetchNivelesConOcupacion = vi.fn().mockResolvedValue([]);
+const mockFetchNivelRoster = vi.fn().mockResolvedValue([]);
+const mockRegisterAttendance = vi.fn();
 
 vi.mock("@/services/api", () => ({
   fetchTrainingSchedules: () => mockFetchTrainingSchedules(),
   fetchNivelesConOcupacion: () => mockFetchNivelesConOcupacion(),
-  fetchNivelRoster: vi.fn(),
-  registerAttendance: vi.fn(),
+  fetchNivelRoster: () => mockFetchNivelRoster(),
+  registerAttendance: (request: unknown) => mockRegisterAttendance(request),
   fetchNotificaciones: vi.fn().mockResolvedValue([]),
   marcarNotificacionLeida: vi.fn().mockResolvedValue(undefined),
 }));
@@ -56,6 +58,10 @@ vi.mock("@/services/api", () => ({
 describe("TrainerAttendancePage — role gate (PR8)", () => {
   beforeEach(() => {
     mockReplace.mockReset();
+    mockFetchTrainingSchedules.mockResolvedValue([]);
+    mockFetchNivelesConOcupacion.mockResolvedValue([]);
+    mockFetchNivelRoster.mockResolvedValue([]);
+    mockRegisterAttendance.mockReset();
   });
 
   it.each([
@@ -77,5 +83,67 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
 
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/payments"));
     expect(screen.queryByText("Seleccione el horario de entrenamiento:")).not.toBeInTheDocument();
+  });
+
+  it("lets a trainer directly select each visibly labeled attendance state", async () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    mockFetchTrainingSchedules.mockResolvedValue([
+      { id: 12, diaSemana: "lunes", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+    ]);
+    mockFetchNivelesConOcupacion.mockResolvedValue([
+      { id: 4, numeroNivel: 2, nombre: "Intermedio", nivelCategoria: "intermedio", personasActuales: 1 },
+    ]);
+    mockFetchNivelRoster.mockResolvedValue([
+      { personaId: 9, personaNombreCompleto: "Ana López", posicionActual: 1, puntajeAcumulado: 20, estaEnRanking: true },
+    ]);
+
+    render(<TrainerAttendancePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /lunes/i }));
+    fireEvent.click(screen.getByRole("button", { name: /intermedio/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    const stateSelector = await screen.findByRole("group", { name: "Estado de asistencia de Ana López" });
+    expect(within(stateSelector).getByRole("button", { name: "Presente" })).toBeVisible();
+    expect(within(stateSelector).getByRole("button", { name: "Ausente" })).toBeVisible();
+    expect(within(stateSelector).getByRole("button", { name: "Tardanza" })).toBeVisible();
+    const justified = within(stateSelector).getByRole("button", { name: "Justificado" });
+
+    fireEvent.click(justified);
+
+    expect(justified).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("submits the existing justified state mapping after direct selection", async () => {
+    const trainerAuth = createAuthenticatedAuth("trainer", "Coach Torres");
+    if (trainerAuth.session) trainerAuth.session.user.id = "17";
+    mockUseAuth.mockReturnValue(trainerAuth);
+    mockFetchTrainingSchedules.mockResolvedValue([
+      { id: 12, diaSemana: "lunes", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+    ]);
+    mockFetchNivelesConOcupacion.mockResolvedValue([
+      { id: 4, numeroNivel: 2, nombre: "Intermedio", nivelCategoria: "intermedio", personasActuales: 1 },
+    ]);
+    mockFetchNivelRoster.mockResolvedValue([
+      { personaId: 9, personaNombreCompleto: "Ana López", posicionActual: 1, puntajeAcumulado: 20, estaEnRanking: true },
+    ]);
+    mockRegisterAttendance.mockResolvedValue({ createdCount: 1, failed: [] });
+
+    render(<TrainerAttendancePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /lunes/i }));
+    fireEvent.click(screen.getByRole("button", { name: /intermedio/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    const stateSelector = await screen.findByRole("group", { name: "Estado de asistencia de Ana López" });
+    fireEvent.click(within(stateSelector).getByRole("button", { name: "Justificado" }));
+    fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar Asistencia" }));
+
+    await waitFor(() => {
+      expect(mockRegisterAttendance).toHaveBeenCalledWith(expect.objectContaining({
+        horarioId: 12,
+        students: [{ personaId: 9, estado: "justified" }],
+      }));
+    });
   });
 });
