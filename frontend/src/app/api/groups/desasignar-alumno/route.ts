@@ -8,11 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   extractAccessToken,
-  parseJsonResponse,
-  extractBackendErrorMessage,
-  handleProxyError,
-  backendTimeout,
-  backendUrl,
+  proxyToBackend,
   unauthorizedResponse,
   badRequestResponse,
 } from "@/lib/server/bff-helpers";
@@ -30,29 +26,9 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     return badRequestResponse("persona_id y horario_id son obligatorios y deben ser numéricos.");
   }
 
-  const [controller, done] = backendTimeout();
-  try {
-    const response = await fetch(
-      backendUrl(`/asistencias/desasignar-alumno?persona_id=${personaId}&horario_id=${horarioId}`),
-      {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${accessToken}` },
-        signal: controller.signal,
-      },
-    );
-
-    if (!response.ok) {
-      const data = await parseJsonResponse(response);
-      return NextResponse.json(
-        { message: extractBackendErrorMessage(data, response.status) },
-        { status: response.status },
-      );
-    }
-
-    return new NextResponse(null, { status: 204 });
-  } catch (error: unknown) {
-    return handleProxyError(error);
-  } finally {
-    done();
-  }
+  return proxyToBackend(`/asistencias/desasignar-alumno?persona_id=${personaId}&horario_id=${horarioId}`, {
+    method: "DELETE",
+    accessToken,
+    successStatus: 204,
+  });
 }
