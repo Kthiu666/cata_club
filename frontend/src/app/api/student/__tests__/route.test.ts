@@ -51,8 +51,6 @@ const child = {
 
 const perfilDisponible = {
   personaId: 5,
-  posicionActual: 3,
-  puntajeAcumulado: 120,
   nivelRankingId: 1,
   nivelRankingNombre: "Intermedios",
   estaEnRanking: true,

@@ -33,8 +33,6 @@ function getRequest(cookie = ""): NextRequest {
 const tablaItem = {
   personaId: 3,
   personaNombreCompleto: "Sofia Alumna",
-  posicionActual: null,
-  puntajeAcumulado: 0,
   estaEnRanking: true,
 };
 

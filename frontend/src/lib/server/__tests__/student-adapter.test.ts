@@ -63,19 +63,15 @@ describe("buildRecentSessions", () => {
 });
 
 describe("buildRankingView", () => {
-  it("maps an available perfil", () => {
+  it("maps an available perfil without leaking dead posicion/puntaje fields", () => {
     const perfil: BackendPerfilRanking = {
       personaId: 5,
-      posicionActual: 2,
-      puntajeAcumulado: 80,
       nivelRankingId: 1,
       nivelRankingNombre: "Avanzados",
       estaEnRanking: true,
     };
     expect(buildRankingView(perfil)).toEqual({
       status: "available",
-      posicionActual: 2,
-      puntajeAcumulado: 80,
       nivelNombre: "Avanzados",
       estaEnRanking: true,
     });

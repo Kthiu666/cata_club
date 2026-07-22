@@ -15,9 +15,6 @@ import type { Notificacion, TipoNotificacion } from "@/types/domain";
 import { formatDateTime } from "@/lib/format-utils";
 
 const TIPO_LABELS: Record<TipoNotificacion, string> = {
-  RANKING_ELIMINACION_PROXIMA: "Próxima eliminación del ranking",
-  RANKING_ASCENSO_SUGERIDO: "Ascenso sugerido",
-  RANKING_DESCENSO_SUGERIDO: "Descenso sugerido",
   RANKING_REINGRESO_APROBADO: "Reingreso aprobado",
   JUSTIFICATIVO_APROBADO: "Justificativo aprobado",
   JUSTIFICATIVO_RECHAZADO: "Justificativo rechazado",

@@ -47,7 +47,17 @@ export interface RankingDisplay {
   badgeClass: string;
 }
 
-/** Human-readable label + badge class for a `StudentRankingSummary` — one place to keep the three states (available/in-ranking, available/not-yet-ranked, unavailable) consistent. */
+/**
+ * Human-readable label + badge class for a `StudentRankingSummary` — one
+ * place to keep the three states (available/in-ranking, available/
+ * not-yet-ranked, unavailable) consistent.
+ *
+ * No longer shows "Posición #X · Y pts": the backend stopped exposing
+ * `posicionActual`/`puntajeAcumulado` because they were frozen forever (no
+ * writer since `cerrar_mes()` was removed) — showing a frozen number as if
+ * it were live was the actual reliability bug this addresses. See
+ * apply-progress of `limpieza-asistencia-y-nivel-entrenador` slice E.
+ */
 export function describeRanking(ranking: StudentRankingSummary): RankingDisplay {
   if (ranking.status === "unavailable") {
     return ranking.reason === "forbidden"
@@ -57,10 +67,9 @@ export function describeRanking(ranking: StudentRankingSummary): RankingDisplay 
   if (!ranking.estaEnRanking) {
     return { label: "Sin nivel asignado", detail: "Aún no fue asignado a un nivel de ranking.", badgeClass: "badge-warning" };
   }
-  const posicion = ranking.posicionActual !== null ? `Posición #${ranking.posicionActual}` : "Sin posición aún";
   return {
     label: ranking.nivelNombre ?? "Nivel sin nombre",
-    detail: `${posicion} · ${ranking.puntajeAcumulado} pts`,
+    detail: "Activo en este nivel.",
     badgeClass: "badge-success",
   };
 }
