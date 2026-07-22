@@ -27,7 +27,6 @@ import type {
   BackendTipoRol,
   FichaMedicaEditable,
   FichaMedicaUpdatePayload,
-  CategoriaRanking,
   ResultadoMensual,
   CierreMensual,
   SeleccionOficial,
@@ -478,6 +477,72 @@ export async function registerAttendance(data: RegisterAttendanceRequest): Promi
 }
 
 // ---------------------------------------------------------------------------
+// Horarios (Training Schedules) CRUD
+// ---------------------------------------------------------------------------
+
+export interface Horario {
+  id: number;
+  diaSemana: string;
+  horaInicio: string;
+  horaFin: string;
+  entrenadorId: number;
+  nivelRankingId: number | null;
+}
+
+export interface CrearHorarioDTO {
+  dia_semana: string;
+  hora_inicio: string;
+  hora_fin: string;
+  entrenador_id: number;
+  nivel_ranking_id?: number | null;
+}
+
+export interface ActualizarHorarioDTO {
+  dia_semana?: string;
+  hora_inicio?: string;
+  hora_fin?: string;
+  entrenador_id?: number;
+  nivel_ranking_id?: number | null;
+}
+
+/** Fetch all training schedules. */
+export async function fetchHorarios(): Promise<Horario[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<Horario[]>(apiEndpoint("/asistencias/horarios"), {
+    headers: mockHeaders,
+  });
+}
+
+/** Create a new training schedule. */
+export async function crearHorario(data: CrearHorarioDTO): Promise<Horario> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<Horario>(apiEndpoint("/asistencias/horarios"), {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: mockHeaders,
+  });
+}
+
+/** Update an existing training schedule. */
+export async function actualizarHorario(id: number, data: ActualizarHorarioDTO): Promise<Horario> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<Horario>(apiEndpoint(`/asistencias/horarios/${id}`), {
+    method: "PUT",
+    body: JSON.stringify(data),
+    headers: mockHeaders,
+  });
+}
+
+/** Delete a training schedule. */
+export async function eliminarHorario(id: number): Promise<void> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  await request<unknown>(apiEndpoint(`/asistencias/horarios/${id}`), {
+    method: "DELETE",
+    headers: mockHeaders,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Members & Groups API Methods (Fase 4)
 // ---------------------------------------------------------------------------
 
@@ -599,6 +664,13 @@ export interface StudentPortalSummary {
   self: StudentProfileSummary | null;
   representados: StudentProfileSummary[];
   membershipPlans: MembershipPlanSummary[];
+  memberships: StudentMembershipSummary[];
+}
+
+export interface StudentMembershipSummary {
+  id: number;
+  estado: string;
+  personaId: number;
 }
 
 /** Fetch the logged-in persona's own portal data (profile, representados, ranking, recent attendance) — `GET /api/student`. */
@@ -650,9 +722,6 @@ export interface CerrarMesDTO {
 /** DTO for POST /ranking/seleccion-oficial — register/update the official-selection roster. */
 export interface SeleccionOficialDTO {
   estudianteId: string;
-  categoria: CategoriaRanking;
-  /** "YYYY-MM" */
-  periodo: string;
 }
 
 /** Register a monthly ranking result for a student (CU — Resultados Mensuales). */
@@ -699,6 +768,29 @@ export async function seleccionOficial(
     body: JSON.stringify(data),
     headers: mockHeaders,
   });
+}
+
+/** Fetch the persisted official-selection roster. */
+export async function fetchSeleccionOficial(): Promise<SeleccionOficialRosterItem[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<SeleccionOficialRosterItem[]>(apiEndpoint("/ranking/seleccion-oficial"), {
+    headers: mockHeaders,
+  });
+}
+
+/** Remove a student from the official-selection roster. */
+export async function quitarDeSeleccionOficial(personaId: number): Promise<void> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  await request<unknown>(apiEndpoint(`/ranking/seleccion-oficial/${personaId}`), {
+    method: "DELETE",
+    headers: mockHeaders,
+  });
+}
+
+export interface SeleccionOficialRosterItem {
+  persona_id: number;
+  persona_nombre_completo: string;
+  anio_seleccion: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -851,6 +943,13 @@ export async function fetchMembresiasPorPersona(personaId: number): Promise<Memb
   return request<MembresiaPorPersona[]>(apiEndpoint(`/membresias/persona/${personaId}`), {
     headers: mockHeaders,
   });
+}
+
+/** JWT-derived membership read for the student portal and represented dependents. */
+export async function fetchMisMembresias(personaId?: number): Promise<MembresiaPorPersona[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  const query = personaId === undefined ? "" : `?persona_id=${encodeURIComponent(personaId)}`;
+  return request<MembresiaPorPersona[]>(apiEndpoint(`/membresias/mias${query}`), { headers: mockHeaders });
 }
 
 /**
@@ -1105,6 +1204,7 @@ export interface SubmitJustificativoDTO {
   mes: number;
   motivo: string;
   archivoUrl?: string;
+  observaciones?: string;
 }
 
 /** Submit a justificativo for a missed ranking month (E03-RF006a) — `POST /ranking/:personaId/justificativos`. */
@@ -1147,6 +1247,7 @@ export async function evaluarJustificativo(
       mes: target?.mes ?? new Date().getMonth() + 1,
       motivo: target?.motivo ?? "",
       archivoUrl: target?.archivoUrl ?? null,
+      observaciones: target?.observaciones ?? null,
       estado: data.estado,
       motivoRechazo: data.motivoRechazo ?? null,
       fechaSolicitud: target?.fechaSolicitud ?? new Date().toISOString(),
@@ -1185,6 +1286,61 @@ export async function fetchJustificativosPendientes(): Promise<Justificativo[]> 
 export async function fetchJustificativosDePersona(personaId: string): Promise<Justificativo[]> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
   return request<Justificativo[]>(apiEndpoint(`/ranking/${personaId}/justificativos`), {
+    headers: mockHeaders,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Asignación directa Alumno ↔ Horario
+// ---------------------------------------------------------------------------
+
+export interface AlumnoHorario {
+  id: number;
+  persona_id: number;
+  persona_nombre_completo: string;
+  horario_id: number;
+  horario_dia: string;
+  horario_hora_inicio: string;
+  horario_hora_fin: string;
+  fecha_asignacion: string;
+}
+
+export interface AsignarAlumnoHorarioDTO {
+  persona_id: number;
+  horario_id: number;
+}
+
+/** Assign a student directly to a schedule. */
+export async function asignarAlumnoAHorario(data: AsignarAlumnoHorarioDTO): Promise<AlumnoHorario> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<AlumnoHorario>(apiEndpoint("/asistencias/asignar-alumno"), {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: mockHeaders,
+  });
+}
+
+/** Unassign a student from a schedule. */
+export async function desasignarAlumnoDeHorario(personaId: number, horarioId: number): Promise<void> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  await request<unknown>(
+    apiEndpoint(`/asistencias/desasignar-alumno?persona_id=${personaId}&horario_id=${horarioId}`),
+    { method: "DELETE", headers: mockHeaders },
+  );
+}
+
+/** List all students assigned to a specific schedule. */
+export async function fetchAlumnosPorHorario(horarioId: number): Promise<AlumnoHorario[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<AlumnoHorario[]>(apiEndpoint(`/asistencias/horarios/${horarioId}/alumnos`), {
+    headers: mockHeaders,
+  });
+}
+
+/** List all schedules assigned to a specific student. */
+export async function fetchHorariosPorAlumno(personaId: number): Promise<AlumnoHorario[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<AlumnoHorario[]>(apiEndpoint(`/asistencias/alumnos/${personaId}/horarios`), {
     headers: mockHeaders,
   });
 }

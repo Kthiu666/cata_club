@@ -2,7 +2,7 @@ from typing import Optional, List
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.dominio.modelos import Asistencia, HorarioEntrenamiento
+from app.dominio.modelos import Asistencia, HorarioEntrenamiento, AlumnoHorario
 
 
 class HorarioRepositorio:
@@ -24,6 +24,15 @@ class HorarioRepositorio:
         self.db.commit()
         self.db.refresh(horario)
         return horario
+
+    def actualizar(self, horario: HorarioEntrenamiento) -> HorarioEntrenamiento:
+        self.db.commit()
+        self.db.refresh(horario)
+        return horario
+
+    def eliminar(self, horario: HorarioEntrenamiento) -> None:
+        self.db.delete(horario)
+        self.db.commit()
 
 
 class AsistenciaRepositorio:
@@ -71,5 +80,45 @@ class AsistenciaRepositorio:
         if fecha_fin is not None:
             query = query.filter(Asistencia.fecha_entrenamiento <= fecha_fin)
         return query.order_by(Asistencia.fecha_entrenamiento.desc()).all()
+
+
+class AlumnoHorarioRepositorio:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def crear(self, alumno_horario: AlumnoHorario) -> AlumnoHorario:
+        self.db.add(alumno_horario)
+        self.db.commit()
+        self.db.refresh(alumno_horario)
+        return alumno_horario
+
+    def eliminar(self, alumno_horario: AlumnoHorario) -> None:
+        self.db.delete(alumno_horario)
+        self.db.commit()
+
+    def obtener_por_persona_y_horario(
+        self, persona_id: int, horario_id: int
+    ) -> Optional[AlumnoHorario]:
+        stmt = select(AlumnoHorario).where(
+            AlumnoHorario.persona_id == persona_id,
+            AlumnoHorario.horario_id == horario_id,
+        )
+        return self.db.execute(stmt).scalars().first()
+
+    def listar_por_horario(self, horario_id: int) -> List[AlumnoHorario]:
+        stmt = (
+            select(AlumnoHorario)
+            .options(joinedload(AlumnoHorario.persona))
+            .where(AlumnoHorario.horario_id == horario_id)
+        )
+        return list(self.db.execute(stmt).scalars().unique().all())
+
+    def listar_por_persona(self, persona_id: int) -> List[AlumnoHorario]:
+        stmt = (
+            select(AlumnoHorario)
+            .options(joinedload(AlumnoHorario.horario))
+            .where(AlumnoHorario.persona_id == persona_id)
+        )
+        return list(self.db.execute(stmt).scalars().unique().all())
 
 

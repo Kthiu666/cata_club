@@ -264,4 +264,37 @@ describe("ProfilePage — change password", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo enviar el correo.");
   });
+
+  it("uses the just-saved correo, not the stale AuthContext session email, after an in-place correo edit", async () => {
+    // Regression test: AuthContext only revalidates on a 5-minute interval or
+    // tab-visibility change, so session.user.email can be stale right after
+    // a successful correo edit. accountEmail must prefer the freshly-saved
+    // perfil.correo over the cached session email.
+    mockUseAuth.mockReturnValue(sessionForRole("admin"));
+    mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
+    mockActualizarMiPerfil.mockResolvedValueOnce({
+      ...PERFIL_ADMIN,
+      correo: "ana.nueva@cataclub.com",
+    });
+    mockSolicitarRecuperacion.mockResolvedValueOnce({
+      mensaje: "Si el correo está registrado, recibirá un enlace de recuperación.",
+    });
+
+    render(<ProfilePage />);
+    await screen.findByText("Ana Admin");
+
+    fireEvent.click(screen.getByRole("button", { name: /editar/i }));
+    fireEvent.change(screen.getByLabelText(/correo electrónico/i), {
+      target: { value: "ana.nueva@cataclub.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await screen.findByText("ana.nueva@cataclub.com");
+
+    fireEvent.click(screen.getByRole("button", { name: /cambiar contraseña/i }));
+
+    await waitFor(() => {
+      expect(mockSolicitarRecuperacion).toHaveBeenCalledWith("ana.nueva@cataclub.com");
+    });
+    expect(mockSolicitarRecuperacion).not.toHaveBeenCalledWith("ana.admin@cataclub.com");
+  });
 });

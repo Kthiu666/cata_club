@@ -44,17 +44,12 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
       links.push(
         { href: "/dashboard", label: "Administración" },
         { href: "/members", label: "Miembros" },
-        { href: "/groups", label: "Grupos" },
+        { href: "/ranking", label: "Ranking" },
+        { href: "/ranking/seleccion-oficial", label: "Selección Oficial" },
+        { href: "/groups", label: "Grupos y Horarios" },
         { href: "/payments", label: "Membresías y Pagos" },
         { href: "/attendance", label: "Horarios y Asistencia" },
         { href: "/clases-extra", label: "Clases Extra" },
-        // Selección Oficial is a dedicated admin-only route (PR9) nested
-        // under /groups, its conceptual home — not on the trainer-gated
-        // /trainer/ranking page. Previously an anchor-jump section inside
-        // groups/page.tsx; extracted to its own screen after live-QA
-        // feedback that a smooth-scroll+highlight (PR4/PR7) still felt like
-        // an abrupt context switch.
-        { href: "/groups/seleccion-oficial", label: "Selección Oficial" },
         { href: "/reports", label: "Reportes" },
       );
       break;
