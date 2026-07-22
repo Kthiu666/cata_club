@@ -162,15 +162,34 @@ describe("AppShell", (): void => {
     expect(screen.getByRole("button", { name: /notificaciones/i })).toBeInTheDocument();
   });
 
-  it("calls logout when the sidebar logout button is clicked", (): void => {
+  it("does not show the account menu items until the user block is clicked", (): void => {
+    render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    expect(screen.queryByRole("link", { name: /Perfil/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Cerrar Sesión/i })).not.toBeInTheDocument();
+  });
+
+  it("opens the account menu with Perfil and Cerrar Sesión when the user block is clicked", (): void => {
+    render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    fireEvent.click(screen.getByRole("button", { name: /Menú de cuenta/i }));
+
+    expect(screen.getByRole("link", { name: /Perfil/i })).toHaveAttribute("href", "/profile");
+    expect(screen.getByRole("button", { name: /Cerrar Sesión/i })).toBeInTheDocument();
+  });
+
+  it("calls logout when Cerrar Sesión is clicked from the account menu", (): void => {
     const mockLogout = vi.fn();
     mockUseAuth.mockReturnValue(createAuthenticatedAuth("admin", "Admin", { logout: mockLogout }));
 
     render(<AppShell title="Dashboard">{null}</AppShell>);
 
+    fireEvent.click(screen.getByRole("button", { name: /Menú de cuenta/i }));
     fireEvent.click(screen.getByRole("button", { name: /Cerrar Sesión/i }));
 
     expect(mockLogout).toHaveBeenCalledTimes(1);
+    // Menu closes itself after the click
+    expect(screen.queryByRole("button", { name: /Cerrar Sesión/i })).not.toBeInTheDocument();
   });
 
   it("opens and closes the mobile sidebar", (): void => {

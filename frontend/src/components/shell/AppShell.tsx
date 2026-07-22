@@ -19,13 +19,14 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X, Search, LogOut, User, ChevronLeft, ChevronRight } from "lucide-react";
+import { Menu, X, Search, User, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNavLinksForRole, getRoleLabel, getUserInitials, type NavLinkDef } from "@/lib/auth-utils";
 import { normalizeText } from "@/app/members/members-utils";
 import { useNotificaciones } from "@/lib/useNotificaciones";
 import { NAV_ICON_MAP } from "@/components/Header";
 import NotificationBell from "@/components/NotificationBell";
+import UserMenuDropdown from "@/components/UserMenuDropdown";
 
 export interface AppShellProps {
   /** Small uppercase label above the page title (defaults to "Panel de gestión"). */
@@ -83,6 +84,7 @@ export default function AppShell({
   const [activeIndex, setActiveIndex] = useState(0);
   const paletteInputRef = useRef<HTMLInputElement>(null);
   const paletteDialogRef = useRef<HTMLDivElement>(null);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const role = session?.user.role ?? null;
   const navLinks = useMemo<NavLinkDef[]>(
@@ -249,22 +251,30 @@ export default function AppShell({
 
         {session && (
           <div className="border-t border-white/10 p-4">
-            <div className="flex items-center gap-2.5 rounded-xl bg-white/[0.06] px-3 py-2.5">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cata-red/25 text-xs font-bold">
-                {getUserInitials(session.user.name)}
-              </div>
-              <div className="min-w-0 flex-1 leading-tight">
-                <p className="truncate text-sm font-semibold">{session.user.name}</p>
-                <p className="truncate text-xs text-white/45">{getRoleLabel(session.user.role)}</p>
-              </div>
+            <div className="relative">
               <button
                 type="button"
-                onClick={logout}
-                className="shrink-0 rounded-lg p-1.5 text-white/55 hover:bg-white/10 hover:text-cata-red-light"
-                aria-label="Cerrar Sesión"
+                onClick={(): void => setUserMenuOpen((open) => !open)}
+                aria-haspopup="true"
+                aria-expanded={userMenuOpen}
+                aria-label={`Menú de cuenta de ${session.user.name}`}
+                className="flex w-full items-center gap-2.5 rounded-xl bg-white/[0.06] px-3 py-2.5 text-left transition-colors hover:bg-white/[0.1]"
               >
-                <LogOut size={16} strokeWidth={1.5} aria-hidden="true" />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cata-red/25 text-xs font-bold">
+                  {getUserInitials(session.user.name)}
+                </div>
+                <div className="min-w-0 flex-1 leading-tight">
+                  <p className="truncate text-sm font-semibold">{session.user.name}</p>
+                  <p className="truncate text-xs text-white/45">{getRoleLabel(session.user.role)}</p>
+                </div>
               </button>
+              {userMenuOpen && (
+                <UserMenuDropdown
+                  onLogout={logout}
+                  onNavigate={(): void => setUserMenuOpen(false)}
+                  className="absolute bottom-full left-0 mb-1.5 w-full"
+                />
+              )}
             </div>
           </div>
         )}
