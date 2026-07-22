@@ -287,21 +287,21 @@ describe("getAccountStatusBadge", () => {
     });
   });
 
-  it('returns "Requiere atención" + "badge-warning" when no active memberships but pending validation', () => {
+  it('returns "Pago pendiente de validación" + "badge-warning" when no active memberships but pending validation', () => {
     // rp-005 (Carlos Ramirez): both students have vencida memberships,
     // but Santiago (stu-007) has pendiente_validacion payment
     const account = MOCK_MEMBER_ACCOUNTS.find((a) => a.id === "rp-005")!;
     expect(getAccountStatusBadge(account)).toEqual({
-      label: "Requiere atención",
+      label: "Pago pendiente de validación",
       className: "badge-warning",
     });
   });
 
-  it('returns "Requiere atención" + "badge-error" when no active and no pending validation', () => {
+  it('returns "Membresía vencida" + "badge-error" when no active and no pending validation but expired', () => {
     // rp-003 (Diego Flores): Camila has vencida membership, no payments at all
     const account = MOCK_MEMBER_ACCOUNTS.find((a) => a.id === "rp-003")!;
     expect(getAccountStatusBadge(account)).toEqual({
-      label: "Requiere atención",
+      label: "Membresía vencida",
       className: "badge-error",
     });
   });
@@ -317,7 +317,7 @@ describe("getAccountStatusBadge", () => {
       estudiantes: [],
     };
     expect(getAccountStatusBadge(emptyAccount)).toEqual({
-      label: "Requiere atención",
+      label: "Sin membresía activa",
       className: "badge-error",
     });
   });

@@ -128,7 +128,7 @@ def test_restablecer_contrasenia_con_token_valido(client):
     persona = _crear_persona(client, "1766666666")
     _registrar_credenciales(client, persona["cedula"], "u5@x.com")
 
-    token = GestorAutenticacion.crear_token_recuperacion("u5@x.com")
+    token = GestorAutenticacion.crear_token_recuperacion("u5@x.com", version_contrasenia=1)
     resp = client.post(
         "/api/v1/auth/restablecer-contrasenia",
         json={"token": token, "nueva_contrasenia": "otraclave123"},
@@ -147,6 +147,27 @@ def test_restablecer_contrasenia_con_token_de_acceso_falla():
     token_acceso = GestorAutenticacion.crear_token_acceso({"sub": "x@x.com"})
     with pytest.raises(Exception):
         GestorAutenticacion.decodificar_token_recuperacion(token_acceso)
+
+
+def test_restablecer_contrasenia_token_no_se_puede_reusar(client):
+    """Tras un restablecimiento exitoso la versión de contraseña cambia, por
+    lo que el mismo token debe quedar invalidado (single-use)."""
+    persona = _crear_persona(client, "1766666667")
+    _registrar_credenciales(client, persona["cedula"], "u6@x.com")
+
+    token = GestorAutenticacion.crear_token_recuperacion("u6@x.com", version_contrasenia=1)
+    resp = client.post(
+        "/api/v1/auth/restablecer-contrasenia",
+        json={"token": token, "nueva_contrasenia": "otraclave123"},
+    )
+    assert resp.status_code == 204
+
+    # Reutilizar el mismo token debe fallar aunque aún no haya expirado.
+    resp = client.post(
+        "/api/v1/auth/restablecer-contrasenia",
+        json={"token": token, "nueva_contrasenia": "terceraclave123"},
+    )
+    assert resp.status_code == 401
 
 
 # --- Beca / Descuento (E01-RF011) --------------------------------------------

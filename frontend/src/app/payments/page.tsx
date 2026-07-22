@@ -87,6 +87,7 @@ export default function PaymentsPage(): React.ReactElement {
   const [rejectionValidationError, setRejectionValidationError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [confirmApproveOpen, setConfirmApproveOpen] = useState(false);
+  const [previewUnavailable, setPreviewUnavailable] = useState(false);
 
   const loadRequests = useCallback(async (): Promise<void> => {
     try {
@@ -125,6 +126,7 @@ export default function PaymentsPage(): React.ReactElement {
     setRejectionValidationError(null);
     setActionError(null);
     setSuccessMessage(null);
+    setPreviewUnavailable(false);
   }
 
   function handleBack(): void {
@@ -556,14 +558,25 @@ export default function PaymentsPage(): React.ReactElement {
                   </div>
 
                   <div className="mb-4 rounded-xl border-2 border-dashed border-cata-border bg-cata-bg p-6 text-center">
-                    {selectedRequest.proofPreviewUrl ? (
+                    {selectedRequest.proofPreviewUrl && !previewUnavailable ? (
                       <div className="relative mx-auto mb-3 h-48 w-full overflow-hidden rounded-lg bg-cata-border/40">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={selectedRequest.proofPreviewUrl}
-                          alt="Vista previa del comprobante de pago"
+                           alt="Vista previa del comprobante de pago"
+                          onError={(): void => setPreviewUnavailable(true)}
                           className="h-full w-full object-contain"
                         />
+                      </div>
+                    ) : selectedRequest.proofPreviewUrl ? (
+                      <div role="status" className="space-y-3 text-sm text-cata-text/65">
+                        <p>Comprobante no disponible</p>
+                        <a href={selectedRequest.proofPreviewUrl} download className="inline-flex font-medium text-cata-red hover:text-cata-red-light">
+                          Descargar comprobante
+                        </a>
+                        <button type="button" onClick={(): void => setPreviewUnavailable(false)} className="block mx-auto text-xs font-medium text-cata-red hover:text-cata-red-light">
+                          Reintentar vista previa
+                        </button>
                       </div>
                     ) : (
                       <div className="mb-3 flex items-center justify-center">

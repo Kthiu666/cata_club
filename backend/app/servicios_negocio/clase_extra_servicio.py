@@ -9,6 +9,7 @@ from app.infraestructura.repositorios.asistencia_repositorio import HorarioRepos
 from app.infraestructura.repositorios.clase_extra_repositorio import SolicitudClaseExtraRepositorio
 from app.presentacion.schemas.clase_extra_schemas import (
     SolicitudClaseExtraCreateDTO, SolicitudClaseExtraResolverDTO,
+    SolicitudClaseExtraListItemDTO,
 )
 
 
@@ -69,3 +70,26 @@ class ClaseExtraServicio:
         if not self.repo_persona.obtener_por_id(persona_id):
             raise EntidadNoEncontrada(f"Persona con id {persona_id} no encontrada")
         return self.repo.listar_por_persona(persona_id)
+
+    def listar_pendientes(self) -> list[SolicitudClaseExtraListItemDTO]:
+        """Listado administrativo de solicitudes pendientes con datos
+        enriquecidos del solicitante y del horario."""
+        solicitudes = self.repo.listar_pendientes()
+        return [
+            SolicitudClaseExtraListItemDTO(
+                id=s.id,
+                fecha_clase_solicitada=s.fecha_clase_solicitada,
+                estado=s.estado,
+                costo_adicional=s.costo_adicional,
+                fecha_solicitud=s.fecha_solicitud,
+                observaciones=s.observaciones,
+                persona_id=s.persona_id,
+                persona_nombre_completo=f"{s.persona.nombres} {s.persona.apellidos}",
+                membresia_id=s.membresia_id,
+                horario_id=s.horario_id,
+                horario_dia_semana=s.horario.dia_semana.value,
+                horario_hora_inicio=s.horario.hora_inicio.isoformat(),
+                horario_hora_fin=s.horario.hora_fin.isoformat(),
+            )
+            for s in solicitudes
+        ]

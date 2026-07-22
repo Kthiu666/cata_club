@@ -162,15 +162,34 @@ describe("AppShell", (): void => {
     expect(screen.getByRole("button", { name: /notificaciones/i })).toBeInTheDocument();
   });
 
-  it("calls logout when the sidebar logout button is clicked", (): void => {
+  it("does not show the account menu items until the user block is clicked", (): void => {
+    render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    expect(screen.queryByRole("link", { name: /Perfil/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Cerrar Sesión/i })).not.toBeInTheDocument();
+  });
+
+  it("opens the account menu with Perfil and Cerrar Sesión when the user block is clicked", (): void => {
+    render(<AppShell title="Dashboard">{null}</AppShell>);
+
+    fireEvent.click(screen.getByRole("button", { name: /Menú de cuenta/i }));
+
+    expect(screen.getByRole("link", { name: /Perfil/i })).toHaveAttribute("href", "/profile");
+    expect(screen.getByRole("button", { name: /Cerrar Sesión/i })).toBeInTheDocument();
+  });
+
+  it("calls logout when Cerrar Sesión is clicked from the account menu", (): void => {
     const mockLogout = vi.fn();
     mockUseAuth.mockReturnValue(createAuthenticatedAuth("admin", "Admin", { logout: mockLogout }));
 
     render(<AppShell title="Dashboard">{null}</AppShell>);
 
+    fireEvent.click(screen.getByRole("button", { name: /Menú de cuenta/i }));
     fireEvent.click(screen.getByRole("button", { name: /Cerrar Sesión/i }));
 
     expect(mockLogout).toHaveBeenCalledTimes(1);
+    // Menu closes itself after the click
+    expect(screen.queryByRole("button", { name: /Cerrar Sesión/i })).not.toBeInTheDocument();
   });
 
   it("opens and closes the mobile sidebar", (): void => {
@@ -190,7 +209,7 @@ describe("AppShell", (): void => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Buscar una sección/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar secciones" }));
 
     expect(screen.getByRole("dialog", { name: /Buscador de secciones/i })).toBeInTheDocument();
   });
@@ -206,7 +225,7 @@ describe("AppShell", (): void => {
   it("closes the command palette with Escape", (): void => {
     render(<AppShell title="Dashboard">{null}</AppShell>);
 
-    fireEvent.click(screen.getByRole("button", { name: /Buscar una sección/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar secciones" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "Escape" });
@@ -217,7 +236,7 @@ describe("AppShell", (): void => {
   it("filters palette results by the typed query", (): void => {
     render(<AppShell title="Dashboard">{null}</AppShell>);
 
-    fireEvent.click(screen.getByRole("button", { name: /Buscar una sección/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar secciones" }));
     const input = screen.getByPlaceholderText("Ir a una sección…");
 
     fireEvent.change(input, { target: { value: "pagos" } });
@@ -229,7 +248,7 @@ describe("AppShell", (): void => {
   it("shows an empty-results message when nothing matches", (): void => {
     render(<AppShell title="Dashboard">{null}</AppShell>);
 
-    fireEvent.click(screen.getByRole("button", { name: /Buscar una sección/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar secciones" }));
     fireEvent.change(screen.getByPlaceholderText("Ir a una sección…"), {
       target: { value: "zzz-no-existe" },
     });
@@ -240,7 +259,7 @@ describe("AppShell", (): void => {
   it("navigates and closes the palette when a result is clicked", (): void => {
     render(<AppShell title="Dashboard">{null}</AppShell>);
 
-    fireEvent.click(screen.getByRole("button", { name: /Buscar una sección/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar secciones" }));
     fireEvent.click(screen.getByRole("button", { name: /Grupos/i }));
 
     expect(mockPush).toHaveBeenCalledWith("/groups");
@@ -250,7 +269,7 @@ describe("AppShell", (): void => {
   it("navigates to the highlighted result on Enter", (): void => {
     render(<AppShell title="Dashboard">{null}</AppShell>);
 
-    fireEvent.click(screen.getByRole("button", { name: /Buscar una sección/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar secciones" }));
     const input = screen.getByPlaceholderText("Ir a una sección…");
     fireEvent.change(input, { target: { value: "asistencia" } });
     fireEvent.keyDown(input, { key: "Enter" });

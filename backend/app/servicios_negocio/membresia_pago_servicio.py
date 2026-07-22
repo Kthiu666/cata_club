@@ -78,8 +78,35 @@ class MembresiaServicio:
     def contar_membresias_activas(self) -> int:
         return self.repo.contar_activas()
 
-    def listar_membresias_por_persona(self, persona_id: int) -> list[Membresia]:
-        return self.repo.listar_por_persona(persona_id)
+    def listar_membresias_por_persona(
+        self,
+        persona_id_objetivo: int,
+        persona_id_solicitante: int | None = None,
+        roles_solicitante: list[str] | None = None,
+    ) -> list[Membresia]:
+        """Membresías de una persona para lectura por el propio alumno, su
+        representante, o un administrador. Mismo criterio de autorización que
+        `PagoServicio.listar_pagos_de_persona`: dueño, representante, o
+        ADMINISTRADOR; "es representante" solo se resuelve cuando dueño/admin
+        no autorizan de entrada."""
+        roles_solicitante = roles_solicitante or []
+        es_duenio = persona_id_solicitante is not None and persona_id_solicitante == persona_id_objetivo
+        es_admin = "ADMINISTRADOR" in roles_solicitante
+        es_representante = False
+
+        if not es_duenio and not es_admin and persona_id_solicitante is not None:
+            persona_objetivo = self.repo_persona.obtener_por_id(persona_id_objetivo)
+            es_representante = bool(
+                persona_objetivo and persona_objetivo.representante_id == persona_id_solicitante
+            )
+
+        if not (es_duenio or es_representante or es_admin):
+            raise PermisosInsuficientes(
+                "Solo la propia persona, su representante, o un administrador "
+                "pueden ver estas membresías"
+            )
+
+        return self.repo.listar_por_persona(persona_id_objetivo)
 
     def listar_membresias(
         self, skip: int = 0, limit: int = 200

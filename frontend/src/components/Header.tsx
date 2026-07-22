@@ -32,11 +32,13 @@ import {
   Trophy,
   Award,
   FileText,
+  BookOpen,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNavLinksForRole, type NavLinkDef } from "@/lib/auth-utils";
 import { useNotificaciones } from "@/lib/useNotificaciones";
 import NotificationBell from "@/components/NotificationBell";
+import UserMenuDropdown from "@/components/UserMenuDropdown";
 
 interface NavLink {
   href: string;
@@ -66,6 +68,7 @@ export const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
   "/trainer": GraduationCap,
   "/trainer/ranking": Trophy,
   "/reports": FileText,
+  "/clases-extra": BookOpen,
   "/student": GraduationCap,
   "/perfil": User,
 };
@@ -235,6 +238,7 @@ const APP_SHELL_ROUTES = new Set([
 export default function Header({ hideOnLanding = false }: HeaderProps): React.ReactElement | null {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { isAuthenticated, session, logout, isLoading } = useAuth();
   const links = useNavLinks();
   const { notificaciones, loadError, markRead } = useNotificaciones(isAuthenticated && !!session);
@@ -311,21 +315,26 @@ export default function Header({ hideOnLanding = false }: HeaderProps): React.Re
 
           {/* User menu — shown when authenticated */}
           {isAuthenticated && session && (
-            <li className="ml-2 flex items-center gap-2 border-l border-white/10 pl-3">
+            <li className="relative ml-2 flex items-center gap-2 border-l border-white/10 pl-3">
               <NotificationBell notificaciones={notificaciones} loadError={loadError} onMarkRead={markRead} />
-              <span className="flex items-center gap-1.5 text-xs text-white/65">
-                <User size={13} strokeWidth={1.5} aria-hidden="true" />
-                <span className="max-w-[120px] truncate">{session.user.name}</span>
-              </span>
               <button
                 type="button"
-                onClick={logout}
-                className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-white/65 transition-colors hover:bg-white/[0.08] hover:text-cata-red"
-                aria-label="Cerrar Sesión"
+                onClick={(): void => setUserMenuOpen((open) => !open)}
+                aria-haspopup="true"
+                aria-expanded={userMenuOpen}
+                aria-label={`Menú de cuenta de ${session.user.name}`}
+                className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-white/65 transition-colors hover:bg-white/[0.08] hover:text-white"
               >
-                <LogOut size={13} strokeWidth={1.5} aria-hidden="true" />
-                <span className="hidden lg:inline">Salir</span>
+                <User size={13} strokeWidth={1.5} aria-hidden="true" />
+                <span className="max-w-[120px] truncate">{session.user.name}</span>
               </button>
+              {userMenuOpen && (
+                <UserMenuDropdown
+                  onLogout={logout}
+                  onNavigate={(): void => setUserMenuOpen(false)}
+                  className="absolute right-0 top-full mt-1.5 w-40"
+                />
+              )}
             </li>
           )}
         </ul>
@@ -377,6 +386,14 @@ export default function Header({ hideOnLanding = false }: HeaderProps): React.Re
                   </span>
                   <NotificationBell notificaciones={notificaciones} loadError={loadError} onMarkRead={markRead} />
                 </div>
+                <Link
+                  href="/profile"
+                  onClick={(): void => setMenuOpen(false)}
+                  className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-white/65 transition-colors hover:bg-white/[0.08] hover:text-white"
+                >
+                  <User size={17} strokeWidth={1.5} aria-hidden="true" />
+                  Perfil
+                </Link>
                 <button
                   type="button"
                   onClick={(): void => {

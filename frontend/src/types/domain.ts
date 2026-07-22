@@ -270,8 +270,12 @@ export interface SolicitudClaseExtra {
   fechaSolicitud: string;
   observaciones: string | null;
   personaId: number;
+  personaNombreCompleto?: string;
   membresiaId: number;
   horarioId: number;
+  horarioDiaSemana?: string;
+  horarioHoraInicio?: string;
+  horarioHoraFin?: string;
 }
 
 /** Payload to create an extra-class request (snake_case is sent to backend). */
@@ -460,6 +464,22 @@ export interface PersonaReporte {
   porcentajeBeca: number;
   motivoBeca?: string | null;
   fechaRegistro?: string | null;
+}
+
+/** Basic Persona shape returned by PATCH /personas/{id}. */
+export interface PersonaResponse {
+  id: number;
+  nombres: string;
+  apellidos: string;
+  cedula: string;
+  fechaNacimiento: string;
+  telefono: string;
+  telefonoContacto?: string | null;
+  fotoUrl?: string | null;
+  representanteId?: number | null;
+  prioridadMunicipal: boolean;
+  porcentajeBeca: number;
+  motivoBeca?: string | null;
 }
 
 // ---------------------------------------------------------------------------

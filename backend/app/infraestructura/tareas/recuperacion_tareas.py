@@ -1,14 +1,13 @@
 """
 Tarea Celery: envío del enlace de recuperación de contraseña (E01-RF003).
 
-Mismo patrón que `alertas_tareas.py`: esta tarea NO conoce SMTP. Mientras no
-exista un `ServicioNotificaciones` real conectado a un proveedor de correo,
-se persiste un log estructurado que simula el envío -- es la "simulación"
-aceptada para el alcance académico del proyecto (documentado también en
-`alertas_tareas.py`).
+Delega el envío real a `ServicioNotificaciones` (SMTP configurable). Si el
+broker SMTP no está configurado, la tarea falla explícitamente y Celery
+reintentará según su política de retry.
 """
 import logging
 
+from app.infraestructura.notificaciones_servicio import ServicioNotificaciones
 from app.infraestructura.tareas.celery_app import celery_app
 
 logger = logging.getLogger("cataclub.tareas.recuperacion")
@@ -24,11 +23,6 @@ logger.setLevel(logging.INFO)
     retry_jitter=True,
 )
 def enviar_enlace_recuperacion(self, correo: str, token: str) -> dict:
-    """
-    En producción, aquí se llamaría a `ServicioNotificaciones.enviar_correo(...)`
-    con una plantilla que incluya un enlace tipo
-    `https://<frontend>/restablecer-contrasenia?token=<token>`.
-    Por ahora se deja el log estructurado como simulación del envío.
-    """
-    logger.info("[RECUPERAR_CONTRASENIA] correo=%s token=%s", correo, token)
+    """Envía el correo de recuperación con el enlace al frontend."""
+    ServicioNotificaciones().enviar_recuperacion_contrasenia(correo, token)
     return {"correo": correo, "enviado": True}

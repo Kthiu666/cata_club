@@ -214,14 +214,22 @@ describe("AuthProvider", () => {
   });
 
   it("a visibilitychange event triggers revalidation", async () => {
+    vi.useFakeTimers();
     mockGetSession.mockResolvedValueOnce({ kind: "authenticated", session: adminSession });
     renderAuthProvider();
-    await waitFor(() => expect(mockGetSession).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(mockGetSession).toHaveBeenCalledTimes(1);
 
     mockGetSession.mockResolvedValueOnce({ kind: "authenticated", session: adminSession });
     act(() => triggerVisibilityChange("visible"));
 
-    await waitFor(() => expect(mockGetSession).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(mockGetSession).toHaveBeenCalledTimes(2);
   });
 
   it("the periodic interval triggers revalidation while a session is active", async () => {

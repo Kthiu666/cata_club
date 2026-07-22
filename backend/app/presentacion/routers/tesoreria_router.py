@@ -17,13 +17,12 @@ from app.presentacion.schemas.tesoreria_schemas import (
 router = APIRouter(prefix="/tesoreria", tags=["tesoreria"])
 
 ROL_ADMIN = ["ADMINISTRADOR"]
-ROL_ADMIN_O_TESORERO = ["ADMINISTRADOR", "TESORERO"]
 
 
 # --- Eventos de recaudación (E04-RF010) --------------------------------------
 @router.post(
     "/eventos", response_model=EventoRecaudacionResponseDTO, status_code=201,
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_TESORERO))],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
 )
 async def crear_evento(datos: EventoRecaudacionCreateDTO, db: Session = Depends(obtener_sesion)):
     return TesoreriaServicio(db).crear_evento(datos)
@@ -31,7 +30,7 @@ async def crear_evento(datos: EventoRecaudacionCreateDTO, db: Session = Depends(
 
 @router.get(
     "/eventos", response_model=List[EventoRecaudacionResponseDTO],
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_TESORERO))],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
 )
 async def listar_eventos(db: Session = Depends(obtener_sesion)):
     return TesoreriaServicio(db).listar_eventos()
@@ -40,7 +39,7 @@ async def listar_eventos(db: Session = Depends(obtener_sesion)):
 # --- Movimientos de un evento (E04-RF011) ------------------------------------
 @router.post(
     "/eventos/{evento_id}/movimientos", response_model=MovimientoEventoResponseDTO, status_code=201,
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_TESORERO))],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
 )
 async def registrar_movimiento(
     evento_id: int,
@@ -55,7 +54,7 @@ async def registrar_movimiento(
 
 @router.get(
     "/eventos/{evento_id}/movimientos", response_model=List[MovimientoEventoResponseDTO],
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_TESORERO))],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
 )
 async def listar_movimientos(evento_id: int, db: Session = Depends(obtener_sesion)):
     return TesoreriaServicio(db).listar_movimientos(evento_id)
@@ -64,7 +63,7 @@ async def listar_movimientos(evento_id: int, db: Session = Depends(obtener_sesio
 # --- Balance de un evento (E04-RF012) -----------------------------------------
 @router.get(
     "/eventos/{evento_id}/balance", response_model=BalanceEventoResponseDTO,
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_TESORERO))],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
 )
 async def obtener_balance_evento(evento_id: int, db: Session = Depends(obtener_sesion)):
     return TesoreriaServicio(db).obtener_balance_evento(evento_id)
@@ -85,7 +84,7 @@ async def crear_egreso(
 
 @router.get(
     "/egresos", response_model=List[EgresoResponseDTO],
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_TESORERO))],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
 )
 async def listar_egresos(db: Session = Depends(obtener_sesion)):
     return TesoreriaServicio(db).listar_egresos()
@@ -94,7 +93,7 @@ async def listar_egresos(db: Session = Depends(obtener_sesion)):
 # --- Balance general del club (E04-RF012) -------------------------------------
 @router.get(
     "/balance-general", response_model=BalanceGeneralResponseDTO,
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_TESORERO))],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
 )
 async def obtener_balance_general(db: Session = Depends(obtener_sesion)):
     return TesoreriaServicio(db).obtener_balance_general()
@@ -103,7 +102,7 @@ async def obtener_balance_general(db: Session = Depends(obtener_sesion)):
 # --- E04-RF013: reporte financiero en PDF -------------------------------------
 @router.get(
     "/balance-general/pdf",
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_TESORERO))],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
 )
 async def descargar_balance_general_pdf(db: Session = Depends(obtener_sesion)):
     from app.infraestructura.generador_pdf import generar_reporte_pdf

@@ -508,95 +508,6 @@ export default function GroupsPage(): React.ReactElement {
               );
             })}
           </div>
-
-          {/* Panel de asignación directa alumno ↔ horario */}
-          {horarioSeleccionado && (
-            <div className="card mt-6 p-5">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <UserPlus size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                  <h3 className="text-sm font-bold text-cata-text">
-                    Asignar alumnos al horario
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { setHorarioSeleccionado(null); setAlumnosPorHorario([]); }}
-                  className="btn-secondary text-xs"
-                >
-                  Cerrar
-                </button>
-              </div>
-
-              {cargandoAlumnos ? (
-                <div className="flex items-center gap-2 py-4 text-sm text-cata-text/50">
-                  <Loader2 size={14} className="animate-spin" aria-hidden="true" />
-                  Cargando alumnos...
-                </div>
-              ) : (
-                <>
-                  {alumnosPorHorario.length > 0 && (
-                    <div className="mb-4">
-                      <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-cata-text/40">
-                        Alumnos asignados ({alumnosPorHorario.length})
-                      </p>
-                      <div className="space-y-2">
-                        {alumnosPorHorario.map((a) => (
-                          <div key={a.id} className="flex items-center justify-between rounded-lg bg-cata-bg px-3 py-2">
-                            <span className="text-sm text-cata-text">{a.persona_nombre_completo}</span>
-                            <button
-                              type="button"
-                              onClick={() => void handleDesasignarAlumno(a.persona_id)}
-                              className="rounded-lg border border-cata-border p-1 text-cata-text/50 transition-colors hover:bg-red-50 hover:text-cata-red"
-                              title="Desasignar alumno"
-                            >
-                              <UserMinus size={12} strokeWidth={1.5} aria-hidden="true" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-end gap-3">
-                    <div className="flex-1">
-                      <label htmlFor="alumno-select" className="mb-1 block text-xs font-medium text-cata-text/65">
-                        Seleccionar alumno
-                      </label>
-                      <select
-                        id="alumno-select"
-                        className="input-field w-full"
-                        value={alumnoSeleccionado ?? ""}
-                        onChange={(e) => setAlumnoSeleccionado(e.target.value ? Number(e.target.value) : null)}
-                      >
-                        <option value="">Seleccionar alumno...</option>
-                        {allStudents
-                          .filter((s) => s.activo && !alumnosPorHorario.some((a) => a.persona_id === s.id))
-                          .map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.nombres} {s.apellidos}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void handleAsignarAlumno()}
-                      disabled={!alumnoSeleccionado || asignandoAlumno}
-                      className="btn-primary inline-flex items-center gap-1.5 text-xs"
-                    >
-                      {asignandoAlumno ? (
-                        <Loader2 size={12} className="animate-spin" aria-hidden="true" />
-                      ) : (
-                        <UserPlus size={12} strokeWidth={2} aria-hidden="true" />
-                      )}
-                      Asignar
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
         ) : (
           <div className="card flex flex-col items-center py-16 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-cata-red/10">
@@ -616,6 +527,95 @@ export default function GroupsPage(): React.ReactElement {
               <Plus size={14} strokeWidth={2} aria-hidden="true" />
               Crear primer horario
             </button>
+          </div>
+        )}
+
+        {/* Panel de asignación directa alumno ↔ horario */}
+        {horarioSeleccionado && (
+          <div className="card mt-6 p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UserPlus size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                <h3 className="text-sm font-bold text-cata-text">
+                  Asignar alumnos al horario
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setHorarioSeleccionado(null); setAlumnosPorHorario([]); }}
+                className="btn-secondary text-xs"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            {cargandoAlumnos ? (
+              <div className="flex items-center gap-2 py-4 text-sm text-cata-text/50">
+                <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                Cargando alumnos...
+              </div>
+            ) : (
+              <>
+                {alumnosPorHorario.length > 0 && (
+                  <div className="mb-4">
+                    <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-cata-text/40">
+                      Alumnos asignados ({alumnosPorHorario.length})
+                    </p>
+                    <div className="space-y-2">
+                      {alumnosPorHorario.map((a) => (
+                        <div key={a.id} className="flex items-center justify-between rounded-lg bg-cata-bg px-3 py-2">
+                          <span className="text-sm text-cata-text">{a.persona_nombre_completo}</span>
+                          <button
+                            type="button"
+                            onClick={() => void handleDesasignarAlumno(a.persona_id)}
+                            className="rounded-lg border border-cata-border p-1 text-cata-text/50 transition-colors hover:bg-red-50 hover:text-cata-red"
+                            title="Desasignar alumno"
+                          >
+                            <UserMinus size={12} strokeWidth={1.5} aria-hidden="true" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-end gap-3">
+                  <div className="flex-1">
+                    <label htmlFor="alumno-select" className="mb-1 block text-xs font-medium text-cata-text/65">
+                      Seleccionar alumno
+                    </label>
+                    <select
+                      id="alumno-select"
+                      className="input-field w-full"
+                      value={alumnoSeleccionado ?? ""}
+                      onChange={(e) => setAlumnoSeleccionado(e.target.value ? Number(e.target.value) : null)}
+                    >
+                      <option value="">Seleccionar alumno...</option>
+                      {allStudents
+                        .filter((s) => s.activo && !alumnosPorHorario.some((a) => a.persona_id === Number(s.id)))
+                        .map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.nombres} {s.apellidos}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleAsignarAlumno()}
+                    disabled={!alumnoSeleccionado || asignandoAlumno}
+                    className="btn-primary inline-flex items-center gap-1.5 text-xs"
+                  >
+                    {asignandoAlumno ? (
+                      <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+                    ) : (
+                      <UserPlus size={12} strokeWidth={2} aria-hidden="true" />
+                    )}
+                    Asignar
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 

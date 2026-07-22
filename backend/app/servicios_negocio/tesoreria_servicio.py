@@ -16,9 +16,7 @@ from app.presentacion.schemas.tesoreria_schemas import (
 
 class TesoreriaServicio:
     """
-    Épica E04 RF009-RF012: NO existía absolutamente nada de esto (ni el rol
-    TESORERO, ni ninguna entidad de eventos/recaudación/egresos). Gap real,
-    no un detalle de nomenclatura.
+    Épica E04 RF009-RF012: gestión de eventos de recaudación y egresos del club.
     """
 
     def __init__(self, db: Session):
