@@ -28,6 +28,10 @@ class PersonaCreateDTO(BaseModel):
     representante_id: Optional[int] = None
     direccion_id: Optional[int] = None
     institucion_id: Optional[int] = None
+    # E01-RF009 / E01-RF011: permiten asignar etiquetas directamente en el alta.
+    prioridad_municipal: Optional[bool] = False
+    porcentaje_beca: Optional[int] = Field(default=0, ge=0, le=100)
+    motivo_beca: Optional[str] = Field(default=None, max_length=150)
 
 
 class PersonaUpdateDTO(BaseModel):

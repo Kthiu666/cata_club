@@ -72,8 +72,10 @@ export default function LoginPage(): React.ReactElement {
     router.replace(getDefaultRoute(result.session.user.role));
   }
 
-  // Show loading during session hydration
-  if (isLoading) {
+  // Show loading during session hydration, and keep showing it while an
+  // already-authenticated user is mid-redirect — otherwise the form paints
+  // for one frame between hydration resolving and the effect above firing.
+  if (isLoading || (isAuthenticated && session)) {
     return (
       <div className="auth-shell flex min-h-screen items-center justify-center">
         <p className="text-sm text-cata-text/65">Cargando sesión...</p>

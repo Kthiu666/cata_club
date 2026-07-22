@@ -22,6 +22,15 @@ services:
     ports:
       - "6379:6379"
 
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # UI web para ver correos capturados
+    environment:
+      MP_MAX_MESSAGES: 500
+
   backend:
     build: ./backend
     restart: unless-stopped
@@ -44,6 +53,16 @@ services:
       CLOUDINARY_CARPETA_VOUCHERS: cataclub/vouchers
       CELERY_HORA_AUTOMATIZACIONES: "02:30"
       AMBIENTE: ${AMBIENTE:-production}
+      # --- Correo / SMTP -----------------------------------------------------
+      # En desarrollo con Docker se usa el contenedor mailpit (SMTP sin auth).
+      # En producción sobrescribí estas variables con tu proveedor SMTP real.
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-no-reply@cataclub.com}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
       interval: 10s

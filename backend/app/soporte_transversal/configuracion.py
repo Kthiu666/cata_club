@@ -77,6 +77,15 @@ class Settings(BaseSettings):
     # (no es el PDF oficial generado al aprobar un pago — ese va a comprobantes)
     cloudinary_carpeta_vouchers: str = "cataclub/vouchers"
 
+    # --- Correo / SMTP (envío transaccional) ---
+    smtp_host: str = ""                       # ej. smtp.gmail.com, smtp.sendgrid.net o mailpit
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "no-reply@cataclub.com"
+    smtp_starttls: bool = True
+    frontend_url: str = "http://localhost:3000"  # base para enlaces de recuperación
+
     @property
     def broker_url_efectivo(self) -> str:
         return self.celery_broker_url or self.redis_url

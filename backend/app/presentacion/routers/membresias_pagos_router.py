@@ -73,15 +73,20 @@ async def listar_membresias(
 @router.get(
     "/persona/{persona_id}",
     response_model=PaginatedResponse[MembresiaResponseDTO],
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
+    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
 async def listar_membresias_por_persona(
     persona_id: int,
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=10, ge=1, le=200),
     db: Session = Depends(obtener_sesion),
+    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
 ):
-    todos = MembresiaServicio(db).listar_membresias_por_persona(persona_id)
+    todos = MembresiaServicio(db).listar_membresias_por_persona(
+        persona_id_objetivo=persona_id,
+        persona_id_solicitante=token_payload.get("persona_id"),
+        roles_solicitante=token_payload.get("roles", []),
+    )
     total = len(todos)
     items = todos[skip : skip + limit]
     return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)

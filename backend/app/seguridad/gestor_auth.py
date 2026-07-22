@@ -49,29 +49,31 @@ class GestorAutenticacion:
 
     # --- E01-RF003: recuperación de contraseña -------------------------------
     @staticmethod
-    def crear_token_recuperacion(correo: str, expiracion_minutos: int = 30) -> str:
+    def crear_token_recuperacion(correo: str, version_contrasenia: int, expiracion_minutos: int = 30) -> str:
         """Token de un solo propósito (`type=reset_password`), corta duración
-        (30 min por defecto). No lleva roles ni persona_id: solo sirve para
-        probar "quien pidió el reset es dueño de ese correo", nada más."""
+        (30 min por defecto). Incluye la versión actual de la contraseña para
+        invalidar el token tras un restablecimiento exitoso (single-use)."""
         payload = {
             "sub": correo,
             "type": "reset_password",
+            "ver": version_contrasenia,
             "exp": datetime.now(timezone.utc) + timedelta(minutes=expiracion_minutos),
         }
         return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algoritmo)
 
     @staticmethod
-    def decodificar_token_recuperacion(token: str) -> str:
-        """Devuelve el correo asociado si el token es válido y de tipo
-        reset_password. Lanza CredencialesInvalidas en cualquier otro caso
-        (expirado, corrupto, o un access/refresh token reusado aquí)."""
+    def decodificar_token_recuperacion(token: str) -> dict:
+        """Devuelve el payload {sub, ver} si el token es válido y de tipo
+        reset_password. La comparación contra la versión actual de la
+        contraseña del usuario se hace en el servicio, para invalidar tokens
+        reutilizados (single-use) tras un restablecimiento exitoso."""
         try:
             payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algoritmo])
         except jwt.PyJWTError:
             raise CredencialesInvalidas("El enlace de recuperación es inválido o expiró")
         if payload.get("type") != "reset_password":
             raise CredencialesInvalidas("El enlace de recuperación es inválido o expiró")
-        return payload["sub"]
+        return payload
 
     @staticmethod
     def decodificar_token(token: str = Depends(oauth2_scheme)) -> dict:

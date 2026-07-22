@@ -6,7 +6,7 @@ import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchStudentPortal, fetchMembresiasPorPersona, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra, submitJustificativo, fetchJustificativosDePersona, fetchPagosDePersona, extractItems } from "@/services/api";
+import { fetchStudentPortal, fetchMembresiasPorPersona, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra, submitJustificativo, fetchJustificativosDePersona, fetchPagosDePersona, extractItems, ApiClientError } from "@/services/api";
 import type { StudentPortalSummary, StudentProfileSummary, MembresiaPorPersona, PagoPersona } from "@/services/api";
 import type { SolicitudClaseExtra, Justificativo } from "@/types/domain";
 import type { TrainingSchedule } from "@/app/attendance/attendance-utils";
@@ -167,7 +167,7 @@ function RecentSessionsSection({ profile }: { profile: StudentProfileSummary }):
 type ExtraClassesState =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "unavailable"; reason: "not-personalized" | "no-membership" | "discovery-failed" }
+  | { status: "unavailable"; reason: "not-personalized" | "no-membership" | "discovery-failed" | "forbidden" }
   | { status: "ready"; membership: MembresiaPorPersona; schedules: TrainingSchedule[]; history: SolicitudClaseExtra[] };
 
 function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactElement {
@@ -211,6 +211,10 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
       })
       .catch((error: unknown) => {
         if (cancelled) return;
+        if (error instanceof ApiClientError && error.status === 403) {
+          setState({ status: "unavailable", reason: "forbidden" });
+          return;
+        }
         const is404 = error instanceof Error && error.message.toLowerCase().includes("not found");
         if (is404) {
           setState({ status: "unavailable", reason: "discovery-failed" });
@@ -280,10 +284,11 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
   }
 
   if (state.status === "unavailable") {
-    const messages: Record<"not-personalized" | "no-membership" | "discovery-failed", string> = {
+    const messages: Record<"not-personalized" | "no-membership" | "discovery-failed" | "forbidden", string> = {
       "not-personalized": "Las clases extra solo están disponibles para membresías personalizadas.",
       "no-membership": "No se encontró una membresía activa para solicitar clases extra.",
       "discovery-failed": "El listado de membresías no está disponible en este momento. Consulte con administración.",
+      "forbidden": "No tenés permiso para ver las membresías de esta persona. Si sos representante, verificá que el alumno esté vinculado a tu cuenta.",
     };
     return (
       <section className="mb-8">

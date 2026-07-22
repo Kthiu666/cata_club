@@ -216,12 +216,12 @@ describe("Header", (): void => {
 
     // Authenticated-only elements are absent
     expect(screen.queryByText("Administración")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Cerrar Sesión/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Menú de cuenta/i })).not.toBeInTheDocument();
   });
 
   // --- Authenticated — admin ---
 
-  it("shows admin nav links, user name, and logout button", (): void => {
+  it("shows admin nav links, user name, and account menu trigger", (): void => {
     mockUseAuth.mockReturnValue(
       createAuthenticatedAuth("admin", "Admin Cata Club"),
     );
@@ -253,8 +253,21 @@ describe("Header", (): void => {
     // User info
     expect(screen.getByText("Admin Cata Club")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Cerrar Sesión/i }),
+      screen.getByRole("button", { name: /Menú de cuenta/i }),
     ).toBeInTheDocument();
+  });
+
+  it("opens the account menu with Perfil and Cerrar Sesión when the desktop trigger is clicked", (): void => {
+    mockUseAuth.mockReturnValue(
+      createAuthenticatedAuth("admin", "Admin Cata Club"),
+    );
+
+    render(<Header />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Menú de cuenta/i }));
+
+    expect(screen.getByRole("link", { name: /Perfil/i })).toHaveAttribute("href", "/profile");
+    expect(screen.getByRole("button", { name: /Cerrar Sesión/i })).toBeInTheDocument();
   });
 
   // --- Authenticated — trainer ---
@@ -430,7 +443,7 @@ describe("Header", (): void => {
 
   // --- Logout ---
 
-  it("calls logout when desktop logout button is clicked", (): void => {
+  it("calls logout when Cerrar Sesión is clicked from the desktop account menu", (): void => {
     const mockLogout = vi.fn();
     mockUseAuth.mockReturnValue(
       createAuthenticatedAuth("admin", "Admin", { logout: mockLogout }),
@@ -438,8 +451,8 @@ describe("Header", (): void => {
 
     render(<Header />);
 
-    const logoutBtn = screen.getByRole("button", { name: /Cerrar Sesión/i });
-    fireEvent.click(logoutBtn);
+    fireEvent.click(screen.getByRole("button", { name: /Menú de cuenta/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Cerrar Sesión/i }));
 
     expect(mockLogout).toHaveBeenCalledTimes(1);
   });

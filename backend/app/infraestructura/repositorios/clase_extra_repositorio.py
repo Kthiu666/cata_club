@@ -1,6 +1,7 @@
 from typing import Optional, List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
+from app.dominio.enums import EstadoSolicitudExtra
 from app.dominio.modelos import SolicitudClaseExtra
 
 
@@ -26,5 +27,15 @@ class SolicitudClaseExtraRepositorio:
         return (
             self.db.query(SolicitudClaseExtra)
             .filter(SolicitudClaseExtra.persona_id == persona_id)
+            .all()
+        )
+
+    def listar_pendientes(self) -> List[SolicitudClaseExtra]:
+        """Solicitudes en estado PENDIENTE con persona y horario precargados
+        para evitar N+1 en el listado administrativo."""
+        return (
+            self.db.query(SolicitudClaseExtra)
+            .filter(SolicitudClaseExtra.estado == EstadoSolicitudExtra.PENDIENTE)
+            .options(joinedload(SolicitudClaseExtra.persona), joinedload(SolicitudClaseExtra.horario))
             .all()
         )

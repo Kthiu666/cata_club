@@ -5,6 +5,7 @@ from typing import List
 from app.infraestructura.db import obtener_sesion
 from app.presentacion.schemas.clase_extra_schemas import (
     SolicitudClaseExtraCreateDTO, SolicitudClaseExtraResponseDTO, SolicitudClaseExtraResolverDTO,
+    SolicitudClaseExtraListItemDTO,
 )
 from app.seguridad.gestor_auth import GestorAutenticacion
 from app.servicios_negocio.clase_extra_servicio import ClaseExtraServicio
@@ -31,6 +32,17 @@ async def solicitar_clase_extra(datos: SolicitudClaseExtraCreateDTO, db: Session
 )
 async def resolver_solicitud(solicitud_id: int, datos: SolicitudClaseExtraResolverDTO, db: Session = Depends(obtener_sesion)):
     return ClaseExtraServicio(db).resolver_solicitud(solicitud_id, datos)
+
+
+# Cola de evaluación (Administrador). Lista solicitudes pendientes con datos
+# del solicitante y del horario para la pantalla de revisión admin.
+@router.get(
+    "/pendientes",
+    response_model=List[SolicitudClaseExtraListItemDTO],
+    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
+)
+async def listar_solicitudes_pendientes(db: Session = Depends(obtener_sesion)):
+    return ClaseExtraServicio(db).listar_pendientes()
 
 
 # Historial por persona: cualquier autenticado puede leer (no expone datos
