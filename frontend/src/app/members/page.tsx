@@ -786,41 +786,29 @@ function AccountRow({
     }
   }
 
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const editTriggerRef = useRef<HTMLButtonElement>(null);
 
-  // Focus trap (mirrors ConfirmDialog.tsx's convention, generalized to an
-  // arbitrary number of focusable elements since this dialog has a variable
-  // set of role checkboxes): clear any stale error from a previous session,
-  // focus the close button on open, Tab/Shift+Tab cycles every focusable
-  // element inside the dialog, Escape closes, focus returns to the
-  // triggering "Editar" button on close.
+  // Native <dialog> shown via showModal(): the browser traps Tab focus and
+  // renders the ::backdrop for us, so no manual focus trap is needed (unlike
+  // ConfirmDialog.tsx's older role="dialog" div convention). Escape is still
+  // wired manually (rather than relying solely on the dialog's native
+  // "cancel" event) so open/closed stays driven by `editModalOpen` alone —
+  // the dialog is conditionally rendered, not toggled via its `open`
+  // attribute, so the JSX onCancel handler only preventDefaults the native
+  // auto-close to avoid it and this listener double-toggling React state.
   useEffect(() => {
-    if (!editModalOpen) return;
+    const dialog = dialogRef.current;
+    if (!editModalOpen || !dialog) return;
 
     setRoleError(null);
     setStateError(null);
+    if (!dialog.open) dialog.showModal();
     closeButtonRef.current?.focus();
 
     function handleKeyDown(event: KeyboardEvent): void {
-      if (event.key === "Escape") {
-        onToggleEditModal();
-        return;
-      }
-      if (event.key !== "Tab" || !dialogRef.current) return;
-
-      const focusable = Array.from(
-        dialogRef.current.querySelectorAll<HTMLElement>(
-          'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
-        ),
-      );
-      if (focusable.length === 0) return;
-
-      event.preventDefault();
-      const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
-      const nextIndex = (currentIndex + (event.shiftKey ? -1 : 1) + focusable.length) % focusable.length;
-      focusable[nextIndex].focus();
+      if (event.key === "Escape") onToggleEditModal();
     }
 
     document.addEventListener("keydown", handleKeyDown);
@@ -921,19 +909,17 @@ function AccountRow({
         ))}
       {editModalOpen &&
         createPortal(
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-cata-black/40 px-4"
-            onClick={onToggleEditModal}
+          <dialog
+            ref={dialogRef}
+            aria-modal="true"
+            aria-labelledby={`edit-member-title-${account.id}`}
+            onCancel={(event) => event.preventDefault()}
+            onClick={(event) => {
+              if (event.target === event.currentTarget) onToggleEditModal();
+            }}
+            className="card fixed inset-0 z-50 m-auto h-fit max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto p-6 backdrop:bg-cata-black/40"
           >
-            <div
-              ref={dialogRef}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby={`edit-member-title-${account.id}`}
-              onClick={(event) => event.stopPropagation()}
-              className="card w-full max-w-md p-6"
-            >
-              <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex items-center justify-between">
                 <h2
                   id={`edit-member-title-${account.id}`}
                   className="text-base font-semibold text-cata-text"
@@ -1025,8 +1011,7 @@ function AccountRow({
                   </p>
                 )}
               </div>
-            </div>
-          </div>,
+          </dialog>,
           document.body,
         )}
     </>

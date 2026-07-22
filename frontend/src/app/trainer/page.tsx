@@ -52,7 +52,7 @@ interface AttendanceStateBadgeProps {
  * reuses the SAME shared color tokens/labels so estado colors stay
  * byte-identical to the admin view instead of a second drifting mapping.
  */
-function AttendanceStateBadge({ estado }: AttendanceStateBadgeProps): React.ReactElement {
+function AttendanceStateBadge({ estado }: Readonly<AttendanceStateBadgeProps>): React.ReactElement {
   const { badgeClass } = getAttendanceBadgeTokens(estado);
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass}`}>

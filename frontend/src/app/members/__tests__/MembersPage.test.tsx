@@ -292,7 +292,7 @@ describe("MembersPage — Editar member modal", () => {
     const row = await findAccountRow();
 
     fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
-    fireEvent.click(screen.getByRole("dialog").parentElement as HTMLElement);
+    fireEvent.click(screen.getByRole("dialog"));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });

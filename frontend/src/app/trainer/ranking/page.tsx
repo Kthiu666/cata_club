@@ -92,7 +92,7 @@ interface LevelBadgeProps {
  * drifting color mapping. Not imported directly: the admin page's
  * `LevelBadge` is a local, unexported component.
  */
-function LevelBadge({ level }: LevelBadgeProps): React.ReactElement {
+function LevelBadge({ level }: Readonly<LevelBadgeProps>): React.ReactElement {
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getLevelBadgeClass(level)}`}
@@ -300,21 +300,31 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
         </div>
       )}
 
-      {loading ? (
-        <div className="flex flex-col items-center py-12 text-center">
-          <p className="text-sm text-cata-text/50">Cargando estudiantes…</p>
-        </div>
-      ) : students.length === 0 ? (
-        <div className="flex flex-col items-center py-12 text-center">
-          <Users size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
-          <p className="text-sm text-cata-text/50">No hay estudiantes registrados.</p>
-        </div>
-      ) : filteredStudents.length === 0 ? (
-        <div className="flex flex-col items-center py-12 text-center">
-          <Search size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
-          <p className="text-sm text-cata-text/50">Ningún estudiante coincide con la búsqueda.</p>
-        </div>
-      ) : (
+      {(() => {
+        if (loading) {
+          return (
+            <div className="flex flex-col items-center py-12 text-center">
+              <p className="text-sm text-cata-text/50">Cargando estudiantes…</p>
+            </div>
+          );
+        }
+        if (students.length === 0) {
+          return (
+            <div className="flex flex-col items-center py-12 text-center">
+              <Users size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
+              <p className="text-sm text-cata-text/50">No hay estudiantes registrados.</p>
+            </div>
+          );
+        }
+        if (filteredStudents.length === 0) {
+          return (
+            <div className="flex flex-col items-center py-12 text-center">
+              <Search size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
+              <p className="text-sm text-cata-text/50">Ningún estudiante coincide con la búsqueda.</p>
+            </div>
+          );
+        }
+        return (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
@@ -328,6 +338,19 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
             <tbody className="divide-y divide-cata-border">
               {filteredStudents.map((student) => {
                 const nivelCategoria = resolveNivelCategoria(student.nivelRankingId, niveles);
+
+                let assignButtonLabel: React.ReactNode = "Asignar";
+                if (savingId === student.id) {
+                  assignButtonLabel = "Guardando...";
+                } else if (successId === student.id) {
+                  assignButtonLabel = (
+                    <>
+                      <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
+                      Asignado
+                    </>
+                  );
+                }
+
                 return (
                 <tr key={student.id}>
                   <td className="px-4 py-3">
@@ -371,16 +394,7 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
                       onClick={() => handleAssign(student.id)}
                       className="btn-secondary py-1.5 text-xs"
                     >
-                      {savingId === student.id ? (
-                        "Guardando..."
-                      ) : successId === student.id ? (
-                        <>
-                          <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
-                          Asignado
-                        </>
-                      ) : (
-                        "Asignar"
-                      )}
+                      {assignButtonLabel}
                     </button>
                   </td>
                 </tr>
@@ -389,7 +403,8 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
             </tbody>
           </table>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
