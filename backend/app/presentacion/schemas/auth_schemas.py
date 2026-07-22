@@ -7,7 +7,7 @@ Patrón de nomenclatura consistente con el resto de schemas del proyecto:
     cuando la respuesta se mapea directamente desde un modelo ORM.
 """
 from pydantic import BaseModel, EmailStr, Field
-from typing import List
+from typing import List, Optional
 
 from app.presentacion.schemas.base import ResponseBase
 
@@ -40,10 +40,34 @@ class UsuarioMeResponseDTO(ResponseBase, BaseModel):
     nombres: str
     apellidos: str
     roles: List[str]
+    telefono: str
 
 
 class LogoutResponseDTO(ResponseBase, BaseModel):
     mensaje: str
+
+
+# --- Issue #36: perfil propio (self-service) --------------------------------
+class ActualizarPerfilPropioDTO(BaseModel):
+    """Payload de PATCH /auth/me. Ambos campos son opcionales (edición
+    parcial); solo los campos presentes en el request se actualizan
+    (`exclude_unset=True` en el servicio)."""
+    correo: Optional[EmailStr] = None
+    telefono: Optional[str] = None
+
+
+class ActualizarPerfilPropioResponseDTO(ResponseBase, BaseModel):
+    correo: str
+    persona_id: int
+    nombres: str
+    apellidos: str
+    roles: List[str]
+    telefono: str
+    access_token: Optional[str] = None
+    """Presente SOLO si `correo` cambió (el `sub` del JWT es el correo; sin
+    reemisión, el access token vigente del usuario dejaría de resolver a su
+    cuenta en el próximo request)."""
+    refresh_token: Optional[str] = None
 
 
 # --- E01-RF003: recuperación de contraseña ----------------------------------
