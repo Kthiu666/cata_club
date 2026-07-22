@@ -293,6 +293,165 @@ describe("GroupsPage — justificativo Aprobar/Rechazar confirmation gating", ()
   });
 });
 
+function buildAccounts(count: number, opts: { activo?: boolean; grupoId?: string | null } = {}): MemberAccount[] {
+  const { activo = true, grupoId = null } = opts;
+  return Array.from({ length: count }, (_, i) => ({
+    id: `acc-${i + 1}`,
+    role: "representante",
+    nombres: "Familia",
+    apellidos: `${i + 1}`,
+    telefono: "0999999999",
+    estudiantes: [
+      {
+        id: `est-${i + 1}`,
+        nombres: "Estudiante",
+        apellidos: `${i + 1}`,
+        grupoId,
+        activo,
+        membresia: null,
+        ultimoPago: null,
+      },
+    ],
+  }));
+}
+
+function buildJustificativos(count: number): Justificativo[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: i + 1,
+    personaId: i + 1,
+    anio: 2026,
+    mes: 7,
+    motivo: `Motivo ${i + 1}`,
+    archivoUrl: null,
+    estado: "PENDIENTE",
+    motivoRechazo: null,
+    fechaSolicitud: "2026-07-01T00:00:00.000Z",
+    fechaEvaluacion: null,
+    evaluadoPorId: null,
+  }));
+}
+
+describe("GroupsPage — unassigned students pagination (Issue #41)", () => {
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchJustificativosPendientes.mockReset();
+    mockFetchMembers.mockResolvedValue({ accounts: buildAccounts(15), niveles: NIVELES });
+    mockFetchJustificativosPendientes.mockResolvedValue([]);
+  });
+
+  it("renders only 10 unassigned students initially and shows pagination controls", async () => {
+    render(<GroupsPage />);
+
+    expect(await screen.findByText("Estudiante 1")).toBeInTheDocument();
+    expect(screen.queryByText("Estudiante 11")).not.toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 2")).toBeInTheDocument();
+  });
+
+  it("advances to the next page when Siguiente is clicked", async () => {
+    render(<GroupsPage />);
+    await screen.findByText("Estudiante 1");
+
+    fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+
+    expect(await screen.findByText("Estudiante 11")).toBeInTheDocument();
+    expect(screen.queryByText("Estudiante 1")).not.toBeInTheDocument();
+  });
+});
+
+describe("GroupsPage — inactive students pagination (Issue #41)", () => {
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchJustificativosPendientes.mockReset();
+    mockFetchMembers.mockResolvedValue({
+      accounts: buildAccounts(15, { activo: false, grupoId: "1" }),
+      niveles: NIVELES,
+    });
+    mockFetchJustificativosPendientes.mockResolvedValue([]);
+  });
+
+  it("renders only 10 inactive students initially and shows pagination controls", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/estudiantes inactivos/i);
+
+    expect(await screen.findByText("Estudiante 1")).toBeInTheDocument();
+    expect(screen.queryByText("Estudiante 11")).not.toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 2")).toBeInTheDocument();
+  });
+
+  it("advances to the next page when Siguiente is clicked", async () => {
+    render(<GroupsPage />);
+    await screen.findByText("Estudiante 1");
+
+    fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+
+    expect(await screen.findByText("Estudiante 11")).toBeInTheDocument();
+    expect(screen.queryByText("Estudiante 1")).not.toBeInTheDocument();
+  });
+});
+
+describe("GroupsPage — assigned students (group detail) pagination (Issue #41)", () => {
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchJustificativosPendientes.mockReset();
+    mockFetchMembers.mockResolvedValue({
+      accounts: buildAccounts(15, { grupoId: "1" }),
+      niveles: NIVELES,
+    });
+    mockFetchJustificativosPendientes.mockResolvedValue([]);
+  });
+
+  it("renders only 10 assigned students initially and shows pagination controls after selecting the group", async () => {
+    render(<GroupsPage />);
+
+    const groupCard = await screen.findByRole("button", { name: /nivel iniciación/i });
+    fireEvent.click(groupCard);
+
+    expect(await screen.findByText("Estudiante 1")).toBeInTheDocument();
+    expect(screen.queryByText("Estudiante 11")).not.toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 2")).toBeInTheDocument();
+  });
+
+  it("advances to the next page when Siguiente is clicked", async () => {
+    render(<GroupsPage />);
+
+    const groupCard = await screen.findByRole("button", { name: /nivel iniciación/i });
+    fireEvent.click(groupCard);
+    await screen.findByText("Estudiante 1");
+
+    fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+
+    expect(await screen.findByText("Estudiante 11")).toBeInTheDocument();
+    expect(screen.queryByText("Estudiante 1")).not.toBeInTheDocument();
+  });
+});
+
+describe("GroupsPage — justificativos pendientes pagination (Issue #41)", () => {
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchJustificativosPendientes.mockReset();
+    mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
+    mockFetchJustificativosPendientes.mockResolvedValue(buildJustificativos(15));
+  });
+
+  it("renders only 10 justificativos initially and shows pagination controls", async () => {
+    render(<GroupsPage />);
+
+    expect(await screen.findByText(/motivo 1$/i)).toBeInTheDocument();
+    expect(screen.queryByText(/motivo 11$/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 2")).toBeInTheDocument();
+  });
+
+  it("advances to the next page when Siguiente is clicked", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/motivo 1$/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+
+    expect(await screen.findByText(/motivo 11$/i)).toBeInTheDocument();
+    expect(screen.queryByText(/motivo 1$/i)).not.toBeInTheDocument();
+  });
+});
+
 describe("GroupsPage — Selección Oficial extracted to its own route (PR9)", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();

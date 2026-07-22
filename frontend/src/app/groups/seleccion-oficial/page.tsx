@@ -19,6 +19,8 @@
 import { useCallback, useEffect, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import Pagination from "@/components/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import { Award, AlertTriangle } from "lucide-react";
 import { fetchMembers, seleccionOficial, ApiClientError } from "@/services/api";
 import type { CategoriaRanking, SeleccionOficial } from "@/types/domain";
@@ -57,6 +59,17 @@ export default function SeleccionOficialPage(): React.ReactElement {
   useEffect(() => {
     void loadStudents();
   }, [loadStudents]);
+
+  // In-scope list (spec row #9): the "todos los estudiantes" selector.
+  // The `seleccionesOficiales` roster table below is explicitly OUT of
+  // scope — it's frontend-only session state with no backend GET endpoint
+  // to paginate against (missing-feature gap, not a pagination gap).
+  const {
+    page: studentsPage,
+    totalPages: studentsTotalPages,
+    currentItems: paginatedStudents,
+    setPage: setStudentsPage,
+  } = usePagination({ records: allStudents });
 
   async function handleSeleccionOficialSubmit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -135,12 +148,13 @@ export default function SeleccionOficialPage(): React.ReactElement {
                 onChange={(e) => setSeleccionEstudianteId(e.target.value)}
               >
                 <option value="">Seleccionar...</option>
-                {allStudents.map((s) => (
+                {paginatedStudents.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.nombres} {s.apellidos}
                   </option>
                 ))}
               </select>
+              <Pagination page={studentsPage} totalPages={studentsTotalPages} onPageChange={setStudentsPage} />
             </label>
             <label className="block text-sm">
               <span className="mb-1 block text-xs font-medium text-cata-text/65">Categoría</span>

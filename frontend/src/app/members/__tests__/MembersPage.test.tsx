@@ -226,24 +226,67 @@ describe("MembersPage — honest aggregate coverage", () => {
     render(<MembersPage />);
 
     expect(await screen.findByRole("status", { name: "Resultados mostrados" })).toHaveTextContent(
-      "1 resultados mostrados",
+      "1 resultados encontrados",
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
       "puede estar incompleto",
     );
     expect(screen.getByRole("alert")).toHaveTextContent("200 registros");
-    expect(screen.queryByRole("navigation", { name: /paginación/i })).not.toBeInTheDocument();
+    // A single account fits on one page — Pagination renders nothing.
+    expect(screen.queryByRole("button", { name: /siguiente/i })).not.toBeInTheDocument();
   });
 
-  it("hides the incomplete-coverage notice below the cap without adding pagination controls", async () => {
+  it("shows the incomplete-coverage notice alongside pagination controls when both apply", async () => {
     mockFetchMembers.mockResolvedValue({ accounts: createAccounts(199), niveles: [], personasCapped: false });
 
     render(<MembersPage />);
 
     expect(await screen.findByRole("status", { name: "Resultados mostrados" })).toHaveTextContent(
-      "199 resultados mostrados",
+      "199 resultados encontrados",
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.queryByRole("navigation", { name: /paginación/i })).not.toBeInTheDocument();
+    // 199 accounts span more than one page of 10 — pagination controls show,
+    // independently of the (unrelated) capped-coverage alert.
+    expect(screen.getByRole("button", { name: /siguiente/i })).toBeInTheDocument();
+    expect(screen.getByText(/Página 1 de 20/)).toBeInTheDocument();
+  });
+});
+
+function buildAccounts(count: number): MemberAccount[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `acc-${i + 1}`,
+    role: "representante",
+    nombres: "Cuenta",
+    apellidos: `${i + 1}`,
+    telefono: "0999999999",
+    estudiantes: [],
+  }));
+}
+
+describe("MembersPage — pagination (Issue #41)", () => {
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchMembers.mockResolvedValue({ accounts: buildAccounts(15), niveles: [], personasCapped: false });
+  });
+
+  it("renders only 10 accounts initially and shows pagination controls", async () => {
+    render(<MembersPage />);
+
+    expect(await screen.findByText("Cuenta 1")).toBeInTheDocument();
+    expect(screen.queryByText("Cuenta 11")).not.toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 2")).toBeInTheDocument();
+  });
+
+  it("advances to the next page and back when Siguiente/Anterior are clicked", async () => {
+    render(<MembersPage />);
+
+    await screen.findByText("Cuenta 1");
+    fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+
+    expect(await screen.findByText("Cuenta 11")).toBeInTheDocument();
+    expect(screen.queryByText("Cuenta 1")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /anterior/i }));
+    expect(await screen.findByText("Cuenta 1")).toBeInTheDocument();
   });
 });

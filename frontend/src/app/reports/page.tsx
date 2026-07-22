@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import Pagination from "@/components/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import {
   fetchPersonasPorEtiquetas,
   fetchNuevosPorPeriodo,
@@ -126,6 +128,20 @@ function ReportsContent(): React.ReactElement {
     }
     return results;
   }, [personaResults, searchTerm, edadMin, edadMax]);
+
+  const {
+    page: personaPage,
+    totalPages: personaTotalPages,
+    currentItems: paginatedPersonaResults,
+    setPage: setPersonaPage,
+  } = usePagination({ records: filteredPersonaResults });
+
+  const {
+    page: attendancePage,
+    totalPages: attendanceTotalPages,
+    currentItems: paginatedAttendanceResults,
+    setPage: setAttendancePage,
+  } = usePagination({ records: attendanceResults });
 
   // Fetch horarios for the attendance filter dropdown (once, on mount)
   useEffect(() => {
@@ -506,7 +522,7 @@ function ReportsContent(): React.ReactElement {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cata-border">
-                  {filteredPersonaResults.map((persona) => (
+                  {paginatedPersonaResults.map((persona) => (
                     <tr key={persona.id} className="transition-colors hover:bg-cata-bg/30">
                       <td className="px-6 py-3">
                         <span className="font-medium text-cata-text">
@@ -549,6 +565,9 @@ function ReportsContent(): React.ReactElement {
               </table>
             </div>
           )}
+          <div className="px-6 pb-4">
+            <Pagination page={personaPage} totalPages={personaTotalPages} onPageChange={setPersonaPage} />
+          </div>
         </div>
       )}
 
@@ -581,7 +600,7 @@ function ReportsContent(): React.ReactElement {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cata-border">
-                  {attendanceResults.map((record) => {
+                  {paginatedAttendanceResults.map((record) => {
                     const tokens = ATTENDANCE_BADGE_TOKENS[record.estado] ?? {
                       badgeClass: "bg-cata-border/40 text-cata-text/65",
                       iconClass: "text-cata-text/65",
@@ -606,6 +625,9 @@ function ReportsContent(): React.ReactElement {
               </table>
             </div>
           )}
+          <div className="px-6 pb-4">
+            <Pagination page={attendancePage} totalPages={attendanceTotalPages} onPageChange={setAttendancePage} />
+          </div>
         </div>
       )}
     </AppShell>

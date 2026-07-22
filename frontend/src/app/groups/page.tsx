@@ -31,9 +31,11 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import Pagination from "@/components/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import {
   Users,
   GraduationCap,
@@ -203,13 +205,50 @@ export default function GroupsPage(): React.ReactElement {
     void loadData();
   }, [loadData]);
 
-  const unassigned = getUnassignedStudents(allStudents);
-  const inactiveStudents = allStudents.filter((s) => !s.activo && !reingresados.has(s.id));
+  // Memoized: usePagination resets to page 1 whenever the `records`
+  // reference changes, so these derived arrays must stay referentially
+  // stable across renders that don't actually change their inputs
+  // (otherwise every render — including the one triggered by a page
+  // change itself — would recompute a new array and snap back to page 1).
+  const unassigned = useMemo(() => getUnassignedStudents(allStudents), [allStudents]);
+  const inactiveStudents = useMemo(
+    () => allStudents.filter((s) => !s.activo && !reingresados.has(s.id)),
+    [allStudents, reingresados],
+  );
   const cardData = buildGroupCardsFromNiveles(niveles);
   const selectedNivel = selectedGroupId ? niveles.find((n) => String(n.id) === selectedGroupId) ?? null : null;
-  const assignedStudentsForSelected = selectedGroupId
-    ? allStudents.filter((s) => s.grupoId === selectedGroupId)
-    : [];
+  const assignedStudentsForSelected = useMemo(
+    () => (selectedGroupId ? allStudents.filter((s) => s.grupoId === selectedGroupId) : []),
+    [allStudents, selectedGroupId],
+  );
+
+  const {
+    page: unassignedPage,
+    totalPages: unassignedTotalPages,
+    currentItems: paginatedUnassigned,
+    setPage: setUnassignedPage,
+  } = usePagination({ records: unassigned });
+
+  const {
+    page: inactivePage,
+    totalPages: inactiveTotalPages,
+    currentItems: paginatedInactive,
+    setPage: setInactivePage,
+  } = usePagination({ records: inactiveStudents });
+
+  const {
+    page: assignedPage,
+    totalPages: assignedTotalPages,
+    currentItems: paginatedAssigned,
+    setPage: setAssignedPage,
+  } = usePagination({ records: assignedStudentsForSelected });
+
+  const {
+    page: justificativosPage,
+    totalPages: justificativosTotalPages,
+    currentItems: paginatedJustificativos,
+    setPage: setJustificativosPage,
+  } = usePagination({ records: justificativosPendientes });
 
   const showNotification = useCallback((type: "success" | "error", message: string): void => {
     setNotification({ type, message });
@@ -442,8 +481,9 @@ export default function GroupsPage(): React.ReactElement {
               </div>
 
               {unassigned.length > 0 ? (
+                <>
                 <div className="space-y-2">
-                  {unassigned.map((student) => (
+                  {paginatedUnassigned.map((student) => (
                     <div
                       key={student.id}
                       className="card-hover flex items-center justify-between px-4 py-3"
@@ -500,6 +540,8 @@ export default function GroupsPage(): React.ReactElement {
                     </div>
                   ))}
                 </div>
+                <Pagination page={unassignedPage} totalPages={unassignedTotalPages} onPageChange={setUnassignedPage} />
+                </>
               ) : (
                 <div className="flex items-center gap-2 py-4">
                   <CheckCircle2 size={14} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />
@@ -520,8 +562,9 @@ export default function GroupsPage(): React.ReactElement {
               </div>
 
               {inactiveStudents.length > 0 ? (
+                <>
                 <div className="space-y-2">
-                  {inactiveStudents.map((student) => (
+                  {paginatedInactive.map((student) => (
                     <div
                       key={student.id}
                       className="card-hover flex items-center justify-between px-4 py-3"
@@ -541,6 +584,8 @@ export default function GroupsPage(): React.ReactElement {
                     </div>
                   ))}
                 </div>
+                <Pagination page={inactivePage} totalPages={inactiveTotalPages} onPageChange={setInactivePage} />
+                </>
               ) : (
                 <div className="flex items-center gap-2 py-4">
                   <CheckCircle2 size={14} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />
@@ -594,8 +639,9 @@ export default function GroupsPage(): React.ReactElement {
                       </p>
                     </div>
                     {assignedStudentsForSelected.length > 0 ? (
+                      <>
                       <div className="space-y-1">
-                        {assignedStudentsForSelected.map((s) => (
+                        {paginatedAssigned.map((s) => (
                           <div
                             key={s.id}
                             className="flex items-center justify-between rounded-lg bg-cata-bg px-3 py-2"
@@ -619,6 +665,8 @@ export default function GroupsPage(): React.ReactElement {
                           </div>
                         ))}
                       </div>
+                      <Pagination page={assignedPage} totalPages={assignedTotalPages} onPageChange={setAssignedPage} />
+                      </>
                     ) : (
                       <div className="flex items-center gap-2 py-3">
                         <Users size={14} strokeWidth={1.5} className="text-cata-text/20" aria-hidden="true" />
@@ -729,8 +777,9 @@ export default function GroupsPage(): React.ReactElement {
               <p className="text-xs text-cata-text/40">Cargando justificativos…</p>
             </div>
           ) : justificativosPendientes.length > 0 ? (
+            <>
             <div className="space-y-2">
-              {justificativosPendientes.map((j) => {
+              {paginatedJustificativos.map((j) => {
                 const student = allStudents.find((s) => Number(s.id) === j.personaId);
                 const isEvaluando = evaluandoId === j.id;
                 const isRejecting = rejectingJustificativoId === j.id;
@@ -817,6 +866,8 @@ export default function GroupsPage(): React.ReactElement {
                 );
               })}
             </div>
+            <Pagination page={justificativosPage} totalPages={justificativosTotalPages} onPageChange={setJustificativosPage} />
+            </>
           ) : (
             <div className="flex items-center gap-2 py-4">
               <CheckCircle2 size={14} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />
