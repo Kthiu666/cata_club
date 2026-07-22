@@ -341,7 +341,7 @@ function ProfileContent(): React.ReactElement | null {
   return (
     <StaffProfileView
       perfil={state.perfil}
-      accountEmail={session?.user.email ?? state.perfil.correo}
+      accountEmail={state.perfil.correo ?? session?.user.email}
       onSaved={(perfil) => setState({ status: "ready", perfil })}
     />
   );
