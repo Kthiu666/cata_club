@@ -50,7 +50,7 @@ def _crear_horario(client, db_session):
     entrenador = _crear_entrenador(client, db_session)
     return client.post(
         "/api/v1/asistencias/horarios",
-        json={"dia_semana": "MARTES", "hora_inicio": "17:00:00", "hora_fin": "18:00:00", "entrenador_id": entrenador["id"]},
+        json={"categoria": "JUVENIL", "dia_semana": "MARTES", "entrenador_id": entrenador["id"]},
     ).json()
 
 

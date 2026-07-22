@@ -1,7 +1,10 @@
+from typing import Optional
+
 from sqlalchemy.orm import Session
 
 from app.dominio.modelos import Asistencia, HorarioEntrenamiento, AlumnoHorario
-from app.dominio.enums import TipoRol
+from app.dominio.enums import TipoRol, Categoria
+from app.dominio.categoria_metadata import CATEGORIA_METADATA
 from app.dominio.excepciones import EntidadNoEncontrada, OperacionInvalida
 from app.infraestructura.repositorios.persona_repositorio import PersonaRepositorio
 from app.infraestructura.repositorios.asistencia_repositorio import (
@@ -35,14 +38,28 @@ class AsistenciaServicio:
                 f"La persona con id {persona_id} no tiene el rol ENTRENADOR asignado"
             )
 
-    def crear_horario(self, datos: HorarioCreateDTO) -> HorarioEntrenamiento:
-        if datos.hora_inicio >= datos.hora_fin:
-            raise OperacionInvalida("La hora de inicio debe ser anterior a la hora de fin")
-        self._validar_entrenador(datos.entrenador_id)
-        return self.repo_horario.crear(HorarioEntrenamiento(**datos.model_dump()))
+    def _validar_dia_y_derivar_horas(self, horario: HorarioEntrenamiento) -> None:
+        """`hora_inicio`/`hora_fin` nunca los envía el cliente: siempre se
+        derivan de `CATEGORIA_METADATA[categoria]`. `dia_semana` debe estar
+        en el conjunto de días permitido por esa categoría (ej. Competitivo
+        admite Sábado, las otras 4 solo Lun-Vie)."""
+        info = CATEGORIA_METADATA[horario.categoria]
+        if horario.dia_semana not in info.dias:
+            raise OperacionInvalida(
+                f"El día {horario.dia_semana.value} no está permitido para "
+                f"la categoría {horario.categoria.value}"
+            )
+        horario.hora_inicio = info.hora_inicio
+        horario.hora_fin = info.hora_fin
 
-    def listar_horarios(self) -> list[HorarioEntrenamiento]:
-        return self.repo_horario.listar()
+    def crear_horario(self, datos: HorarioCreateDTO) -> HorarioEntrenamiento:
+        self._validar_entrenador(datos.entrenador_id)
+        horario = HorarioEntrenamiento(**datos.model_dump())
+        self._validar_dia_y_derivar_horas(horario)
+        return self.repo_horario.crear(horario)
+
+    def listar_horarios(self, categoria: Optional[Categoria] = None) -> list[HorarioEntrenamiento]:
+        return self.repo_horario.listar(categoria)
 
     def actualizar_horario(self, horario_id: int, datos: HorarioUpdateDTO) -> HorarioEntrenamiento:
         horario = self.repo_horario.obtener_por_id(horario_id)
@@ -55,8 +72,8 @@ class AsistenciaServicio:
             self._validar_entrenador(update_data["entrenador_id"])
         for key, value in update_data.items():
             setattr(horario, key, value)
-        if horario.hora_inicio >= horario.hora_fin:
-            raise OperacionInvalida("La hora de inicio debe ser anterior a la hora de fin")
+        if "categoria" in update_data or "dia_semana" in update_data:
+            self._validar_dia_y_derivar_horas(horario)
         return self.repo_horario.actualizar(horario)
 
     def eliminar_horario(self, horario_id: int) -> None:
