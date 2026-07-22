@@ -137,11 +137,11 @@ class EstadoJustificativoRanking(str, enum.Enum):
 
 class TipoNotificacion(str, enum.Enum):
     """Notificación in-app (no email/push). Cubre los avisos que exige E03:
-    aviso previo a eliminación (RF007), sugerencias de ascenso/descenso
-    (RF009), y resultado de evaluación de un justificativo (RF006b)."""
-    RANKING_ELIMINACION_PROXIMA = "RANKING_ELIMINACION_PROXIMA"
-    RANKING_ASCENSO_SUGERIDO = "RANKING_ASCENSO_SUGERIDO"
-    RANKING_DESCENSO_SUGERIDO = "RANKING_DESCENSO_SUGERIDO"
+    resultado de evaluación de un justificativo (RF006b) y reingreso
+    aprobado (RF008). Los tipos de aviso previo a eliminación (RF007) y de
+    sugerencias de ascenso/descenso (RF009) fueron removidos junto con
+    `cerrar_mes()`/`_sugerir_movimientos()` (único emisor de ambos) — ver
+    apply-progress de `limpieza-asistencia-y-nivel-entrenador` slice E."""
     RANKING_REINGRESO_APROBADO = "RANKING_REINGRESO_APROBADO"
     JUSTIFICATIVO_APROBADO = "JUSTIFICATIVO_APROBADO"
     JUSTIFICATIVO_RECHAZADO = "JUSTIFICATIVO_RECHAZADO"

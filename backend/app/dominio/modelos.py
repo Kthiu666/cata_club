@@ -344,9 +344,6 @@ class NivelRanking(Base):
     resultados_mensuales: Mapped[List["ResultadoRankingMensual"]] = relationship(
         back_populates="nivel_ranking"
     )
-    cierres_mensuales: Mapped[List["CierreMensualRanking"]] = relationship(
-        back_populates="nivel_ranking"
-    )
 
 
 class HorarioEntrenamiento(Base):
@@ -503,13 +500,12 @@ class SolicitudClaseExtra(Base):
 #       * participo=False  -> No figura en el ranking (no suma, no se muestra).
 #       * participo=True   -> Sí figura, aunque el puntaje sea 0 (último lugar).
 #   - `esta_en_ranking` es el flag de VISIBILIDAD usado por los endpoints del
-#     frontend. Se pone en False por dos mecanismos independientes:
-#       1) La tarea de Celery Beat de limpieza por inactividad general (60
-#          días sin ninguna actividad registrada -- ver ranking_tareas.py).
-#       2) El cierre mensual manual (RF007): 2 meses calendario consecutivos
-#          sin participar y sin justificativo aprobado.
-#     Ambos mecanismos coexisten a propósito: el primero es una red de
-#     seguridad general, el segundo es la regla de negocio específica de E03.
+#     frontend. Los dos mecanismos que antes lo ponían en False
+#     automáticamente ya no existen: la tarea de Celery Beat de limpieza por
+#     inactividad (dependía de `ultimo_combate_o_asistencia`, campo también
+#     removido -- ver apply-progress de `limpieza-asistencia-y-nivel-
+#     entrenador` slice E) y el cierre mensual manual RF007 (removido en la
+#     slice B2 del mismo change). Hoy la baja es manual/administrativa.
 #   - `nivel_ranking_id`: el nivel de ranking ES el grupo de entrenamiento
 #     (ver NivelRanking arriba). Puede ser NULL momentáneamente entre que se
 #     crea la fila de Ranking (alumno nuevo) y el Entrenador le asigna nivel
@@ -519,6 +515,11 @@ class Ranking(Base):
     __tablename__ = "ranking"
     id: Mapped[int] = mapped_column(primary_key=True)
     persona_id: Mapped[int] = mapped_column(ForeignKey("persona.id"), unique=True)
+    # Congelados: el único escritor era el cierre mensual RF007 (removido en
+    # slice B2 de `limpieza-asistencia-y-nivel-entrenador`). Ya no se exponen
+    # en TablaRankingItemDTO/PerfilRankingAlumnoDTO/AsignacionRankingResponseDTO;
+    # siguen en el modelo solo porque RankingResponseDTO (asignar-nivel-inicial,
+    # mover-de-nivel, seleccion-oficial) todavía los declara.
     puntaje_acumulado: Mapped[int] = mapped_column(default=0)
     posicion_actual: Mapped[Optional[int]] = mapped_column(nullable=True)
 
@@ -526,9 +527,6 @@ class Ranking(Base):
     participo: Mapped[bool] = mapped_column(Boolean, default=False)
     # ----------------------------------------------------------------------
 
-    ultimo_combate_o_asistencia: Mapped[Optional[datetime]] = mapped_column(
-        DateTime, nullable=True
-    )
     esta_en_ranking: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # --- E03-RF002/RF009: nivel operativo actual (= grupo de entrenamiento) ---
@@ -539,8 +537,10 @@ class Ranking(Base):
 
     # --- E03-RF007: contador de meses consecutivos sin participar (sin
     # justificativo aprobado). Se resetea a 0 apenas el alumno vuelve a
-    # participar o presenta un justificativo aprobado para el mes. Al llegar
-    # a 2, el cierre mensual notifica y luego elimina (esta_en_ranking=False).
+    # participar o presenta un justificativo aprobado para el mes. El
+    # mecanismo que lo incrementaba y eliminaba al llegar a 2 (cierre mensual)
+    # ya no existe (removido en slice B2 de `limpieza-asistencia-y-nivel-
+    # entrenador`) -- hoy solo se resetea a 0, nunca se incrementa.
     meses_consecutivos_ausente: Mapped[int] = mapped_column(default=0)
 
     # --- E03-RF011: selección oficial de Cata Club para representar al club
@@ -578,24 +578,6 @@ class ResultadoRankingMensual(Base):
     __table_args__ = (
         UniqueConstraint("persona_id", "anio", "mes", name="uq_resultado_ranking_persona_periodo"),
     )
-
-
-# ---------------------------------------------------------------------------
-# Cierre mensual de ranking (E03-RF004/RF005/RF007/RF009)
-# Registra cada cierre ejecutado por un Entrenador/Administrador, para poder
-# consultar el historial de cierres sin reconstruirlo desde ResultadoRankingMensual.
-# ---------------------------------------------------------------------------
-class CierreMensualRanking(Base):
-    __tablename__ = "cierre_mensual_ranking"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    nivel_ranking_id: Mapped[int] = mapped_column(ForeignKey("nivel_ranking.id"))
-    nivel_ranking: Mapped["NivelRanking"] = relationship(back_populates="cierres_mensuales")
-    anio: Mapped[int] = mapped_column()
-    mes: Mapped[int] = mapped_column()
-    personas_procesadas: Mapped[int] = mapped_column(default=0)
-    cerrado_por_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
-    cerrado_por: Mapped["Persona"] = relationship()
-    cerrado_en: Mapped[datetime] = mapped_column(DateTime, default=_ahora_utc)
 
 
 # ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.dominio.modelos import (
-    CierreMensualRanking, NivelRanking, Ranking, ResultadoRankingMensual,
+    NivelRanking, Ranking, ResultadoRankingMensual,
     JustificativoRanking, Notificacion,
 )
 
@@ -56,6 +56,11 @@ class RankingRepositorio:
         return list(self.db.execute(stmt).scalars().unique().all())
 
     def listar_por_nivel(self, nivel_id: int, solo_activos: bool = True) -> list[Ranking]:
+        """Roster de un nivel. Ordena por `persona_id` (determinístico) --
+        antes ordenaba por `posicion_actual`, pero ese campo quedó congelado
+        en NULL para todas las filas desde que se removió `cerrar_mes()`
+        (slice B2), así que el `ORDER BY` ya no discriminaba nada (equivalente
+        a orden no determinístico dependiente del motor de DB). Ver slice E."""
         stmt = (
             select(Ranking)
             .options(joinedload(Ranking.persona))
@@ -63,7 +68,7 @@ class RankingRepositorio:
         )
         if solo_activos:
             stmt = stmt.where(Ranking.esta_en_ranking.is_(True))
-        stmt = stmt.order_by(Ranking.posicion_actual.asc().nulls_last())
+        stmt = stmt.order_by(Ranking.persona_id.asc())
         return list(self.db.execute(stmt).scalars().all())
 
     def crear(self, ranking: Ranking) -> Ranking:
@@ -229,54 +234,3 @@ class NotificacionRepositorio:
         self.db.commit()
         self.db.refresh(notificacion)
         return notificacion
-
-
-class CierreMensualRankingRepositorio:
-    def __init__(self, db: Session):
-        self.db = db
-
-    def obtener(self, nivel_id: int, anio: int, mes: int) -> Optional[CierreMensualRanking]:
-        return (
-            self.db.query(CierreMensualRanking)
-            .filter(
-                CierreMensualRanking.nivel_ranking_id == nivel_id,
-                CierreMensualRanking.anio == anio,
-                CierreMensualRanking.mes == mes,
-            )
-            .first()
-        )
-
-    def listar_todos(self) -> list[CierreMensualRanking]:
-        return (
-            self.db.query(CierreMensualRanking)
-            .options(
-                joinedload(CierreMensualRanking.nivel_ranking),
-                joinedload(CierreMensualRanking.cerrado_por),
-            )
-            .order_by(
-                CierreMensualRanking.anio.desc(),
-                CierreMensualRanking.mes.desc(),
-            )
-            .all()
-        )
-
-    def listar_por_nivel(self, nivel_id: int) -> list[CierreMensualRanking]:
-        return (
-            self.db.query(CierreMensualRanking)
-            .options(
-                joinedload(CierreMensualRanking.nivel_ranking),
-                joinedload(CierreMensualRanking.cerrado_por),
-            )
-            .filter(CierreMensualRanking.nivel_ranking_id == nivel_id)
-            .order_by(
-                CierreMensualRanking.anio.desc(),
-                CierreMensualRanking.mes.desc(),
-            )
-            .all()
-        )
-
-    def crear(self, cierre: CierreMensualRanking) -> CierreMensualRanking:
-        self.db.add(cierre)
-        self.db.commit()
-        self.db.refresh(cierre)
-        return cierre

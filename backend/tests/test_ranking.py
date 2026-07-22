@@ -103,36 +103,14 @@ def test_no_se_puede_reasignar_nivel_ya_asignado_con_endpoint_de_asignacion(clie
     assert resp.status_code == 400
 
 
-# --- Resultados mensuales + cierre de mes (RF003/RF004/RF005/RF009) --------
-def test_cierre_de_mes_calcula_puntos_y_posiciones(client):
-    nivel = _crear_nivel(client, 1, "Elite")
-    p1 = _crear_persona(client, "1711111111")
-    p2 = _crear_persona(client, "1722222222")
-    _asignar_nivel(client, p1["id"], nivel["id"])
-    _asignar_nivel(client, p2["id"], nivel["id"])
-
-    _registrar_resultado(client, p1["id"], 2026, 7, posicion=1, participo=True)
-    _registrar_resultado(client, p2["id"], 2026, 7, posicion=2, participo=True)
-
-    resp = client.post(
-        f"/api/v1/ranking/niveles/{nivel['id']}/cerrar-mes", params={"anio": 2026, "mes": 7}
-    )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["personasProcesadas"] == 2
-    assert body["personasEliminadas"] == []
-
-    tabla = client.get(f"/api/v1/ranking/niveles/{nivel['id']}/tabla").json()
-    tabla_por_persona = {f["personaId"]: f for f in tabla}
-    assert tabla_por_persona[p1["id"]]["puntajeAcumulado"] == 90
-    assert tabla_por_persona[p1["id"]]["posicionActual"] == 1
-    assert tabla_por_persona[p2["id"]]["puntajeAcumulado"] == 89
-    assert tabla_por_persona[p2["id"]]["posicionActual"] == 2
-
-
+# --- Resultados mensuales (RF003) --------------------------------------------
 def test_diferencia_no_participo_de_ultimo_lugar(client):
-    """RF005: alguien que no participa (sin justificativo) debe distinguirse
-    de alguien que participó y quedó último con puntaje bajo."""
+    """RF003: registrar un resultado con participo=False no otorga puntos,
+    a diferencia de alguien que participó y quedó último con puntaje bajo.
+    (Nota: la comparación contra un cierre mensual real fue removida junto
+    con RF004/RF005/RF007/RF009 -- ver módulo docstring de
+    `ranking_servicio.py` -- este test solo cubre el registro individual,
+    que sigue existiendo.)"""
     nivel = _crear_nivel(client, 1, "Elite")
     ausente = _crear_persona(client, "1733333333")
     _asignar_nivel(client, ausente["id"], nivel["id"])
@@ -152,64 +130,18 @@ def test_registrar_resultado_participo_sin_posicion_falla(client):
     assert resp.status_code == 400
 
 
-def test_eliminacion_automatica_tras_dos_meses_consecutivos_sin_justificar(client, db_session):
-    """RF007: 2 meses consecutivos sin participar y sin justificativo
-    aprobado -> se elimina del ranking (esta_en_ranking=False) y se notifica
-    antes a Entrenador/Administrador."""
-    from app.dominio.modelos import Persona, Usuario, Rol
-    from app.dominio.enums import TipoRol
-    import datetime as _dt
-
-    # El fixture `client` autentica con persona_id=1 pero NO crea un registro
-    # real de Persona/Usuario/Rol en la BD. La notificación a "Administrador"
-    # se resuelve consultando Usuario+Rol reales, así que se crea aquí
-    # explícitamente un admin real con id=1 para poder verificarla.
-    admin_persona = Persona(
-        nombres="Admin", apellidos="Real", cedula="1700000000",
-        fecha_nacimiento=_dt.date(1990, 1, 1), telefono="0990000000",
-    )
-    db_session.add(admin_persona)
-    db_session.commit()
-    db_session.refresh(admin_persona)
-    admin_usuario = Usuario(correo="admin@cataclub.test", contrasenia="x", persona_id=admin_persona.id)
-    rol_admin = Rol(tipo_rol=TipoRol.ADMINISTRADOR, descripcion="Administrador")
-    admin_usuario.roles.append(rol_admin)
-    db_session.add_all([admin_usuario, rol_admin])
-    db_session.commit()
-
+# --- Cierre mensual: superficie removida (spec "Removed endpoints return 404") ---
+def test_cerrar_mes_removido_devuelve_404(client):
     nivel = _crear_nivel(client, 1, "Elite")
-    persona = _crear_persona(client, "1755555555")
-    _asignar_nivel(client, persona["id"], nivel["id"])
-
-    _registrar_resultado(client, persona["id"], 2026, 6, posicion=None, participo=False)
-    client.post(f"/api/v1/ranking/niveles/{nivel['id']}/cerrar-mes", params={"anio": 2026, "mes": 6})
-
-    _registrar_resultado(client, persona["id"], 2026, 7, posicion=None, participo=False)
     resp = client.post(
         f"/api/v1/ranking/niveles/{nivel['id']}/cerrar-mes", params={"anio": 2026, "mes": 7}
     )
-    assert resp.status_code == 200
-    assert persona["id"] in resp.json()["personasEliminadas"]
-
-    # El admin recién creado (persona_id=1, mismo que el token de `client`)
-    # debe haber recibido la notificación previa a la eliminación.
-    notif = client.get("/api/v1/ranking/notificaciones/mias").json()
-    tipos = [n["tipo"] for n in notif]
-    assert "RANKING_ELIMINACION_PROXIMA" in tipos
+    assert resp.status_code == 404
 
 
-def test_sugerencia_de_descenso_al_ultimo_nivel_no_existe(client):
-    """Si un nivel es el más bajo (no hay nivel_inferior), no debe sugerirse
-    descenso para nadie de ese nivel."""
-    nivel_unico = _crear_nivel(client, 1, "Único")
-    persona = _crear_persona(client, "1766666666")
-    _asignar_nivel(client, persona["id"], nivel_unico["id"])
-    _registrar_resultado(client, persona["id"], 2026, 7, posicion=1, participo=True)
-
-    resp = client.post(
-        f"/api/v1/ranking/niveles/{nivel_unico['id']}/cerrar-mes", params={"anio": 2026, "mes": 7}
-    )
-    assert resp.json()["sugerencias"] == []
+def test_listar_cierres_mensuales_removido_devuelve_404(client):
+    resp = client.get("/api/v1/ranking/cierres-mensuales")
+    assert resp.status_code == 404
 
 
 # --- Justificativos (RF006a/RF006b) -----------------------------------------
@@ -251,10 +183,17 @@ def test_persona_ajena_no_puede_crear_justificativo(client):
     assert resp.status_code == 403
 
 
-def test_aprobar_justificativo_corrige_retroactivamente_la_ausencia(client):
+def test_aprobar_justificativo_corrige_retroactivamente_la_ausencia(client, db_session):
     """Si el resultado del mes ya se había registrado como no-participó
     ANTES de aprobarse el justificativo, la aprobación debe marcar
-    ausencia_justificada=True y resetear el contador de meses consecutivos."""
+    ausencia_justificada=True. (Nota: el cierre mensual que originalmente
+    disparaba esta verificación fue removido -- RF004/RF005/RF007/RF009
+    derogadas -- pero la corrección retroactiva en sí vive en
+    `evaluar_justificativo`, que sigue existiendo; por eso el test se
+    ajustó para verificar directamente el resultado persistido en vez de
+    eliminarse.)"""
+    from app.dominio.modelos import ResultadoRankingMensual
+
     nivel = _crear_nivel(client, 1, "Elite")
     persona = _crear_persona(client, "1711122233")
     _asignar_nivel(client, persona["id"], nivel["id"])
@@ -272,10 +211,12 @@ def test_aprobar_justificativo_corrige_retroactivamente_la_ausencia(client):
     assert resp.status_code == 200
     assert resp.json()["estado"] == "APROBADO"
 
-    cierre = client.post(
-        f"/api/v1/ranking/niveles/{nivel['id']}/cerrar-mes", params={"anio": 2026, "mes": 7}
-    ).json()
-    assert persona["id"] not in cierre["personasEliminadas"]
+    resultado = (
+        db_session.query(ResultadoRankingMensual)
+        .filter_by(persona_id=persona["id"], anio=2026, mes=7)
+        .one()
+    )
+    assert resultado.ausencia_justificada is True
 
 
 def test_evaluar_justificativo_requiere_admin(client_sin_permisos):
@@ -495,29 +436,41 @@ def test_historial_de_justificativos_vacio_cuando_no_hay(client):
 
 
 # --- Reingreso (RF008) -------------------------------------------------------
-def test_reingreso_requiere_justificativo_aprobado(client):
+def test_reingreso_requiere_justificativo_aprobado(client, db_session):
+    """RF008: el reingreso requiere que la baja tenga un justificativo
+    aprobado. La baja de `esta_en_ranking` ya no ocurre vía ningún mecanismo
+    automático (cierre mensual y limpieza por inactividad fueron removidos
+    -- RF004/RF005/RF007/RF009 derogadas, ver apply-progress de
+    `limpieza-asistencia-y-nivel-entrenador` slices B2/E); se simula aquí
+    desactivando directamente vía DB, como haría una baja administrativa."""
+    from app.dominio.modelos import Ranking
+
     nivel = _crear_nivel(client, 1, "Elite")
     persona = _crear_persona(client, "1712223344")
     _asignar_nivel(client, persona["id"], nivel["id"])
-    _registrar_resultado(client, persona["id"], 2026, 6, posicion=None, participo=False)
-    client.post(f"/api/v1/ranking/niveles/{nivel['id']}/cerrar-mes", params={"anio": 2026, "mes": 6})
-    _registrar_resultado(client, persona["id"], 2026, 7, posicion=None, participo=False)
-    client.post(f"/api/v1/ranking/niveles/{nivel['id']}/cerrar-mes", params={"anio": 2026, "mes": 7})
+
+    ranking = db_session.query(Ranking).filter_by(persona_id=persona["id"]).one()
+    ranking.esta_en_ranking = False
+    db_session.commit()
 
     resp = client.post(f"/api/v1/ranking/{persona['id']}/reingresar")
     assert resp.status_code == 400
 
 
-def test_reingreso_ubica_en_el_nivel_mas_bajo(client):
+def test_reingreso_ubica_en_el_nivel_mas_bajo(client, db_session):
+    """RF008: con justificativo aprobado, el reingreso ubica a la persona en
+    el nivel más bajo registrado. Baja simulada vía DB igual que en
+    `test_reingreso_requiere_justificativo_aprobado` (ver nota ahí)."""
+    from app.dominio.modelos import Ranking
+
     nivel_alto = _crear_nivel(client, 1, "Elite")
     nivel_bajo = _crear_nivel(client, 5, "Principiantes")
     persona = _crear_persona(client, "1713334455")
     _asignar_nivel(client, persona["id"], nivel_alto["id"])
 
-    _registrar_resultado(client, persona["id"], 2026, 6, posicion=None, participo=False)
-    client.post(f"/api/v1/ranking/niveles/{nivel_alto['id']}/cerrar-mes", params={"anio": 2026, "mes": 6})
-    _registrar_resultado(client, persona["id"], 2026, 7, posicion=None, participo=False)
-    client.post(f"/api/v1/ranking/niveles/{nivel_alto['id']}/cerrar-mes", params={"anio": 2026, "mes": 7})
+    ranking = db_session.query(Ranking).filter_by(persona_id=persona["id"]).one()
+    ranking.esta_en_ranking = False
+    db_session.commit()
 
     justificativo = client.post(
         f"/api/v1/ranking/{persona['id']}/justificativos",
@@ -547,6 +500,39 @@ def test_marcar_seleccion_oficial(client):
     assert resp.json()[0]["anioSeleccion"] == 2026
 
 
+# --- Campos de ranking muertos (posición/puntaje) removidos (slice E) -------
+# `puntaje_acumulado`/`posicion_actual` dejaron de tener escritor cuando se
+# removió `cerrar_mes()` (slice B2). Estos tests prueban que las 3 respuestas
+# que los exponían (`/asignaciones`, `/niveles/{id}/tabla`, `/{id}/perfil`) ya
+# no los devuelven, en vez de seguir mostrando un dato congelado como si
+# estuviera vivo. `/niveles/{id}/tabla` no tenía ningún test previo -- estos
+# también cierran ese gap de cobertura.
+def test_listado_de_asignaciones_no_expone_posicion_ni_puntaje(client):
+    nivel = _crear_nivel(client, 1, "Elite")
+    persona = _crear_persona(client, "1716667788")
+    _asignar_nivel(client, persona["id"], nivel["id"])
+
+    resp = client.get("/api/v1/ranking/asignaciones")
+    assert resp.status_code == 200
+    fila = resp.json()[0]
+    assert "posicionActual" not in fila
+    assert "puntajeAcumulado" not in fila
+    assert fila["personaId"] == persona["id"]
+
+
+def test_tabla_de_nivel_no_expone_posicion_ni_puntaje(client):
+    nivel = _crear_nivel(client, 2, "Intermedio")
+    persona = _crear_persona(client, "1717778899")
+    _asignar_nivel(client, persona["id"], nivel["id"])
+
+    resp = client.get(f"/api/v1/ranking/niveles/{nivel['id']}/tabla")
+    assert resp.status_code == 200
+    fila = resp.json()[0]
+    assert "posicionActual" not in fila
+    assert "puntajeAcumulado" not in fila
+    assert fila["personaId"] == persona["id"]
+
+
 # --- Perfil privado del alumno (E04-RF012) ----------------------------------
 def test_perfil_ranking_visible_para_admin_o_entrenador(client):
     nivel = _crear_nivel(client, 1, "Elite")
@@ -556,6 +542,24 @@ def test_perfil_ranking_visible_para_admin_o_entrenador(client):
     resp = client.get(f"/api/v1/ranking/{persona['id']}/perfil")
     assert resp.status_code == 200
     assert resp.json()["nivelRankingNombre"] == "Elite"
+
+
+def test_perfil_ranking_no_expone_posicion_ni_puntaje(client):
+    """El 'Posición #X · Y pts' que veía el alumno salía de este endpoint
+    (`obtener_perfil_alumno`), no de `/niveles/{id}/tabla` como se asumió
+    originalmente -- confirmado leyendo el call graph del frontend
+    (student-adapter.ts -> GET /ranking/{id}/perfil)."""
+    nivel = _crear_nivel(client, 1, "Elite")
+    persona = _crear_persona(client, "1718889900")
+    _asignar_nivel(client, persona["id"], nivel["id"])
+
+    resp = client.get(f"/api/v1/ranking/{persona['id']}/perfil")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "posicionActual" not in body
+    assert "puntajeAcumulado" not in body
+    assert body["nivelRankingNombre"] == "Elite"
+    assert body["estaEnRanking"] is True
 
 
 def test_perfil_ranking_ajeno_rechazado_para_alumno(client_sin_permisos):
