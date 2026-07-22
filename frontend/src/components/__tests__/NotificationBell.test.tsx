@@ -115,4 +115,37 @@ describe("NotificationBell", () => {
     expect(trigger).toHaveClass("text-cata-text/65");
     expect(trigger).not.toHaveClass("text-white/65");
   });
+
+  // --- Pagination (Issue #41) ---
+
+  function buildNotificaciones(count: number): Notificacion[] {
+    return Array.from({ length: count }, (_, i) => makeNotificacion({ id: i + 1, mensaje: `Mensaje ${i + 1}` }));
+  }
+
+  describe("pagination (Issue #41)", () => {
+    it("renders only 10 notifications initially and shows pagination controls", () => {
+      render(<NotificationBell notificaciones={buildNotificaciones(15)} loadError={false} onMarkRead={vi.fn()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /notificaciones/i }));
+
+      expect(screen.getByText("Mensaje 1")).toBeInTheDocument();
+      expect(screen.queryByText("Mensaje 11")).not.toBeInTheDocument();
+      expect(screen.getByText("Página 1 de 2")).toBeInTheDocument();
+    });
+
+    it("advances to the next page and persists across an unrelated re-render", () => {
+      const fifteen = buildNotificaciones(15);
+      const { rerender } = render(
+        <NotificationBell notificaciones={fifteen} loadError={false} onMarkRead={vi.fn()} />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /notificaciones/i }));
+      fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+      expect(screen.getByText("Mensaje 11")).toBeInTheDocument();
+
+      rerender(<NotificationBell notificaciones={fifteen} loadError={false} onMarkRead={vi.fn()} />);
+      expect(screen.getByText("Mensaje 11")).toBeInTheDocument();
+      expect(screen.queryByText("Mensaje 1")).not.toBeInTheDocument();
+    });
+  });
 });

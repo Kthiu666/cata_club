@@ -13,6 +13,8 @@ import { useState } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import type { Notificacion, TipoNotificacion } from "@/types/domain";
 import { formatDateTime } from "@/lib/format-utils";
+import Pagination from "@/components/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 
 const TIPO_LABELS: Record<TipoNotificacion, string> = {
   RANKING_ELIMINACION_PROXIMA: "Próxima eliminación del ranking",
@@ -50,6 +52,7 @@ export default function NotificationBell({
 }: NotificationBellProps): React.ReactElement {
   const [open, setOpen] = useState(false);
   const unreadCount = notificaciones.filter((n) => !n.leida).length;
+  const pagination = usePagination({ records: notificaciones });
 
   return (
     <div className="relative">
@@ -95,28 +98,31 @@ export default function NotificationBell({
           )}
 
           {notificaciones.length > 0 && (
-            <ul className="max-h-96 space-y-1 overflow-y-auto">
-              {notificaciones.map((n) => (
-                <li key={n.id}>
-                  <button
-                    type="button"
-                    onClick={() => !n.leida && onMarkRead(n.id)}
-                    className={`w-full rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-cata-bg ${
-                      n.leida ? "opacity-60" : ""
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {!n.leida && (
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-cata-red" aria-hidden="true" />
-                      )}
-                      <p className="text-xs font-medium text-cata-text">{TIPO_LABELS[n.tipo]}</p>
-                    </div>
-                    <p className="mt-0.5 text-xs text-cata-text/65">{n.mensaje}</p>
-                    <p className="mt-1 text-[10px] text-cata-text/40">{formatDateTime(n.fechaCreacion)}</p>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="max-h-96 space-y-1 overflow-y-auto">
+                {pagination.currentItems.map((n) => (
+                  <li key={n.id}>
+                    <button
+                      type="button"
+                      onClick={() => !n.leida && onMarkRead(n.id)}
+                      className={`w-full rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-cata-bg ${
+                        n.leida ? "opacity-60" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {!n.leida && (
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-cata-red" aria-hidden="true" />
+                        )}
+                        <p className="text-xs font-medium text-cata-text">{TIPO_LABELS[n.tipo]}</p>
+                      </div>
+                      <p className="mt-0.5 text-xs text-cata-text/65">{n.mensaje}</p>
+                      <p className="mt-1 text-[10px] text-cata-text/40">{formatDateTime(n.fechaCreacion)}</p>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <Pagination page={pagination.page} totalPages={pagination.totalPages} onPageChange={pagination.setPage} />
+            </>
           )}
         </div>
       )}
