@@ -69,6 +69,14 @@ const mockFetchJustificativosPendientes = vi.fn();
 const mockEvaluarJustificativo = vi.fn();
 const mockFetchNotificaciones = vi.fn().mockResolvedValue([]);
 const mockMarcarNotificacionLeida = vi.fn().mockResolvedValue(undefined);
+const mockFetchHorarios = vi.fn().mockResolvedValue([]);
+const mockFetchNivelesConOcupacion = vi.fn().mockResolvedValue([]);
+const mockCrearHorario = vi.fn();
+const mockActualizarHorario = vi.fn();
+const mockEliminarHorario = vi.fn();
+const mockFetchAlumnosPorHorario = vi.fn().mockResolvedValue([]);
+const mockAsignarAlumnoAHorario = vi.fn();
+const mockDesasignarAlumnoDeHorario = vi.fn();
 
 vi.mock("@/services/api", () => {
   class MockApiClientError extends Error {
@@ -88,6 +96,14 @@ vi.mock("@/services/api", () => {
     evaluarJustificativo: (id: number, dto: unknown) => mockEvaluarJustificativo(id, dto),
     fetchNotificaciones: () => mockFetchNotificaciones(),
     marcarNotificacionLeida: (id: number) => mockMarcarNotificacionLeida(id),
+    fetchHorarios: () => mockFetchHorarios(),
+    fetchNivelesConOcupacion: () => mockFetchNivelesConOcupacion(),
+    crearHorario: (dto: unknown) => mockCrearHorario(dto),
+    actualizarHorario: (id: number, dto: unknown) => mockActualizarHorario(id, dto),
+    eliminarHorario: (id: number) => mockEliminarHorario(id),
+    fetchAlumnosPorHorario: (horarioId: number) => mockFetchAlumnosPorHorario(horarioId),
+    asignarAlumnoAHorario: (dto: unknown) => mockAsignarAlumnoAHorario(dto),
+    desasignarAlumnoDeHorario: (personaId: number, horarioId: number) => mockDesasignarAlumnoDeHorario(personaId, horarioId),
     ApiClientError: MockApiClientError,
   };
 });
@@ -298,8 +314,12 @@ describe("GroupsPage — Selección Oficial extracted to its own route (PR9)", (
   beforeEach(() => {
     mockFetchMembers.mockReset();
     mockFetchJustificativosPendientes.mockReset();
+    mockFetchHorarios.mockReset();
+    mockFetchNivelesConOcupacion.mockReset();
     mockFetchMembers.mockResolvedValue({ accounts: [UNASSIGNED_ACCOUNT], niveles: NIVELES });
     mockFetchJustificativosPendientes.mockResolvedValue([]);
+    mockFetchHorarios.mockResolvedValue([]);
+    mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
   });
 
   it("no longer renders the Selección Oficial section inline", async () => {
@@ -311,5 +331,61 @@ describe("GroupsPage — Selección Oficial extracted to its own route (PR9)", (
     const main = screen.getByRole("main");
     expect(within(main).queryByText(/selección oficial/i)).not.toBeInTheDocument();
     expect(document.getElementById("seleccion-oficial")).not.toBeInTheDocument();
+  });
+});
+
+describe("GroupsPage — categoria-driven locked schedule form (v2 design)", () => {
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchJustificativosPendientes.mockReset();
+    mockFetchHorarios.mockReset();
+    mockFetchNivelesConOcupacion.mockReset();
+    mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
+    mockFetchJustificativosPendientes.mockResolvedValue([]);
+    mockFetchHorarios.mockResolvedValue([]);
+    mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
+  });
+
+  it("renders the 'Gestión de Horarios' title (renamed from 'Grupos y Horarios')", async () => {
+    render(<GroupsPage />);
+    expect(await screen.findByText("Gestión de Horarios")).toBeInTheDocument();
+  });
+
+  it("locks the displayed time range to COMPETITIVO's 18:00–20:00 and offers Sábado as a día option", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+    fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
+
+    fireEvent.change(screen.getByLabelText(/categoría/i), { target: { value: "COMPETITIVO" } });
+
+    expect(screen.getByText("18:00 – 20:00")).toBeInTheDocument();
+
+    const diaSelect = screen.getByLabelText(/día de la semana/i);
+    const options = within(diaSelect).getAllByRole("option").map((o) => (o as HTMLOptionElement).value);
+    expect(options).toEqual(["LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", "SABADO"]);
+  });
+
+  it("locks the displayed time range to FORMATIVO's 15:00–16:00 and excludes Sábado from día options", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+    fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
+
+    fireEvent.change(screen.getByLabelText(/categoría/i), { target: { value: "FORMATIVO" } });
+
+    expect(screen.getByText("15:00 – 16:00")).toBeInTheDocument();
+
+    const diaSelect = screen.getByLabelText(/día de la semana/i);
+    const options = within(diaSelect).getAllByRole("option").map((o) => (o as HTMLOptionElement).value);
+    expect(options).toEqual(["LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES"]);
+    expect(options).not.toContain("SABADO");
+  });
+
+  it("has no editable hora_inicio/hora_fin time inputs left in the form (locked, not freeform)", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+    fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
+
+    expect(screen.queryByLabelText(/hora inicio/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/hora fin/i)).not.toBeInTheDocument();
   });
 });
