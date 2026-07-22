@@ -91,6 +91,8 @@ class AuthServicio:
         cuenta en el siguiente request (lo desloguearía silenciosamente).
         """
         usuario = self.obtener_usuario_actual(correo_actual)
+        if not usuario.activo:
+            raise CredencialesInvalidas("La cuenta está desactivada")
         datos = cambios.model_dump(exclude_unset=True)
 
         correo_nuevo = datos.get("correo")
