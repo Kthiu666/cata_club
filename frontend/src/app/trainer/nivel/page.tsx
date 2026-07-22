@@ -1,51 +1,31 @@
 /**
- * Nivel — Trainer page for managing student nivel assignment and results.
+ * Nivel — Trainer page for managing student nivel assignment.
  *
- * Two tabs:
- *  - Asignar Nivel: assign/move each student's nivel (initial assignment via
- *    `asignar-nivel-inicial`, re-assignment via `mover-de-nivel`).
- *  - Resultados Mensuales: register a monthly result (posición, participó)
- *    for a student.
+ * Assigns/moves each student's nivel (initial assignment via
+ * `asignar-nivel-inicial`, re-assignment via `mover-de-nivel`).
  *
  * The nivel a student is assigned to IS the same `nivel_ranking` record used
  * by Grupo/`NivelTecnico` (see src/app/groups/page.tsx) — the backend only
  * has one such table, fetched here via the same
  * fetchNivelesConOcupacion()/fetchMembers() calls groups.tsx uses. Mutating
  * actions call the real backend endpoints (assignStudentToNivel/
- * moveStudentToNivel, same functions groups.tsx uses; registrarResultadoMensual
- * under /api/ranking/**), so after a successful assignment the
- * member list is reloaded to reflect the student's new nivel.
+ * moveStudentToNivel, same functions groups.tsx uses), so after a successful
+ * assignment the member list is reloaded to reflect the student's new nivel.
  */
 
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import {
-  Trophy,
-  ListChecks,
-  Users,
-  CheckCircle2,
-  AlertTriangle,
-  Plus,
-} from "lucide-react";
-import type { ResultadoMensual } from "@/types/domain";
+import { Trophy, Users, CheckCircle2, AlertTriangle } from "lucide-react";
 import {
   fetchMembers,
   assignStudentToNivel,
   moveStudentToNivel,
-  registrarResultadoMensual,
   ApiClientError,
   type NivelConOcupacion,
 } from "@/services/api";
-import { isValidPeriodo, currentPeriodo, parsePeriodo, buildNivelStudents } from "./nivel-utils";
-
-type TabKey = "asignar" | "resultados";
-
-const TABS: { key: TabKey; label: string }[] = [
-  { key: "asignar", label: "Asignar Nivel" },
-  { key: "resultados", label: "Resultados Mensuales" },
-];
+import { buildNivelStudents } from "./nivel-utils";
 
 function nivelLabel(niveles: NivelConOcupacion[], nivelId: number | null): string {
   if (nivelId === null) return "Sin asignar";
@@ -53,26 +33,11 @@ function nivelLabel(niveles: NivelConOcupacion[], nivelId: number | null): strin
   return nivel ? nivel.nombre ?? String(nivel.numeroNivel) : `Nivel ${nivelId}`;
 }
 
-function studentDisplayName(
-  students: { id: string; nombres: string; apellidos: string }[],
-  personaId: number,
-): string {
-  const student = students.find((s) => s.id === String(personaId));
-  return student ? `${student.nombres} ${student.apellidos}` : String(personaId);
-}
-
 export default function NivelPage(): React.ReactElement {
-  const [activeTab, setActiveTab] = useState<TabKey>("asignar");
-
   const [members, setMembers] = useState<Awaited<ReturnType<typeof fetchMembers>>["accounts"]>([]);
   const [niveles, setNiveles] = useState<NivelConOcupacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-
-  // Local, frontend-only state — no GET endpoint exists yet for monthly
-  // results, so this list is seeded empty and grows as actions succeed
-  // within the session.
-  const [resultados, setResultados] = useState<ResultadoMensual[]>([]);
 
   const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -109,7 +74,7 @@ export default function NivelPage(): React.ReactElement {
               Nivel
             </h1>
             <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-              Asigná el nivel de cada estudiante y registrá resultados mensuales.
+              Asigná el nivel de cada estudiante.
             </p>
           </div>
         </div>
@@ -127,43 +92,12 @@ export default function NivelPage(): React.ReactElement {
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="mb-6 flex items-center gap-2" role="tablist" aria-label="Secciones de Nivel">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                activeTab === tab.key
-                  ? "bg-cata-red/15 text-cata-red"
-                  : "bg-cata-bg text-cata-text/65 hover:bg-cata-border/60"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {activeTab === "asignar" && (
-          <AsignarNivelTab
-            students={students}
-            niveles={niveles}
-            loading={loading}
-            onAssigned={loadData}
-          />
-        )}
-
-        {activeTab === "resultados" && (
-          <ResultadosMensualesTab
-            students={students}
-            niveles={niveles}
-            resultados={resultados}
-            onRegistered={(resultado) => setResultados((prev) => [resultado, ...prev])}
-          />
-        )}
+        <AsignarNivelTab
+          students={students}
+          niveles={niveles}
+          loading={loading}
+          onAssigned={loadData}
+        />
       </div>
     </ProtectedRoute>
   );
@@ -180,11 +114,30 @@ interface AsignarNivelTabProps {
   onAssigned: () => Promise<void>;
 }
 
+const NIVEL_FILTER_UNASSIGNED = "sin-asignar";
+
 function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNivelTabProps): React.ReactElement {
   const [drafts, setDrafts] = useState<Record<string, number>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successId, setSuccessId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [nivelFilter, setNivelFilter] = useState("");
+
+  const filteredStudents = students.filter((student) => {
+    const term = searchTerm.trim().toLowerCase();
+    const matchesSearch =
+      term === "" ||
+      `${student.nombres} ${student.apellidos}`.toLowerCase().includes(term);
+
+    const matchesNivel =
+      nivelFilter === "" ||
+      (nivelFilter === NIVEL_FILTER_UNASSIGNED
+        ? student.nivelRankingId === null
+        : student.nivelRankingId === Number(nivelFilter));
+
+    return matchesSearch && matchesNivel;
+  });
 
   async function handleAssign(estudianteId: string): Promise<void> {
     const nivelId = drafts[estudianteId];
@@ -214,9 +167,35 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
 
   return (
     <div className="card overflow-hidden">
-      <div className="flex items-center gap-2 border-b border-cata-border px-5 py-4">
-        <Users size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-        <h2 className="text-sm font-bold text-cata-text">Estudiantes ({students.length})</h2>
+      <div className="flex flex-col gap-3 border-b border-cata-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <Users size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          <h2 className="text-sm font-bold text-cata-text">Estudiantes ({filteredStudents.length})</h2>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            type="text"
+            aria-label="Buscar estudiante por nombre"
+            placeholder="Buscar por nombre…"
+            className="input-field w-full sm:w-48"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <select
+            aria-label="Filtrar por nivel actual"
+            className="input-field w-full sm:w-40"
+            value={nivelFilter}
+            onChange={(e) => setNivelFilter(e.target.value)}
+          >
+            <option value="">Todos</option>
+            <option value={NIVEL_FILTER_UNASSIGNED}>Sin asignar</option>
+            {niveles.map((n) => (
+              <option key={n.id} value={n.id}>
+                {n.nombre ?? n.numeroNivel}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {error && (
@@ -234,6 +213,11 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
           <Users size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
           <p className="text-sm text-cata-text/50">No hay estudiantes registrados.</p>
         </div>
+      ) : filteredStudents.length === 0 ? (
+        <div className="flex flex-col items-center py-12 text-center">
+          <Users size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
+          <p className="text-sm text-cata-text/50">No se encontraron estudiantes con ese criterio.</p>
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -246,7 +230,7 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
               </tr>
             </thead>
             <tbody className="divide-y divide-cata-border">
-              {students.map((student) => (
+              {filteredStudents.map((student) => (
                 <tr key={student.id}>
                   <td className="px-4 py-3">
                     <span className="font-medium text-cata-text">
@@ -303,218 +287,6 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
           </table>
         </div>
       )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Tab 2 — Resultados Mensuales
-// ---------------------------------------------------------------------------
-
-interface ResultadosMensualesTabProps {
-  students: ReturnType<typeof buildNivelStudents>;
-  niveles: NivelConOcupacion[];
-  resultados: ResultadoMensual[];
-  onRegistered: (resultado: ResultadoMensual) => void;
-}
-
-function ResultadosMensualesTab({
-  students,
-  niveles,
-  resultados,
-  onRegistered,
-}: ResultadosMensualesTabProps): React.ReactElement {
-  const [estudianteId, setEstudianteId] = useState("");
-  const [periodo, setPeriodo] = useState(currentPeriodo());
-  const [posicion, setPosicion] = useState("");
-  const [participo, setParticipo] = useState(true);
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  async function handleSubmit(event: React.FormEvent): Promise<void> {
-    event.preventDefault();
-    setSuccessMessage(null);
-    setSubmitError(null);
-
-    if (!estudianteId) {
-      setValidationError("Seleccioná un estudiante.");
-      return;
-    }
-    if (!isValidPeriodo(periodo)) {
-      setValidationError('El período debe tener el formato "YYYY-MM".');
-      return;
-    }
-    let posicionNum: number | undefined;
-    if (posicion.trim() !== "") {
-      posicionNum = Number(posicion);
-      if (!Number.isInteger(posicionNum) || posicionNum < 1) {
-        setValidationError("La posición debe ser un número entero positivo.");
-        return;
-      }
-    }
-    setValidationError(null);
-
-    setSubmitting(true);
-    try {
-      const { anio, mes } = parsePeriodo(periodo);
-      const resultado = await registrarResultadoMensual({
-        personaId: Number(estudianteId),
-        anio,
-        mes,
-        posicion: posicionNum,
-        participo,
-      });
-      onRegistered(resultado);
-      setSuccessMessage("Resultado mensual registrado correctamente.");
-      setPosicion("");
-      setParticipo(true);
-    } catch (err) {
-      console.error("[nivel] registrarResultadoMensual failed", err);
-      setSubmitError(
-        err instanceof ApiClientError
-          ? err.message
-          : "Error al registrar el resultado mensual.",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <div className="space-y-6">
-      <form onSubmit={handleSubmit} className="card space-y-4 p-5">
-        <div className="flex items-center gap-2">
-          <ListChecks size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-          <h2 className="text-sm font-bold text-cata-text">Registrar resultado mensual</h2>
-        </div>
-
-        {validationError && (
-          <p className="text-xs text-cata-red" role="alert">
-            {validationError}
-          </p>
-        )}
-        {submitError && (
-          <div className="alert-error" role="alert">
-            {submitError}
-          </div>
-        )}
-        {successMessage && (
-          <div className="flex items-center gap-2 rounded-xl border border-cata-state-ok/30 bg-cata-state-ok/10 px-4 py-2.5 text-sm text-cata-state-ok">
-            <CheckCircle2 size={14} strokeWidth={1.5} className="shrink-0" aria-hidden="true" />
-            {successMessage}
-          </div>
-        )}
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="block text-sm">
-            <span className="mb-1 block text-xs font-medium text-cata-text/65">Estudiante</span>
-            <select
-              className="input-field"
-              value={estudianteId}
-              onChange={(e) => setEstudianteId(e.target.value)}
-            >
-              <option value="">Seleccionar...</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nombres} {s.apellidos}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block text-sm">
-            <span className="mb-1 block text-xs font-medium text-cata-text/65">Período</span>
-            <input
-              type="month"
-              className="input-field"
-              value={periodo}
-              onChange={(e) => setPeriodo(e.target.value)}
-            />
-          </label>
-
-          <label className="block text-sm">
-            <span className="mb-1 block text-xs font-medium text-cata-text/65">
-              Posición (opcional)
-            </span>
-            <input
-              type="number"
-              min={1}
-              className="input-field"
-              value={posicion}
-              onChange={(e) => setPosicion(e.target.value)}
-              placeholder="1"
-            />
-          </label>
-
-          <label className="mt-6 flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={participo}
-              onChange={(e) => setParticipo(e.target.checked)}
-            />
-            <span className="text-xs font-medium text-cata-text/65">Participó este mes</span>
-          </label>
-        </div>
-
-        <button type="submit" disabled={submitting} className="btn-primary">
-          {submitting ? (
-            "Registrando..."
-          ) : (
-            <>
-              <Plus size={14} strokeWidth={2} aria-hidden="true" />
-              Registrar resultado
-            </>
-          )}
-        </button>
-      </form>
-
-      <div className="card overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-cata-border px-5 py-4">
-          <ListChecks size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-          <h2 className="text-sm font-bold text-cata-text">
-            Resultados registrados ({resultados.length})
-          </h2>
-        </div>
-        {resultados.length === 0 ? (
-          <div className="flex flex-col items-center py-10 text-center">
-            <ListChecks size={28} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
-            <p className="text-sm text-cata-text/50">Aún no hay resultados registrados en esta sesión.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
-                  <th className="px-4 py-3 font-medium">Estudiante</th>
-                  <th className="px-4 py-3 font-medium">Nivel</th>
-                  <th className="px-4 py-3 font-medium">Período</th>
-                  <th className="px-4 py-3 font-medium text-right">Posición</th>
-                  <th className="px-4 py-3 font-medium">Participó</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-cata-border">
-                {resultados.map((r) => (
-                  <tr key={r.id}>
-                    <td className="px-4 py-3 font-medium text-cata-text">
-                      {studentDisplayName(students, r.personaId)}
-                    </td>
-                    <td className="px-4 py-3 text-cata-text/65">{nivelLabel(niveles, r.nivelRankingId)}</td>
-                    <td className="px-4 py-3 text-cata-text/65">
-                      {r.anio}-{String(r.mes).padStart(2, "0")}
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-cata-text">
-                      {r.posicion ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-cata-text/45">{r.participo ? "Sí" : "No"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
