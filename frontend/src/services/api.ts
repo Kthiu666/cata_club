@@ -1147,7 +1147,7 @@ export async function actualizarFichaMedica(
 // this — see PerfilPropio's doc comment in types/domain.ts for why.
 // ---------------------------------------------------------------------------
 
-/** Fetch the logged-in user's own profile — GET /api/auth/me (now includes telefono). */
+/** Fetch the logged-in user's own profile — GET /api/auth/me (includes telefono and fechaCreacion). */
 export async function fetchMiPerfil(): Promise<PerfilPropio> {
   return request<PerfilPropio>(apiEndpoint("/auth/me"));
 }

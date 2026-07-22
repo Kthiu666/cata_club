@@ -3,6 +3,8 @@ Tests de perfil propio del usuario autenticado (Issue #36).
 
 Cubre:
   - GET /auth/me ahora incluye `telefono` (persona con y sin teléfono).
+  - GET /auth/me y PATCH /auth/me ahora incluyen `fechaCreacion` (fecha de
+    creación de la cuenta, `Usuario.fecha_creacion`).
   - PATCH /auth/me (nuevo, self-service):
       * Actualiza solo `telefono` -> no reemite tokens.
       * Actualiza `correo` -> reemite access_token/refresh_token (el `sub`
@@ -15,6 +17,22 @@ from datetime import date
 from app.dominio.modelos import Usuario, Rol
 from app.dominio.enums import TipoRol
 from app.seguridad.gestor_auth import GestorAutenticacion
+
+
+def _fecha_creacion_iso_esperada(usuario: Usuario) -> str:
+    """Formato ISO 8601 real que produce `ResponseBase` para un DTO servido a
+    través de FastAPI (`response_model=...`).
+
+    NOTA (gap pre-existente, descubierto en este cambio, fuera de alcance
+    arreglar aquí): `ResponseBase._serialize_datetime_utc` (base.py) solo
+    agrega el sufijo 'Z' cuando el modelo se serializa en `mode="python"`.
+    En el pipeline real de FastAPI (`mode="json"`), pydantic ya convierte el
+    datetime naive a string ANTES de que el wrap-serializer corra, así que el
+    `isinstance(value, datetime)` deja de matchear y el 'Z' nunca se agrega.
+    Se documenta el comportamiento real (sin 'Z') en vez de arreglar
+    `base.py`, que afectaría muchos otros DTOs fuera del alcance de esta
+    tarea (exponer `fecha_creacion`)."""
+    return usuario.fecha_creacion.isoformat()
 
 
 # --- helpers (mismo patrón que test_auth_registro_refresh.py) ---------------
@@ -75,6 +93,18 @@ def test_auth_me_telefono_vacio_si_persona_sin_telefono(client, db_session):
     assert resp.json()["telefono"] == ""
 
 
+# --- GET /auth/me incluye fechaCreacion --------------------------------------
+def test_auth_me_incluye_fecha_creacion(client, db_session):
+    persona = _crear_persona(db_session, cedula="1710034267", nombres="Rosa", telefono="0991234567")
+    rol_admin = Rol(tipo_rol=TipoRol.ADMINISTRADOR, descripcion="Admin")
+    usuario = _crear_usuario_para_persona(db_session, persona, correo="rosa@cataclub.com", roles=[rol_admin])
+    _restaurar_override_token(correo="rosa@cataclub.com", persona_id=persona.id, roles=["ADMINISTRADOR"])
+
+    resp = client.get("/api/v1/auth/me")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["fechaCreacion"] == _fecha_creacion_iso_esperada(usuario)
+
+
 # --- PATCH /auth/me -----------------------------------------------------------
 def test_patch_perfil_actualiza_telefono_sin_reemitir_tokens(client, db_session):
     persona = _crear_persona(db_session, cedula="1710034226", nombres="Sofía", telefono="0991111111")
@@ -133,3 +163,15 @@ def test_patch_perfil_rechaza_correo_duplicado(client, db_session):
 def test_patch_perfil_requiere_autenticacion(client_sin_token):
     resp = client_sin_token.patch("/api/v1/auth/me", json={"telefono": "0996666666"})
     assert resp.status_code == 401
+
+
+# --- PATCH /auth/me incluye fechaCreacion ------------------------------------
+def test_patch_perfil_incluye_fecha_creacion(client, db_session):
+    persona = _crear_persona(db_session, cedula="1710034275", nombres="Iván", telefono="0997777777")
+    rol_entrenador = Rol(tipo_rol=TipoRol.ENTRENADOR, descripcion="Entrenador")
+    usuario = _crear_usuario_para_persona(db_session, persona, correo="ivan@cataclub.com", roles=[rol_entrenador])
+    _restaurar_override_token(correo="ivan@cataclub.com", persona_id=persona.id, roles=["ENTRENADOR"])
+
+    resp = client.patch("/api/v1/auth/me", json={"telefono": "0998888888"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["fechaCreacion"] == _fecha_creacion_iso_esperada(usuario)

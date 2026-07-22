@@ -546,6 +546,7 @@ function makePerfilPropio(overrides: Partial<PerfilPropio> = {}): PerfilPropio {
     apellidos: "Torres",
     roles: ["ENTRENADOR"],
     telefono: "0991234567",
+    fechaCreacion: "2024-03-10T14:22:05.123456",
     ...overrides,
   };
 }

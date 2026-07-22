@@ -315,6 +315,8 @@ export interface PerfilPropio {
   apellidos: string;
   roles: BackendTipoRol[];
   telefono: string;
+  /** Account creation date (ISO datetime) — `Usuario.fecha_creacion`. Used by `/profile`'s "Miembro desde" field. */
+  fechaCreacion: string;
 }
 
 /** Payload to update the logged-in user's own correo/teléfono — both optional (partial edit). */

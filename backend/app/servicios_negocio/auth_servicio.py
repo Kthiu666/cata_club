@@ -117,6 +117,7 @@ class AuthServicio:
             "apellidos": usuario.persona.apellidos,
             "roles": [rol.tipo_rol.value for rol in usuario.roles],
             "telefono": usuario.persona.telefono,
+            "fecha_creacion": usuario.fecha_creacion,
         }
         if correo_cambio:
             respuesta.update(self._emitir_par_tokens(usuario))

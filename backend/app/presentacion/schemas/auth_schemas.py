@@ -6,6 +6,7 @@ Patrón de nomenclatura consistente con el resto de schemas del proyecto:
   - Sufijo `ResponseDTO` para respuestas, con `model_config = ConfigDict(from_attributes=True)`
     cuando la respuesta se mapea directamente desde un modelo ORM.
 """
+from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 
@@ -41,6 +42,7 @@ class UsuarioMeResponseDTO(ResponseBase, BaseModel):
     apellidos: str
     roles: List[str]
     telefono: str
+    fecha_creacion: datetime
 
 
 class LogoutResponseDTO(ResponseBase, BaseModel):
@@ -63,6 +65,7 @@ class ActualizarPerfilPropioResponseDTO(ResponseBase, BaseModel):
     apellidos: str
     roles: List[str]
     telefono: str
+    fecha_creacion: datetime
     access_token: Optional[str] = None
     """Presente SOLO si `correo` cambió (el `sub` del JWT es el correo; sin
     reemisión, el access token vigente del usuario dejaría de resolver a su

@@ -35,11 +35,13 @@ vi.mock("@/contexts/AuthContext", () => ({
 const mockFetchMiPerfil = vi.fn();
 const mockActualizarMiPerfil = vi.fn();
 const mockSolicitarRecuperacion = vi.fn();
+const mockFetchStudentPortal = vi.fn();
 
 vi.mock("@/services/api", () => ({
   fetchMiPerfil: () => mockFetchMiPerfil(),
   actualizarMiPerfil: (data: unknown) => mockActualizarMiPerfil(data),
   solicitarRecuperacion: (correo: string) => mockSolicitarRecuperacion(correo),
+  fetchStudentPortal: (personaId: string) => mockFetchStudentPortal(personaId),
   ApiClientError: class ApiClientError extends Error {
     status: number;
     constructor(message: string, status: number) {
@@ -95,6 +97,7 @@ const PERFIL_ADMIN: PerfilPropio = {
   apellidos: "Admin",
   roles: ["ADMINISTRADOR"],
   telefono: "099111222",
+  fechaCreacion: "2024-03-10T14:22:05.123456",
 };
 
 beforeEach(() => {
@@ -102,6 +105,7 @@ beforeEach(() => {
   mockFetchMiPerfil.mockReset();
   mockActualizarMiPerfil.mockReset();
   mockSolicitarRecuperacion.mockReset();
+  mockFetchStudentPortal.mockReset();
   mockUseAuth.mockReset();
 });
 
@@ -120,6 +124,8 @@ describe("ProfilePage — staff view (ADMINISTRADOR/ENTRENADOR)", () => {
     expect(screen.getByText("ana.admin@cataclub.com")).toBeInTheDocument();
     expect(screen.getByText("099111222")).toBeInTheDocument();
     expect(screen.getByText("ADMINISTRADOR")).toBeInTheDocument();
+    expect(screen.getByText(/miembro desde/i)).toBeInTheDocument();
+    expect(screen.getByText("10 de marzo de 2024")).toBeInTheDocument();
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
@@ -132,6 +138,7 @@ describe("ProfilePage — staff view (ADMINISTRADOR/ENTRENADOR)", () => {
       apellidos: "Entrenadora",
       roles: ["ENTRENADOR"],
       telefono: "099333444",
+      fechaCreacion: "2025-11-02T08:00:00",
     });
 
     render(<ProfilePage />);
@@ -139,6 +146,9 @@ describe("ProfilePage — staff view (ADMINISTRADOR/ENTRENADOR)", () => {
     expect(await screen.findByText("Carla Entrenadora")).toBeInTheDocument();
     expect(screen.getByText("carla.entrenadora@cataclub.com")).toBeInTheDocument();
     expect(screen.getByText("ENTRENADOR")).toBeInTheDocument();
+    // Different fechaCreacion than the admin fixture — proves the "Miembro
+    // desde" date is computed from `perfil.fechaCreacion`, not hardcoded.
+    expect(screen.getByText("2 de noviembre de 2025")).toBeInTheDocument();
   });
 
   it("does not render nombres/apellidos/roles as editable inputs", async () => {
@@ -154,28 +164,165 @@ describe("ProfilePage — staff view (ADMINISTRADOR/ENTRENADOR)", () => {
   });
 });
 
-describe("ProfilePage — student/representante redirect", () => {
-  it("redirects an estudiante session to /student before rendering staff fields", async () => {
+describe("ProfilePage — student/representante summary view", () => {
+  it("renders a summary card for the estudiante's own profile with ranking and membership status", async () => {
     mockUseAuth.mockReturnValue(sessionForRole("estudiante"));
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      self: {
+        personaId: "1",
+        nombres: "Sofía",
+        apellidos: "Alumna",
+        fechaNacimiento: "2012-05-10",
+        ranking: {
+          status: "available",
+          posicionActual: 3,
+          puntajeAcumulado: 120,
+          nivelNombre: "Nivel 3",
+          estaEnRanking: true,
+        },
+        recentSessions: [],
+      },
+      representados: [],
+      membershipPlans: [],
+      memberships: [{ id: 1, estado: "ACTIVA", personaId: 1 }],
+    });
 
     render(<ProfilePage />);
 
-    await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/student");
-    });
+    expect(await screen.findByText("Sofía Alumna")).toBeInTheDocument();
+    expect(screen.getByText("Nivel 3")).toBeInTheDocument();
+    expect(screen.getByText("Activa")).toBeInTheDocument();
+    expect(mockReplace).not.toHaveBeenCalled();
     expect(mockFetchMiPerfil).not.toHaveBeenCalled();
-    expect(screen.queryByText(/correo electrónico/i)).not.toBeInTheDocument();
   });
 
-  it("redirects a representante session to /student (triangulation)", async () => {
-    mockUseAuth.mockReturnValue(sessionForRole("representante"));
+  it("shows the honest 'no disponible' fallback when self has no matching membership row", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("estudiante"));
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      self: {
+        personaId: "1",
+        nombres: "Sofía",
+        apellidos: "Alumna",
+        fechaNacimiento: "2012-05-10",
+        ranking: { status: "unavailable", reason: "error" },
+        recentSessions: [],
+      },
+      representados: [],
+      membershipPlans: [],
+      memberships: [],
+    });
 
     render(<ProfilePage />);
 
-    await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/student");
+    expect(await screen.findByText("Sofía Alumna")).toBeInTheDocument();
+    expect(screen.getByText("No disponible — consulte con administración")).toBeInTheDocument();
+  });
+
+  it("renders one summary card per representado for a representante session, always showing the honest 'no disponible' fallback for their membership (the backend never scopes /membresias/mias to a dependent, only to the caller) (triangulation)", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("representante"));
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      self: null,
+      representados: [
+        {
+          personaId: "20",
+          nombres: "Juan",
+          apellidos: "Hijo",
+          fechaNacimiento: "2014-02-01",
+          ranking: { status: "unavailable", reason: "forbidden" },
+          recentSessions: [],
+        },
+        {
+          personaId: "21",
+          nombres: "Ana",
+          apellidos: "Hija",
+          fechaNacimiento: "2016-08-15",
+          ranking: { status: "unavailable", reason: "forbidden" },
+          recentSessions: [],
+        },
+      ],
+      membershipPlans: [],
+      // Realistic shape: /membresias/mias only ever scopes to the caller
+      // (the representante), never to a represented dependent — so this
+      // array is always irrelevant for representado cards, whatever it
+      // contains.
+      memberships: [{ id: 5, estado: "VENCIDA", personaId: 999 }],
     });
+
+    render(<ProfilePage />);
+
+    expect(await screen.findByText("Juan Hijo")).toBeInTheDocument();
+    expect(screen.getByText("Ana Hija")).toBeInTheDocument();
+    expect(screen.getAllByText("No disponible — consulte con administración")).toHaveLength(2);
+    expect(screen.queryByText("Vencida")).not.toBeInTheDocument();
     expect(mockFetchMiPerfil).not.toHaveBeenCalled();
+  });
+
+  it("shows the real membership status for self alongside representados who correctly get the 'no disponible' fallback (owner-scoping regression test)", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("representante"));
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      self: {
+        personaId: "1",
+        nombres: "Rosa",
+        apellidos: "Representante",
+        fechaNacimiento: "1985-03-01",
+        ranking: { status: "unavailable", reason: "forbidden" },
+        recentSessions: [],
+      },
+      representados: [
+        {
+          personaId: "20",
+          nombres: "Juan",
+          apellidos: "Hijo",
+          fechaNacimiento: "2014-02-01",
+          ranking: { status: "unavailable", reason: "forbidden" },
+          recentSessions: [],
+        },
+      ],
+      membershipPlans: [],
+      // Only the caller's (self, personaId "1") own membership is ever
+      // present — this is the real /membresias/mias contract.
+      memberships: [{ id: 9, estado: "ACTIVA", personaId: 1 }],
+    });
+
+    render(<ProfilePage />);
+
+    expect(await screen.findByText("Rosa Representante")).toBeInTheDocument();
+    expect(screen.getByText("Juan Hijo")).toBeInTheDocument();
+    expect(screen.getByText("Activa")).toBeInTheDocument();
+    expect(screen.getByText("No disponible — consulte con administración")).toBeInTheDocument();
+  });
+
+  it("includes a link to the full /student portal for detail", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("estudiante"));
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      self: {
+        personaId: "1",
+        nombres: "Sofía",
+        apellidos: "Alumna",
+        fechaNacimiento: "2012-05-10",
+        ranking: { status: "unavailable", reason: "error" },
+        recentSessions: [],
+      },
+      representados: [],
+      membershipPlans: [],
+      memberships: [],
+    });
+
+    render(<ProfilePage />);
+
+    await screen.findByText("Sofía Alumna");
+    const link = screen.getByRole("link", { name: /ver portal completo/i });
+    expect(link).toHaveAttribute("href", "/student");
+  });
+
+  it("shows a loading state and then an error with retry when the portal fetch fails", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("estudiante"));
+    mockFetchStudentPortal.mockRejectedValueOnce(new Error("No se pudo cargar su cuenta."));
+
+    render(<ProfilePage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar su cuenta.");
+    expect(screen.getByRole("button", { name: /reintentar/i })).toBeInTheDocument();
   });
 });
 
