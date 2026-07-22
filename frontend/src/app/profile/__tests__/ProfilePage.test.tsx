@@ -681,6 +681,37 @@ describe("ProfilePage — profile photo upload (student/representante branch, ow
     expect(screen.getByTestId("foto-perfil-input")).toHaveAttribute("accept", "image/jpeg,image/png");
   });
 
+  it("renders normally (no error surfaced) when the supplementary fotoUrl fetch fails", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("estudiante"));
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      self: {
+        personaId: "1",
+        nombres: "Sofía",
+        apellidos: "Alumna",
+        fechaNacimiento: "2012-05-10",
+        ranking: { status: "unavailable", reason: "error" },
+        recentSessions: [],
+      },
+      representados: [],
+      membershipPlans: [],
+      memberships: [],
+    });
+    // Overrides the beforeEach default: the supplementary fetchMiPerfil()
+    // call (used only to read fotoUrl for the hero avatar) rejects, while
+    // the primary fetchStudentPortal data still resolves.
+    mockFetchMiPerfil.mockReset();
+    mockFetchMiPerfil.mockRejectedValueOnce(new Error("network error"));
+
+    render(<ProfilePage />);
+
+    await screen.findAllByText("Sofía Alumna");
+    // No alert/error surfaced — the failure is cosmetic-only (silent), and
+    // the avatar just falls back to the generic icon.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const hero = screen.getByTestId("profile-hero");
+    expect(within(hero).queryByRole("img", { name: /foto de perfil/i })).not.toBeInTheDocument();
+  });
+
   it("uploads the selected file and updates the hero avatar for a representante session (triangulation)", async () => {
     mockUseAuth.mockReturnValue(sessionForRole("representante"));
     mockFetchStudentPortal.mockResolvedValueOnce({
