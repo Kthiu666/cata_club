@@ -1,5 +1,5 @@
 /**
- * Component tests for GroupsPage — dropdown assign + justificativo
+ * Component tests for RankingPage — dropdown assign + justificativo
  * confirmation gating.
  * Covers: the unassigned-students section renders one dropdown/button per
  * student (not one button per student×nivel pair) and fires the same
@@ -11,7 +11,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
-import GroupsPage from "@/app/groups/page";
+import RankingPage from "@/app/ranking/page";
 import type { NivelConOcupacion } from "@/services/api";
 import type { Justificativo } from "@/types/domain";
 import type { MemberAccount } from "@/app/members/members-utils";
@@ -23,7 +23,7 @@ vi.mock("@/components/ProtectedRoute", () => ({
 // AppShell renders NotificationBell + needs next/navigation, next/link,
 // next/image, AuthContext — same minimal mock pattern as PaymentsPage.test.tsx.
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/groups",
+  usePathname: () => "/ranking",
   useRouter: () => ({ push: vi.fn() }),
 }));
 
@@ -152,12 +152,12 @@ const PENDING_JUSTIFICATIVO: Justificativo = {
 };
 
 async function findUnassignedRow(): Promise<HTMLElement> {
-  const heading = await screen.findByText(/^estudiantes sin grupo/i);
+  const heading = await screen.findByText(/^estudiantes sin nivel/i);
   const section = heading.closest("div.card") as HTMLElement;
   return within(section).getByText("Sofía González").closest("div.card-hover") as HTMLElement;
 }
 
-describe.skip("GroupsPage — unassigned dropdown assign (MOVED to RankingPage — issue #43)", () => {
+describe("RankingPage — unassigned dropdown assign", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();
     mockAssignStudentToNivel.mockReset();
@@ -170,7 +170,7 @@ describe.skip("GroupsPage — unassigned dropdown assign (MOVED to RankingPage �
   });
 
   it("renders one dropdown + Asignar button per unassigned student, not one button per nivel", async () => {
-    render(<GroupsPage />);
+    render(<RankingPage />);
     const row = await findUnassignedRow();
 
     const select = within(row).getByRole("combobox");
@@ -183,7 +183,7 @@ describe.skip("GroupsPage — unassigned dropdown assign (MOVED to RankingPage �
   });
 
   it("fires handleAssignStudent's mutation with the nivel picked from the dropdown", async () => {
-    render(<GroupsPage />);
+    render(<RankingPage />);
     const row = await findUnassignedRow();
 
     const select = within(row).getByRole("combobox");
@@ -196,7 +196,7 @@ describe.skip("GroupsPage — unassigned dropdown assign (MOVED to RankingPage �
   });
 
   it("disables the Asignar button until a nivel is picked", async () => {
-    render(<GroupsPage />);
+    render(<RankingPage />);
     const row = await findUnassignedRow();
 
     const assignButton = within(row).getByRole("button", { name: /asignar/i });
@@ -208,7 +208,7 @@ describe.skip("GroupsPage — unassigned dropdown assign (MOVED to RankingPage �
   });
 });
 
-describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating (MOVED to RankingPage — issue #44)", () => {
+describe("RankingPage — justificativo Aprobar/Rechazar confirmation gating", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();
     mockAssignStudentToNivel.mockReset();
@@ -221,7 +221,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("opens a confirmation dialog on Aprobar without mutating yet", async () => {
-    render(<GroupsPage />);
+    render(<RankingPage />);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^aprobar$/i }));
@@ -231,7 +231,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("evaluates as APROBADO only after the confirm control is activated", async () => {
-    render(<GroupsPage />);
+    render(<RankingPage />);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^aprobar$/i }));
@@ -243,7 +243,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("reveals an inline reason input on Rechazar instead of a plain confirm dialog", async () => {
-    render(<GroupsPage />);
+    render(<RankingPage />);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
@@ -254,7 +254,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("cancels the reject form without mutating", async () => {
-    render(<GroupsPage />);
+    render(<RankingPage />);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
@@ -265,7 +265,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("shows a client-side error and does not call evaluarJustificativo when submitting an empty reason", async () => {
-    render(<GroupsPage />);
+    render(<RankingPage />);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
@@ -276,7 +276,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("calls evaluarJustificativo with the trimmed motivoRechazo when a reason is typed and submitted", async () => {
-    render(<GroupsPage />);
+    render(<RankingPage />);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
@@ -294,7 +294,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 });
 
-describe("GroupsPage — Selección Oficial extracted to its own route (PR9)", () => {
+describe("RankingPage — Selección Oficial extracted to its own route (PR9)", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();
     mockFetchJustificativosPendientes.mockReset();
@@ -303,8 +303,8 @@ describe("GroupsPage — Selección Oficial extracted to its own route (PR9)", (
   });
 
   it("no longer renders the Selección Oficial section inline", async () => {
-    render(<GroupsPage />);
-    await screen.findByText(/horarios de entrenamiento/i);
+    render(<RankingPage />);
+    await screen.findByText(/^estudiantes sin nivel/i);
 
     // Scoped to <main> — the sidebar nav link text ("Selección Oficial",
     // now pointing at the dedicated route) legitimately still renders there.

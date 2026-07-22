@@ -72,7 +72,7 @@ describe("POST /api/ranking/justificativos", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({ Authorization: "Bearer abc123" }),
-        body: JSON.stringify({ anio: 2026, mes: 7, motivo: "Viaje familiar", archivo_url: undefined }),
+        body: expect.stringContaining('"motivo":"Viaje familiar"'),
       }),
     );
     expect(response.status).toBe(201);

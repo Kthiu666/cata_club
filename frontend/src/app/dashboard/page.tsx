@@ -48,9 +48,9 @@ const quickActions = [
   },
   {
     icon: UserPlus,
-    label: "Gestionar Grupos",
-    href: "/groups",
-    description: "Grupos de entrenamiento, niveles técnicos y asignación de estudiantes",
+    label: "Ranking",
+    href: "/ranking",
+    description: "Niveles competitivos, asignación de estudiantes y justificativos",
   },
   {
     icon: Calendar,

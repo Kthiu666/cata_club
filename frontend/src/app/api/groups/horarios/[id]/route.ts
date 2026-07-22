@@ -1,0 +1,119 @@
+/**
+ * BFF proxy — PUT/DELETE /api/groups/horarios/[id]
+ *
+ * PUT: updates a training schedule.
+ * DELETE: removes a training schedule.
+ * Proxies to FastAPI's PUT/DELETE /asistencias/horarios/{id}.
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import {
+  extractAccessToken,
+  parseJsonBody,
+  parseJsonResponse,
+  extractBackendErrorMessage,
+  handleProxyError,
+  backendTimeout,
+  backendUrl,
+  unauthorizedResponse,
+  badRequestResponse,
+} from "@/lib/server/bff-helpers";
+
+interface ActualizarHorarioBody {
+  dia_semana?: unknown;
+  hora_inicio?: unknown;
+  hora_fin?: unknown;
+  entrenador_id?: unknown;
+  nivel_ranking_id?: unknown;
+}
+
+function buildBackendUrl(id: string): string {
+  return backendUrl(`/asistencias/horarios/${encodeURIComponent(id)}`);
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } },
+): Promise<NextResponse> {
+  const accessToken = extractAccessToken(request);
+  if (!accessToken) return unauthorizedResponse();
+
+  const [rawBody, bodyError] = await parseJsonBody(request);
+  if (bodyError) return bodyError;
+
+  const body = rawBody as ActualizarHorarioBody;
+  const UPDATABLE_FIELDS: Array<[keyof ActualizarHorarioBody, string]> = [
+    ["dia_semana", "dia_semana"],
+    ["hora_inicio", "hora_inicio"],
+    ["hora_fin", "hora_fin"],
+    ["entrenador_id", "entrenador_id"],
+    ["nivel_ranking_id", "nivel_ranking_id"],
+  ];
+  const payload: Record<string, unknown> = {};
+  for (const [key, field] of UPDATABLE_FIELDS) {
+    if (body[key] !== undefined) payload[field] = body[key];
+  }
+
+  if (Object.keys(payload).length === 0) {
+    return badRequestResponse("No se proporcionaron campos para actualizar.");
+  }
+
+  const [controller, done] = backendTimeout();
+  try {
+    const response = await fetch(buildBackendUrl(params.id), {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    const data = await parseJsonResponse(response);
+
+    if (!response.ok) {
+      return NextResponse.json(
+        { message: extractBackendErrorMessage(data, response.status) },
+        { status: response.status },
+      );
+    }
+
+    return NextResponse.json(data, { status: 200 });
+  } catch (error: unknown) {
+    return handleProxyError(error);
+  } finally {
+    done();
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } },
+): Promise<NextResponse> {
+  const accessToken = extractAccessToken(request);
+  if (!accessToken) return unauthorizedResponse();
+
+  const [controller, done] = backendTimeout();
+  try {
+    const response = await fetch(buildBackendUrl(params.id), {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const data = await parseJsonResponse(response);
+      return NextResponse.json(
+        { message: extractBackendErrorMessage(data, response.status) },
+        { status: response.status },
+      );
+    }
+
+    return new NextResponse(null, { status: 204 });
+  } catch (error: unknown) {
+    return handleProxyError(error);
+  } finally {
+    done();
+  }
+}

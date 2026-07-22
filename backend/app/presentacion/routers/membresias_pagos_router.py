@@ -64,6 +64,25 @@ async def listar_membresias(
 
 
 @router.get(
+    "/mias",
+    response_model=List[MembresiaResponseDTO],
+    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
+)
+async def listar_mis_membresias(
+    persona_id: Optional[int] = Query(default=None, ge=1),
+    db: Session = Depends(obtener_sesion),
+    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
+):
+    """Lists JWT-owner memberships, or an explicitly authorized dependent."""
+    objetivo = persona_id if persona_id is not None else token_payload.get("persona_id")
+    return MembresiaServicio(db).listar_membresias_por_persona(
+        persona_id_objetivo=objetivo,
+        persona_id_solicitante=token_payload.get("persona_id"),
+        roles_solicitante=token_payload.get("roles", []),
+    )
+
+
+@router.get(
     "/persona/{persona_id}",
     response_model=List[MembresiaResponseDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
@@ -123,8 +142,16 @@ def obtener_estadisticas_membresias(db: Session = Depends(obtener_sesion)):
     response_model=MembresiaResponseDTO,
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
-async def obtener_membresia(membresia_id: int, db: Session = Depends(obtener_sesion)):
-    return MembresiaServicio(db).obtener_membresia(membresia_id)
+async def obtener_membresia(
+    membresia_id: int,
+    db: Session = Depends(obtener_sesion),
+    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
+):
+    return MembresiaServicio(db).obtener_membresia(
+        membresia_id,
+        persona_id_solicitante=token_payload.get("persona_id"),
+        roles_solicitante=token_payload.get("roles", []),
+    )
 # Registra un pago pendiente. A diferencia de antes, ya NO basta con estar
 # autenticado con cualquier rol: se exige ser el dueño (persona_id del token
 # == persona_id del payload) o ADMINISTRADOR, igual que en /voucher. Antes

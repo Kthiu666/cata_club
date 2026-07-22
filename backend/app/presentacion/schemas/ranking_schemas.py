@@ -121,6 +121,7 @@ class JustificativoCreateDTO(BaseModel):
     mes: int = Field(..., ge=1, le=12)
     motivo: str = Field(..., max_length=255)
     archivo_url: Optional[str] = None
+    observaciones: Optional[str] = Field(default=None, max_length=500)
 
 
 class JustificativoEvaluarDTO(BaseModel):
@@ -142,6 +143,7 @@ class JustificativoResponseDTO(ResponseBase, BaseModel):
     mes: int
     motivo: str
     archivo_url: Optional[str] = None
+    observaciones: Optional[str] = None
     estado: EstadoJustificativoRanking
     motivo_rechazo: Optional[str] = None
     fecha_solicitud: datetime
@@ -160,6 +162,13 @@ class ReingresoResponseDTO(ResponseBase, BaseModel):
 class SeleccionOficialDTO(BaseModel):
     persona_ids: List[int]
     anio: int = Field(..., ge=2020)
+
+
+class SeleccionOficialItemDTO(ResponseBase, BaseModel):
+    """Item del roster de selección oficial para listado."""
+    persona_id: int
+    persona_nombre_completo: str
+    anio_seleccion: Optional[int] = None
 
 
 # --- Perfil del alumno (E04-RF012) ------------------------------------------

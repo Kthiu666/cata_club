@@ -97,6 +97,13 @@ export interface MembershipPlanView {
   modalidad: string;
 }
 
+/** Membership DTO returned by the JWT-scoped `/membresias/mias` contract. */
+export interface BackendMembresiaPropia {
+  id: number;
+  estado: string;
+  personaId: number;
+}
+
 export function buildMembershipPlans(tipos: BackendTipoMembresiaCatalogo[]): MembershipPlanView[] {
   return tipos.map((tipo) => ({
     id: String(tipo.id),
@@ -113,6 +120,7 @@ export interface StudentPortalView {
   representados: StudentProfileView[];
   /** Real `TipoMembresia` catalog (`GET /membresias/tipos`, open to any authenticated caller) — used to show real plan options instead of the old hardcoded `membershipPlans` array. */
   membershipPlans: MembershipPlanView[];
+  memberships: BackendMembresiaPropia[];
 }
 
 // ---------------------------------------------------------------------------

@@ -16,6 +16,7 @@ import {
   backendFetch,
   backendRefresh,
   isNearExpiry,
+  setAuthCookies,
   type AuthErrorCode,
 } from "@/lib/server/auth";
 
@@ -129,4 +130,25 @@ export async function passthroughBackendError(response: Response, fallback: stri
     // ignore parse errors — use fallback
   }
   return NextResponse.json({ message }, { status: response.status });
+}
+
+/**
+ * Shared `GET` proxy for the common case: authenticate, relay the backend's
+ * JSON body as-is, pass through backend/HTTP errors, and forward a refreshed
+ * access-token cookie. Extracted so simple passthrough routes don't
+ * reimplement this same sequence per resource.
+ */
+export async function proxyBackendGet(request: NextRequest, path: string, errorMessage: string): Promise<NextResponse> {
+  const result = await backendFetchAuthed(request, path);
+  if (!result.ok) {
+    return NextResponse.json({ message: errorMessage }, { status: result.status });
+  }
+  if (!result.response.ok) {
+    return passthroughBackendError(result.response, errorMessage);
+  }
+  const response = NextResponse.json(await result.response.json());
+  if (result.refreshedAccessToken) {
+    setAuthCookies(response, { accessToken: result.refreshedAccessToken });
+  }
+  return response;
 }

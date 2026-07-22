@@ -466,9 +466,6 @@ export interface CierreMensual {
 export interface SeleccionOficial {
   id: string;
   estudianteId: string;
-  categoria: CategoriaRanking;
-  /** Period this selection applies to, "YYYY-MM". */
-  periodo: string;
   seleccionadoPor: string;
   createdAt: string;
 }
@@ -556,6 +553,7 @@ export interface Justificativo {
   mes: number;
   motivo: string;
   archivoUrl: string | null;
+  observaciones: string | null;
   estado: EstadoJustificativoRanking;
   motivoRechazo: string | null;
   fechaSolicitud: string;
