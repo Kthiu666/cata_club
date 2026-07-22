@@ -66,10 +66,18 @@ async def listar_membresias(
 @router.get(
     "/persona/{persona_id}",
     response_model=List[MembresiaResponseDTO],
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
+    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
-async def listar_membresias_por_persona(persona_id: int, db: Session = Depends(obtener_sesion)):
-    return MembresiaServicio(db).listar_membresias_por_persona(persona_id)
+async def listar_membresias_por_persona(
+    persona_id: int,
+    db: Session = Depends(obtener_sesion),
+    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
+):
+    return MembresiaServicio(db).listar_membresias_por_persona(
+        persona_id_objetivo=persona_id,
+        persona_id_solicitante=token_payload.get("persona_id"),
+        roles_solicitante=token_payload.get("roles", []),
+    )
 
 
 # --- Pago ---
