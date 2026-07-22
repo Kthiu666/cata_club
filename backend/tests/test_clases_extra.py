@@ -109,3 +109,55 @@ def test_aprobar_clase_extra_requiere_costo_adicional(client, db_session):
     assert resp.status_code == 200
     assert resp.json()["estado"] == "APROBADA"
     assert resp.json()["costoAdicional"] == "8.50"
+
+
+def test_listar_pendientes_requiere_admin(client_sin_permisos):
+    resp = client_sin_permisos.get("/api/v1/clases-extra/pendientes")
+    assert resp.status_code == 403
+
+
+def test_listar_pendientes_incluye_datos_enriquecidos(client, db_session):
+    persona = _crear_persona_api(client)
+    membresia = _crear_membresia(client, persona["id"], "PERSONALIZADA")
+    horario = _crear_horario(client, db_session)
+    solicitud = client.post(
+        "/api/v1/clases-extra/",
+        json={
+            "fecha_clase_solicitada": "2026-07-14",
+            "persona_id": persona["id"], "membresia_id": membresia["id"], "horario_id": horario["id"],
+        },
+    ).json()
+
+    resp = client.get("/api/v1/clases-extra/pendientes")
+    assert resp.status_code == 200
+    pendientes = resp.json()
+    assert len(pendientes) == 1
+    item = pendientes[0]
+    assert item["id"] == solicitud["id"]
+    assert item["personaId"] == persona["id"]
+    assert item["personaNombreCompleto"] == f"{persona['nombres']} {persona['apellidos']}"
+    assert item["horarioId"] == horario["id"]
+    assert item["horarioDiaSemana"] == "MARTES"
+    assert item["horarioHoraInicio"] == "17:00:00"
+    assert item["horarioHoraFin"] == "18:00:00"
+
+
+def test_listar_pendientes_excluye_aprobadas_y_rechazadas(client, db_session):
+    persona = _crear_persona_api(client)
+    membresia = _crear_membresia(client, persona["id"], "PERSONALIZADA")
+    horario = _crear_horario(client, db_session)
+    solicitud = client.post(
+        "/api/v1/clases-extra/",
+        json={
+            "fecha_clase_solicitada": "2026-07-14",
+            "persona_id": persona["id"], "membresia_id": membresia["id"], "horario_id": horario["id"],
+        },
+    ).json()
+    client.patch(
+        f"/api/v1/clases-extra/{solicitud['id']}/resolver",
+        json={"estado": "APROBADA", "costo_adicional": "8.50"},
+    )
+
+    resp = client.get("/api/v1/clases-extra/pendientes")
+    assert resp.status_code == 200
+    assert resp.json() == []

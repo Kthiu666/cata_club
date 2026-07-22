@@ -270,8 +270,12 @@ export interface SolicitudClaseExtra {
   fechaSolicitud: string;
   observaciones: string | null;
   personaId: number;
+  personaNombreCompleto?: string;
   membresiaId: number;
   horarioId: number;
+  horarioDiaSemana?: string;
+  horarioHoraInicio?: string;
+  horarioHoraFin?: string;
 }
 
 /** Payload to create an extra-class request (snake_case is sent to backend). */

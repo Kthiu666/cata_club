@@ -923,6 +923,11 @@ export async function listarClasesExtra(personaId: number): Promise<SolicitudCla
   return request<SolicitudClaseExtra[]>(apiEndpoint(`/clases-extra/persona/${personaId}`));
 }
 
+/** Admin-only: list all pending extra-class requests. */
+export async function fetchClasesExtraPendientes(): Promise<SolicitudClaseExtra[]> {
+  return request<SolicitudClaseExtra[]>(apiEndpoint("/clases-extra/pendientes"));
+}
+
 /** Admin-only: approve or reject an extra-class request. */
 export async function resolverClaseExtra(
   id: number,
