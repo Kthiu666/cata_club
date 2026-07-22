@@ -5,8 +5,8 @@ idempotent script that runs automatically on every container start (when
 AMBIENTE=development). Safe to re-run — uses check-before-insert everywhere.
 
 Creates:
-  - 1 Admin account         (admin@cataclub.test / admin12345)
-  - 1 Trainer account       (entrenador@cataclub.test / trainer12345)
+  - 1 Admin account         (admin@cataclub.com / admin12345)
+  - 1 Trainer account       (entrenador@cataclub.com / trainer12345)
   - 5 weekly schedules      (Mon-Fri, 5 categories)
   - 11 ranking levels       (1A .. 10)
   - 2 membership types      (Mensual Infantil, Mensual Adultos)
@@ -14,8 +14,8 @@ Creates:
   - 3 self-managed students (Ana, Luis, Maria — sin representante)
 
 Login credentials:
-  Admin:      admin@cataclub.test       / admin12345
-  Trainer:    entrenador@cataclub.test   / trainer12345
+  Admin:      admin@cataclub.com       / admin12345
+  Trainer:    entrenador@cataclub.com   / trainer12345
   Representante 1: (auto-generated email) / shared_password
   Representante 2: (auto-generated email) / shared_password
 
@@ -59,11 +59,11 @@ from app.seguridad.gestor_auth import GestorAutenticacion
 # Credentials
 # ---------------------------------------------------------------------------
 ADMIN_CEDULA = "0000000001"
-ADMIN_CORREO = "admin@cataclub.test"
+ADMIN_CORREO = "admin@cataclub.com"
 ADMIN_CONTRASENIA = "admin12345"
 
 TRAINER_CEDULA = "0000000002"
-TRAINER_CORREO = "entrenador@cataclub.test"
+TRAINER_CORREO = "entrenador@cataclub.com"
 TRAINER_CONTRASENIA = "trainer12345"
 
 # ---------------------------------------------------------------------------
@@ -127,7 +127,7 @@ ALUMNOS = [
         "nombres": "Ana",
         "apellidos": "Garcia",
         "cedula": "0000000003",
-        "correo": "ana@cataclub.test",
+        "correo": "ana@cataclub.com",
         "contrasenia": "alumno123",
         "telefono": "0971111111",
         "nivel_ranking_id": 2,
@@ -137,7 +137,7 @@ ALUMNOS = [
         "nombres": "Luis",
         "apellidos": "Lopez",
         "cedula": "0000000004",
-        "correo": "luis@cataclub.test",
+        "correo": "luis@cataclub.com",
         "contrasenia": "alumno123",
         "telefono": "0972222222",
         "nivel_ranking_id": 1,
@@ -147,7 +147,7 @@ ALUMNOS = [
         "nombres": "Maria",
         "apellidos": "Torres",
         "cedula": "0000000005",
-        "correo": "maria@cataclub.test",
+        "correo": "maria@cataclub.com",
         "contrasenia": "alumno123",
         "telefono": "0973333333",
         "nivel_ranking_id": 6,
@@ -164,14 +164,14 @@ REPRESENTANTES = [
             "nombres": "Laura",
             "apellidos": "Vera",
             "cedula": "0000000010",
-            "correo": "laura@cataclub.test",
+            "correo": "laura@cataclub.com",
             "telefono": "0981000010",
         },
         "hijo": {
             "nombres": "Sofia",
             "apellidos": "Vera",
             "cedula": "0000000011",
-            "correo": "sofia@cataclub.test",
+            "correo": "sofia@cataclub.com",
             "telefono": "0981000011",
             "edad_anios": 10,
             "nivel_ranking_id": 4,
@@ -183,14 +183,14 @@ REPRESENTANTES = [
             "nombres": "Carlos",
             "apellidos": "Mendoza",
             "cedula": "0000000012",
-            "correo": "carlos@cataclub.test",
+            "correo": "carlos@cataclub.com",
             "telefono": "0981000012",
         },
         "hijo": {
             "nombres": "Diego",
             "apellidos": "Mendoza",
             "cedula": "0000000013",
-            "correo": "diego@cataclub.test",
+            "correo": "diego@cataclub.com",
             "telefono": "0981000013",
             "edad_anios": 12,
             "nivel_ranking_id": 3,
