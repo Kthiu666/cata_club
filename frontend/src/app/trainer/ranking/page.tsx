@@ -269,62 +269,29 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
     }
   }
 
-  return (
-    <div className="card overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-cata-border px-5 py-4">
-        <div className="flex items-center gap-2">
-          <Users size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-          <h2 className="text-sm font-bold text-cata-text">Estudiantes ({filteredStudents.length})</h2>
-        </div>
-        <div className="relative w-full max-w-xs">
-          <Search
-            size={14}
-            strokeWidth={1.5}
-            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
-            aria-hidden="true"
-          />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar alumno..."
-            className="input-field pl-9"
-            aria-label="Buscar alumno"
-          />
-        </div>
+  let tableSection: React.ReactElement;
+  if (loading) {
+    tableSection = (
+      <div className="flex flex-col items-center py-12 text-center">
+        <p className="text-sm text-cata-text/50">Cargando estudiantes…</p>
       </div>
-
-      {error && (
-        <div className="alert-error mx-5 mt-4" role="alert">
-          {error}
-        </div>
-      )}
-
-      {(() => {
-        if (loading) {
-          return (
-            <div className="flex flex-col items-center py-12 text-center">
-              <p className="text-sm text-cata-text/50">Cargando estudiantes…</p>
-            </div>
-          );
-        }
-        if (students.length === 0) {
-          return (
-            <div className="flex flex-col items-center py-12 text-center">
-              <Users size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
-              <p className="text-sm text-cata-text/50">No hay estudiantes registrados.</p>
-            </div>
-          );
-        }
-        if (filteredStudents.length === 0) {
-          return (
-            <div className="flex flex-col items-center py-12 text-center">
-              <Search size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
-              <p className="text-sm text-cata-text/50">Ningún estudiante coincide con la búsqueda.</p>
-            </div>
-          );
-        }
-        return (
+    );
+  } else if (students.length === 0) {
+    tableSection = (
+      <div className="flex flex-col items-center py-12 text-center">
+        <Users size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
+        <p className="text-sm text-cata-text/50">No hay estudiantes registrados.</p>
+      </div>
+    );
+  } else if (filteredStudents.length === 0) {
+    tableSection = (
+      <div className="flex flex-col items-center py-12 text-center">
+        <Search size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
+        <p className="text-sm text-cata-text/50">Ningún estudiante coincide con la búsqueda.</p>
+      </div>
+    );
+  } else {
+    tableSection = (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
@@ -403,8 +370,41 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
             </tbody>
           </table>
         </div>
-        );
-      })()}
+    );
+  }
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-cata-border px-5 py-4">
+        <div className="flex items-center gap-2">
+          <Users size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          <h2 className="text-sm font-bold text-cata-text">Estudiantes ({filteredStudents.length})</h2>
+        </div>
+        <div className="relative w-full max-w-xs">
+          <Search
+            size={14}
+            strokeWidth={1.5}
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
+            aria-hidden="true"
+          />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar alumno..."
+            className="input-field pl-9"
+            aria-label="Buscar alumno"
+          />
+        </div>
+      </div>
+
+      {error && (
+        <div className="alert-error mx-5 mt-4" role="alert">
+          {error}
+        </div>
+      )}
+
+      {tableSection}
     </div>
   );
 }

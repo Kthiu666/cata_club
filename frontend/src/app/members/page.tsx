@@ -798,6 +798,8 @@ function AccountRow({
   // the dialog is conditionally rendered, not toggled via its `open`
   // attribute, so the JSX onCancel handler only preventDefaults the native
   // auto-close to avoid it and this listener double-toggling React state.
+  // The backdrop-click listener is attached imperatively (not as a JSX
+  // onClick on the <dialog>) since the element itself is non-interactive.
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!editModalOpen || !dialog) return;
@@ -810,11 +812,16 @@ function AccountRow({
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.key === "Escape") onToggleEditModal();
     }
+    function handleBackdropClick(event: MouseEvent): void {
+      if (event.target === dialog) onToggleEditModal();
+    }
 
     document.addEventListener("keydown", handleKeyDown);
+    dialog.addEventListener("click", handleBackdropClick);
     const triggerElement = editTriggerRef.current;
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      dialog.removeEventListener("click", handleBackdropClick);
       triggerElement?.focus();
     };
   }, [editModalOpen, onToggleEditModal]);
@@ -914,9 +921,6 @@ function AccountRow({
             aria-modal="true"
             aria-labelledby={`edit-member-title-${account.id}`}
             onCancel={(event) => event.preventDefault()}
-            onClick={(event) => {
-              if (event.target === event.currentTarget) onToggleEditModal();
-            }}
             className="card fixed inset-0 z-50 m-auto h-fit max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto p-6 backdrop:bg-cata-black/40"
           >
             <div className="mb-4 flex items-center justify-between">
