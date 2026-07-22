@@ -629,18 +629,13 @@ def _crear_alumno_con_representante(client, cedula, representante_id):
     ).json()
 
 
-def test_e04_rf002_primera_membresia_familiar_sin_gratuidad(client):
-    """1er miembro de la familia: precio normal, sin gratuidad."""
-    from decimal import Decimal
-
-    representante = _crear_persona(client, cedula="1700000011")
-    alumno = _crear_alumno_con_representante(client, "1700000012", representante["id"])
-    tipo = _crear_tipo_membresia(client)
+def _crear_membresia_activa(client, persona_id, tipo_membresia_id):
+    """Crea una membresía y aprueba su pago. Devuelve (membresia, resp_validacion)."""
     membresia = client.post(
         "/api/v1/membresias/",
         json={
             "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
-            "persona_id": alumno["id"], "tipo_membresia_id": tipo["id"],
+            "persona_id": persona_id, "tipo_membresia_id": tipo_membresia_id,
         },
     ).json()
     pago = client.post(
@@ -648,10 +643,21 @@ def test_e04_rf002_primera_membresia_familiar_sin_gratuidad(client):
         json={
             "monto": "35.00", "tipo_pago": "EFECTIVO",
             "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
-            "persona_id": alumno["id"], "membresia_id": membresia["id"],
+            "persona_id": persona_id, "membresia_id": membresia["id"],
         },
     ).json()
     resp = client.patch(f"/api/v1/membresias/pagos/{pago['id']}/validar", json={"estado_pago": "APROBADO"})
+    return membresia, resp
+
+
+def test_e04_rf002_primera_membresia_familiar_sin_gratuidad(client):
+    """1er miembro de la familia: precio normal, sin gratuidad."""
+    from decimal import Decimal
+
+    representante = _crear_persona(client, cedula="1700000011")
+    alumno = _crear_alumno_con_representante(client, "1700000012", representante["id"])
+    tipo = _crear_tipo_membresia(client)
+    membresia, resp = _crear_membresia_activa(client, alumno["id"], tipo["id"])
     assert resp.status_code == 200
     membresia_actualizada = client.get(f"/api/v1/membresias/{membresia['id']}").json()
     assert membresia_actualizada["estado"] == "ACTIVA"
@@ -668,47 +674,14 @@ def test_e04_rf002_cuarta_membresia_familiar_con_gratuidad(client):
     tipo = _crear_tipo_membresia(client)
 
     # Crear 3 membresías aprobadas (familia con 3 miembros activos)
-    alum_ids = []
     for i in range(3):
         alumno = _crear_alumno_con_representante(client, f"170000002{i + 2}", representante["id"])
-        alum_ids.append(alumno["id"])
-        membresia = client.post(
-            "/api/v1/membresias/",
-            json={
-                "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
-                "persona_id": alumno["id"], "tipo_membresia_id": tipo["id"],
-            },
-        ).json()
-        pago = client.post(
-            "/api/v1/membresias/pagos",
-            json={
-                "monto": "35.00", "tipo_pago": "EFECTIVO",
-                "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
-                "persona_id": alumno["id"], "membresia_id": membresia["id"],
-            },
-        ).json()
-        resp = client.patch(f"/api/v1/membresias/pagos/{pago['id']}/validar", json={"estado_pago": "APROBADO"})
+        _, resp = _crear_membresia_activa(client, alumno["id"], tipo["id"])
         assert resp.status_code == 200
 
     # 4ta membresía: debe recibir gratuidad familiar
     alumno_4 = _crear_alumno_con_representante(client, "1700000025", representante["id"])
-    alum_ids.append(alumno_4["id"])
-    membresia_4 = client.post(
-        "/api/v1/membresias/",
-        json={
-            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
-            "persona_id": alumno_4["id"], "tipo_membresia_id": tipo["id"],
-        },
-    ).json()
-    pago_4 = client.post(
-        "/api/v1/membresias/pagos",
-        json={
-            "monto": "35.00", "tipo_pago": "EFECTIVO",
-            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
-            "persona_id": alumno_4["id"], "membresia_id": membresia_4["id"],
-        },
-    ).json()
-    resp = client.patch(f"/api/v1/membresias/pagos/{pago_4['id']}/validar", json={"estado_pago": "APROBADO"})
+    membresia_4, resp = _crear_membresia_activa(client, alumno_4["id"], tipo["id"])
     assert resp.status_code == 200
     membresia_4_actualizada = client.get(f"/api/v1/membresias/{membresia_4['id']}").json()
     assert membresia_4_actualizada["estado"] == "ACTIVA"
@@ -726,41 +699,11 @@ def test_e04_rf002_tercera_membresia_familiar_sin_gratuidad(client):
     # Crear 2 membresías activas primero
     for i in range(2):
         alumno = _crear_alumno_con_representante(client, f"170000003{i + 2}", representante["id"])
-        membresia = client.post(
-            "/api/v1/membresias/",
-            json={
-                "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
-                "persona_id": alumno["id"], "tipo_membresia_id": tipo["id"],
-            },
-        ).json()
-        pago = client.post(
-            "/api/v1/membresias/pagos",
-            json={
-                "monto": "35.00", "tipo_pago": "EFECTIVO",
-                "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
-                "persona_id": alumno["id"], "membresia_id": membresia["id"],
-            },
-        ).json()
-        client.patch(f"/api/v1/membresias/pagos/{pago['id']}/validar", json={"estado_pago": "APROBADO"})
+        _crear_membresia_activa(client, alumno["id"], tipo["id"])
 
     # 3ra membresía: NO debe tener gratuidad (umbral es 4, no 3)
     alumno_3 = _crear_alumno_con_representante(client, "1700000034", representante["id"])
-    membresia_3 = client.post(
-        "/api/v1/membresias/",
-        json={
-            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
-            "persona_id": alumno_3["id"], "tipo_membresia_id": tipo["id"],
-        },
-    ).json()
-    pago_3 = client.post(
-        "/api/v1/membresias/pagos",
-        json={
-            "monto": "35.00", "tipo_pago": "EFECTIVO",
-            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
-            "persona_id": alumno_3["id"], "membresia_id": membresia_3["id"],
-        },
-    ).json()
-    resp = client.patch(f"/api/v1/membresias/pagos/{pago_3['id']}/validar", json={"estado_pago": "APROBADO"})
+    membresia_3, resp = _crear_membresia_activa(client, alumno_3["id"], tipo["id"])
     assert resp.status_code == 200
     membresia_3_actualizada = client.get(f"/api/v1/membresias/{membresia_3['id']}").json()
     assert membresia_3_actualizada["estado"] == "ACTIVA"
