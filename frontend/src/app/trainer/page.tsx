@@ -31,12 +31,42 @@ import { fetchTrainingSchedules, fetchAttendanceRecords } from "@/services/api";
 import {
   buildAttendanceStats,
   jsDayIndexToDiaSemana,
+  getAttendanceBadgeTokens,
+  ATTENDANCE_LABELS,
+  formatDay,
   type AttendanceRecord,
   type TrainingSchedule,
 } from "@/app/attendance/attendance-utils";
+import { recentDateRange } from "./trainer-panel-utils";
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+interface AttendanceStateBadgeProps {
+  estado: AttendanceRecord["estado"];
+}
+
+/**
+ * Local equivalent of the admin `AttendancePage`'s (unexported) badge —
+ * reuses the SAME shared color tokens/labels so estado colors stay
+ * byte-identical to the admin view instead of a second drifting mapping.
+ */
+function AttendanceStateBadge({ estado }: AttendanceStateBadgeProps): React.ReactElement {
+  const { badgeClass } = getAttendanceBadgeTokens(estado);
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass}`}>
+      {ATTENDANCE_LABELS[estado] ?? "Desconocido"}
+    </span>
+  );
+}
+
+/** Filter state for the "Asistencias Recientes" list — date range + optional horario. */
+interface RecentAttendanceFilters {
+  fechaInicio: string;
+  fechaFin: string;
+  /** "" means "todos los horarios". */
+  horarioId: string;
 }
 
 export default function TrainerPage(): React.ReactElement {
@@ -44,6 +74,14 @@ export default function TrainerPage(): React.ReactElement {
   const [todayRecords, setTodayRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [filters, setFilters] = useState<RecentAttendanceFilters>(() => {
+    const { fechaInicio, fechaFin } = recentDateRange();
+    return { fechaInicio, fechaFin, horarioId: "" };
+  });
+  const [recentRecords, setRecentRecords] = useState<AttendanceRecord[]>([]);
+  const [recentLoading, setRecentLoading] = useState(true);
+  const [recentError, setRecentError] = useState<string | null>(null);
 
   const loadData = useCallback(async (): Promise<void> => {
     try {
@@ -64,9 +102,31 @@ export default function TrainerPage(): React.ReactElement {
     }
   }, []);
 
+  const loadRecentAttendance = useCallback(async (): Promise<void> => {
+    try {
+      setRecentLoading(true);
+      setRecentError(null);
+      const records = await fetchAttendanceRecords({
+        fechaInicio: filters.fechaInicio,
+        fechaFin: filters.fechaFin,
+        horarioId: filters.horarioId ? Number(filters.horarioId) : undefined,
+      });
+      setRecentRecords(records);
+    } catch (err) {
+      console.error("[trainer] loadRecentAttendance failed", err);
+      setRecentError("Error al cargar las asistencias recientes");
+    } finally {
+      setRecentLoading(false);
+    }
+  }, [filters]);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    loadRecentAttendance();
+  }, [loadRecentAttendance]);
 
   const todayDia = jsDayIndexToDiaSemana(new Date().getDay());
   const todaySchedules = schedules.filter((s) => s.diaSemana === todayDia);
@@ -163,6 +223,119 @@ export default function TrainerPage(): React.ReactElement {
           </div>
           </>
         )}
+
+        {/* Asistencias Recientes — filterable list, default: last 7 days */}
+        <div className="mb-8">
+          <div className="mb-4 flex items-center gap-2">
+            <UserCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            <h2 className="text-lg font-bold text-cata-text">Asistencias Recientes</h2>
+          </div>
+
+          {/* Filters */}
+          <div className="card mb-4 grid gap-4 p-4 sm:grid-cols-3">
+            <label className="block text-sm">
+              <span className="mb-1 block text-xs font-medium text-cata-text/65">Desde</span>
+              <input
+                type="date"
+                className="input-field"
+                aria-label="Filtrar desde fecha"
+                value={filters.fechaInicio}
+                onChange={(e) => setFilters((prev) => ({ ...prev, fechaInicio: e.target.value }))}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-xs font-medium text-cata-text/65">Hasta</span>
+              <input
+                type="date"
+                className="input-field"
+                aria-label="Filtrar hasta fecha"
+                value={filters.fechaFin}
+                onChange={(e) => setFilters((prev) => ({ ...prev, fechaFin: e.target.value }))}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-xs font-medium text-cata-text/65">Horario</span>
+              <select
+                className="input-field"
+                aria-label="Filtrar por horario"
+                value={filters.horarioId}
+                onChange={(e) => setFilters((prev) => ({ ...prev, horarioId: e.target.value }))}
+              >
+                <option value="">Todos los horarios</option>
+                {schedules.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {formatDay(s.diaSemana)} {s.horaInicio} — {s.horaFin}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {/* Loading state */}
+          {recentLoading && (
+            <div className="flex items-center justify-center py-16">
+              <div className="flex items-center gap-2">
+                <Clock size={16} strokeWidth={1.5} className="animate-spin text-cata-text/65" aria-hidden="true" />
+                <p className="text-sm text-cata-text/50">Cargando asistencias recientes...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Error state */}
+          {recentError && !recentLoading && (
+            <div className="card border border-red-200 bg-red-50 p-6 text-center">
+              <XCircle size={32} strokeWidth={1.5} className="mx-auto mb-3 text-red-700" aria-hidden="true" />
+              <p className="text-sm text-cata-red">{recentError}</p>
+              <button
+                type="button"
+                onClick={() => loadRecentAttendance()}
+                className="btn-ghost mt-3 text-xs text-cata-red"
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
+
+          {!recentLoading && !recentError && (
+            <>
+              {recentRecords.length > 0 ? (
+                <div className="card overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
+                          <th className="px-4 py-3 font-medium">Estudiante</th>
+                          <th className="px-4 py-3 font-medium">Fecha</th>
+                          <th className="px-4 py-3 font-medium">Horario</th>
+                          <th className="px-4 py-3 font-medium">Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-cata-border">
+                        {recentRecords.map((record) => (
+                          <tr key={record.id} className="transition-colors hover:bg-cata-bg">
+                            <td className="px-4 py-3 text-sm font-medium text-cata-text">{record.estudiante}</td>
+                            <td className="px-4 py-3 text-xs text-cata-text/65">{record.fecha}</td>
+                            <td className="px-4 py-3 text-xs text-cata-text">{record.horario}</td>
+                            <td className="px-4 py-3">
+                              <AttendanceStateBadge estado={record.estado} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div className="card flex flex-col items-center py-12 text-center">
+                  <UserCheck size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
+                  <p className="text-sm text-cata-text/50">
+                    No hay asistencias registradas en este rango.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </AppShell>
     </ProtectedRoute>
   );
