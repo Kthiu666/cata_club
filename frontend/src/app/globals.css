@@ -139,6 +139,21 @@
     border-color: rgba(185,28,28,0.3);
     color: #B91C1C;
   }
+
+  /* Toast notifications — colors match .alert-error / .badge-success exactly. */
+  .toast-error {
+    @apply flex items-start gap-2 rounded-lg border px-4 py-3 text-sm shadow-elevated;
+    background-color: rgba(185,28,28,0.1);
+    border-color: rgba(185,28,28,0.3);
+    color: #B91C1C;
+  }
+
+  .toast-success {
+    @apply flex items-start gap-2 rounded-lg border px-4 py-3 text-sm shadow-elevated;
+    background-color: rgba(21,128,61,0.12);
+    border-color: rgba(21,128,61,0.3);
+    color: #15803D;
+  }
 }
 
 /* Subtle background texture — premium spa/Swiss aesthetic */
@@ -150,5 +165,20 @@
 
   .bg-logo-glow {
     background: radial-gradient(ellipse 50% 60% at 50% 40%, rgba(217, 33, 40, 0.04) 0%, transparent 70%);
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(-0.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-toast-in {
+    animation: toast-in 0.2s ease-out;
   }
 }
