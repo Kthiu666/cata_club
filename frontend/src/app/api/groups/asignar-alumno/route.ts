@@ -9,11 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   extractAccessToken,
   parseJsonBody,
-  parseJsonResponse,
-  extractBackendErrorMessage,
-  handleProxyError,
-  backendTimeout,
-  backendUrl,
+  proxyToBackend,
   unauthorizedResponse,
   badRequestResponse,
 } from "@/lib/server/bff-helpers";
@@ -35,34 +31,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return badRequestResponse("persona_id y horario_id son obligatorios y deben ser numéricos.");
   }
 
-  const [controller, done] = backendTimeout();
-  try {
-    const response = await fetch(backendUrl("/asistencias/asignar-alumno"), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        persona_id: body.persona_id,
-        horario_id: body.horario_id,
-      }),
-      signal: controller.signal,
-    });
-
-    const data = await parseJsonResponse(response);
-
-    if (!response.ok) {
-      return NextResponse.json(
-        { message: extractBackendErrorMessage(data, response.status) },
-        { status: response.status },
-      );
-    }
-
-    return NextResponse.json(data, { status: 201 });
-  } catch (error: unknown) {
-    return handleProxyError(error);
-  } finally {
-    done();
-  }
+  return proxyToBackend("/asistencias/asignar-alumno", {
+    method: "POST",
+    accessToken,
+    successStatus: 201,
+    body: { persona_id: body.persona_id, horario_id: body.horario_id },
+  });
 }
