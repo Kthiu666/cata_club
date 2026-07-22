@@ -18,10 +18,12 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import Pagination from "@/components/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import {
   Calendar,
   Clock,
@@ -33,7 +35,6 @@ import {
   AlertTriangle,
   Clock3,
   HelpCircle,
-  ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import { fetchTrainingSchedules, fetchAttendanceRecords } from "@/services/api";
@@ -41,8 +42,6 @@ import {
   buildAttendanceStats,
   getAttendanceBadgeTokens,
   ATTENDANCE_LABELS,
-  paginateRecords,
-  getTotalPages,
   type AttendanceRecord,
   type TrainingSchedule,
 } from "./attendance-utils";
@@ -96,7 +95,6 @@ export default function AttendancePage(): React.ReactElement {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [recordsPage, setRecordsPage] = useState(1);
 
   const loadData = useCallback(async (): Promise<void> => {
     try {
@@ -120,19 +118,16 @@ export default function AttendancePage(): React.ReactElement {
     loadData();
   }, [loadData]);
 
-  // Reset to page 1 whenever the underlying records set changes (e.g. after
-  // a reload), so the paginator never gets stuck on a stale/out-of-range page.
-  useEffect(() => {
-    setRecordsPage(1);
-  }, [records]);
-
   const stats = buildAttendanceStats(records);
 
-  const recordsTotalPages = useMemo(() => getTotalPages(records.length), [records]);
-  const paginatedRecords = useMemo(
-    () => paginateRecords(records, recordsPage),
-    [records, recordsPage],
-  );
+  // usePagination resets to page 1 whenever `records` changes (e.g. after a
+  // reload), so the paginator never gets stuck on a stale/out-of-range page.
+  const {
+    page: recordsPage,
+    totalPages: recordsTotalPages,
+    currentItems: paginatedRecords,
+    setPage: setRecordsPage,
+  } = usePagination({ records });
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
@@ -287,33 +282,11 @@ export default function AttendancePage(): React.ReactElement {
                     </div>
                   </div>
 
-                  {recordsTotalPages > 1 && (
-                    <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
-                      <p className="text-sm font-semibold text-cata-text">
-                        Página {recordsPage} de {recordsTotalPages}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setRecordsPage((p) => Math.max(1, p - 1))}
-                          disabled={recordsPage <= 1}
-                          className="btn-secondary px-4 py-2 text-xs"
-                        >
-                          <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
-                          Anterior
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRecordsPage((p) => Math.min(recordsTotalPages, p + 1))}
-                          disabled={recordsPage >= recordsTotalPages}
-                          className="btn-secondary px-4 py-2 text-xs"
-                        >
-                          Siguiente
-                          <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  <Pagination
+                    page={recordsPage}
+                    totalPages={recordsTotalPages}
+                    onPageChange={setRecordsPage}
+                  />
                 </>
               ) : (
                 <div className="card flex flex-col items-center py-12 text-center">

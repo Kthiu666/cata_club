@@ -267,40 +267,19 @@ export function buildScheduleGroupMap(
 }
 
 // ---------------------------------------------------------------------------
-// Client-side pagination (PR3 — no backend page-through capability exists;
-// see design.md decision #3)
+// Client-side pagination (Issue #41 — pagination standardization)
+//
+// Corrected 25→10 and migrated onto the shared `usePagination.ts` hook.
+// `paginateRecords`/`getTotalPages` are re-exported here, unchanged in
+// signature, for backward compatibility with existing imports/tests — the
+// canonical implementation now lives in `@/hooks/usePagination`, shared
+// across ~22 other list pages (see design.md).
 // ---------------------------------------------------------------------------
 
+export { paginateRecords, getTotalPages } from "@/hooks/usePagination";
+
 /** Records per page for the attendance records table. */
-export const ATTENDANCE_PAGE_SIZE = 25;
-
-/**
- * Slice a (possibly already filtered) records list to a single page.
- *
- * `page` is 1-indexed. Returns an empty array when `page` is beyond the
- * available data — never throws or wraps around.
- */
-export function paginateRecords<T>(
-  records: T[],
-  page: number,
-  pageSize: number = ATTENDANCE_PAGE_SIZE,
-): T[] {
-  const start = (page - 1) * pageSize;
-  return records.slice(start, start + pageSize);
-}
-
-/**
- * Total number of pages for a given record count.
- *
- * Always returns at least 1 (never 0 pages, even for an empty list) so
- * "Página 1 de 1" is a valid state to render.
- */
-export function getTotalPages(
-  totalRecords: number,
-  pageSize: number = ATTENDANCE_PAGE_SIZE,
-): number {
-  return Math.max(1, Math.ceil(totalRecords / pageSize));
-}
+export const ATTENDANCE_PAGE_SIZE = 10;
 
 // ---------------------------------------------------------------------------
 // Schedule ↔ day grouping (PR3 — Horarios de Entrenamiento density)
