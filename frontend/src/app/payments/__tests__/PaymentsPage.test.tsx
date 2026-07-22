@@ -167,3 +167,48 @@ describe("PaymentsPage — unrelated happy path", () => {
     expect(screen.queryByRole("button", { name: /ayuda sobre/i })).not.toBeInTheDocument();
   });
 });
+
+function buildRequests(count: number): PaymentValidationRequest[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `req-${i + 1}`,
+    studentName: `Estudiante ${i + 1}`,
+    responsablePagoName: "Responsable",
+    membershipPeriod: "2026-Q1",
+    membershipType: "Mensual",
+    expectedAmount: 50,
+    paymentMethod: "Transferencia",
+    uploadedAt: "2026-07-01T10:00:00.000Z",
+    currentMembershipStatus: "vencida",
+    proofFileName: "comprobante.pdf",
+    proofFileType: "pdf",
+    validationStatus: "pendiente",
+  }));
+}
+
+describe("PaymentsPage — pagination (Issue #41)", () => {
+  beforeEach(() => {
+    mockFetchPaymentValidations.mockReset();
+    mockFetchPaymentValidations.mockResolvedValue(buildRequests(15));
+  });
+
+  it("renders only 10 requests initially and shows pagination controls", async () => {
+    render(<PaymentsPage />);
+
+    expect(await screen.findByText("Estudiante 1")).toBeInTheDocument();
+    expect(screen.queryByText("Estudiante 11")).not.toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 2")).toBeInTheDocument();
+  });
+
+  it("advances to the next page and back when Siguiente/Anterior are clicked", async () => {
+    render(<PaymentsPage />);
+
+    await screen.findByText("Estudiante 1");
+    fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+
+    expect(await screen.findByText("Estudiante 11")).toBeInTheDocument();
+    expect(screen.queryByText("Estudiante 1")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /anterior/i }));
+    expect(await screen.findByText("Estudiante 1")).toBeInTheDocument();
+  });
+});

@@ -144,3 +144,52 @@ describe("SeleccionOficialPage", () => {
     expect(within(table).getByText("Sofía González")).toBeInTheDocument();
   });
 });
+
+function buildAccounts(count: number): MemberAccount[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `acc-${i + 1}`,
+    role: "representante",
+    nombres: "Familia",
+    apellidos: `${i + 1}`,
+    telefono: "0999999999",
+    estudiantes: [
+      {
+        id: `est-${i + 1}`,
+        nombres: "Estudiante",
+        apellidos: `${i + 1}`,
+        grupoId: "1",
+        activo: true,
+        membresia: null,
+        ultimoPago: null,
+      },
+    ],
+  }));
+}
+
+describe("SeleccionOficialPage — student selector pagination (Issue #41)", () => {
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchMembers.mockResolvedValue({ accounts: buildAccounts(15), niveles: [] });
+  });
+
+  it("renders only 10 students in the selector initially and shows pagination controls", async () => {
+    render(<SeleccionOficialPage />);
+
+    const studentSelect = await screen.findByLabelText(/estudiante/i);
+    expect(within(studentSelect).getByText("Estudiante 1")).toBeInTheDocument();
+    expect(within(studentSelect).queryByText("Estudiante 11")).not.toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 2")).toBeInTheDocument();
+  });
+
+  it("advances to the next page when Siguiente is clicked, without touching the roster (out of scope)", async () => {
+    render(<SeleccionOficialPage />);
+
+    const studentSelect = await screen.findByLabelText(/estudiante/i);
+    await within(studentSelect).findByText("Estudiante 1");
+
+    fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+
+    expect(await within(studentSelect).findByText("Estudiante 11")).toBeInTheDocument();
+    expect(within(studentSelect).queryByText("Estudiante 1")).not.toBeInTheDocument();
+  });
+});

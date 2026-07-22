@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import Pagination from "@/components/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import {
   BookOpen,
   CheckCircle2,
@@ -38,6 +40,12 @@ function extractErrorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiClientError ? err.message : fallback;
 }
 
+// Stable empty-array reference for non-"ready" states — usePagination
+// resets to page 1 whenever the `records` reference changes, so a fresh
+// `[]` literal on every render would be harmless here (no items to page
+// through either way) but is avoided for clarity/consistency.
+const EMPTY_SOLICITUDES: SolicitudClaseExtra[] = [];
+
 export default function ClasesExtraPage(): React.ReactElement {
   const [state, setState] = useState<PageState>({ status: "loading" });
   const [resolvingId, setResolvingId] = useState<number | null>(null);
@@ -62,6 +70,15 @@ export default function ClasesExtraPage(): React.ReactElement {
   useEffect(() => {
     void loadSolicitudes();
   }, []);
+
+  const {
+    page: solicitudesPage,
+    totalPages: solicitudesTotalPages,
+    currentItems: paginatedSolicitudes,
+    setPage: setSolicitudesPage,
+  } = usePagination({
+    records: state.status === "ready" ? state.solicitudes : EMPTY_SOLICITUDES,
+  });
 
   function handleApproveClick(id: number): void {
     setCostoAdicional("");
@@ -146,7 +163,7 @@ export default function ClasesExtraPage(): React.ReactElement {
             </div>
           ) : (
             <div className="space-y-3">
-              {state.solicitudes.map((s) => {
+              {paginatedSolicitudes.map((s) => {
                 const isResolving = resolvingId === s.id;
                 const isApproving = confirmingApproveId === s.id;
                 const diaLabel = s.horarioDiaSemana ? DIA_SEMANA_LABEL[s.horarioDiaSemana] ?? s.horarioDiaSemana : "—";
@@ -274,6 +291,7 @@ export default function ClasesExtraPage(): React.ReactElement {
               })}
             </div>
           )}
+          <Pagination page={solicitudesPage} totalPages={solicitudesTotalPages} onPageChange={setSolicitudesPage} />
         </div>
 
         <ConfirmDialog

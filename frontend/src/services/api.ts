@@ -1047,9 +1047,10 @@ export async function actualizarFichaMedica(
 // confirmed backend contract (see ranking_router.py: GET/PATCH
 // notificaciones/*, POST/PATCH justificativos/*) — same "always real"
 // pattern as the other ranking BFF routes above, not mock-gated.
-// `fetchJustificativosPendientes` is the one exception: no backend endpoint
-// lists pending justificativos at all (see src/mocks/justificativos.ts),
-// so it stays mock-only until the backend team exposes one.
+// `fetchJustificativosPendientes` also calls a real backend endpoint
+// (`GET /ranking/justificativos/pendientes`) in non-mock mode; only mock
+// mode (tests/dev) falls back to the curated sample data in
+// src/mocks/justificativos.ts.
 // ---------------------------------------------------------------------------
 
 /** List the logged-in persona's own in-app ranking notifications — `GET /ranking/notificaciones/mias`. */

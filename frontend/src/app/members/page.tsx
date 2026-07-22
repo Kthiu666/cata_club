@@ -14,10 +14,12 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ContextualHelp from "@/components/ContextualHelp";
+import Pagination from "@/components/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import {
   Users,
   UserCheck,
@@ -972,10 +974,26 @@ export default function MembersPage(): React.ReactElement {
   }, [loadMembers]);
 
   const stats = buildMemberStats(accounts);
-  const filteredAccounts = filterAccounts(accounts, searchTerm).filter((account) =>
-    accountMatchesFlag(account, activeFlag),
+  // Memoized: usePagination resets to page 1 whenever the `records`
+  // reference changes, so this filtered array must stay referentially
+  // stable across renders that don't actually change the filter inputs
+  // (otherwise every render — including the one triggered by a page
+  // change itself — would recompute a new array and snap back to page 1).
+  const filteredAccounts = useMemo(
+    () =>
+      filterAccounts(accounts, searchTerm).filter((account) =>
+        accountMatchesFlag(account, activeFlag),
+      ),
+    [accounts, searchTerm, activeFlag],
   );
   const aggregateIsCapped = personasCapped;
+
+  const {
+    page: accountsPage,
+    totalPages: accountsTotalPages,
+    currentItems: paginatedAccounts,
+    setPage: setAccountsPage,
+  } = usePagination({ records: filteredAccounts });
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
@@ -1083,44 +1101,48 @@ export default function MembersPage(): React.ReactElement {
             <p className="text-sm text-cata-text/50">Cargando miembros…</p>
           </div>
         ) : filteredAccounts.length > 0 ? (
-          <div className="card overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-cata-border px-4 py-3 text-xs text-cata-text/65">
-              <p role="status" aria-label="Resultados mostrados">
-                {filteredAccounts.length} resultados mostrados
-              </p>
-              {aggregateIsCapped && (
-                <p role="alert" className="max-w-md text-cata-red">
-                  La fuente devuelve hasta {MEMBERS_AGGREGATE_LIMIT} registros; este listado puede estar incompleto.
+          <>
+            <div className="card overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-cata-border px-4 py-3 text-xs text-cata-text/65">
+                <p role="status" aria-label="Resultados mostrados">
+                  {/* Total found, not "shown on this page" — stays accurate once paginated (Issue #41). */}
+                  {filteredAccounts.length} resultados encontrados
                 </p>
-              )}
+                {aggregateIsCapped && (
+                  <p role="alert" className="max-w-md text-cata-red">
+                    La fuente devuelve hasta {MEMBERS_AGGREGATE_LIMIT} registros; este listado puede estar incompleto.
+                  </p>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
+                      <th className="w-10 px-4 py-3 font-medium" />
+                      <th className="px-4 py-3 font-medium">Responsable de pago</th>
+                      <th className="hidden px-4 py-3 font-medium sm:table-cell">Contacto</th>
+                      <th className="hidden px-4 py-3 text-center font-medium sm:table-cell">Estudiantes</th>
+                      <th className="hidden px-4 py-3 text-center font-medium sm:table-cell">Activos</th>
+                      <th className="hidden px-4 py-3 font-medium sm:table-cell">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-cata-border">
+                    {paginatedAccounts.map((account, index) => (
+                      <AccountRow
+                        key={account.id}
+                        account={account}
+                        defaultOpen={index === 0 && filteredAccounts.length === 1}
+                        grupos={grupos}
+                        rolesMenuOpen={rolesMenuOpen.has(account.id)}
+                        onToggleRolesMenu={() => toggleRolesMenu(account.id)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
-                    <th className="w-10 px-4 py-3 font-medium" />
-                    <th className="px-4 py-3 font-medium">Responsable de pago</th>
-                    <th className="hidden px-4 py-3 font-medium sm:table-cell">Contacto</th>
-                    <th className="hidden px-4 py-3 text-center font-medium sm:table-cell">Estudiantes</th>
-                    <th className="hidden px-4 py-3 text-center font-medium sm:table-cell">Activos</th>
-                    <th className="hidden px-4 py-3 font-medium sm:table-cell">Estado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-cata-border">
-                  {filteredAccounts.map((account, index) => (
-                    <AccountRow
-                      key={account.id}
-                      account={account}
-                      defaultOpen={index === 0 && filteredAccounts.length === 1}
-                      grupos={grupos}
-                      rolesMenuOpen={rolesMenuOpen.has(account.id)}
-                      onToggleRolesMenu={() => toggleRolesMenu(account.id)}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+            <Pagination page={accountsPage} totalPages={accountsTotalPages} onPageChange={setAccountsPage} />
+          </>
         ) : (
           /* Empty state */
           <div className="card flex flex-col items-center py-16 text-center">

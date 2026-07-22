@@ -14,10 +14,12 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import Pagination from "@/components/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import {
   ShieldCheck,
   Clock,
@@ -107,10 +109,23 @@ export default function PaymentsPage(): React.ReactElement {
     loadRequests();
   }, [loadRequests]);
 
-  const filtered =
-    activeFilter === "all"
-      ? requests
-      : requests.filter((r) => r.validationStatus === activeFilter);
+  // Memoized: usePagination resets to page 1 whenever the `records`
+  // reference changes, so this filtered array must stay referentially
+  // stable across renders that don't actually change the filter inputs.
+  const filtered = useMemo(
+    () =>
+      activeFilter === "all"
+        ? requests
+        : requests.filter((r) => r.validationStatus === activeFilter),
+    [requests, activeFilter],
+  );
+
+  const {
+    page: requestsPage,
+    totalPages: requestsTotalPages,
+    currentItems: paginatedRequests,
+    setPage: setRequestsPage,
+  } = usePagination({ records: filtered });
 
   const counts = {
     total: requests.length,
@@ -321,6 +336,7 @@ export default function PaymentsPage(): React.ReactElement {
 
             {/* Request table */}
             {!loading && !error && filtered.length > 0 && (
+              <>
               <div className="card overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
@@ -336,7 +352,7 @@ export default function PaymentsPage(): React.ReactElement {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-cata-border">
-                      {filtered.map((req) => (
+                      {paginatedRequests.map((req) => (
                         <tr
                           key={req.id}
                           onClick={() => handleSelect(req)}
@@ -385,6 +401,8 @@ export default function PaymentsPage(): React.ReactElement {
                   </table>
                 </div>
               </div>
+              <Pagination page={requestsPage} totalPages={requestsTotalPages} onPageChange={setRequestsPage} />
+              </>
             )}
           </>
         ) : (
