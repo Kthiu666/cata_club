@@ -27,7 +27,6 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Users,
   AlertTriangle,
   CheckCircle2,
   Loader2,
@@ -50,7 +49,7 @@ import {
   ApiClientError,
 } from "@/services/api";
 import type { Horario, CrearHorarioDTO, ActualizarHorarioDTO, NivelConOcupacion, AlumnoHorario } from "@/services/api";
-import type { StudentRef } from "@/lib/groups-utils";
+import { groupHorarios, diffGroupSave, type StudentRef, type HorarioGroup } from "@/lib/groups-utils";
 import { CATEGORIA_METADATA, CATEGORIA_OPTIONS, diasPermitidos, horarioDe, type Categoria } from "@/services/categorias";
 
 const DIA_LABELS: Record<string, string> = {
@@ -70,31 +69,52 @@ function formatTime(timeStr: string): string {
   return `${h}:${m}`;
 }
 
+/** Short (3-letter) día badge label, e.g. "Lun", "Mié", "Vie". */
+function shortDiaLabel(dia: string): string {
+  return (DIA_LABELS[dia] ?? dia).slice(0, 3);
+}
+
 function extractErrorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiClientError ? err.message : fallback;
 }
 
+/** Shared (non-día) fields edited across the whole day-group at once — PR2b. */
 interface HorarioFormData {
   categoria: Categoria;
-  dia_semana: string;
   entrenador_id: number | null;
   nivel_ranking_id: number | null;
 }
+
+/** One día-group row pending deletion after student-safety check, awaiting user confirmation. */
+interface PendingDayDeletion {
+  id: number;
+  diaSemana: string;
+  alumnos: AlumnoHorario[];
+}
+
+/**
+ * Single accordion state — at most one group's panel is expanded at a time.
+ * `key` is either a `HorarioGroup.key` or `NEW_GROUP_KEY` for the create-new
+ * flow (which has no existing card to nest under). `tab` picks which inline
+ * panel renders under that group's card — PR3a. `alumnos` tab content itself
+ * (real per-día roster) is reworked in PR3b; PR3a only wires the accordion
+ * mechanics around the existing panel content.
+ */
+interface ExpandedGroupState {
+  key: string;
+  tab: "editar" | "alumnos";
+}
+
+/** Sentinel `expandedGroup.key` for "Nuevo Horario" — no existing card to nest under. */
+const NEW_GROUP_KEY = "__new__";
 
 const DEFAULT_CATEGORIA: Categoria = CATEGORIA_OPTIONS[0];
 
 const EMPTY_FORM: HorarioFormData = {
   categoria: DEFAULT_CATEGORIA,
-  dia_semana: diasPermitidos(DEFAULT_CATEGORIA)[0],
   entrenador_id: null,
   nivel_ranking_id: null,
 };
-
-/** Pick a día still valid for the new categoria, falling back to its first allowed day. */
-function resolveDiaForCategoria(categoria: Categoria, currentDia: string): string {
-  const diasValidos = diasPermitidos(categoria);
-  return diasValidos.includes(currentDia) ? currentDia : diasValidos[0];
-}
 
 export default function GroupsPage(): React.ReactElement {
   const [horarios, setHorarios] = useState<Horario[]>([]);
@@ -103,13 +123,23 @@ export default function GroupsPage(): React.ReactElement {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  // Single accordion state replaces the old showForm/editingId/horarioSeleccionado
+  // fixed-position panels — PR3a.
+  const [expandedGroup, setExpandedGroup] = useState<ExpandedGroupState | null>(null);
+  const [editingGroup, setEditingGroup] = useState<HorarioGroup | null>(null);
   const [formData, setFormData] = useState<HorarioFormData>(EMPTY_FORM);
+  const [selectedDias, setSelectedDias] = useState<Set<string>>(new Set());
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [pendingDeletions, setPendingDeletions] = useState<PendingDayDeletion[] | null>(null);
+  // Distinguishes which flow populated `pendingDeletions`, so the shared
+  // confirmation dialog's copy and cancel behavior can differ: "days" comes
+  // from unticking días mid-edit (handleSubmit already wrote other rows —
+  // cancel still resyncs/closes the form); "group" comes from the card's
+  // trash icon deleting every día at once (cancel is a pure no-op, nothing
+  // was mutated yet).
+  const [pendingDeletionScope, setPendingDeletionScope] = useState<"days" | "group">("days");
 
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const [notification, setNotification] = useState<{
@@ -117,8 +147,11 @@ export default function GroupsPage(): React.ReactElement {
     message: string;
   } | null>(null);
 
-  // Asignación directa alumno ↔ horario
-  const [horarioSeleccionado, setHorarioSeleccionado] = useState<number | null>(null);
+  // Asignación directa alumno ↔ horario — content unchanged from PR2b, now
+  // rendered inline via `expandedGroup.tab === "alumnos"` instead of a fixed
+  // bottom-of-page panel. `alumnosHorarioId` tracks which underlying
+  // `horario_id` row the open "Alumnos" tab acts on.
+  const [alumnosHorarioId, setAlumnosHorarioId] = useState<number | null>(null);
   const [alumnosPorHorario, setAlumnosPorHorario] = useState<AlumnoHorario[]>([]);
   const [cargandoAlumnos, setCargandoAlumnos] = useState(false);
   const [asignandoAlumno, setAsignandoAlumno] = useState(false);
@@ -142,30 +175,30 @@ export default function GroupsPage(): React.ReactElement {
   }, [showNotification]);
 
   const handleAsignarAlumno = useCallback(async (): Promise<void> => {
-    if (!horarioSeleccionado || !alumnoSeleccionado) return;
+    if (!alumnosHorarioId || !alumnoSeleccionado) return;
     setAsignandoAlumno(true);
     try {
-      await asignarAlumnoAHorario({ persona_id: alumnoSeleccionado, horario_id: horarioSeleccionado });
+      await asignarAlumnoAHorario({ persona_id: alumnoSeleccionado, horario_id: alumnosHorarioId });
       showNotification("success", "Alumno asignado correctamente al horario.");
       setAlumnoSeleccionado(null);
-      await cargarAlumnosPorHorario(horarioSeleccionado);
+      await cargarAlumnosPorHorario(alumnosHorarioId);
     } catch (err) {
       showNotification("error", extractErrorMessage(err, "Error al asignar el alumno."));
     } finally {
       setAsignandoAlumno(false);
     }
-  }, [horarioSeleccionado, alumnoSeleccionado, cargarAlumnosPorHorario, showNotification]);
+  }, [alumnosHorarioId, alumnoSeleccionado, cargarAlumnosPorHorario, showNotification]);
 
   const handleDesasignarAlumno = useCallback(async (personaId: number): Promise<void> => {
-    if (!horarioSeleccionado) return;
+    if (!alumnosHorarioId) return;
     try {
-      await desasignarAlumnoDeHorario(personaId, horarioSeleccionado);
+      await desasignarAlumnoDeHorario(personaId, alumnosHorarioId);
       showNotification("success", "Alumno desasignado del horario.");
-      await cargarAlumnosPorHorario(horarioSeleccionado);
+      await cargarAlumnosPorHorario(alumnosHorarioId);
     } catch (err) {
       showNotification("error", extractErrorMessage(err, "Error al desasignar el alumno."));
     }
-  }, [horarioSeleccionado, cargarAlumnosPorHorario, showNotification]);
+  }, [alumnosHorarioId, cargarAlumnosPorHorario, showNotification]);
 
   const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -200,80 +233,428 @@ export default function GroupsPage(): React.ReactElement {
   }, [loadData]);
 
   function openCreateForm(): void {
-    setEditingId(null);
+    setEditingGroup(null);
     setFormData(EMPTY_FORM);
+    setSelectedDias(new Set());
     setFormError(null);
-    setShowForm(true);
+    setExpandedGroup({ key: NEW_GROUP_KEY, tab: "editar" });
   }
 
-  function openEditForm(horario: Horario): void {
-    setEditingId(horario.id);
+  function openEditForm(group: HorarioGroup): void {
+    setEditingGroup(group);
     setFormData({
-      categoria: (horario.categoria as Categoria) ?? DEFAULT_CATEGORIA,
-      dia_semana: horario.diaSemana,
-      entrenador_id: horario.entrenadorId,
-      nivel_ranking_id: horario.nivelRankingId,
+      categoria: (group.categoria as Categoria) ?? DEFAULT_CATEGORIA,
+      entrenador_id: group.entrenadorId,
+      nivel_ranking_id: group.nivelRankingId,
     });
+    setSelectedDias(new Set(group.rows.map((row) => row.diaSemana)));
     setFormError(null);
-    setShowForm(true);
+    setExpandedGroup({ key: group.key, tab: "editar" });
   }
 
-  function closeForm(): void {
-    setShowForm(false);
-    setEditingId(null);
+  /** Opens the "Alumnos" accordion tab for a group — content unchanged from
+   * PR2b (real `fetchAlumnosPorHorario` roster), acting on the group's first
+   * underlying día row. Per-día selection across a multi-día group is PR3b. */
+  function openAlumnosTab(group: HorarioGroup): void {
+    const primaryRowId = group.rows[0].id;
+    setExpandedGroup({ key: group.key, tab: "alumnos" });
+    setAlumnosHorarioId(primaryRowId);
+    void cargarAlumnosPorHorario(primaryRowId);
+  }
+
+  /** Switches which underlying `horario_id` row the open "Alumnos" tab acts
+   * on — used by the día-pill selector for multi-día groups (PR3b). */
+  function selectAlumnosDia(rowId: number): void {
+    setAlumnosHorarioId(rowId);
+    setAlumnoSeleccionado(null);
+    void cargarAlumnosPorHorario(rowId);
+  }
+
+  /** Collapses whichever accordion panel (editar or alumnos) is open. */
+  function closeExpanded(): void {
+    setExpandedGroup(null);
+    setEditingGroup(null);
     setFormData(EMPTY_FORM);
+    setSelectedDias(new Set());
     setFormError(null);
+    setAlumnosHorarioId(null);
+    setAlumnosPorHorario([]);
+    setAlumnoSeleccionado(null);
   }
 
+  function toggleDia(dia: string): void {
+    setSelectedDias((prev) => {
+      const next = new Set(prev);
+      if (next.has(dia)) next.delete(dia);
+      else next.add(dia);
+      return next;
+    });
+  }
+
+  /**
+   * Apply a `diffGroupSave` diff: create/update rows immediately, delete rows
+   * with zero enrolled students immediately, and collect rows with enrolled
+   * students into `pendingDeletions` (awaiting explicit user confirmation
+   * instead of deleting silently and orphaning `AlumnoHorario` rows).
+   */
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
     if (!formData.entrenador_id) {
       setFormError("Seleccioná un entrenador.");
       return;
     }
+    if (selectedDias.size === 0) {
+      setFormError("Seleccioná al menos un día.");
+      return;
+    }
     setFormSubmitting(true);
     setFormError(null);
+    const shared = {
+      categoria: formData.categoria,
+      entrenador_id: formData.entrenador_id,
+      nivel_ranking_id: formData.nivel_ranking_id,
+    };
     try {
-      if (editingId !== null) {
-        const dto: ActualizarHorarioDTO = {
-          categoria: formData.categoria,
-          dia_semana: formData.dia_semana,
-          entrenador_id: formData.entrenador_id,
-          nivel_ranking_id: formData.nivel_ranking_id,
-        };
-        await actualizarHorario(editingId, dto);
-        showNotification("success", "Horario actualizado correctamente.");
-      } else {
-        const dto: CrearHorarioDTO = {
-          categoria: formData.categoria,
-          dia_semana: formData.dia_semana,
-          entrenador_id: formData.entrenador_id,
-          nivel_ranking_id: formData.nivel_ranking_id,
-        };
+      const group: HorarioGroup = editingGroup ?? {
+        key: "",
+        categoria: shared.categoria,
+        horaInicio: horarioDe(shared.categoria).horaInicio,
+        horaFin: horarioDe(shared.categoria).horaFin,
+        entrenadorId: shared.entrenador_id,
+        nivelRankingId: shared.nivel_ranking_id,
+        rows: [],
+      };
+      const diff = diffGroupSave(group, selectedDias);
+
+      for (const dia of diff.toCreate) {
+        const dto: CrearHorarioDTO = { dia_semana: dia, ...shared };
         await crearHorario(dto);
-        showNotification("success", "Horario creado correctamente.");
       }
-      closeForm();
+      for (const id of diff.toUpdateIds) {
+        const dto: ActualizarHorarioDTO = { ...shared };
+        await actualizarHorario(id, dto);
+      }
+
+      const nextPending: PendingDayDeletion[] = [];
+      for (const id of diff.toDeleteIds) {
+        const alumnos = await fetchAlumnosPorHorario(id);
+        if (alumnos.length > 0) {
+          const row = group.rows.find((r) => r.id === id);
+          nextPending.push({ id, diaSemana: row?.diaSemana ?? "", alumnos });
+        } else {
+          await eliminarHorario(id);
+        }
+      }
+
+      if (nextPending.length > 0) {
+        setPendingDeletions(nextPending);
+        return;
+      }
+
+      showNotification("success", editingGroup ? "Horario actualizado correctamente." : "Horario creado correctamente.");
+      closeExpanded();
       await loadData();
     } catch (err) {
-      setFormError(extractErrorMessage(err, "Error al guardar el horario."));
+      // A partial failure mid-sequence (e.g. the 2nd of 3 crearHorario calls
+      // rejects) leaves the backend ahead of local state: some rows were
+      // already created/updated/deleted before the failing call. Closing the
+      // form drops the now-stale `editingGroup`/`selectedDias` snapshot
+      // instead of leaving them around to silently re-diff against pre-save
+      // data on a retry (which would re-create the row that already
+      // succeeded). `loadData()` resyncs `horarios` with what's actually
+      // persisted so any retry starts from a reopened, accurate group.
+      showNotification("error", extractErrorMessage(err, "Error al guardar el horario."));
+      closeExpanded();
+      await loadData();
     } finally {
       setFormSubmitting(false);
     }
   }
 
-  async function handleDelete(id: number): Promise<void> {
-    setDeletingId(id);
-    setConfirmDeleteId(null);
+  /** User confirmed: desasignar every affected alumno THEN delete each pending row (FK has no ON DELETE CASCADE). */
+  async function handleConfirmPendingDeletions(): Promise<void> {
+    if (!pendingDeletions) return;
     try {
-      await eliminarHorario(id);
-      showNotification("success", "Horario eliminado correctamente.");
+      for (const pending of pendingDeletions) {
+        for (const alumno of pending.alumnos) {
+          await desasignarAlumnoDeHorario(alumno.persona_id, pending.id);
+        }
+        await eliminarHorario(pending.id);
+      }
+      showNotification(
+        "success",
+        pendingDeletionScope === "group" ? "Horario eliminado correctamente." : "Horario actualizado correctamente.",
+      );
+    } catch (err) {
+      showNotification("error", extractErrorMessage(err, "Error al eliminar el horario."));
+    } finally {
+      setPendingDeletions(null);
+      setPendingDeletionScope("days");
+      closeExpanded();
       await loadData();
+    }
+  }
+
+  function handleCancelPendingDeletions(): void {
+    // Only the "days" flow (mid-edit unticking) has already written other
+    // rows via handleSubmit before this dialog appears, so only it needs to
+    // close the form and resync on cancel. The "group" flow (trash icon)
+    // hasn't mutated anything yet — canceling is a pure no-op.
+    if (pendingDeletionScope === "days") {
+      closeExpanded();
+      void loadData();
+    }
+    setPendingDeletions(null);
+    setPendingDeletionScope("days");
+  }
+
+  /**
+   * Trash-icon entry point: deletes the ENTIRE group (every día row), not
+   * just `group.rows[0]` — reuses the same student-safety pending-deletion
+   * flow as unticking días mid-edit (`fetchAlumnosPorHorario` per row,
+   * `pendingDeletions` + confirmation dialog, `handleConfirmPendingDeletions`
+   * desasigna-then-elimina) instead of duplicating that logic.
+   */
+  async function requestDeleteGroup(group: HorarioGroup): Promise<void> {
+    setDeletingId(group.rows[0].id);
+    try {
+      const nextPending: PendingDayDeletion[] = [];
+      for (const row of group.rows) {
+        const alumnos = await fetchAlumnosPorHorario(row.id);
+        nextPending.push({ id: row.id, diaSemana: row.diaSemana, alumnos });
+      }
+      setPendingDeletionScope("group");
+      setPendingDeletions(nextPending);
     } catch (err) {
       showNotification("error", extractErrorMessage(err, "Error al eliminar el horario."));
     } finally {
       setDeletingId(null);
     }
+  }
+
+  /** Shared/día-checklist edit form — rendered inline (PR3a), either under the
+   * group card being edited or, for "Nuevo Horario", in its own top-of-list
+   * card (no existing group card to nest a brand-new one under). */
+  function renderHorarioForm(): React.ReactElement {
+    return (
+      <>
+        <h3 className="mb-4 text-sm font-bold text-cata-text">
+          {editingGroup !== null ? "Editar Horario" : "Nuevo Horario"}
+        </h3>
+        {formError && (
+          <div className="alert-error mb-4" role="alert">{formError}</div>
+        )}
+        <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <label htmlFor="horario-categoria" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Categoría
+            </label>
+            <select
+              id="horario-categoria"
+              className="input-field w-full"
+              value={formData.categoria}
+              onChange={(e) => {
+                const categoria = e.target.value as Categoria;
+                setFormData((prev) => ({ ...prev, categoria }));
+                setSelectedDias((prev) => {
+                  const permitidos = new Set(diasPermitidos(categoria));
+                  return new Set([...prev].filter((dia) => permitidos.has(dia)));
+                });
+              }}
+              required
+            >
+              {CATEGORIA_OPTIONS.map((cat) => (
+                <option key={cat} value={cat}>{CATEGORIA_METADATA[cat].label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="horario-entrenador" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Entrenador (ID)
+            </label>
+            <input
+              id="horario-entrenador"
+              type="number"
+              min={1}
+              className="input-field w-full"
+              value={formData.entrenador_id ?? ""}
+              onChange={(e) => setFormData((prev) => ({
+                ...prev,
+                entrenador_id: e.target.value ? Number(e.target.value) : null,
+              }))}
+              required
+            />
+          </div>
+          <div>
+            <span className="mb-1 block text-xs font-medium text-cata-text/65">
+              Horario (fijo según categoría)
+            </span>
+            <p
+              className="input-field flex w-full items-center text-cata-text/70"
+              aria-readonly="true"
+            >
+              {horarioDe(formData.categoria).horaInicio} – {horarioDe(formData.categoria).horaFin}
+            </p>
+          </div>
+          <div>
+            <label htmlFor="horario-nivel" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Nivel de ranking <span className="text-cata-text/40">(opcional)</span>
+            </label>
+            <select
+              id="horario-nivel"
+              className="input-field w-full"
+              value={formData.nivel_ranking_id ?? ""}
+              onChange={(e) => setFormData((prev) => ({
+                ...prev,
+                nivel_ranking_id: e.target.value ? Number(e.target.value) : null,
+              }))}
+            >
+              <option value="">Sin nivel asignado</option>
+              {niveles.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.nombre ?? `Nivel ${n.numeroNivel}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="sm:col-span-2 lg:col-span-4">
+            <span className="mb-1 block text-xs font-medium text-cata-text/65">
+              Días de la semana
+            </span>
+            <div className="flex flex-wrap gap-3">
+              {diasPermitidos(formData.categoria).map((dia) => (
+                <label key={dia} className="inline-flex items-center gap-1.5 text-xs text-cata-text">
+                  <input
+                    type="checkbox"
+                    checked={selectedDias.has(dia)}
+                    onChange={() => toggleDia(dia)}
+                  />
+                  {DIA_LABELS[dia]}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="sm:col-span-2 lg:col-span-4 flex gap-2">
+            <button type="submit" disabled={formSubmitting} className="btn-primary inline-flex items-center gap-1.5 text-xs">
+              {formSubmitting && <Loader2 size={12} className="animate-spin" aria-hidden="true" />}
+              {editingGroup !== null ? "Guardar cambios" : "Crear horario"}
+            </button>
+            <button type="button" onClick={closeExpanded} className="btn-secondary text-xs">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </>
+    );
+  }
+
+  /** Roster/assign panel — real enrollment via `fetchAlumnosPorHorario`,
+   * rendered inline (PR3a). Assignment is inherently per-`horario_id`, so a
+   * multi-día group shows a día-pill selector to pick which underlying row
+   * the roster/assign/unassign actions act on (PR3b). */
+  function renderAlumnosPanel(group: HorarioGroup): React.ReactElement {
+    return (
+      <>
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <UserPlus size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            <h3 className="text-sm font-bold text-cata-text">
+              Asignar alumnos al horario
+            </h3>
+          </div>
+          <button type="button" onClick={closeExpanded} className="btn-secondary text-xs">
+            Cerrar
+          </button>
+        </div>
+
+        {group.rows.length > 1 && (
+          <div className="mb-4 flex flex-wrap gap-1.5">
+            {group.rows.map((row) => (
+              <button
+                key={row.id}
+                type="button"
+                onClick={() => selectAlumnosDia(row.id)}
+                className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${
+                  alumnosHorarioId === row.id
+                    ? "bg-cata-red text-white"
+                    : "bg-cata-bg text-cata-text/60 hover:bg-cata-red/10"
+                }`}
+              >
+                {shortDiaLabel(row.diaSemana)}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {cargandoAlumnos ? (
+          <div className="flex items-center gap-2 py-4 text-sm text-cata-text/50">
+            <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+            Cargando alumnos...
+          </div>
+        ) : (
+          <>
+            {alumnosPorHorario.length > 0 && (
+              <div className="mb-4">
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-cata-text/40">
+                  Alumnos asignados ({alumnosPorHorario.length})
+                </p>
+                <div className="space-y-2">
+                  {alumnosPorHorario.map((a) => (
+                    <div key={a.id} className="flex items-center justify-between rounded-lg bg-cata-bg px-3 py-2">
+                      <span className="text-sm text-cata-text">{a.persona_nombre_completo}</span>
+                      <button
+                        type="button"
+                        onClick={() => void handleDesasignarAlumno(a.persona_id)}
+                        className="rounded-lg border border-cata-border p-1 text-cata-text/50 transition-colors hover:bg-red-50 hover:text-cata-red"
+                        title="Desasignar alumno"
+                      >
+                        <UserMinus size={12} strokeWidth={1.5} aria-hidden="true" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <label htmlFor="alumno-select" className="mb-1 block text-xs font-medium text-cata-text/65">
+                  Seleccionar alumno
+                </label>
+                <select
+                  id="alumno-select"
+                  className="input-field w-full"
+                  value={alumnoSeleccionado ?? ""}
+                  onChange={(e) => setAlumnoSeleccionado(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Seleccionar alumno...</option>
+                  {allStudents
+                    .filter((s) => s.activo && !alumnosPorHorario.some((a) => a.persona_id === Number(s.id)))
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nombres} {s.apellidos}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleAsignarAlumno()}
+                disabled={!alumnoSeleccionado || asignandoAlumno}
+                className="btn-primary inline-flex items-center gap-1.5 text-xs"
+              >
+                {asignandoAlumno ? (
+                  <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <UserPlus size={12} strokeWidth={2} aria-hidden="true" />
+                )}
+                Asignar
+              </button>
+            </div>
+          </>
+        )}
+      </>
+    );
   }
 
   return (
@@ -330,96 +711,9 @@ export default function GroupsPage(): React.ReactElement {
           </button>
         </div>
 
-        {showForm && (
+        {expandedGroup?.key === NEW_GROUP_KEY && (
           <div className="card mb-6 p-5">
-            <h3 className="mb-4 text-sm font-bold text-cata-text">
-              {editingId !== null ? "Editar Horario" : "Nuevo Horario"}
-            </h3>
-            {formError && (
-              <div className="alert-error mb-4" role="alert">{formError}</div>
-            )}
-            <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <label htmlFor="horario-categoria" className="mb-1 block text-xs font-medium text-cata-text/65">
-                  Categoría
-                </label>
-                <select
-                  id="horario-categoria"
-                  className="input-field w-full"
-                  value={formData.categoria}
-                  onChange={(e) => {
-                    const categoria = e.target.value as Categoria;
-                    setFormData((prev) => ({
-                      ...prev,
-                      categoria,
-                      dia_semana: resolveDiaForCategoria(categoria, prev.dia_semana),
-                    }));
-                  }}
-                  required
-                >
-                  {CATEGORIA_OPTIONS.map((cat) => (
-                    <option key={cat} value={cat}>{CATEGORIA_METADATA[cat].label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="horario-dia" className="mb-1 block text-xs font-medium text-cata-text/65">
-                  Día de la semana
-                </label>
-                <select
-                  id="horario-dia"
-                  className="input-field w-full"
-                  value={formData.dia_semana}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, dia_semana: e.target.value }))}
-                  required
-                >
-                  {diasPermitidos(formData.categoria).map((dia) => (
-                    <option key={dia} value={dia}>{DIA_LABELS[dia]}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <span className="mb-1 block text-xs font-medium text-cata-text/65">
-                  Horario (fijo según categoría)
-                </span>
-                <p
-                  className="input-field flex w-full items-center text-cata-text/70"
-                  aria-readonly="true"
-                >
-                  {horarioDe(formData.categoria).horaInicio} – {horarioDe(formData.categoria).horaFin}
-                </p>
-              </div>
-              <div>
-                <label htmlFor="horario-nivel" className="mb-1 block text-xs font-medium text-cata-text/65">
-                  Nivel de ranking <span className="text-cata-text/40">(opcional)</span>
-                </label>
-                <select
-                  id="horario-nivel"
-                  className="input-field w-full"
-                  value={formData.nivel_ranking_id ?? ""}
-                  onChange={(e) => setFormData((prev) => ({
-                    ...prev,
-                    nivel_ranking_id: e.target.value ? Number(e.target.value) : null,
-                  }))}
-                >
-                  <option value="">Sin nivel asignado</option>
-                  {niveles.map((n) => (
-                    <option key={n.id} value={n.id}>
-                      {n.nombre ?? `Nivel ${n.numeroNivel}`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="sm:col-span-2 lg:col-span-4 flex gap-2">
-                <button type="submit" disabled={formSubmitting} className="btn-primary inline-flex items-center gap-1.5 text-xs">
-                  {formSubmitting && <Loader2 size={12} className="animate-spin" aria-hidden="true" />}
-                  {editingId !== null ? "Guardar cambios" : "Crear horario"}
-                </button>
-                <button type="button" onClick={closeForm} className="btn-secondary text-xs">
-                  Cancelar
-                </button>
-              </div>
-            </form>
+            {renderHorarioForm()}
           </div>
         )}
 
@@ -430,27 +724,35 @@ export default function GroupsPage(): React.ReactElement {
           </div>
         ) : horarios.length > 0 ? (
           <div className="space-y-3">
-            {horarios.map((h) => {
-              const nivel = niveles.find((n) => n.id === h.nivelRankingId);
-              const studentsInNivel = h.nivelRankingId
-                ? allStudents.filter((s) => s.grupoId === String(h.nivelRankingId))
-                : [];
-              const isDeleting = deletingId === h.id;
+            {groupHorarios(horarios).map((group) => {
+              const nivel = niveles.find((n) => n.id === group.nivelRankingId);
+              // Asignar-alumnos opens the tab on the first día in the group
+              // (per-día switching happens inside the tab via the día-pill
+              // selector — PR3b). The trash icon, unlike that, deletes the
+              // WHOLE group (every día row) via `requestDeleteGroup`.
+              const isDeleting = group.rows.some((row) => row.id === deletingId);
 
               return (
-                <div key={h.id} className="card p-5">
+                <div key={group.key} className="card p-5">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-4">
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cata-red/10">
                         <Calendar size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-cata-text">
-                          {DIA_LABELS[h.diaSemana] ?? h.diaSemana}
-                        </p>
-                        <div className="flex items-center gap-1.5 text-xs text-cata-text/60">
+                        <div className="flex flex-wrap gap-1">
+                          {group.rows.map((row) => (
+                            <span
+                              key={row.id}
+                              className="inline-flex items-center rounded-full bg-cata-bg px-2 py-0.5 text-xs font-bold text-cata-text"
+                            >
+                              {shortDiaLabel(row.diaSemana)}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/60">
                           <Clock size={11} strokeWidth={1.5} aria-hidden="true" />
-                          {formatTime(h.horaInicio)} – {formatTime(h.horaFin)}
+                          {formatTime(group.horaInicio)} – {formatTime(group.horaFin)}
                         </div>
                         <div className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/50">
                           <GraduationCap size={11} strokeWidth={1.5} aria-hidden="true" />
@@ -460,18 +762,9 @@ export default function GroupsPage(): React.ReactElement {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {h.nivelRankingId && (
-                        <div className="flex items-center gap-1 rounded-lg bg-cata-bg px-2.5 py-1 text-xs text-cata-text/60">
-                          <Users size={11} strokeWidth={1.5} aria-hidden="true" />
-                          {studentsInNivel.length} alumno{studentsInNivel.length !== 1 ? "s" : ""}
-                        </div>
-                      )}
                       <button
                         type="button"
-                        onClick={() => {
-                          setHorarioSeleccionado(h.id);
-                          void cargarAlumnosPorHorario(h.id);
-                        }}
+                        onClick={() => openAlumnosTab(group)}
                         disabled={isDeleting}
                         className="rounded-lg border border-cata-border p-1.5 text-cata-text/50 transition-colors hover:bg-cata-red/10 hover:text-cata-red disabled:opacity-50"
                         title="Asignar alumnos a este horario"
@@ -480,7 +773,7 @@ export default function GroupsPage(): React.ReactElement {
                       </button>
                       <button
                         type="button"
-                        onClick={() => openEditForm(h)}
+                        onClick={() => openEditForm(group)}
                         disabled={isDeleting}
                         className="rounded-lg border border-cata-border p-1.5 text-cata-text/50 transition-colors hover:bg-cata-red/10 hover:text-cata-red disabled:opacity-50"
                         title="Editar horario"
@@ -489,7 +782,7 @@ export default function GroupsPage(): React.ReactElement {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setConfirmDeleteId(h.id)}
+                        onClick={() => void requestDeleteGroup(group)}
                         disabled={isDeleting}
                         className="rounded-lg border border-cata-border p-1.5 text-cata-text/50 transition-colors hover:bg-red-50 hover:text-cata-red disabled:opacity-50"
                         title="Eliminar horario"
@@ -503,21 +796,15 @@ export default function GroupsPage(): React.ReactElement {
                     </div>
                   </div>
 
-                  {h.nivelRankingId && studentsInNivel.length > 0 && (
-                    <div className="mt-3 border-t border-cata-border pt-3">
-                      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-cata-text/40">
-                        Alumnos asignados
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {studentsInNivel.map((s) => (
-                          <span
-                            key={s.id}
-                            className="inline-flex items-center rounded-full bg-cata-bg px-2 py-0.5 text-[11px] text-cata-text/70"
-                          >
-                            {s.nombres} {s.apellidos}
-                          </span>
-                        ))}
-                      </div>
+                  {expandedGroup?.key === group.key && expandedGroup.tab === "editar" && (
+                    <div className="mt-4 border-t border-cata-border pt-4">
+                      {renderHorarioForm()}
+                    </div>
+                  )}
+
+                  {expandedGroup?.key === group.key && expandedGroup.tab === "alumnos" && (
+                    <div className="mt-4 border-t border-cata-border pt-4">
+                      {renderAlumnosPanel(group)}
                     </div>
                   )}
                 </div>
@@ -546,105 +833,23 @@ export default function GroupsPage(): React.ReactElement {
           </div>
         )}
 
-        {/* Panel de asignación directa alumno ↔ horario */}
-        {horarioSeleccionado && (
-          <div className="card mt-6 p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <UserPlus size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                <h3 className="text-sm font-bold text-cata-text">
-                  Asignar alumnos al horario
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => { setHorarioSeleccionado(null); setAlumnosPorHorario([]); }}
-                className="btn-secondary text-xs"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            {cargandoAlumnos ? (
-              <div className="flex items-center gap-2 py-4 text-sm text-cata-text/50">
-                <Loader2 size={14} className="animate-spin" aria-hidden="true" />
-                Cargando alumnos...
-              </div>
-            ) : (
-              <>
-                {alumnosPorHorario.length > 0 && (
-                  <div className="mb-4">
-                    <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-cata-text/40">
-                      Alumnos asignados ({alumnosPorHorario.length})
-                    </p>
-                    <div className="space-y-2">
-                      {alumnosPorHorario.map((a) => (
-                        <div key={a.id} className="flex items-center justify-between rounded-lg bg-cata-bg px-3 py-2">
-                          <span className="text-sm text-cata-text">{a.persona_nombre_completo}</span>
-                          <button
-                            type="button"
-                            onClick={() => void handleDesasignarAlumno(a.persona_id)}
-                            className="rounded-lg border border-cata-border p-1 text-cata-text/50 transition-colors hover:bg-red-50 hover:text-cata-red"
-                            title="Desasignar alumno"
-                          >
-                            <UserMinus size={12} strokeWidth={1.5} aria-hidden="true" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex items-end gap-3">
-                  <div className="flex-1">
-                    <label htmlFor="alumno-select" className="mb-1 block text-xs font-medium text-cata-text/65">
-                      Seleccionar alumno
-                    </label>
-                    <select
-                      id="alumno-select"
-                      className="input-field w-full"
-                      value={alumnoSeleccionado ?? ""}
-                      onChange={(e) => setAlumnoSeleccionado(e.target.value ? Number(e.target.value) : null)}
-                    >
-                      <option value="">Seleccionar alumno...</option>
-                      {allStudents
-                        .filter((s) => s.activo && !alumnosPorHorario.some((a) => a.persona_id === Number(s.id)))
-                        .map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.nombres} {s.apellidos}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleAsignarAlumno()}
-                    disabled={!alumnoSeleccionado || asignandoAlumno}
-                    className="btn-primary inline-flex items-center gap-1.5 text-xs"
-                  >
-                    {asignandoAlumno ? (
-                      <Loader2 size={12} className="animate-spin" aria-hidden="true" />
-                    ) : (
-                      <UserPlus size={12} strokeWidth={2} aria-hidden="true" />
-                    )}
-                    Asignar
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
         <ConfirmDialog
-          open={confirmDeleteId !== null}
+          open={pendingDeletions !== null && pendingDeletions.length > 0}
           variant="danger"
-          title="Eliminar horario"
-          message="¿Confirma que desea eliminar este horario de entrenamiento? Esta acción no se puede deshacer."
-          onConfirm={() => {
-            if (confirmDeleteId === null) return;
-            void handleDelete(confirmDeleteId);
-          }}
-          onCancel={() => setConfirmDeleteId(null)}
+          title={pendingDeletionScope === "group" ? "Eliminar horario completo" : "Desasignar alumnos y eliminar días"}
+          message={
+            pendingDeletions
+              ? pendingDeletionScope === "group"
+                ? `Se eliminará el horario completo (todos sus días: ${pendingDeletions
+                    .map((p) => shortDiaLabel(p.diaSemana))
+                    .join(", ")}) y ${pendingDeletions.reduce((sum, p) => sum + p.alumnos.length, 0)} alumno(s) quedarán desasignados. Esta acción no se puede deshacer.`
+                : `${pendingDeletions.reduce((sum, p) => sum + p.alumnos.length, 0)} alumno(s) quedarán desasignados de: ${pendingDeletions
+                    .map((p) => shortDiaLabel(p.diaSemana))
+                    .join(", ")}. ¿Confirma la eliminación de esos días?`
+              : ""
+          }
+          onConfirm={() => void handleConfirmPendingDeletions()}
+          onCancel={handleCancelPendingDeletions}
         />
       </AppShell>
     </ProtectedRoute>

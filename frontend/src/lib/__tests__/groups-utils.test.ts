@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 import type { Grupo, NivelTecnico } from "@/types/domain";
 import type { ScheduleSlot } from "@/app/attendance/attendance-utils";
+import type { Horario } from "@/services/api";
 import {
   assignStudentToGroup,
   removeStudentFromAllGroups,
@@ -20,7 +21,10 @@ import {
   buildTrainingSessions,
   getLevelLabel,
   getLevelBadgeTokens,
+  groupHorarios,
+  diffGroupSave,
   type StudentRef,
+  type HorarioGroup,
 } from "../groups-utils";
 
 // ---------------------------------------------------------------------------
@@ -456,5 +460,107 @@ describe("buildTrainingSessions", () => {
 
   it("handles empty inputs gracefully", () => {
     expect(buildTrainingSessions([], MOCK_SCHEDULES, {})).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// groupHorarios (PR2a — Gestión de Horarios UI fixes)
+// ---------------------------------------------------------------------------
+
+describe("groupHorarios", () => {
+  const RECURRING_ROWS: Horario[] = [
+    { id: 101, diaSemana: "LUNES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 1, nivelRankingId: 2 },
+    { id: 102, diaSemana: "VIERNES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 1, nivelRankingId: 2 },
+    { id: 103, diaSemana: "MIERCOLES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 1, nivelRankingId: 2 },
+  ];
+
+  it("collapses 3 rows sharing categoria/horario/entrenador/nivel into 1 group with 3 rows sorted Mon→Sun", () => {
+    const groups = groupHorarios(RECURRING_ROWS);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].categoria).toBe("COMPETITIVO");
+    expect(groups[0].horaInicio).toBe("18:00");
+    expect(groups[0].horaFin).toBe("20:00");
+    expect(groups[0].entrenadorId).toBe(1);
+    expect(groups[0].nivelRankingId).toBe(2);
+    expect(groups[0].rows.map((r) => r.diaSemana)).toEqual(["LUNES", "MIERCOLES", "VIERNES"]);
+    expect(groups[0].rows.map((r) => r.id)).toEqual([101, 103, 102]);
+  });
+
+  it("keeps rows with a different entrenadorId in a separate group", () => {
+    const rows: Horario[] = [
+      RECURRING_ROWS[0],
+      { ...RECURRING_ROWS[1], id: 999, entrenadorId: 2 },
+    ];
+    const groups = groupHorarios(rows);
+
+    expect(groups).toHaveLength(2);
+    expect(groups.map((g) => g.rows).flat()).toHaveLength(2);
+    const entrenadorIds = groups.map((g) => g.entrenadorId).sort();
+    expect(entrenadorIds).toEqual([1, 2]);
+  });
+
+  it("treats null nivelRankingId as its own group key distinct from a non-null nivel", () => {
+    const rows: Horario[] = [
+      { id: 201, diaSemana: "LUNES", horaInicio: "15:00", horaFin: "16:00", categoria: "FORMATIVO", entrenadorId: 5, nivelRankingId: null },
+      { id: 202, diaSemana: "MARTES", horaInicio: "15:00", horaFin: "16:00", categoria: "FORMATIVO", entrenadorId: 5, nivelRankingId: 3 },
+    ];
+    const groups = groupHorarios(rows);
+
+    expect(groups).toHaveLength(2);
+    const withNull = groups.find((g) => g.nivelRankingId === null)!;
+    expect(withNull.rows).toHaveLength(1);
+    expect(withNull.rows[0].id).toBe(201);
+  });
+
+  it("returns an empty array for an empty input", () => {
+    expect(groupHorarios([])).toEqual([]);
+  });
+});
+
+describe("diffGroupSave", () => {
+  const EXISTING_GROUP: HorarioGroup = {
+    key: "COMPETITIVO|18:00|20:00|1|2",
+    categoria: "COMPETITIVO",
+    horaInicio: "18:00",
+    horaFin: "20:00",
+    entrenadorId: 1,
+    nivelRankingId: 2,
+    rows: [
+      { id: 101, diaSemana: "LUNES" },
+      { id: 103, diaSemana: "MIERCOLES" },
+    ],
+  };
+
+  it("puts a newly ticked día with no matching existing row into toCreate", () => {
+    const diff = diffGroupSave(EXISTING_GROUP, new Set(["LUNES", "MIERCOLES", "VIERNES"]));
+    expect(diff.toCreate).toEqual(["VIERNES"]);
+  });
+
+  it("puts an existing row's id into toDeleteIds when its día is unticked", () => {
+    const diff = diffGroupSave(EXISTING_GROUP, new Set(["LUNES"]));
+    expect(diff.toDeleteIds).toEqual([103]);
+  });
+
+  it("puts an existing row's id into toUpdateIds when its día stays ticked", () => {
+    const diff = diffGroupSave(EXISTING_GROUP, new Set(["LUNES", "MIERCOLES"]));
+    expect(diff.toUpdateIds).toEqual([101, 103]);
+    expect(diff.toCreate).toEqual([]);
+    expect(diff.toDeleteIds).toEqual([]);
+  });
+
+  it("handles a mixed create+update+delete diff in a single call", () => {
+    const diff = diffGroupSave(EXISTING_GROUP, new Set(["MIERCOLES", "VIERNES"]));
+    expect(diff.toCreate).toEqual(["VIERNES"]);
+    expect(diff.toUpdateIds).toEqual([103]);
+    expect(diff.toDeleteIds).toEqual([101]);
+  });
+
+  it("treats a group with no existing rows as an all-create diff (new group)", () => {
+    const emptyGroup: HorarioGroup = { ...EXISTING_GROUP, rows: [] };
+    const diff = diffGroupSave(emptyGroup, new Set(["LUNES", "MARTES"]));
+    expect(diff.toCreate).toEqual(["LUNES", "MARTES"]);
+    expect(diff.toUpdateIds).toEqual([]);
+    expect(diff.toDeleteIds).toEqual([]);
   });
 });

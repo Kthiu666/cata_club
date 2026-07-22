@@ -11,6 +11,7 @@
 
 import type { Grupo, NivelTecnico, EstadoAsistencia } from "@/types/domain";
 import type { ScheduleSlot } from "@/app/attendance/attendance-utils";
+import type { Horario } from "@/services/api";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,6 +62,27 @@ export interface GroupCardData {
   capacityPercent: number;
   scheduleCount: number;
   scheduleLabels: string[];
+}
+
+/** One underlying `HorarioEntrenamiento` row (a single día) inside a `HorarioGroup`. */
+export interface HorarioGroupRow {
+  id: number;
+  diaSemana: string;
+}
+
+/**
+ * A visual grouping of `Horario` rows that share categoria, horaInicio,
+ * horaFin, entrenadorId and nivelRankingId — the "same weekly schedule,
+ * recurring on N días" case. Built by `groupHorarios()`.
+ */
+export interface HorarioGroup {
+  key: string;
+  categoria: string;
+  horaInicio: string;
+  horaFin: string;
+  entrenadorId: number;
+  nivelRankingId: number | null;
+  rows: HorarioGroupRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -355,4 +377,88 @@ export function buildTrainingSessions(
   }
 
   return sessions;
+}
+
+// ---------------------------------------------------------------------------
+// Horario grouping (Gestión de Horarios UI fixes — PR2a)
+// ---------------------------------------------------------------------------
+
+/** Monday→Sunday order used to sort a `HorarioGroup`'s rows. */
+const DIA_SEMANA_ORDER = ["LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", "SABADO", "DOMINGO"];
+
+/** Composite grouping key: same categoria + horario + entrenador + nivel = same weekly schedule. */
+function horarioGroupKey(h: Horario): string {
+  return `${h.categoria}|${h.horaInicio}|${h.horaFin}|${h.entrenadorId}|${h.nivelRankingId ?? "null"}`;
+}
+
+/**
+ * Group flat `Horario` rows (one per día) that share (categoria, horaInicio,
+ * horaFin, entrenadorId, nivelRankingId) into a single `HorarioGroup`,
+ * collecting each row's día into `rows`, sorted Monday→Sunday.
+ *
+ * Rows that differ in ANY of the 5 grouping fields land in separate groups
+ * (e.g. a different entrenadorId), even if the rest match.
+ */
+export function groupHorarios(horarios: Horario[]): HorarioGroup[] {
+  const groupsByKey = new Map<string, HorarioGroup>();
+
+  for (const h of horarios) {
+    const key = horarioGroupKey(h);
+    let group = groupsByKey.get(key);
+    if (!group) {
+      group = {
+        key,
+        categoria: h.categoria,
+        horaInicio: h.horaInicio,
+        horaFin: h.horaFin,
+        entrenadorId: h.entrenadorId,
+        nivelRankingId: h.nivelRankingId,
+        rows: [],
+      };
+      groupsByKey.set(key, group);
+    }
+    group.rows.push({ id: h.id, diaSemana: h.diaSemana });
+  }
+
+  for (const group of groupsByKey.values()) {
+    group.rows.sort(
+      (a, b) => DIA_SEMANA_ORDER.indexOf(a.diaSemana) - DIA_SEMANA_ORDER.indexOf(b.diaSemana),
+    );
+  }
+
+  return Array.from(groupsByKey.values());
+}
+
+/** Result of diffing a `HorarioGroup`'s ticked días against its existing rows. */
+export interface GroupSaveDiff {
+  /** Días ticked in the checklist with no matching existing row — create a new row for each. */
+  toCreate: string[];
+  /** Ids of existing rows whose día is still ticked — update shared fields on each. */
+  toUpdateIds: number[];
+  /** Ids of existing rows whose día was unticked — delete each (after student safety check). */
+  toDeleteIds: number[];
+}
+
+/**
+ * Diff a `HorarioGroup`'s currently ticked días (`selectedDias`) against its
+ * existing `rows` to determine which underlying `HorarioEntrenamiento` rows
+ * must be created, updated (shared fields only, día unchanged) or deleted.
+ *
+ * A `group` with empty `rows` (e.g. creating a brand-new group) yields an
+ * all-`toCreate` diff — every ticked día becomes a create.
+ */
+export function diffGroupSave(group: HorarioGroup, selectedDias: Set<string>): GroupSaveDiff {
+  const existingByDia = new Map(group.rows.map((row) => [row.diaSemana, row.id]));
+
+  const toCreate = DIA_SEMANA_ORDER.filter(
+    (dia) => selectedDias.has(dia) && !existingByDia.has(dia),
+  );
+  const toUpdateIds = group.rows
+    .filter((row) => selectedDias.has(row.diaSemana))
+    .map((row) => row.id);
+  const toDeleteIds = group.rows
+    .filter((row) => !selectedDias.has(row.diaSemana))
+    .map((row) => row.id);
+
+  return { toCreate, toUpdateIds, toDeleteIds };
 }

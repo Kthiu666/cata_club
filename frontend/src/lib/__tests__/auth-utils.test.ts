@@ -147,7 +147,7 @@ describe("getNavLinksForRole", () => {
     expect(links[2]).toEqual({ href: "/members", label: "Miembros" });
     expect(links[3]).toEqual({ href: "/ranking", label: "Ranking" });
     expect(links[4]).toEqual({ href: "/ranking/seleccion-oficial", label: "Selección Oficial" });
-    expect(links[5]).toEqual({ href: "/groups", label: "Grupos y Horarios" });
+    expect(links[5]).toEqual({ href: "/groups", label: "Gestión de Horarios" });
     expect(links[6]).toEqual({ href: "/payments", label: "Membresías y Pagos" });
     expect(links[7]).toEqual({ href: "/attendance", label: "Horarios y Asistencia" });
     expect(links[8]).toEqual({ href: "/clases-extra", label: "Clases Extra" });

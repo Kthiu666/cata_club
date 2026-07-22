@@ -348,10 +348,12 @@ describe("GroupsPage — categoria-driven locked schedule form (v2 design)", () 
 
   it("renders the 'Gestión de Horarios' title (renamed from 'Grupos y Horarios')", async () => {
     render(<GroupsPage />);
-    expect(await screen.findByText("Gestión de Horarios")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Gestión de Horarios" }),
+    ).toBeInTheDocument();
   });
 
-  it("locks the displayed time range to COMPETITIVO's 18:00–20:00 and offers Sábado as a día option", async () => {
+  it("locks the displayed time range to COMPETITIVO's 18:00–20:00 and offers Sábado as a día checkbox", async () => {
     render(<GroupsPage />);
     await screen.findByText(/horarios de entrenamiento/i);
     fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
@@ -359,13 +361,10 @@ describe("GroupsPage — categoria-driven locked schedule form (v2 design)", () 
     fireEvent.change(screen.getByLabelText(/categoría/i), { target: { value: "COMPETITIVO" } });
 
     expect(screen.getByText("18:00 – 20:00")).toBeInTheDocument();
-
-    const diaSelect = screen.getByLabelText(/día de la semana/i);
-    const options = within(diaSelect).getAllByRole("option").map((o) => (o as HTMLOptionElement).value);
-    expect(options).toEqual(["LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", "SABADO"]);
+    expect(screen.getByLabelText("Sábado")).toBeInTheDocument();
   });
 
-  it("locks the displayed time range to FORMATIVO's 15:00–16:00 and excludes Sábado from día options", async () => {
+  it("locks the displayed time range to FORMATIVO's 15:00–16:00 and excludes Sábado from día checkboxes", async () => {
     render(<GroupsPage />);
     await screen.findByText(/horarios de entrenamiento/i);
     fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
@@ -373,11 +372,7 @@ describe("GroupsPage — categoria-driven locked schedule form (v2 design)", () 
     fireEvent.change(screen.getByLabelText(/categoría/i), { target: { value: "FORMATIVO" } });
 
     expect(screen.getByText("15:00 – 16:00")).toBeInTheDocument();
-
-    const diaSelect = screen.getByLabelText(/día de la semana/i);
-    const options = within(diaSelect).getAllByRole("option").map((o) => (o as HTMLOptionElement).value);
-    expect(options).toEqual(["LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES"]);
-    expect(options).not.toContain("SABADO");
+    expect(screen.queryByLabelText("Sábado")).not.toBeInTheDocument();
   });
 
   it("has no editable hora_inicio/hora_fin time inputs left in the form (locked, not freeform)", async () => {
@@ -387,5 +382,545 @@ describe("GroupsPage — categoria-driven locked schedule form (v2 design)", () 
 
     expect(screen.queryByLabelText(/hora inicio/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/hora fin/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("GroupsPage — grouped weekly schedule display (PR2a)", () => {
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchJustificativosPendientes.mockReset();
+    mockFetchHorarios.mockReset();
+    mockFetchNivelesConOcupacion.mockReset();
+    mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
+    mockFetchJustificativosPendientes.mockResolvedValue([]);
+    mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
+  });
+
+  it("collapses 3 recurring rows (same categoria/horario/entrenador/nivel) into 1 card with 3 day badges", async () => {
+    mockFetchHorarios.mockResolvedValue([
+      { id: 101, diaSemana: "LUNES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 1, nivelRankingId: 2 },
+      { id: 102, diaSemana: "MIERCOLES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 1, nivelRankingId: 2 },
+      { id: 103, diaSemana: "VIERNES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 1, nivelRankingId: 2 },
+    ]);
+
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const cards = document.querySelectorAll(".card.p-5");
+    expect(cards).toHaveLength(1);
+
+    const card = cards[0] as HTMLElement;
+    expect(within(card).getByText("Lun")).toBeInTheDocument();
+    expect(within(card).getByText("Mié")).toBeInTheDocument();
+    expect(within(card).getByText("Vie")).toBeInTheDocument();
+    expect(within(card).getByText("18:00 – 20:00")).toBeInTheDocument();
+  });
+
+  it("keeps rows with a different entrenador_id in separate cards", async () => {
+    mockFetchHorarios.mockResolvedValue([
+      { id: 201, diaSemana: "LUNES", horaInicio: "15:00", horaFin: "16:00", categoria: "FORMATIVO", entrenadorId: 1, nivelRankingId: null },
+      { id: 202, diaSemana: "LUNES", horaInicio: "15:00", horaFin: "16:00", categoria: "FORMATIVO", entrenadorId: 2, nivelRankingId: null },
+    ]);
+
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const cards = document.querySelectorAll(".card.p-5");
+    expect(cards).toHaveLength(2);
+    // both cards render exactly one "Lun" badge each (not merged into one card)
+    const lunBadges = screen.getAllByText("Lun");
+    expect(lunBadges).toHaveLength(2);
+  });
+});
+
+describe("GroupsPage — day-diffing unified save (PR2b)", () => {
+  const GROUP_ROWS = [
+    { id: 301, diaSemana: "LUNES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 7, nivelRankingId: 2 },
+    { id: 303, diaSemana: "MIERCOLES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 7, nivelRankingId: 2 },
+  ];
+
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchJustificativosPendientes.mockReset();
+    mockFetchHorarios.mockReset();
+    mockFetchNivelesConOcupacion.mockReset();
+    mockCrearHorario.mockReset();
+    mockActualizarHorario.mockReset();
+    mockEliminarHorario.mockReset();
+    mockFetchAlumnosPorHorario.mockReset();
+    mockDesasignarAlumnoDeHorario.mockReset();
+    mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
+    mockFetchJustificativosPendientes.mockResolvedValue([]);
+    mockFetchHorarios.mockResolvedValue(GROUP_ROWS);
+    mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
+    mockCrearHorario.mockResolvedValue({});
+    mockActualizarHorario.mockResolvedValue({});
+    mockEliminarHorario.mockResolvedValue(undefined);
+    mockFetchAlumnosPorHorario.mockResolvedValue([]);
+    mockDesasignarAlumnoDeHorario.mockResolvedValue(undefined);
+  });
+
+  async function openEditAndSubmit(): Promise<void> {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+    fireEvent.click(screen.getByRole("button", { name: /editar horario/i }));
+    await screen.findByRole("heading", { name: "Editar Horario" });
+  }
+
+  it("ticking a new día creates a row and updates the kept días' shared fields on submit", async () => {
+    await openEditAndSubmit();
+
+    fireEvent.click(screen.getByLabelText("Viernes"));
+    fireEvent.click(screen.getByRole("button", { name: /guardar cambios/i }));
+
+    await waitFor(() => {
+      expect(mockCrearHorario).toHaveBeenCalledWith(
+        expect.objectContaining({ dia_semana: "VIERNES", categoria: "COMPETITIVO", entrenador_id: 7, nivel_ranking_id: 2 }),
+      );
+    });
+    expect(mockActualizarHorario).toHaveBeenCalledWith(301, expect.objectContaining({ categoria: "COMPETITIVO", entrenador_id: 7, nivel_ranking_id: 2 }));
+    expect(mockActualizarHorario).toHaveBeenCalledWith(303, expect.objectContaining({ categoria: "COMPETITIVO", entrenador_id: 7, nivel_ranking_id: 2 }));
+  });
+
+  it("unticking a día with zero enrolled students deletes it silently, without a confirmation dialog", async () => {
+    mockFetchAlumnosPorHorario.mockResolvedValue([]);
+    await openEditAndSubmit();
+
+    fireEvent.click(screen.getByLabelText("Miércoles"));
+    fireEvent.click(screen.getByRole("button", { name: /guardar cambios/i }));
+
+    await waitFor(() => {
+      expect(mockEliminarHorario).toHaveBeenCalledWith(303);
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("unticking a día with enrolled students shows a confirmation naming the count and día before deleting", async () => {
+    mockFetchAlumnosPorHorario.mockResolvedValue([
+      { id: 1, persona_id: 10, persona_nombre_completo: "Ana Pérez", horario_id: 303, horario_dia: "MIERCOLES", horario_hora_inicio: "18:00", horario_hora_fin: "20:00", fecha_asignacion: "2026-01-01" },
+      { id: 2, persona_id: 11, persona_nombre_completo: "Bruno Díaz", horario_id: 303, horario_dia: "MIERCOLES", horario_hora_inicio: "18:00", horario_hora_fin: "20:00", fecha_asignacion: "2026-01-01" },
+    ]);
+    await openEditAndSubmit();
+
+    fireEvent.click(screen.getByLabelText("Miércoles"));
+    fireEvent.click(screen.getByRole("button", { name: /guardar cambios/i }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/2/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/mié/i)).toBeInTheDocument();
+    expect(mockEliminarHorario).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /cancelar/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(mockEliminarHorario).not.toHaveBeenCalled();
+    expect(mockDesasignarAlumnoDeHorario).not.toHaveBeenCalled();
+  });
+
+  it("confirming the pending deletion desasigna every enrolled student before eliminarHorario", async () => {
+    mockFetchAlumnosPorHorario.mockResolvedValue([
+      { id: 1, persona_id: 10, persona_nombre_completo: "Ana Pérez", horario_id: 303, horario_dia: "MIERCOLES", horario_hora_inicio: "18:00", horario_hora_fin: "20:00", fecha_asignacion: "2026-01-01" },
+    ]);
+    await openEditAndSubmit();
+
+    fireEvent.click(screen.getByLabelText("Miércoles"));
+    fireEvent.click(screen.getByRole("button", { name: /guardar cambios/i }));
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /confirmar/i }));
+
+    await waitFor(() => {
+      expect(mockEliminarHorario).toHaveBeenCalledWith(303);
+    });
+    expect(mockDesasignarAlumnoDeHorario).toHaveBeenCalledWith(10, 303);
+    const desasignarOrder = mockDesasignarAlumnoDeHorario.mock.invocationCallOrder[0];
+    const eliminarOrder = mockEliminarHorario.mock.invocationCallOrder[0];
+    expect(desasignarOrder).toBeLessThan(eliminarOrder);
+  });
+});
+
+describe("GroupsPage — accordion single-expand mechanics (PR3a)", () => {
+  const GROUPS = [
+    { id: 401, diaSemana: "LUNES", horaInicio: "15:00", horaFin: "16:00", categoria: "FORMATIVO", entrenadorId: 1, nivelRankingId: null },
+    { id: 402, diaSemana: "LUNES", horaInicio: "15:00", horaFin: "16:00", categoria: "FORMATIVO", entrenadorId: 2, nivelRankingId: null },
+  ];
+
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchJustificativosPendientes.mockReset();
+    mockFetchHorarios.mockReset();
+    mockFetchNivelesConOcupacion.mockReset();
+    mockFetchAlumnosPorHorario.mockReset();
+    mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
+    mockFetchJustificativosPendientes.mockResolvedValue([]);
+    mockFetchHorarios.mockResolvedValue(GROUPS);
+    mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
+    mockFetchAlumnosPorHorario.mockResolvedValue([]);
+  });
+
+  function cards(): HTMLElement[] {
+    // Scoped to the horarios list container — excludes the "Nuevo Horario"
+    // create-form wrapper, which reuses the same "card p-5" classes but is a
+    // sibling before the list, not a group card.
+    return Array.from(document.querySelectorAll(".space-y-3 > .card.p-5")) as HTMLElement[];
+  }
+
+  it("renders the edit form inline under the card being edited, not at a fixed page position", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const [cardA] = cards();
+    fireEvent.click(within(cardA).getByTitle("Editar horario"));
+
+    const heading = await screen.findByRole("heading", { name: "Editar Horario" });
+    expect(cardA.contains(heading)).toBe(true);
+  });
+
+  it("expanding group B's edit form collapses group A's — only one group expanded at a time", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const [cardA, cardB] = cards();
+    fireEvent.click(within(cardA).getByTitle("Editar horario"));
+    await screen.findByRole("heading", { name: "Editar Horario" });
+    expect(within(cardA).getByRole("heading", { name: "Editar Horario" })).toBeInTheDocument();
+
+    fireEvent.click(within(cardB).getByTitle("Editar horario"));
+    await waitFor(() => {
+      expect(within(cardB).getByRole("heading", { name: "Editar Horario" })).toBeInTheDocument();
+    });
+    expect(within(cardA).queryByRole("heading", { name: "Editar Horario" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: "Editar Horario" })).toHaveLength(1);
+  });
+
+  it("opening the alumnos panel on group B closes group A's edit form (single accordion across tabs)", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const [cardA, cardB] = cards();
+    fireEvent.click(within(cardA).getByTitle("Editar horario"));
+    await screen.findByRole("heading", { name: "Editar Horario" });
+
+    fireEvent.click(within(cardB).getByTitle("Asignar alumnos a este horario"));
+    await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
+
+    expect(screen.queryByRole("heading", { name: "Editar Horario" })).not.toBeInTheDocument();
+  });
+
+  it("switching tabs on the same group replaces the editar panel with the alumnos panel inline", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const [cardA] = cards();
+    fireEvent.click(within(cardA).getByTitle("Editar horario"));
+    await screen.findByRole("heading", { name: "Editar Horario" });
+
+    fireEvent.click(within(cardA).getByTitle("Asignar alumnos a este horario"));
+    const alumnosHeading = await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
+    expect(cardA.contains(alumnosHeading)).toBe(true);
+    expect(screen.queryByRole("heading", { name: "Editar Horario" })).not.toBeInTheDocument();
+  });
+
+  it("the 'Nuevo Horario' create form is not nested inside any existing group card", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
+    const heading = await screen.findByRole("heading", { name: "Nuevo Horario" });
+
+    for (const card of cards()) {
+      expect(card.contains(heading)).toBe(false);
+    }
+  });
+});
+
+describe("GroupsPage — real roster via fetchAlumnosPorHorario + día-pill selector (PR3b)", () => {
+  const MULTI_DIA_GROUP_ROWS = [
+    { id: 601, diaSemana: "LUNES", horaInicio: "15:00", horaFin: "16:00", categoria: "FORMATIVO", entrenadorId: 1, nivelRankingId: 2 },
+    { id: 602, diaSemana: "MIERCOLES", horaInicio: "15:00", horaFin: "16:00", categoria: "FORMATIVO", entrenadorId: 1, nivelRankingId: 2 },
+  ];
+  const SINGLE_DIA_ROW = { id: 603, diaSemana: "VIERNES", horaInicio: "15:00", horaFin: "16:00", categoria: "FORMATIVO", entrenadorId: 9, nivelRankingId: 2 };
+
+  // Nivel-matched (grupoId "2") but NEVER enrolled via AlumnoHorario for any
+  // row above — proves the roster is sourced from fetchAlumnosPorHorario, not
+  // from nivel/grupoId matching against the general student pool.
+  const NIVEL_MATCH_UNENROLLED_ACCOUNT: MemberAccount = {
+    id: "acc-nivel-match",
+    role: "representante",
+    nombres: "Carla",
+    apellidos: "Ruiz",
+    telefono: "0999999999",
+    estudiantes: [
+      { id: "50", nombres: "Carla", apellidos: "Ruiz", grupoId: "2", activo: true, membresia: null, ultimoPago: null },
+    ],
+  };
+
+  const ASSIGNABLE_ACCOUNT: MemberAccount = {
+    id: "acc-assignable",
+    role: "representante",
+    nombres: "Diego",
+    apellidos: "Vega",
+    telefono: "0999999999",
+    estudiantes: [
+      { id: "70", nombres: "Diego", apellidos: "Vega", grupoId: null, activo: true, membresia: null, ultimoPago: null },
+    ],
+  };
+
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchJustificativosPendientes.mockReset();
+    mockFetchHorarios.mockReset();
+    mockFetchNivelesConOcupacion.mockReset();
+    mockFetchAlumnosPorHorario.mockReset();
+    mockAsignarAlumnoAHorario.mockReset();
+    mockFetchJustificativosPendientes.mockResolvedValue([]);
+    mockFetchHorarios.mockResolvedValue([...MULTI_DIA_GROUP_ROWS, SINGLE_DIA_ROW]);
+    mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
+    mockFetchMembers.mockResolvedValue({ accounts: [NIVEL_MATCH_UNENROLLED_ACCOUNT], niveles: NIVELES });
+    mockFetchAlumnosPorHorario.mockImplementation((horarioId: number) => {
+      if (horarioId === 601) {
+        return Promise.resolve([
+          { id: 1, persona_id: 20, persona_nombre_completo: "Ana Pérez", horario_id: 601, horario_dia: "LUNES", horario_hora_inicio: "15:00", horario_hora_fin: "16:00", fecha_asignacion: "2026-01-01" },
+        ]);
+      }
+      if (horarioId === 602) {
+        return Promise.resolve([
+          { id: 2, persona_id: 21, persona_nombre_completo: "Bruno Díaz", horario_id: 602, horario_dia: "MIERCOLES", horario_hora_inicio: "15:00", horario_hora_fin: "16:00", fecha_asignacion: "2026-01-01" },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+  });
+
+  function cards(): HTMLElement[] {
+    return Array.from(document.querySelectorAll(".space-y-3 > .card.p-5")) as HTMLElement[];
+  }
+
+  it("does not render a nivel-filtered roster block outside the accordion", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    expect(screen.queryByText("Alumnos asignados")).not.toBeInTheDocument();
+    expect(screen.queryByText("Carla Ruiz")).not.toBeInTheDocument();
+  });
+
+  it("renders día pills for a multi-día group and switching pills reloads the roster for that día's horario_id", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const [multiDiaCard] = cards();
+    fireEvent.click(within(multiDiaCard).getByTitle("Asignar alumnos a este horario"));
+    await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
+
+    await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(601));
+    expect(await screen.findByText("Ana Pérez")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mié" }));
+
+    await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(602));
+    expect(await screen.findByText("Bruno Díaz")).toBeInTheDocument();
+    expect(screen.queryByText("Ana Pérez")).not.toBeInTheDocument();
+  });
+
+  it("does not render día pills for a single-día group", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const [, singleDiaCard] = cards();
+    fireEvent.click(within(singleDiaCard).getByTitle("Asignar alumnos a este horario"));
+    await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
+
+    expect(screen.queryByRole("button", { name: "Vie" })).not.toBeInTheDocument();
+  });
+
+  it("assigning a student uses the horario_id of the currently selected día pill, not always the group's first row", async () => {
+    mockFetchMembers.mockResolvedValue({ accounts: [ASSIGNABLE_ACCOUNT], niveles: NIVELES });
+    mockAsignarAlumnoAHorario.mockResolvedValue({});
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const [multiDiaCard] = cards();
+    fireEvent.click(within(multiDiaCard).getByTitle("Asignar alumnos a este horario"));
+    await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
+    await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(601));
+
+    fireEvent.click(screen.getByRole("button", { name: "Mié" }));
+    await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(602));
+
+    fireEvent.change(screen.getByLabelText("Seleccionar alumno"), { target: { value: "70" } });
+    fireEvent.click(screen.getByRole("button", { name: /^asignar$/i }));
+
+    await waitFor(() => {
+      expect(mockAsignarAlumnoAHorario).toHaveBeenCalledWith({ persona_id: 70, horario_id: 602 });
+    });
+  });
+});
+
+describe("GroupsPage — trash icon deletes the whole group, not just the first día (bugfix)", () => {
+  const GROUP_ROWS = [
+    { id: 701, diaSemana: "LUNES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 5, nivelRankingId: 2 },
+    { id: 702, diaSemana: "MIERCOLES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 5, nivelRankingId: 2 },
+    { id: 703, diaSemana: "VIERNES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 5, nivelRankingId: 2 },
+  ];
+
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchJustificativosPendientes.mockReset();
+    mockFetchHorarios.mockReset();
+    mockFetchNivelesConOcupacion.mockReset();
+    mockEliminarHorario.mockReset();
+    mockFetchAlumnosPorHorario.mockReset();
+    mockDesasignarAlumnoDeHorario.mockReset();
+    mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
+    mockFetchJustificativosPendientes.mockResolvedValue([]);
+    mockFetchHorarios.mockResolvedValue(GROUP_ROWS);
+    mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
+    mockEliminarHorario.mockResolvedValue(undefined);
+    mockDesasignarAlumnoDeHorario.mockResolvedValue(undefined);
+  });
+
+  it("checks alumnos for EVERY día row (not only the first) before showing the confirmation dialog", async () => {
+    mockFetchAlumnosPorHorario.mockImplementation((horarioId: number) => {
+      if (horarioId === 701) {
+        return Promise.resolve([
+          { id: 1, persona_id: 10, persona_nombre_completo: "Ana Pérez", horario_id: 701, horario_dia: "LUNES", horario_hora_inicio: "18:00", horario_hora_fin: "20:00", fecha_asignacion: "2026-01-01" },
+        ]);
+      }
+      if (horarioId === 703) {
+        return Promise.resolve([
+          { id: 2, persona_id: 11, persona_nombre_completo: "Bruno Díaz", horario_id: 703, horario_dia: "VIERNES", horario_hora_inicio: "18:00", horario_hora_fin: "20:00", fecha_asignacion: "2026-01-01" },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    fireEvent.click(screen.getByTitle("Eliminar horario"));
+
+    await waitFor(() => {
+      expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(701);
+      expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(702);
+      expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(703);
+    });
+
+    const dialog = await screen.findByRole("dialog");
+    // Total across all 3 días (1 + 0 + 1), not just the first row's count.
+    expect(within(dialog).getByText(/2/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/lun/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/mié/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/vie/i)).toBeInTheDocument();
+    expect(mockEliminarHorario).not.toHaveBeenCalled();
+  });
+
+  it("confirming deletes EVERY día row and desasigna every enrolled alumno first, across the whole group", async () => {
+    mockFetchAlumnosPorHorario.mockImplementation((horarioId: number) => {
+      if (horarioId === 701) {
+        return Promise.resolve([
+          { id: 1, persona_id: 10, persona_nombre_completo: "Ana Pérez", horario_id: 701, horario_dia: "LUNES", horario_hora_inicio: "18:00", horario_hora_fin: "20:00", fecha_asignacion: "2026-01-01" },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    fireEvent.click(screen.getByTitle("Eliminar horario"));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /confirmar/i }));
+
+    await waitFor(() => {
+      expect(mockEliminarHorario).toHaveBeenCalledWith(701);
+      expect(mockEliminarHorario).toHaveBeenCalledWith(702);
+      expect(mockEliminarHorario).toHaveBeenCalledWith(703);
+    });
+    // Only the LUNES row (701) had an enrolled alumno.
+    expect(mockDesasignarAlumnoDeHorario).toHaveBeenCalledWith(10, 701);
+    expect(mockDesasignarAlumnoDeHorario).toHaveBeenCalledTimes(1);
+    const desasignarOrder = mockDesasignarAlumnoDeHorario.mock.invocationCallOrder[0];
+    const eliminar701Order = mockEliminarHorario.mock.calls.findIndex((call) => call[0] === 701);
+    expect(eliminar701Order).toBeGreaterThanOrEqual(0);
+    expect(desasignarOrder).toBeLessThan(mockEliminarHorario.mock.invocationCallOrder[eliminar701Order]);
+  });
+
+  it("canceling the confirmation makes no delete calls and does not resync data", async () => {
+    mockFetchAlumnosPorHorario.mockResolvedValue([]);
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+    mockFetchHorarios.mockClear();
+
+    fireEvent.click(screen.getByTitle("Eliminar horario"));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /cancelar/i }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(mockEliminarHorario).not.toHaveBeenCalled();
+    expect(mockFetchHorarios).not.toHaveBeenCalled();
+  });
+});
+
+describe("GroupsPage — save resyncs local state after a mid-sequence failure (bugfix)", () => {
+  const GROUP_ROWS = [
+    { id: 301, diaSemana: "LUNES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 7, nivelRankingId: 2 },
+    { id: 303, diaSemana: "MIERCOLES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 7, nivelRankingId: 2 },
+  ];
+  // Simulates the backend state AFTER the partial failure: día VIERNES (705)
+  // was already created successfully before actualizarHorario(303) rejected.
+  const RESYNCED_ROWS = [
+    ...GROUP_ROWS,
+    { id: 705, diaSemana: "VIERNES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 7, nivelRankingId: 2 },
+  ];
+
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchJustificativosPendientes.mockReset();
+    mockFetchHorarios.mockReset();
+    mockFetchNivelesConOcupacion.mockReset();
+    mockCrearHorario.mockReset();
+    mockActualizarHorario.mockReset();
+    mockEliminarHorario.mockReset();
+    mockFetchAlumnosPorHorario.mockReset();
+    mockDesasignarAlumnoDeHorario.mockReset();
+    mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
+    mockFetchJustificativosPendientes.mockResolvedValue([]);
+    mockFetchHorarios.mockResolvedValueOnce(GROUP_ROWS).mockResolvedValue(RESYNCED_ROWS);
+    mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
+    mockFetchAlumnosPorHorario.mockResolvedValue([]);
+  });
+
+  it("resyncs via loadData() and closes the form after a mid-sequence save failure, so a retry does not re-diff against stale rows", async () => {
+    mockCrearHorario.mockResolvedValue({}); // crearHorario(VIERNES) succeeds
+    // actualizarHorario(301) succeeds, actualizarHorario(303) fails — the
+    // real bug: a 2nd/3rd call in the sequence rejecting after earlier calls
+    // already succeeded.
+    mockActualizarHorario.mockImplementation((id: number) =>
+      id === 301 ? Promise.resolve({}) : Promise.reject(new Error("boom")),
+    );
+
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+    fireEvent.click(screen.getByRole("button", { name: /editar horario/i }));
+    await screen.findByRole("heading", { name: "Editar Horario" });
+
+    fireEvent.click(screen.getByLabelText("Viernes"));
+    fireEvent.click(screen.getByRole("button", { name: /guardar cambios/i }));
+
+    await waitFor(() => expect(mockActualizarHorario).toHaveBeenCalledWith(303, expect.anything()));
+
+    // loadData()/fetchHorarios is called again to resync with what actually
+    // persisted (initial load + post-failure resync).
+    await waitFor(() => expect(mockFetchHorarios).toHaveBeenCalledTimes(2));
+    // The form closes instead of continuing to edit against the stale
+    // pre-failure `editingGroup` snapshot.
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Editar Horario" })).not.toBeInTheDocument());
+    await screen.findByText(/error al guardar el horario/i);
+
+    // Reopening the form must reflect the RESYNCED backend state (día
+    // VIERNES already exists, id 705) — not the stale 2-día snapshot from
+    // before the failed save, which would cause a retry to re-create it.
+    fireEvent.click(screen.getByRole("button", { name: /editar horario/i }));
+    await screen.findByRole("heading", { name: "Editar Horario" });
+    expect(screen.getByLabelText("Viernes")).toBeChecked();
   });
 });
