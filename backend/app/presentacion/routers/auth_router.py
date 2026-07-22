@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, File, Request, UploadFile, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -6,7 +6,7 @@ from app.infraestructura.db import obtener_sesion
 from app.presentacion.schemas.auth_schemas import (
     RegistroUsuarioDTO, RefreshTokenDTO, UsuarioMeResponseDTO, LogoutResponseDTO,
     SolicitarRecuperacionDTO, SolicitarRecuperacionResponseDTO, RestablecerContraseniaDTO,
-    ActualizarPerfilPropioDTO, ActualizarPerfilPropioResponseDTO,
+    ActualizarPerfilPropioDTO, ActualizarPerfilPropioResponseDTO, ActualizarFotoPerfilResponseDTO,
 )
 from app.seguridad.gestor_auth import GestorAutenticacion
 from app.servicios_negocio.auth_servicio import AuthServicio
@@ -45,6 +45,8 @@ async def obtener_perfil(
         "apellidos": usuario.persona.apellidos,
         "roles": [rol.tipo_rol.value for rol in usuario.roles],
         "telefono": usuario.persona.telefono,
+        "fecha_creacion": usuario.fecha_creacion,
+        "foto_url": usuario.persona.foto_url,
     }
 
 
@@ -65,6 +67,29 @@ async def actualizar_perfil_propio(
     que sigue existiendo sin cambios para cualquier persona.
     """
     return AuthServicio(db).actualizar_perfil_propio(token_payload["sub"], cambios)
+
+
+# --- Issue foto de perfil: subida self-service, cualquier rol autenticado ---
+@router.post("/me/foto", response_model=ActualizarFotoPerfilResponseDTO)
+@limiter.limit("10/minute")
+async def actualizar_foto_perfil(
+    request: Request,
+    archivo: UploadFile = File(...),
+    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
+    db: Session = Depends(obtener_sesion),
+):
+    """
+    Self-service: el usuario autenticado sube/reemplaza SU PROPIA foto de
+    perfil. Se resuelve la identidad vía el `sub` del JWT (no vía un
+    persona_id de path param), igual que `PATCH /auth/me`, de modo que un
+    usuario nunca pueda reemplazar la foto de otro.
+    """
+    contenido = await archivo.read()
+    return AuthServicio(db).actualizar_foto_perfil(
+        correo_actual=token_payload["sub"],
+        contenido=contenido,
+        content_type=archivo.content_type,
+    )
 
 
 @router.post("/refresh")

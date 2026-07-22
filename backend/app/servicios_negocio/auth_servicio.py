@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.dominio.modelos import Usuario
 from app.dominio.excepciones import (
-    CredencialesInvalidas, EntidadNoEncontrada, EntidadDuplicada,
+    CredencialesInvalidas, EntidadNoEncontrada, EntidadDuplicada, OperacionInvalida,
 )
 from app.infraestructura.repositorios.persona_repositorio import PersonaRepositorio
 from app.infraestructura.repositorios.usuario_ficha_repositorio import UsuarioRepositorio
@@ -117,10 +117,64 @@ class AuthServicio:
             "apellidos": usuario.persona.apellidos,
             "roles": [rol.tipo_rol.value for rol in usuario.roles],
             "telefono": usuario.persona.telefono,
+            "fecha_creacion": usuario.fecha_creacion,
+            "foto_url": usuario.persona.foto_url,
         }
         if correo_cambio:
             respuesta.update(self._emitir_par_tokens(usuario))
         return respuesta
+
+    # --- Foto de perfil (self-service, POST /auth/me/foto) -------------------
+    TIPOS_MIME_PERMITIDOS_FOTO_PERFIL = {"image/jpeg", "image/png"}
+    TAMANO_MAXIMO_FOTO_PERFIL_BYTES = 5 * 1024 * 1024  # 5 MB, mismo límite que el voucher de pago
+
+    def actualizar_foto_perfil(self, correo_actual: str, contenido: bytes, content_type: str) -> dict:
+        """
+        Sube y persiste la foto de perfil del USUARIO AUTENTICADO (resuelto vía
+        el `sub` del JWT, igual que `actualizar_perfil_propio`: nunca vía un
+        identificador recibido en el request, así un usuario nunca puede
+        reemplazar la foto de otro).
+
+        Valida tipo MIME y tamaño ANTES de tocar Cloudinary (falla rápido y
+        barato, sin gastar la llamada externa en un archivo que de todos modos
+        se va a rechazar). El `public_id` se deriva del `persona_id` del
+        caller para que una foto nueva SOBRESCRIBA la anterior en Cloudinary
+        en vez de acumular recursos huérfanos (mismo criterio que el voucher
+        de pago).
+        """
+        usuario = self.obtener_usuario_actual(correo_actual)
+        if not usuario.activo:
+            raise CredencialesInvalidas("La cuenta está desactivada")
+
+        if content_type not in self.TIPOS_MIME_PERMITIDOS_FOTO_PERFIL:
+            raise OperacionInvalida("Formato de archivo no permitido. Use JPG o PNG")
+        if len(contenido) > self.TAMANO_MAXIMO_FOTO_PERFIL_BYTES:
+            raise OperacionInvalida("El archivo excede el tamaño máximo de 5MB")
+
+        from app.infraestructura.cloudinary_cliente import subir_foto_perfil
+
+        public_id = f"perfil_{usuario.persona_id}"
+        url = subir_foto_perfil(
+            contenido=contenido,
+            nombre_publico=public_id,
+            content_type=content_type,
+            persona_id=usuario.persona_id,
+        )
+
+        self.repo_persona.actualizar(usuario.persona, {"foto_url": url})
+        self.db.commit()
+        self.db.refresh(usuario)
+
+        return {
+            "correo": usuario.correo,
+            "persona_id": usuario.persona_id,
+            "nombres": usuario.persona.nombres,
+            "apellidos": usuario.persona.apellidos,
+            "roles": [rol.tipo_rol.value for rol in usuario.roles],
+            "telefono": usuario.persona.telefono,
+            "fecha_creacion": usuario.fecha_creacion,
+            "foto_url": usuario.persona.foto_url,
+        }
 
     # --- Refresh de access token a partir de un refresh token ---------------
     def refrescar_sesion(self, refresh_token: str) -> dict:

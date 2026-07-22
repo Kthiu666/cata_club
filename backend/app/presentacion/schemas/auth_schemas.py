@@ -6,6 +6,7 @@ Patrón de nomenclatura consistente con el resto de schemas del proyecto:
   - Sufijo `ResponseDTO` para respuestas, con `model_config = ConfigDict(from_attributes=True)`
     cuando la respuesta se mapea directamente desde un modelo ORM.
 """
+from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 
@@ -41,6 +42,8 @@ class UsuarioMeResponseDTO(ResponseBase, BaseModel):
     apellidos: str
     roles: List[str]
     telefono: str
+    fecha_creacion: datetime
+    foto_url: Optional[str] = None
 
 
 class LogoutResponseDTO(ResponseBase, BaseModel):
@@ -63,11 +66,22 @@ class ActualizarPerfilPropioResponseDTO(ResponseBase, BaseModel):
     apellidos: str
     roles: List[str]
     telefono: str
+    fecha_creacion: datetime
+    foto_url: Optional[str] = None
     access_token: Optional[str] = None
     """Presente SOLO si `correo` cambió (el `sub` del JWT es el correo; sin
     reemisión, el access token vigente del usuario dejaría de resolver a su
     cuenta en el próximo request)."""
     refresh_token: Optional[str] = None
+
+
+# --- Foto de perfil (self-service, POST /auth/me/foto) -----------------------
+# Reutiliza el mismo shape que ActualizarPerfilPropioResponseDTO (correo,
+# persona_id, nombres, apellidos, roles, telefono, fecha_creacion, foto_url):
+# la subida de foto nunca cambia el correo, así que access_token/refresh_token
+# quedan siempre en None aquí, pero se mantienen para uniformidad de
+# respuesta con el resto del perfil propio.
+ActualizarFotoPerfilResponseDTO = ActualizarPerfilPropioResponseDTO
 
 
 # --- E01-RF003: recuperación de contraseña ----------------------------------

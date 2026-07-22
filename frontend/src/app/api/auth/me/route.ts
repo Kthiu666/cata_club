@@ -3,8 +3,13 @@
  * PATCH /api/auth/me — update the logged-in user's own correo/teléfono.
  *
  * BFF proxies to FastAPI's:
- *   GET /auth/me (now includes telefono)
+ *   GET /auth/me (now includes telefono, fechaCreacion)
  *   PATCH /auth/me (self-service, any authenticated role — no admin gate)
+ *
+ * `fechaCreacion` requires no explicit mapping here: the backend's camelCase
+ * alias generator (`ResponseBase`) already produces it, and both handlers
+ * below pass the backend JSON through unmodified (aside from stripping
+ * tokens on PATCH) — see route.test.ts for the passthrough confirmation.
  *
  * Deliberately separate from `/api/auth/session` and `backendMe`/`buildSession`
  * (see `src/lib/server/auth.ts`) — this route is the dedicated "self profile"
