@@ -230,7 +230,9 @@ const APP_SHELL_ROUTES = new Set([
   "/attendance",
   "/trainer",
   "/trainer/attendance",
+  "/trainer/nivel",
   "/reports",
+  "/clases-extra",
   "/student",
 ]);
 

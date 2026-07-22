@@ -15,9 +15,10 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { Trophy, Users, CheckCircle2, AlertTriangle } from "lucide-react";
+import AppShell from "@/components/shell/AppShell";
+import { Users, CheckCircle2, AlertTriangle } from "lucide-react";
 import {
   fetchMembers,
   assignStudentToNivel,
@@ -25,6 +26,7 @@ import {
   ApiClientError,
   type NivelConOcupacion,
 } from "@/services/api";
+import { useToast } from "@/contexts/ToastContext";
 import { buildNivelStudents } from "./nivel-utils";
 
 function nivelLabel(niveles: NivelConOcupacion[], nivelId: number | null): string {
@@ -61,24 +63,7 @@ export default function NivelPage(): React.ReactElement {
 
   return (
     <ProtectedRoute allowedRoles={["trainer"]}>
-      <div>
-        {/* Hero Banner */}
-        <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-logo-glow" />
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-cata-red">
-              <Trophy size={14} strokeWidth={2} aria-hidden="true" />
-              Gestión de Nivel
-            </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-cata-text sm:text-4xl">
-              Nivel
-            </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-cata-text/60">
-              Asigná el nivel de cada estudiante.
-            </p>
-          </div>
-        </div>
-
+      <AppShell eyebrow="Área de entrenadores" title="Nivel">
         {loadError && (
           <div
             className="mb-6 flex items-center gap-2 rounded-xl border border-cata-red/30 bg-cata-red/10 px-4 py-3 text-sm text-cata-red"
@@ -98,7 +83,7 @@ export default function NivelPage(): React.ReactElement {
           loading={loading}
           onAssigned={loadData}
         />
-      </div>
+      </AppShell>
     </ProtectedRoute>
   );
 }
@@ -116,13 +101,37 @@ interface AsignarNivelTabProps {
 
 const NIVEL_FILTER_UNASSIGNED = "sin-asignar";
 
+/** How long the "Asignado" label stays on the row before reverting to "Asignar". */
+const SUCCESS_RESET_DELAY_MS = 2000;
+
 function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNivelTabProps): React.ReactElement {
+  const { showSuccess } = useToast();
   const [drafts, setDrafts] = useState<Record<string, number>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [successId, setSuccessId] = useState<string | null>(null);
+  // Which rows currently show "Asignado". A Set (not a single id) because two
+  // students can complete an assignment within each other's reset window —
+  // each row's "Asignado" state must revert independently.
+  const [successIds, setSuccessIds] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
   const [nivelFilter, setNivelFilter] = useState("");
+  // One reset timer per student (keyed by estudianteId), not a single shared
+  // ref — otherwise a second student's assignment completing overwrites the
+  // ref before the first student's timer is cleared, leaving it orphaned:
+  // it still fires and clears `successId` unconditionally, hiding the
+  // second student's "Asignado" before that student's own 2s window elapses.
+  const resetTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  // Clear every pending "Asignado" reset timer on unmount so no state update
+  // fires after the component is gone.
+  useEffect(() => {
+    const timers = resetTimersRef.current;
+    return () => {
+      for (const timer of timers.values()) {
+        clearTimeout(timer);
+      }
+    };
+  }, []);
 
   const filteredStudents = students.filter((student) => {
     const term = searchTerm.trim().toLowerCase();
@@ -146,7 +155,17 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
     const student = students.find((s) => s.id === estudianteId);
     setSavingId(estudianteId);
     setError(null);
-    setSuccessId(null);
+    setSuccessIds((prev) => {
+      if (!prev.has(estudianteId)) return prev;
+      const next = new Set(prev);
+      next.delete(estudianteId);
+      return next;
+    });
+    const pendingTimer = resetTimersRef.current.get(estudianteId);
+    if (pendingTimer) {
+      clearTimeout(pendingTimer);
+      resetTimersRef.current.delete(estudianteId);
+    }
     try {
       if (student?.nivelRankingId === null || student?.nivelRankingId === undefined) {
         await assignStudentToNivel(Number(estudianteId), nivelId);
@@ -154,7 +173,18 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
         await moveStudentToNivel(Number(estudianteId), nivelId);
       }
       await onAssigned();
-      setSuccessId(estudianteId);
+      setSuccessIds((prev) => new Set(prev).add(estudianteId));
+      showSuccess("Nivel asignado correctamente.");
+      const timer = setTimeout(() => {
+        setSuccessIds((prev) => {
+          if (!prev.has(estudianteId)) return prev;
+          const next = new Set(prev);
+          next.delete(estudianteId);
+          return next;
+        });
+        resetTimersRef.current.delete(estudianteId);
+      }, SUCCESS_RESET_DELAY_MS);
+      resetTimersRef.current.set(estudianteId, timer);
     } catch (err) {
       console.error("[nivel] assign/move nivel failed", err);
       setError(
@@ -271,7 +301,7 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
                     >
                       {savingId === student.id ? (
                         "Guardando..."
-                      ) : successId === student.id ? (
+                      ) : successIds.has(student.id) ? (
                         <>
                           <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
                           Asignado
