@@ -43,6 +43,9 @@ export interface MemberStudentSummary {
   grupoId: string | null;
   fechaNacimiento?: string;
   activo: boolean;
+  prioridadMunicipal?: boolean;
+  porcentajeBeca?: number;
+  motivoBeca?: string;
   membresia: {
     /**
      * Display label for the membership plan. Was `TipoMembresia` (a strict
@@ -368,12 +371,20 @@ export function getAccountStatusBadge(account: MemberAccount): {
   if (activeCount > 0) {
     return { label: "Activo", className: "badge-success" };
   }
+  // Un pago pendiente de validación es la situación más accionable: mostrar
+  // eso primero aunque la membresía esté vencida/suspendida.
   if (
     account.estudiantes.some(
       (a) => a.ultimoPago?.estado === "pendiente_validacion",
     )
   ) {
-    return { label: "Requiere atención", className: "badge-warning" };
+    return { label: "Pago pendiente de validación", className: "badge-warning" };
   }
-  return { label: "Requiere atención", className: "badge-error" };
+  if (account.estudiantes.some((a) => a.membresia?.estado === "vencida")) {
+    return { label: "Membresía vencida", className: "badge-error" };
+  }
+  if (account.estudiantes.some((a) => a.membresia?.estado === "suspendida")) {
+    return { label: "Cuenta suspendida", className: "badge-error" };
+  }
+  return { label: "Sin membresía activa", className: "badge-error" };
 }

@@ -32,6 +32,7 @@ import type {
   CierreMensual,
   SeleccionOficial,
   PersonaReporte,
+  PersonaResponse,
   Notificacion,
   Justificativo,
 } from "@/types/domain";
@@ -970,6 +971,42 @@ export async function cambiarEstadoCuenta(personaId: number, activo: boolean): P
   return request<RolesResponse>(apiEndpoint(`/personas/${personaId}/cuenta/estado`), {
     method: "PATCH",
     body: JSON.stringify({ activo }),
+  });
+}
+
+export interface PersonaUpdatePayload {
+  nombres?: string;
+  apellidos?: string;
+  telefono?: string;
+  telefonoContacto?: string;
+  fotoUrl?: string;
+  direccionId?: number;
+  institucionId?: number;
+  prioridadMunicipal?: boolean;
+  porcentajeBeca?: number;
+  motivoBeca?: string;
+}
+
+/** Admin-only: update a person's basic data, including priority/discount labels. */
+export async function actualizarPersona(
+  personaId: number,
+  data: PersonaUpdatePayload,
+): Promise<PersonaResponse> {
+  const body: Record<string, unknown> = {};
+  if (data.nombres !== undefined) body.nombres = data.nombres;
+  if (data.apellidos !== undefined) body.apellidos = data.apellidos;
+  if (data.telefono !== undefined) body.telefono = data.telefono;
+  if (data.telefonoContacto !== undefined) body.telefono_contacto = data.telefonoContacto;
+  if (data.fotoUrl !== undefined) body.foto_url = data.fotoUrl;
+  if (data.direccionId !== undefined) body.direccion_id = data.direccionId;
+  if (data.institucionId !== undefined) body.institucion_id = data.institucionId;
+  if (data.prioridadMunicipal !== undefined) body.prioridad_municipal = data.prioridadMunicipal;
+  if (data.porcentajeBeca !== undefined) body.porcentaje_beca = data.porcentajeBeca;
+  if (data.motivoBeca !== undefined) body.motivo_beca = data.motivoBeca;
+
+  return request<PersonaResponse>(apiEndpoint(`/personas/${personaId}`), {
+    method: "PATCH",
+    body: JSON.stringify(body),
   });
 }
 
