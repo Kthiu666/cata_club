@@ -25,9 +25,11 @@ import {
   submitJustificativo,
   evaluarJustificativo,
   fetchJustificativosPendientes,
+  fetchMiPerfil,
+  actualizarMiPerfil,
 } from "../api";
 import type { PaymentValidationRequest } from "../api";
-import type { Notificacion, Justificativo } from "@/types/domain";
+import type { Notificacion, Justificativo, PerfilPropio } from "@/types/domain";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -528,6 +530,84 @@ describe("updatePaymentValidation — reject", () => {
     await expect(
       updatePaymentValidation("pv-001", { action: "rejected", rejectionReason: "" }),
     ).rejects.toThrow("El motivo de rechazo es obligatorio y no debe estar vacío");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Perfil propio (Issue #36) — dedicated self-profile fetch/mutate
+// ---------------------------------------------------------------------------
+
+function makePerfilPropio(overrides: Partial<PerfilPropio> = {}): PerfilPropio {
+  return {
+    correo: "ana.torres@cataclub.com",
+    personaId: 7,
+    nombres: "Ana",
+    apellidos: "Torres",
+    roles: ["ENTRENADOR"],
+    telefono: "0991234567",
+    ...overrides,
+  };
+}
+
+describe("fetchMiPerfil", () => {
+  it("calls GET /api/auth/me and returns the parsed profile", async () => {
+    const perfil = makePerfilPropio();
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(perfil));
+
+    const result = await fetchMiPerfil();
+
+    expect(global.fetch).toHaveBeenCalledWith("/api/auth/me", expect.anything());
+    expect(result).toEqual(perfil);
+  });
+
+  it("throws a typed error when the BFF route rejects the request", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(errorResponse(401, { message: "Sesión expirada." }));
+
+    await expect(fetchMiPerfil()).rejects.toThrow("Sesión expirada.");
+  });
+});
+
+describe("actualizarMiPerfil", () => {
+  it("sends PATCH to /api/auth/me with only telefono when correo is omitted", async () => {
+    const perfil = makePerfilPropio({ telefono: "0987654321" });
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(perfil));
+
+    const result = await actualizarMiPerfil({ telefono: "0987654321" });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/auth/me",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ telefono: "0987654321" }),
+      }),
+    );
+    expect(result).toEqual(perfil);
+  });
+
+  it("sends PATCH to /api/auth/me with only correo when telefono is omitted", async () => {
+    const perfil = makePerfilPropio({ correo: "nueva@cataclub.com" });
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(perfil));
+
+    const result = await actualizarMiPerfil({ correo: "nueva@cataclub.com" });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/auth/me",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ correo: "nueva@cataclub.com" }),
+      }),
+    );
+    expect(result).toEqual(perfil);
+  });
+
+  it("throws a typed error when the backend rejects a duplicate correo", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      errorResponse(400, { message: "El correo ya está en uso." }),
+    );
+
+    await expect(actualizarMiPerfil({ correo: "duplicado@cataclub.com" })).rejects.toThrow(
+      "El correo ya está en uso.",
+    );
   });
 });
 
