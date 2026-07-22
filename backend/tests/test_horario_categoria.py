@@ -3,29 +3,12 @@
 restringe `dia_semana` al conjunto de días permitido por la categoría."""
 import pytest
 
-from app.dominio.enums import Categoria, DiaSemana, TipoRol
+from app.dominio.enums import Categoria, DiaSemana
 from app.dominio.excepciones import OperacionInvalida
-from app.dominio.modelos import Persona, Usuario, Rol
 from app.presentacion.schemas.asistencia_schemas import HorarioCreateDTO, HorarioUpdateDTO
 from app.servicios_negocio.asistencia_servicio import AsistenciaServicio
-from datetime import date, time
-
-
-def _crear_entrenador(db_session, cedula="1710034065") -> int:
-    persona = Persona(
-        nombres="Carlos", apellidos="Ruiz", cedula=cedula,
-        fecha_nacimiento=date(1990, 1, 1), telefono="0991112222",
-    )
-    db_session.add(persona)
-    db_session.flush()
-    rol = Rol(tipo_rol=TipoRol.ENTRENADOR, descripcion="Entrenador")
-    usuario = Usuario(
-        correo=f"entrenador{cedula}@cataclub.test",
-        contrasenia="hash", persona_id=persona.id, roles=[rol],
-    )
-    db_session.add(usuario)
-    db_session.commit()
-    return persona.id
+from datetime import time
+from tests.conftest import crear_entrenador as _crear_entrenador
 
 
 def test_crear_horario_deriva_hora_inicio_y_fin_de_la_categoria(db_session):

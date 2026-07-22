@@ -3,28 +3,12 @@
 Cierra el hueco de cobertura cero pre-existente detectado en el blast-radius
 de PR #70 (el repositorio solo se ejercitaba indirectamente vía el servicio/
 router, nunca con asserts directos sobre sus métodos)."""
-from datetime import date, time
+from datetime import time
 
-from app.dominio.enums import Categoria, DiaSemana, TipoRol
-from app.dominio.modelos import Persona, Usuario, Rol, HorarioEntrenamiento
+from app.dominio.enums import Categoria, DiaSemana
+from app.dominio.modelos import HorarioEntrenamiento
 from app.infraestructura.repositorios.asistencia_repositorio import HorarioRepositorio
-
-
-def _crear_entrenador(db_session, cedula="1710034065") -> int:
-    persona = Persona(
-        nombres="Carlos", apellidos="Ruiz", cedula=cedula,
-        fecha_nacimiento=date(1990, 1, 1), telefono="0991112222",
-    )
-    db_session.add(persona)
-    db_session.flush()
-    rol = Rol(tipo_rol=TipoRol.ENTRENADOR, descripcion="Entrenador")
-    usuario = Usuario(
-        correo=f"entrenador{cedula}@cataclub.test",
-        contrasenia="hash", persona_id=persona.id, roles=[rol],
-    )
-    db_session.add(usuario)
-    db_session.commit()
-    return persona.id
+from tests.conftest import crear_entrenador as _crear_entrenador
 
 
 def _horario(entrenador_id: int, categoria: Categoria, dia: DiaSemana, h_inicio: time, h_fin: time) -> HorarioEntrenamiento:
