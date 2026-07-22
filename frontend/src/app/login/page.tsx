@@ -78,6 +78,7 @@ export default function LoginPage(): React.ReactElement {
       return;
     }
 
+    toast.showSuccess("Inicio de sesión exitoso");
     router.replace(getDefaultRoute(result.session.user.role));
   }
 
