@@ -22,6 +22,7 @@ import {
   normalizeText,
   accountMatchesFlag,
   countAccountsMatchingFlag,
+  MEMBERS_AGGREGATE_LIMIT,
   MEMBERSHIP_TYPE_LABELS,
   type MemberAccount,
 } from "../members-utils";
@@ -86,6 +87,12 @@ describe("buildMemberStats", () => {
     expect(stats.totalAccounts).toBe(7);
     expect(stats.totalStudents).toBe(9); // original 9 students
     expect(stats.activeMemberships).toBe(4);
+  });
+});
+
+describe("MEMBERS_AGGREGATE_LIMIT", () => {
+  it("defines the shared upstream aggregate limit as 200", () => {
+    expect(MEMBERS_AGGREGATE_LIMIT).toBe(200);
   });
 });
 

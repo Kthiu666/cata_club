@@ -96,6 +96,9 @@ export interface MemberStats {
   pendingPayments: number;
 }
 
+/** Maximum number of records returned by the upstream member aggregate. */
+export const MEMBERS_AGGREGATE_LIMIT = 200;
+
 // Mock data has moved to src/mocks/members.ts.
 // Import MOCK_MEMBER_ACCOUNTS and MOCK_GRUPOS from @/mocks/members.
 
