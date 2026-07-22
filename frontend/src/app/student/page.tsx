@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ContextualHelp from "@/components/ContextualHelp";
+import Pagination from "@/components/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchStudentPortal, fetchMembresiasPorPersona, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra, submitJustificativo, fetchJustificativosDePersona, fetchPagosDePersona, ApiClientError } from "@/services/api";
 import type { StudentPortalSummary, StudentProfileSummary, MembresiaPorPersona, PagoPersona } from "@/services/api";
@@ -114,6 +116,8 @@ function RankingCard({ profile }: { profile: StudentProfileSummary }): React.Rea
 }
 
 function RecentSessionsSection({ profile }: { profile: StudentProfileSummary }): React.ReactElement {
+  const pagination = usePagination({ records: profile.recentSessions });
+
   return (
     <section className="mb-8">
       <div className="mb-4 flex items-center gap-2">
@@ -125,27 +129,30 @@ function RecentSessionsSection({ profile }: { profile: StudentProfileSummary }):
           <p className="text-sm text-cata-text/50">Aún no hay asistencias registradas.</p>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {profile.recentSessions.map((session) => {
-            const tokens = ATTENDANCE_BADGE_TOKENS[session.estado];
-            return (
-              <div key={`${session.fecha}-${session.horario}`} className="card-hover p-5">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
-                    <Calendar size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-cata-text">{session.fecha}</p>
-                    <p className="mt-0.5 text-xs text-cata-text/55">{session.horario}</p>
-                    <span className={`mt-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${tokens.badgeClass}`}>
-                      {ATTENDANCE_LABELS[session.estado]}
-                    </span>
+        <>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {pagination.currentItems.map((session) => {
+              const tokens = ATTENDANCE_BADGE_TOKENS[session.estado];
+              return (
+                <div key={`${session.fecha}-${session.horario}`} className="card-hover p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                      <Calendar size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-cata-text">{session.fecha}</p>
+                      <p className="mt-0.5 text-xs text-cata-text/55">{session.horario}</p>
+                      <span className={`mt-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${tokens.badgeClass}`}>
+                        {ATTENDANCE_LABELS[session.estado]}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+          <Pagination page={pagination.page} totalPages={pagination.totalPages} onPageChange={pagination.setPage} />
+        </>
       )}
     </section>
   );
@@ -173,6 +180,11 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
 
   const numericPersonaId = Number(personaId);
   const numericHorarioId = Number(horarioId);
+
+  // Hoisted above the early loading/error/unavailable returns below (Rules
+  // of Hooks — this hook must run unconditionally on every render).
+  const history = state.status === "ready" ? state.history : [];
+  const historyPagination = usePagination({ records: history });
 
   useEffect(() => {
     let cancelled = false;
@@ -303,7 +315,7 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
     );
   }
 
-  const { membership, schedules, history } = state;
+  const { membership, schedules } = state;
 
   return (
     <section className="mb-8">
@@ -403,45 +415,52 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
             <p className="text-sm text-cata-text/50">Aún no hay solicitudes de clases extra.</p>
           </div>
         ) : (
-          <div className="grid gap-3">
-            {history.map((solicitud) => (
-              <div key={solicitud.id} className="card-hover flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
-                    <Clock size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          <>
+            <div className="grid gap-3">
+              {historyPagination.currentItems.map((solicitud) => (
+                <div key={solicitud.id} className="card-hover flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                      <Clock size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-cata-text">
+                        {solicitud.fechaClaseSolicitada}
+                      </p>
+                      <p className="text-xs text-cata-text/65">
+                        Horario #{solicitud.horarioId} · {solicitud.observaciones || "Sin observaciones"}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-cata-text">
-                      {solicitud.fechaClaseSolicitada}
-                    </p>
-                    <p className="text-xs text-cata-text/65">
-                      Horario #{solicitud.horarioId} · {solicitud.observaciones || "Sin observaciones"}
-                    </p>
+                  <div className="flex items-center gap-2">
+                    {solicitud.estado === "PENDIENTE" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 text-xs font-medium text-amber-400">
+                        <Clock size={10} strokeWidth={2} aria-hidden="true" /> Pendiente
+                      </span>
+                    )}
+                    {solicitud.estado === "APROBADA" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                        <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" /> Aprobada
+                      </span>
+                    )}
+                    {solicitud.estado === "RECHAZADA" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-cata-red">
+                        <XCircle size={10} strokeWidth={2} aria-hidden="true" /> Rechazada
+                      </span>
+                    )}
+                    {solicitud.costoAdicional && (
+                      <span className="text-xs text-cata-text/65">+${solicitud.costoAdicional}</span>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {solicitud.estado === "PENDIENTE" && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 text-xs font-medium text-amber-400">
-                      <Clock size={10} strokeWidth={2} aria-hidden="true" /> Pendiente
-                    </span>
-                  )}
-                  {solicitud.estado === "APROBADA" && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                      <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" /> Aprobada
-                    </span>
-                  )}
-                  {solicitud.estado === "RECHAZADA" && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-cata-red">
-                      <XCircle size={10} strokeWidth={2} aria-hidden="true" /> Rechazada
-                    </span>
-                  )}
-                  {solicitud.costoAdicional && (
-                    <span className="text-xs text-cata-text/65">+${solicitud.costoAdicional}</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            <Pagination
+              page={historyPagination.page}
+              totalPages={historyPagination.totalPages}
+              onPageChange={historyPagination.setPage}
+            />
+          </>
         )}
       </div>
     </section>
@@ -494,6 +513,9 @@ function PagosSection({ personaId }: { personaId: string }): React.ReactElement 
   const [state, setState] = useState<PagosState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
 
+  const pagos = state.status === "ready" ? state.pagos : [];
+  const pagination = usePagination({ records: pagos });
+
   useEffect(() => {
     let cancelled = false;
     setState({ status: "loading" });
@@ -541,33 +563,36 @@ function PagosSection({ personaId }: { personaId: string }): React.ReactElement 
             <p className="text-sm text-cata-text/50">Todavía no hay pagos registrados.</p>
           </div>
         ) : (
-          <div className="grid gap-3">
-            {state.pagos.map((pago) => (
-              <div
-                key={pago.id}
-                className="card-hover flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
-                    <CreditCard size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          <>
+            <div className="grid gap-3">
+              {pagination.currentItems.map((pago) => (
+                <div
+                  key={pago.id}
+                  className="card-hover flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                      <CreditCard size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-cata-text">
+                        ${pago.monto} · {pago.fechaInicio} – {pago.fechaFin}
+                      </p>
+                      <p className="text-xs text-cata-text/65">{TIPO_PAGO_LABEL[pago.tipoPago]}</p>
+                      {pago.estadoPago === "RECHAZADO" && pago.motivoRechazo && (
+                        <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                          <p className="text-xs font-semibold text-cata-red">Motivo de rechazo</p>
+                          <p className="text-xs text-cata-red/80">{pago.motivoRechazo}</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-cata-text">
-                      ${pago.monto} · {pago.fechaInicio} – {pago.fechaFin}
-                    </p>
-                    <p className="text-xs text-cata-text/65">{TIPO_PAGO_LABEL[pago.tipoPago]}</p>
-                    {pago.estadoPago === "RECHAZADO" && pago.motivoRechazo && (
-                      <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
-                        <p className="text-xs font-semibold text-cata-red">Motivo de rechazo</p>
-                        <p className="text-xs text-cata-red/80">{pago.motivoRechazo}</p>
-                      </div>
-                    )}
-                  </div>
+                  <PagoEstadoBadge estado={pago.estadoPago} />
                 </div>
-                <PagoEstadoBadge estado={pago.estadoPago} />
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            <Pagination page={pagination.page} totalPages={pagination.totalPages} onPageChange={pagination.setPage} />
+          </>
         ))}
     </section>
   );
@@ -619,6 +644,7 @@ function JustificativosSection({ personaId }: { personaId: string }): React.Reac
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [historial, setHistorial] = useState<Justificativo[]>([]);
   const [historialLoading, setHistorialLoading] = useState(true);
+  const pagination = usePagination({ records: historial });
 
   async function cargarHistorial(): Promise<void> {
     setHistorialLoading(true);
@@ -756,33 +782,36 @@ function JustificativosSection({ personaId }: { personaId: string }): React.Reac
             <p className="text-sm text-cata-text/50">Todavía no enviaste ningún justificativo.</p>
           </div>
         ) : (
-          <div className="grid gap-3">
-            {historial.map((j) => (
-              <div
-                key={j.id}
-                className="card-hover flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
-                    <FileText size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          <>
+            <div className="grid gap-3">
+              {pagination.currentItems.map((j) => (
+                <div
+                  key={j.id}
+                  className="card-hover flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                      <FileText size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-cata-text">
+                        {MESES_LABEL[j.mes - 1]} {j.anio}
+                      </p>
+                      <p className="text-xs text-cata-text/65">{j.motivo}</p>
+                      {j.estado === "RECHAZADO" && j.motivoRechazo && (
+                        <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                          <p className="text-xs font-semibold text-cata-red">Motivo de rechazo</p>
+                          <p className="text-xs text-cata-red/80">{j.motivoRechazo}</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-cata-text">
-                      {MESES_LABEL[j.mes - 1]} {j.anio}
-                    </p>
-                    <p className="text-xs text-cata-text/65">{j.motivo}</p>
-                    {j.estado === "RECHAZADO" && j.motivoRechazo && (
-                      <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
-                        <p className="text-xs font-semibold text-cata-red">Motivo de rechazo</p>
-                        <p className="text-xs text-cata-red/80">{j.motivoRechazo}</p>
-                      </div>
-                    )}
-                  </div>
+                  <JustificativoEstadoBadge estado={j.estado} />
                 </div>
-                <JustificativoEstadoBadge estado={j.estado} />
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            <Pagination page={pagination.page} totalPages={pagination.totalPages} onPageChange={pagination.setPage} />
+          </>
         )}
       </div>
     </section>
@@ -870,8 +899,15 @@ function ActivePortalView({
   data: StudentPortalSummary;
   hasAlumnoRole: boolean;
 }): React.ReactElement {
-  const managedProfiles: StudentProfileSummary[] =
-    hasAlumnoRole && data.self ? [data.self, ...data.representados] : data.representados;
+  // Recomputed as a fresh array literal on every render (spread) — MUST stay
+  // memoized so `usePagination` below doesn't silently reset to page 1 on
+  // every unrelated re-render of this component (e.g. a `selectedId` change),
+  // per the reset-to-page-1 gotcha discovered in PR2/PR3.
+  const managedProfiles: StudentProfileSummary[] = useMemo(
+    () => (hasAlumnoRole && data.self ? [data.self, ...data.representados] : data.representados),
+    [hasAlumnoRole, data.self, data.representados],
+  );
+  const profilesPagination = usePagination({ records: managedProfiles });
 
   const [selectedId, setSelectedId] = useState<string>(managedProfiles[0]?.personaId ?? "");
 
@@ -906,7 +942,7 @@ function ActivePortalView({
               onChange={(e) => setSelectedId(e.target.value)}
               className="appearance-none rounded-xl border border-cata-border bg-cata-surface px-4 py-2 pr-10 text-sm font-medium text-cata-text shadow-sm transition-colors hover:border-cata-red/30 focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/10"
             >
-              {managedProfiles.map((profile) => (
+              {profilesPagination.currentItems.map((profile) => (
                 <option key={profile.personaId} value={profile.personaId}>
                   {profile.nombres} {profile.apellidos}
                 </option>
@@ -919,6 +955,11 @@ function ActivePortalView({
               aria-hidden="true"
             />
           </div>
+          <Pagination
+            page={profilesPagination.page}
+            totalPages={profilesPagination.totalPages}
+            onPageChange={profilesPagination.setPage}
+          />
         </div>
       )}
 

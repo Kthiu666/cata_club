@@ -13,10 +13,16 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import StudentPage from "@/app/student/page";
-import type { StudentPortalSummary, PagoPersona } from "@/services/api";
-import type { Justificativo } from "@/types/domain";
+import type {
+  StudentPortalSummary,
+  PagoPersona,
+  StudentProfileSummary,
+  StudentSessionSummary,
+  MembresiaPorPersona,
+} from "@/services/api";
+import type { Justificativo, SolicitudClaseExtra } from "@/types/domain";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -154,6 +160,85 @@ const PAGO_APROBADO: PagoPersona = {
   voucherFormato: null,
 };
 
+// --- Pagination fixture builders (Issue #41) ---
+
+function buildSessions(count: number): StudentSessionSummary[] {
+  return Array.from({ length: count }, (_, i) => ({
+    fecha: `2026-01-${String(i + 1).padStart(2, "0")}`,
+    horario: "10:00",
+    estado: "present" as const,
+  }));
+}
+
+function buildPagos(count: number): PagoPersona[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: i + 1,
+    monto: `${100 + i}.00`,
+    motivoRechazo: null,
+    estadoPago: "APROBADO" as const,
+    tipoPago: "EFECTIVO" as const,
+    fechaRegistro: "2026-01-01T09:00:00Z",
+    fechaValidacion: "2026-01-01T10:00:00Z",
+    fechaInicio: "2026-01-01",
+    fechaFin: "2026-01-31",
+    personaId: 9,
+    membresiaId: 3,
+    voucherUrl: null,
+    voucherFormato: null,
+  }));
+}
+
+function buildJustificativos(count: number): Justificativo[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: i + 1,
+    personaId: 9,
+    anio: 2001 + i,
+    mes: 1,
+    motivo: "Motivo",
+    archivoUrl: null,
+    estado: "PENDIENTE" as const,
+    motivoRechazo: null,
+    fechaSolicitud: "2026-01-01T00:00:00Z",
+    fechaEvaluacion: null,
+    evaluadoPorId: null,
+  }));
+}
+
+function buildSolicitudes(count: number): SolicitudClaseExtra[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: i + 1,
+    fechaClaseSolicitada: `2026-02-${String(i + 1).padStart(2, "0")}`,
+    estado: "PENDIENTE" as const,
+    costoAdicional: null,
+    fechaSolicitud: "2026-01-01T00:00:00Z",
+    observaciones: null,
+    personaId: 9,
+    membresiaId: 3,
+    horarioId: 1,
+  }));
+}
+
+const ACTIVE_PERSONALIZADA_MEMBERSHIP: MembresiaPorPersona = {
+  id: 1,
+  estado: "ACTIVA",
+  montoAplicado: "0",
+  fechaActivacion: "2026-01-01",
+  personaId: 9,
+  tipoMembresiaId: 1,
+  tipo: { id: 1, categoria: "cat", franjaHoraria: "manana", precio: "0", modalidad: "PERSONALIZADA" },
+};
+
+function buildRepresentados(count: number): StudentProfileSummary[] {
+  return Array.from({ length: count }, (_, i) => ({
+    personaId: `${100 + i}`,
+    nombres: "Estudiante",
+    apellidos: `${i + 1}`,
+    fechaNacimiento: "2012-01-01",
+    ranking: { status: "unavailable" as const, reason: "error" as const },
+    recentSessions: [],
+  }));
+}
+
 beforeEach(() => {
   mockFetchStudentPortal.mockReset().mockResolvedValue(PORTAL);
   mockFetchMembresiasPorPersona.mockReset().mockResolvedValue([]);
@@ -242,5 +327,170 @@ describe("StudentPage — unavailable membership recovery", () => {
     expect(help).toHaveTextContent("no está disponible desde este portal");
     expect(help).toHaveTextContent("Consulte con administración");
     expect(screen.getByRole("link", { name: /consultar con administración/i })).toHaveAttribute("href", "mailto:administracion@cataclub.local");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Pagination (Issue #41) — 5 lists on this page. `managedProfiles` in
+// `ActivePortalView` is computed inline as `[data.self, ...data.representados]`
+// on every render — a fresh array reference each time — so it MUST be wrapped
+// in `useMemo` before wiring `usePagination`, per the reset-to-page-1 gotcha
+// discovered in PR2/PR3. Every "advances + persists" test below uses RTL's
+// `rerender()` (with the same underlying data) to specifically catch that bug
+// class, not just prove a single "next" click works once.
+// ---------------------------------------------------------------------------
+
+describe("StudentPage — recent sessions pagination (Issue #41)", () => {
+  it("renders only 10 recent sessions initially and shows pagination controls", async () => {
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      ...PORTAL,
+      self: { ...PORTAL.self!, recentSessions: buildSessions(15) },
+    });
+
+    render(<StudentPage />);
+
+    expect(await screen.findByText("2026-01-01")).toBeInTheDocument();
+    expect(screen.queryByText("2026-01-11")).not.toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 2")).toBeInTheDocument();
+  });
+
+  it("advances to the next page and persists across an unrelated re-render", async () => {
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      ...PORTAL,
+      self: { ...PORTAL.self!, recentSessions: buildSessions(15) },
+    });
+
+    const { rerender } = render(<StudentPage />);
+    await screen.findByText("2026-01-01");
+
+    fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+    expect(await screen.findByText("2026-01-11")).toBeInTheDocument();
+
+    rerender(<StudentPage />);
+    expect(screen.getByText("2026-01-11")).toBeInTheDocument();
+    expect(screen.queryByText("2026-01-01")).not.toBeInTheDocument();
+  });
+});
+
+describe("StudentPage — clases extra history pagination (Issue #41)", () => {
+  beforeEach(() => {
+    mockFetchMembresiasPorPersona.mockReset().mockResolvedValue([ACTIVE_PERSONALIZADA_MEMBERSHIP]);
+    mockFetchTrainingSchedules.mockReset().mockResolvedValue([]);
+  });
+
+  it("renders only 10 solicitudes initially and shows pagination controls", async () => {
+    mockListarClasesExtra.mockResolvedValueOnce(buildSolicitudes(15));
+
+    render(<StudentPage />);
+
+    expect(await screen.findByText("2026-02-01")).toBeInTheDocument();
+    expect(screen.queryByText("2026-02-11")).not.toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 2")).toBeInTheDocument();
+  });
+
+  it("advances to the next page and persists across an unrelated re-render", async () => {
+    mockListarClasesExtra.mockResolvedValueOnce(buildSolicitudes(15));
+
+    const { rerender } = render(<StudentPage />);
+    await screen.findByText("2026-02-01");
+
+    fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+    expect(await screen.findByText("2026-02-11")).toBeInTheDocument();
+
+    rerender(<StudentPage />);
+    expect(screen.getByText("2026-02-11")).toBeInTheDocument();
+    expect(screen.queryByText("2026-02-01")).not.toBeInTheDocument();
+  });
+});
+
+describe("StudentPage — pagos pagination (Issue #41)", () => {
+  it("renders only 10 pagos initially and shows pagination controls", async () => {
+    mockFetchPagosDePersona.mockResolvedValueOnce(buildPagos(15));
+
+    render(<StudentPage />);
+
+    expect(await screen.findByText(/100\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/110\.00/)).not.toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 2")).toBeInTheDocument();
+  });
+
+  it("advances to the next page and persists across an unrelated re-render", async () => {
+    mockFetchPagosDePersona.mockResolvedValueOnce(buildPagos(15));
+
+    const { rerender } = render(<StudentPage />);
+    await screen.findByText(/100\.00/);
+
+    fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+    expect(await screen.findByText(/110\.00/)).toBeInTheDocument();
+
+    rerender(<StudentPage />);
+    expect(screen.getByText(/110\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/100\.00/)).not.toBeInTheDocument();
+  });
+});
+
+describe("StudentPage — justificativos pagination (Issue #41)", () => {
+  it("renders only 10 justificativos initially and shows pagination controls", async () => {
+    mockFetchJustificativosDePersona.mockResolvedValueOnce(buildJustificativos(15));
+
+    render(<StudentPage />);
+
+    expect(await screen.findByText("Enero 2001")).toBeInTheDocument();
+    expect(screen.queryByText("Enero 2011")).not.toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 2")).toBeInTheDocument();
+  });
+
+  it("advances to the next page and persists across an unrelated re-render", async () => {
+    mockFetchJustificativosDePersona.mockResolvedValueOnce(buildJustificativos(15));
+
+    const { rerender } = render(<StudentPage />);
+    await screen.findByText("Enero 2001");
+
+    fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+    expect(await screen.findByText("Enero 2011")).toBeInTheDocument();
+
+    rerender(<StudentPage />);
+    expect(screen.getByText("Enero 2011")).toBeInTheDocument();
+    expect(screen.queryByText("Enero 2001")).not.toBeInTheDocument();
+  });
+});
+
+describe("StudentPage — representados select pagination (Issue #41)", () => {
+  it("caps the estudiante select to 10 options initially and shows pagination", async () => {
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      ...PORTAL,
+      representados: buildRepresentados(14),
+    });
+
+    render(<StudentPage />);
+
+    const select = await screen.findByRole("combobox", { name: "Seleccionar estudiante" });
+    expect(within(select).getByRole("option", { name: "Estudiante 1" })).toBeInTheDocument();
+    expect(within(select).queryByRole("option", { name: "Estudiante 10" })).not.toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 2")).toBeInTheDocument();
+  });
+
+  it("advances the estudiante select to the next page and persists across an unrelated re-render", async () => {
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      ...PORTAL,
+      representados: buildRepresentados(14),
+    });
+
+    const { rerender } = render(<StudentPage />);
+    await screen.findByRole("combobox", { name: "Seleccionar estudiante" });
+
+    fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+    expect(
+      within(screen.getByRole("combobox", { name: "Seleccionar estudiante" })).getByRole("option", {
+        name: "Estudiante 10",
+      }),
+    ).toBeInTheDocument();
+
+    rerender(<StudentPage />);
+    expect(
+      within(screen.getByRole("combobox", { name: "Seleccionar estudiante" })).getByRole("option", {
+        name: "Estudiante 10",
+      }),
+    ).toBeInTheDocument();
   });
 });
