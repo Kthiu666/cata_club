@@ -48,6 +48,7 @@ export default function LoginPage(): React.ReactElement {
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState({ email: "", password: "" });
 
   // Redirect to role-appropriate page if already authenticated
   useEffect((): void => {
@@ -59,9 +60,17 @@ export default function LoginPage(): React.ReactElement {
   async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
     setError(null);
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    const nextFieldErrors = {
+      email: trimmedEmail ? "" : "Ingrese su correo electrónico.",
+      password: trimmedPassword ? "" : "Ingrese su contraseña.",
+    };
+    setFieldErrors(nextFieldErrors);
+    if (nextFieldErrors.email || nextFieldErrors.password) return;
     setSubmitting(true);
 
-    const result = await login(email, password);
+    const result = await login(trimmedEmail, trimmedPassword);
 
     if (!result.ok) {
       setError(loginErrorMessage(result.error));
@@ -101,7 +110,7 @@ export default function LoginPage(): React.ReactElement {
       showBackToSite
     >
       {/* Form card */}
-      <form className="space-y-5" onSubmit={handleSubmit}>
+      <form className="space-y-5" onSubmit={handleSubmit} noValidate>
         <div>
           <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-cata-text">
             Correo electrónico
@@ -121,10 +130,13 @@ export default function LoginPage(): React.ReactElement {
               onChange={(e: React.ChangeEvent<HTMLInputElement>): void => setEmail(e.target.value)}
               placeholder="correo@ejemplo.com"
               required
+              aria-invalid={Boolean(fieldErrors.email)}
+              aria-describedby={fieldErrors.email ? "email-error" : undefined}
               disabled={submitting}
               className="input-field pl-10"
             />
           </div>
+          {fieldErrors.email && <p id="email-error" role="alert" className="mt-1.5 text-xs text-cata-red">{fieldErrors.email}</p>}
         </div>
 
         <div>
@@ -146,6 +158,8 @@ export default function LoginPage(): React.ReactElement {
               onChange={(e: React.ChangeEvent<HTMLInputElement>): void => setPassword(e.target.value)}
               placeholder="Ingrese su contraseña"
               required
+              aria-invalid={Boolean(fieldErrors.password)}
+              aria-describedby={fieldErrors.password ? "password-error" : undefined}
               disabled={submitting}
               className="input-field pl-10 pr-10"
             />
@@ -162,6 +176,7 @@ export default function LoginPage(): React.ReactElement {
               )}
             </button>
           </div>
+          {fieldErrors.password && <p id="password-error" role="alert" className="mt-1.5 text-xs text-cata-red">{fieldErrors.password}</p>}
         </div>
 
         {/* Error message */}

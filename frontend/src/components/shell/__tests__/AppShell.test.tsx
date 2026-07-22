@@ -209,7 +209,7 @@ describe("AppShell", (): void => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Buscar una sección/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar secciones" }));
 
     expect(screen.getByRole("dialog", { name: /Buscador de secciones/i })).toBeInTheDocument();
   });
@@ -225,7 +225,7 @@ describe("AppShell", (): void => {
   it("closes the command palette with Escape", (): void => {
     render(<AppShell title="Dashboard">{null}</AppShell>);
 
-    fireEvent.click(screen.getByRole("button", { name: /Buscar una sección/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar secciones" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "Escape" });
@@ -236,7 +236,7 @@ describe("AppShell", (): void => {
   it("filters palette results by the typed query", (): void => {
     render(<AppShell title="Dashboard">{null}</AppShell>);
 
-    fireEvent.click(screen.getByRole("button", { name: /Buscar una sección/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar secciones" }));
     const input = screen.getByPlaceholderText("Ir a una sección…");
 
     fireEvent.change(input, { target: { value: "pagos" } });
@@ -248,7 +248,7 @@ describe("AppShell", (): void => {
   it("shows an empty-results message when nothing matches", (): void => {
     render(<AppShell title="Dashboard">{null}</AppShell>);
 
-    fireEvent.click(screen.getByRole("button", { name: /Buscar una sección/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar secciones" }));
     fireEvent.change(screen.getByPlaceholderText("Ir a una sección…"), {
       target: { value: "zzz-no-existe" },
     });
@@ -259,7 +259,7 @@ describe("AppShell", (): void => {
   it("navigates and closes the palette when a result is clicked", (): void => {
     render(<AppShell title="Dashboard">{null}</AppShell>);
 
-    fireEvent.click(screen.getByRole("button", { name: /Buscar una sección/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar secciones" }));
     fireEvent.click(screen.getByRole("button", { name: /Grupos/i }));
 
     expect(mockPush).toHaveBeenCalledWith("/groups");
@@ -269,7 +269,7 @@ describe("AppShell", (): void => {
   it("navigates to the highlighted result on Enter", (): void => {
     render(<AppShell title="Dashboard">{null}</AppShell>);
 
-    fireEvent.click(screen.getByRole("button", { name: /Buscar una sección/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar secciones" }));
     const input = screen.getByPlaceholderText("Ir a una sección…");
     fireEvent.change(input, { target: { value: "asistencia" } });
     fireEvent.keyDown(input, { key: "Enter" });

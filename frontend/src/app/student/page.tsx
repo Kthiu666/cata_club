@@ -71,20 +71,23 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void 
 /** Honest placeholder for membership/payment — no backend endpoint lets a student/representante read their own Membresia/Pago (see src/lib/server/student-adapter.ts). */
 function MembershipUnavailableCard(): React.ReactElement {
   return (
-    <div className="card-hover p-4 sm:p-5">
+    <section className="card-hover p-4 sm:p-5" aria-labelledby="membership-unavailable-title">
       <div className="mb-2 flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
           <ShieldCheck size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-cata-text/65">Membresía</p>
-          <p className="text-lg font-bold tracking-tight text-cata-text">No disponible</p>
+          <h2 id="membership-unavailable-title" className="text-lg font-bold tracking-tight text-cata-text">Membresía no disponible</h2>
         </div>
       </div>
       <p className="text-xs leading-relaxed text-cata-text/55">
         No disponible desde este portal por el momento. Consulte con administración del club.
       </p>
-    </div>
+      <a href="mailto:administracion@cataclub.local" className="mt-3 inline-flex text-xs font-medium text-cata-red hover:text-cata-red-light">
+        Consultar con administración
+      </a>
+    </section>
   );
 }
 
