@@ -257,19 +257,19 @@ describe("mapBackendRoleToUserRole", () => {
     expect(mapBackendRoleToUserRole(["ENTRENADOR"])).toBe("trainer");
   });
 
-  it("maps TESORERO to tesorero", () => {
-    expect(mapBackendRoleToUserRole(["TESORERO"])).toBe("tesorero");
+  it("maps REPRESENTANTE to representante", () => {
+    expect(mapBackendRoleToUserRole(["REPRESENTANTE"])).toBe("representante");
   });
 
   it("maps ALUMNO to estudiante", () => {
     expect(mapBackendRoleToUserRole(["ALUMNO"])).toBe("estudiante");
   });
 
-  it('maps an empty roles array to "unsupported", never "representante"', () => {
+  it('maps an empty roles array to "unsupported"', () => {
     expect(mapBackendRoleToUserRole([])).toBe("unsupported");
   });
 
-  it('maps unrecognized role strings to "unsupported", never "representante"', () => {
+  it('maps unrecognized role strings to "unsupported"', () => {
     expect(mapBackendRoleToUserRole(["SUPERADMIN"])).toBe("unsupported");
     expect(mapBackendRoleToUserRole(["", "GHOST_ROLE"])).toBe("unsupported");
   });
@@ -278,14 +278,14 @@ describe("mapBackendRoleToUserRole", () => {
     expect(mapBackendRoleToUserRole(["ALUMNO", "ADMINISTRADOR"])).toBe("admin");
   });
 
-  it("resolves TESORERO + ALUMNO to tesorero (treasurer outranks student)", () => {
-    expect(mapBackendRoleToUserRole(["TESORERO", "ALUMNO"])).toBe("tesorero");
-    expect(mapBackendRoleToUserRole(["ALUMNO", "TESORERO"])).toBe("tesorero");
+  it("resolves REPRESENTANTE + ALUMNO to representante (representante outranks student)", () => {
+    expect(mapBackendRoleToUserRole(["REPRESENTANTE", "ALUMNO"])).toBe("representante");
+    expect(mapBackendRoleToUserRole(["ALUMNO", "REPRESENTANTE"])).toBe("representante");
   });
 
   it("resolves all four backend roles at once to admin", () => {
     expect(
-      mapBackendRoleToUserRole(["ALUMNO", "TESORERO", "ENTRENADOR", "ADMINISTRADOR"]),
+      mapBackendRoleToUserRole(["ALUMNO", "REPRESENTANTE", "ENTRENADOR", "ADMINISTRADOR"]),
     ).toBe("admin");
   });
 
@@ -305,25 +305,25 @@ describe("pickPrimaryRole", () => {
 
   it("returns the sole role when only one is present", () => {
     expect(pickPrimaryRole(["estudiante"])).toBe("estudiante");
-    expect(pickPrimaryRole(["tesorero"])).toBe("tesorero");
+    expect(pickPrimaryRole(["representante"])).toBe("representante");
   });
 
   it("prioritizes admin over every other role", () => {
     const combos: UserRole[][] = [
-      ["admin", "tesorero"],
+      ["admin", "representante"],
       ["admin", "trainer"],
       ["admin", "estudiante"],
-      ["admin", "tesorero", "trainer", "estudiante"],
+      ["admin", "representante", "trainer", "estudiante"],
     ];
     for (const combo of combos) {
       expect(pickPrimaryRole(combo)).toBe("admin");
     }
   });
 
-  it("prioritizes tesorero over trainer and estudiante (but not admin)", () => {
-    expect(pickPrimaryRole(["tesorero", "trainer"])).toBe("tesorero");
-    expect(pickPrimaryRole(["tesorero", "estudiante"])).toBe("tesorero");
-    expect(pickPrimaryRole(["trainer", "estudiante", "tesorero"])).toBe("tesorero");
+  it("prioritizes representante over trainer and estudiante (but not admin)", () => {
+    expect(pickPrimaryRole(["representante", "trainer"])).toBe("representante");
+    expect(pickPrimaryRole(["representante", "estudiante"])).toBe("representante");
+    expect(pickPrimaryRole(["trainer", "estudiante", "representante"])).toBe("representante");
   });
 
   it("prioritizes trainer over estudiante", () => {
@@ -331,14 +331,13 @@ describe("pickPrimaryRole", () => {
   });
 
   it("is order-independent — same set, any input order, same result", () => {
-    expect(pickPrimaryRole(["estudiante", "trainer", "tesorero", "admin"])).toBe("admin");
-    expect(pickPrimaryRole(["admin", "tesorero", "trainer", "estudiante"])).toBe("admin");
+    expect(pickPrimaryRole(["estudiante", "trainer", "representante", "admin"])).toBe("admin");
+    expect(pickPrimaryRole(["admin", "representante", "trainer", "estudiante"])).toBe("admin");
   });
 
-  it("ignores roles outside the precedence list (e.g. representante, unsupported)", () => {
-    expect(pickPrimaryRole(["representante"])).toBeNull();
+  it("ignores unsupported (outside the precedence list)", () => {
     expect(pickPrimaryRole(["unsupported"])).toBeNull();
-    expect(pickPrimaryRole(["representante", "estudiante"])).toBe("estudiante");
+    expect(pickPrimaryRole(["unsupported", "estudiante"])).toBe("estudiante");
   });
 });
 
@@ -379,17 +378,17 @@ describe("buildSession", () => {
     expect(session.user).toMatchObject({ role: "estudiante", grupoId: null, activo: true });
   });
 
-  it("builds a tesorero session", () => {
+  it("builds a representante session", () => {
     const session = buildSession({
-      correo: "tesorero@cataclub.com",
+      correo: "representante@cataclub.com",
       personaId: "9",
       nombres: "Carla",
       apellidos: "Diaz",
-      roles: ["TESORERO"],
+      roles: ["REPRESENTANTE"],
     });
 
-    expect(session.user).toMatchObject({ role: "tesorero" });
-    expect(session.roles).toEqual(["TESORERO"]);
+    expect(session.user).toMatchObject({ role: "representante" });
+    expect(session.roles).toEqual(["REPRESENTANTE"]);
   });
 
   it('builds an "unsupported" session for an empty roles array, never "representante"', () => {

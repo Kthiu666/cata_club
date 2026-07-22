@@ -4,14 +4,14 @@ Servicio de autoinscripción pública (Escenario 2, Opción B).
 Orquesta la creación de Persona, Usuario, FichaMedica y AntecedentesClub
 en un solo request transaccional. Endpoint público (sin auth), rate-limited.
 
-Flujo:
+  Flujo:
   1. Validar edad del alumno (5-74 años).
   2. Si hay representante: crear Persona del representante + Usuario (credenciales)
-     + asignar roles REPRESENTANTE y ALUMNO.
+     + asignar roles REPRESENTANTE y ALUMNO al representante.
   3. Crear Persona del alumno (con representante_id si aplica).
   4. Crear FichaMedica (si se proporcionó).
   5. Crear AntecedentesClub (si se proporcionó y tiene nivel_tecnico_alumno).
-  6. Emitir tokens JWT para auto-login.
+  6. Emitir tokens JWT para auto-login del representante (o del alumno adulto).
 """
 from datetime import date
 from sqlalchemy.orm import Session

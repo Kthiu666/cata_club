@@ -22,7 +22,7 @@ import type { UserRole, Usuario } from "@/types/domain";
 export interface AuthSession {
   /** The authenticated user profile. */
   user: Usuario;
-  /** Raw backend role strings (ADMINISTRADOR, ENTRENADOR, TESORERO, ALUMNO), preserved for callers that need the full multi-role set. `user.role` is the single primary role (see `pickPrimaryRole` in src/lib/server/auth.ts) used for current UI gating. */
+  /** Raw backend role strings (ADMINISTRADOR, ENTRENADOR, REPRESENTANTE, ALUMNO), preserved for callers that need the full multi-role set. `user.role` is the single primary role (see `pickPrimaryRole` in src/lib/server/auth.ts) used for current UI gating. */
   roles: string[];
   /** ISO timestamp of the login/hydration event. */
   loggedInAt: string;
@@ -56,7 +56,6 @@ export type LoginResult = LoginSuccess | LoginFailure;
 const VALID_ROLES: readonly UserRole[] = [
   "admin",
   "trainer",
-  "tesorero",
   "representante",
   "estudiante",
   "unsupported",

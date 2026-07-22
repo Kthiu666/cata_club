@@ -209,7 +209,7 @@ export default function PaymentsPage(): React.ReactElement {
   }
 
   return (
-    <ProtectedRoute allowedRoles={["admin", "tesorero"]}>
+    <ProtectedRoute allowedRoles={["admin"]}>
       <AppShell
         eyebrow="Validación de Pagos"
         title="Membresías y Pagos"

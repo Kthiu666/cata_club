@@ -9,9 +9,7 @@ class TipoRol(str, enum.Enum):
     ALUMNO = "ALUMNO"
     ENTRENADOR = "ENTRENADOR"
     ADMINISTRADOR = "ADMINISTRADOR"
-    # "Representante" NO se agrega aquí a propósito: sigue siendo un hecho
-    # relacional (Persona.representante_id), no un rol -- ver justificación
-    # en persona_servicio.py y en el análisis de diseño ya acordado.
+    REPRESENTANTE = "REPRESENTANTE"
 
 
 class TipoManoDominante(str, enum.Enum):
@@ -45,6 +43,19 @@ class DiaSemana(str, enum.Enum):
     VIERNES = "VIERNES"
     SABADO = "SABADO"
     DOMINGO = "DOMINGO"
+
+
+class Categoria(str, enum.Enum):
+    """
+    5 categorías fijas de horario (edad/audiencia, franja horaria y días
+    permitidos), definidas como constantes de negocio no editables por el
+    administrador -- ver `app.dominio.categoria_metadata.CATEGORIA_METADATA`.
+    """
+    FORMATIVO = "FORMATIVO"
+    INFANTIL = "INFANTIL"
+    JUVENIL = "JUVENIL"
+    COMPETITIVO = "COMPETITIVO"
+    ADULTOS = "ADULTOS"
 
 
 class TipoModalidad(str, enum.Enum):

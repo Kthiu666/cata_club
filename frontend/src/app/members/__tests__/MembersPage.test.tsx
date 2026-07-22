@@ -155,7 +155,7 @@ describe("MembersPage — Editar member modal", () => {
     expect(dialog).toHaveAttribute("aria-modal", "true");
     expect(within(dialog).getByRole("checkbox", { name: /admin/i })).toBeInTheDocument();
     expect(within(dialog).getByRole("checkbox", { name: /entrenador/i })).toBeInTheDocument();
-    expect(within(dialog).getByRole("checkbox", { name: /tesorero/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole("checkbox", { name: /representante/i })).toBeInTheDocument();
     expect(within(dialog).getByRole("checkbox", { name: /alumno/i })).toBeInTheDocument();
   });
 

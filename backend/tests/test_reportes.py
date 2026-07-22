@@ -27,7 +27,7 @@ def test_reporte_asistencia_filtra_por_horario_y_periodo(client):
 
     horario = client.post(
         "/api/v1/asistencias/horarios",
-        json={"dia_semana": "LUNES", "hora_inicio": "08:00:00", "hora_fin": "09:00:00", "entrenador_id": entrenador["id"]},
+        json={"categoria": "FORMATIVO", "dia_semana": "LUNES", "entrenador_id": entrenador["id"]},
     ).json()
 
     client.post(

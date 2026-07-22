@@ -22,7 +22,7 @@
  *  1. `PersonaResponseDTO` carries no `roles` field, and there is no bulk
  *     "roles by persona" endpoint (only `POST`/`DELETE
  *     /personas/{id}/roles`, which mutate — nothing to `GET`). A
- *     staff-only Persona (ADMINISTRADOR/ENTRENADOR/TESORERO with no
+ *     staff-only Persona (ADMINISTRADOR/ENTRENADOR/REPRESENTANTE with no
  *     student profile) is therefore indistinguishable, via this API, from
  *     a self-managed "estudiante" account that simply has no membership
  *     yet — both surface here as a root account with one empty-membership

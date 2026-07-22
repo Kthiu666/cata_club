@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.dominio.modelos import Asistencia, HorarioEntrenamiento, AlumnoHorario
+from app.dominio.enums import Categoria
 
 
 class HorarioRepositorio:
@@ -12,11 +13,13 @@ class HorarioRepositorio:
     def obtener_por_id(self, horario_id: int) -> Optional[HorarioEntrenamiento]:
         return self.db.get(HorarioEntrenamiento, horario_id)
 
-    def listar(self) -> List[HorarioEntrenamiento]:
+    def listar(self, categoria: Optional[Categoria] = None) -> List[HorarioEntrenamiento]:
         stmt = (
             select(HorarioEntrenamiento)
             .options(joinedload(HorarioEntrenamiento.entrenador))
         )
+        if categoria is not None:
+            stmt = stmt.where(HorarioEntrenamiento.categoria == categoria)
         return list(self.db.execute(stmt).scalars().unique().all())
 
     def crear(self, horario: HorarioEntrenamiento) -> HorarioEntrenamiento:

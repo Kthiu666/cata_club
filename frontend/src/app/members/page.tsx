@@ -716,12 +716,12 @@ interface AccountRowProps {
   onToggleEditModal: () => void;
 }
 
-const ALL_BACKEND_ROLES: BackendTipoRol[] = ["ADMINISTRADOR", "ENTRENADOR", "TESORERO", "ALUMNO"];
+const ALL_BACKEND_ROLES: BackendTipoRol[] = ["ADMINISTRADOR", "ENTRENADOR", "REPRESENTANTE", "ALUMNO"];
 
 const ROLE_LABELS: Record<BackendTipoRol, string> = {
   ADMINISTRADOR: "Admin",
   ENTRENADOR: "Entrenador",
-  TESORERO: "Tesorero",
+  REPRESENTANTE: "Representante",
   ALUMNO: "Alumno",
 };
 

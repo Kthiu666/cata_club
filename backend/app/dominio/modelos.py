@@ -25,7 +25,7 @@ from app.dominio.enums import (
     TipoRol, EstadoMembresia, TipoModalidad, EstadoPago,
     TipoPago, EstadoAsistencia, TipoEscuela, NivelTecnicoAlumno, TipoSangre, DiaSemana,
     EstadoSolicitudExtra, EstadoJustificativoRanking, TipoNotificacion,
-    TipoManoDominante,
+    TipoManoDominante, Categoria,
 )
 
 
@@ -357,6 +357,11 @@ class HorarioEntrenamiento(Base):
     """
     __tablename__ = "horario_entrenamiento"
     id: Mapped[int] = mapped_column(primary_key=True)
+    # Categoría fija de negocio (Formativo/Infantil/Juvenil/Competitivo/Adultos)
+    # que bloquea dia_semana/hora_inicio/hora_fin a los valores canónicos de
+    # `app.dominio.categoria_metadata.CATEGORIA_METADATA` -- ver validación en
+    # `AsistenciaServicio.crear_horario`/`actualizar_horario`.
+    categoria: Mapped[Categoria] = mapped_column(SAEnum(Categoria))
     dia_semana: Mapped[DiaSemana] = mapped_column(SAEnum(DiaSemana))
     hora_inicio: Mapped[time] = mapped_column(Time)
     hora_fin: Mapped[time] = mapped_column(Time)

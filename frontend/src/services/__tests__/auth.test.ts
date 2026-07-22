@@ -230,11 +230,11 @@ describe("isValidAuthSession", () => {
     ).toBe(false);
   });
 
-  it("accepts a tesorero session", () => {
+  it("accepts a representante session", () => {
     expect(
       isValidAuthSession({
-        user: { id: "1", name: "T", email: "t@t.com", role: "tesorero" },
-        roles: ["TESORERO"],
+        user: { id: "1", name: "T", email: "t@t.com", role: "representante" },
+        roles: ["REPRESENTANTE"],
         loggedInAt: "x",
       }),
     ).toBe(true);

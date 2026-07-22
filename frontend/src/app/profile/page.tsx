@@ -899,7 +899,7 @@ function ProfileContent(): React.ReactElement | null {
 export default function ProfilePage(): React.ReactElement {
   return (
     <ProtectedRoute
-      allowedRoles={["admin", "trainer", "tesorero", "representante", "estudiante"]}
+      allowedRoles={["admin", "trainer", "representante", "estudiante"]}
     >
       <ProfileContent />
     </ProtectedRoute>

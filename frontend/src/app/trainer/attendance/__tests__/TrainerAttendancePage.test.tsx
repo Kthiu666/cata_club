@@ -76,12 +76,12 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
-  it("redirects a role with no attendance access (e.g. tesorero) away", async () => {
-    mockUseAuth.mockReturnValue(createAuthenticatedAuth("tesorero", "Treasurer User"));
+  it("redirects a role with no attendance access (e.g. representante) away", async () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("representante", "Representante User"));
 
     render(<TrainerAttendancePage />);
 
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/payments"));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/student"));
     expect(screen.queryByText("Seleccione el horario de entrenamiento:")).not.toBeInTheDocument();
   });
 
