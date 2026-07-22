@@ -39,6 +39,15 @@ class RolServicio:
         return usuario
 
     def asignar_rol(self, persona_id: int, tipo_rol: TipoRol) -> Usuario:
+        # TESORERO está dado de baja del sistema: se mantiene en el dominio
+        # (TipoRol.TESORERO, tesoreria_router.py) para no perder el modelo ni
+        # los datos ya existentes, pero ya no se puede asignar a nadie nuevo.
+        # Ver GestorPermisos en tesoreria_router.py / membresias_pagos_router.py,
+        # donde también se le quitó el acceso a quien ya lo tuviera.
+        if tipo_rol == TipoRol.TESORERO:
+            raise OperacionInvalida(
+                "El rol Tesorero está dado de baja temporalmente; no se puede asignar."
+            )
         usuario = self._obtener_usuario_de_persona(persona_id)
         if any(r.tipo_rol == tipo_rol for r in usuario.roles):
             raise OperacionInvalida(f"Esta persona ya tiene el rol {tipo_rol.value}")

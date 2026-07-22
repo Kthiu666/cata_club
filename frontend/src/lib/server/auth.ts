@@ -394,11 +394,19 @@ export async function backendLogout(accessToken: string): Promise<void> {
  * src/types/domain.ts: "representante" is a derived, frontend-only concept
  * for the parent/self-owner relationship, unrelated to authenticated
  * backend roles). Any backend string not present here is unrecognized.
+ *
+ * `TESORERO` is deliberately absent too, but for a different reason: the
+ * role is deactivated (not deleted) system-wide — see `RolServicio.asignar_rol`
+ * and the `ROL_ADMIN_O_TESORERO` permission lists in the backend, which
+ * reject/ignore it the same way. A backend account with only `TESORERO`
+ * now maps to `"unsupported"`, same as any other unrecognized role.
+ * Reactivating it later is adding the entry back here (and to those
+ * backend permission lists) — the `"tesorero"` UserRole and its nav/route
+ * handling in auth-utils.ts were left in place for exactly that.
  */
 const BACKEND_ROLE_TO_USER_ROLE: Readonly<Record<string, UserRole>> = {
   ADMINISTRADOR: "admin",
   ENTRENADOR: "trainer",
-  TESORERO: "tesorero",
   ALUMNO: "estudiante",
 };
 

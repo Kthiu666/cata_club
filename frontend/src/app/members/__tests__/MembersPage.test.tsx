@@ -131,7 +131,7 @@ describe("MembersPage — Roles popover", () => {
     expect(within(row).queryByRole("button", { name: /^entrenador$/i })).not.toBeInTheDocument();
   });
 
-  it("opens a popover of 4 checkable role rows when the Roles trigger is clicked", async () => {
+  it("opens a popover of 3 checkable role rows when the Roles trigger is clicked (Tesorero is deactivated)", async () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
@@ -139,8 +139,8 @@ describe("MembersPage — Roles popover", () => {
 
     expect(within(row).getByRole("checkbox", { name: /admin/i })).toBeInTheDocument();
     expect(within(row).getByRole("checkbox", { name: /entrenador/i })).toBeInTheDocument();
-    expect(within(row).getByRole("checkbox", { name: /tesorero/i })).toBeInTheDocument();
     expect(within(row).getByRole("checkbox", { name: /alumno/i })).toBeInTheDocument();
+    expect(within(row).queryByRole("checkbox", { name: /tesorero/i })).not.toBeInTheDocument();
   });
 
   it("selecting a role in the popover fires asignarRol, same as the old buttons", async () => {

@@ -19,8 +19,11 @@ router = APIRouter(prefix="/membresias", tags=["Membresías y Pagos"])
 
 # Reutilizado para endpoints admin (mismo string que usaba el código original).
 ROL_ADMIN = ["ADMINISTRADOR"]
-# Tesorero también accede a la cola de pagos (ver tesoreria_router.py).
-ROL_ADMIN_O_TESORERO = ["ADMINISTRADOR", "TESORERO"]
+# TESORERO está dado de baja del sistema (ver RolServicio.asignar_rol): ya no
+# se le puede asignar a nadie, y a quien ya lo tuviera tampoco le sigue
+# otorgando acceso acá. Se deja ADMINISTRADOR solo, sin quitar TESORERO del
+# dominio -- reactivarlo es agregar el string de vuelta a esta lista.
+ROL_ADMIN_O_TESORERO = ["ADMINISTRADOR"]
 
 
 # --- TipoMembresia ---

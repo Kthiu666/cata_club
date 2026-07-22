@@ -66,6 +66,42 @@ def test_registrar_pago_propio_no_requiere_admin(client_sin_permisos):
     assert resp.status_code == 404  # no 403: la autorización sí pasó
 
 
+def test_validar_pago_con_solo_tesorero_da_403(client_tesorero, client):
+    """El rol TESORERO está dado de baja: ya no otorga acceso a validar
+    pagos, aunque antes sí lo hacía. Esquema igual al de
+    `test_representante_ve_los_pagos_de_su_representado`: se crea todo con
+    `client` (admin, override activo al declararse último) y luego se
+    restaura el token de tesorero antes de la llamada que se prueba."""
+    persona = _crear_persona(client)
+    tipo = _crear_tipo_membresia(client)
+    membresia = client.post(
+        "/api/v1/membresias/",
+        json={
+            "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+            "persona_id": persona["id"], "tipo_membresia_id": tipo["id"],
+        },
+    ).json()
+    pago = client.post(
+        "/api/v1/membresias/pagos",
+        json={
+            "monto": "35.00", "tipo_pago": "TRANSFERENCIA",
+            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+            "persona_id": persona["id"], "membresia_id": membresia["id"],
+        },
+    ).json()
+
+    from main import app
+    app.dependency_overrides[GestorAutenticacion.decodificar_token] = lambda: {
+        "sub": "tesorero@cataclub.test", "persona_id": 1, "roles": ["TESORERO"],
+    }
+
+    resp = client_tesorero.patch(
+        f"/api/v1/membresias/pagos/{pago['id']}/validar",
+        json={"estado_pago": "APROBADO"},
+    )
+    assert resp.status_code == 403
+
+
 def test_pago_aprobado_activa_membresia(client):
     persona = _crear_persona(client)
     tipo = _crear_tipo_membresia(client)
@@ -237,6 +273,13 @@ def test_pago_rechazado_no_reutiliza_estado_de_membresia(client):
 
 
 # --- GET /membresias/pagos (cola de validación) -----------------------------
+def test_listar_pagos_con_solo_tesorero_da_403(client_tesorero):
+    """El rol TESORERO está dado de baja: ya no otorga acceso a la cola de
+    validación de pagos, aunque antes sí lo hacía."""
+    resp = client_tesorero.get("/api/v1/membresias/pagos")
+    assert resp.status_code == 403
+
+
 def test_listar_pagos_incluye_nombre_de_persona(client):
     persona = _crear_persona(client)
     tipo = _crear_tipo_membresia(client)

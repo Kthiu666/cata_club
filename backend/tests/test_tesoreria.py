@@ -17,6 +17,16 @@ def test_crear_evento_requiere_admin_o_tesorero(client_sin_permisos):
     assert resp.status_code == 403
 
 
+def test_crear_evento_con_solo_tesorero_da_403(client_tesorero):
+    """El rol TESORERO está dado de baja: un token que solo tiene ese rol
+    ya no debe pasar GestorPermisos, aunque antes sí lo hacía."""
+    resp = client_tesorero.post(
+        "/api/v1/tesoreria/eventos",
+        json={"nombre": "Rifa", "fecha_inicio": "2026-07-01"},
+    )
+    assert resp.status_code == 403
+
+
 def test_crear_evento_y_listar(client):
     evento = _crear_evento(client)
     assert evento["nombre"] == "Rifa anual"

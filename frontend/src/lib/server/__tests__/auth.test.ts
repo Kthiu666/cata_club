@@ -257,8 +257,8 @@ describe("mapBackendRoleToUserRole", () => {
     expect(mapBackendRoleToUserRole(["ENTRENADOR"])).toBe("trainer");
   });
 
-  it("maps TESORERO to tesorero", () => {
-    expect(mapBackendRoleToUserRole(["TESORERO"])).toBe("tesorero");
+  it('maps TESORERO to "unsupported" — the role is deactivated, not deleted (see BACKEND_ROLE_TO_USER_ROLE)', () => {
+    expect(mapBackendRoleToUserRole(["TESORERO"])).toBe("unsupported");
   });
 
   it("maps ALUMNO to estudiante", () => {
@@ -278,12 +278,12 @@ describe("mapBackendRoleToUserRole", () => {
     expect(mapBackendRoleToUserRole(["ALUMNO", "ADMINISTRADOR"])).toBe("admin");
   });
 
-  it("resolves TESORERO + ALUMNO to tesorero (treasurer outranks student)", () => {
-    expect(mapBackendRoleToUserRole(["TESORERO", "ALUMNO"])).toBe("tesorero");
-    expect(mapBackendRoleToUserRole(["ALUMNO", "TESORERO"])).toBe("tesorero");
+  it("ignores a deactivated TESORERO mixed with a recognized role — resolves to estudiante, not tesorero", () => {
+    expect(mapBackendRoleToUserRole(["TESORERO", "ALUMNO"])).toBe("estudiante");
+    expect(mapBackendRoleToUserRole(["ALUMNO", "TESORERO"])).toBe("estudiante");
   });
 
-  it("resolves all four backend roles at once to admin", () => {
+  it("resolves all four backend roles at once to admin, ignoring the deactivated TESORERO", () => {
     expect(
       mapBackendRoleToUserRole(["ALUMNO", "TESORERO", "ENTRENADOR", "ADMINISTRADOR"]),
     ).toBe("admin");
@@ -379,7 +379,7 @@ describe("buildSession", () => {
     expect(session.user).toMatchObject({ role: "estudiante", grupoId: null, activo: true });
   });
 
-  it("builds a tesorero session", () => {
+  it('builds an "unsupported" session for a TESORERO-only account — the role is deactivated', () => {
     const session = buildSession({
       correo: "tesorero@cataclub.com",
       personaId: "9",
@@ -388,7 +388,9 @@ describe("buildSession", () => {
       roles: ["TESORERO"],
     });
 
-    expect(session.user).toMatchObject({ role: "tesorero" });
+    expect(session.user).toMatchObject({ role: "unsupported" });
+    // Raw backend roles are preserved as-is — deactivation happens only at
+    // the frontend UserRole-mapping layer, not by hiding the backend fact.
     expect(session.roles).toEqual(["TESORERO"]);
   });
 

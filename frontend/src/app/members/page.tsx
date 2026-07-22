@@ -711,7 +711,11 @@ interface AccountRowProps {
   onToggleRolesMenu: () => void;
 }
 
-const ALL_BACKEND_ROLES: BackendTipoRol[] = ["ADMINISTRADOR", "ENTRENADOR", "TESORERO", "ALUMNO"];
+// TESORERO deliberately excluded — the role is deactivated system-wide (see
+// BACKEND_ROLE_TO_USER_ROLE in lib/server/auth.ts and RolServicio.asignar_rol
+// in the backend, which now rejects assigning it). Not offered here either,
+// so an admin can't even attempt an assignment the backend will refuse.
+const ALL_BACKEND_ROLES: BackendTipoRol[] = ["ADMINISTRADOR", "ENTRENADOR", "ALUMNO"];
 
 const ROLE_LABELS: Record<BackendTipoRol, string> = {
   ADMINISTRADOR: "Admin",

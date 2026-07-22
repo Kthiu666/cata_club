@@ -135,6 +135,30 @@ def client_sin_permisos(db_session):
 
 
 @pytest.fixture()
+def client_tesorero(db_session):
+    """Cliente autenticado con SOLO el rol TESORERO.
+
+    El rol sigue existiendo en el dominio (TipoRol.TESORERO) pero está dado
+    de baja: ya no debe otorgar acceso a nada. Este fixture es lo que prueba
+    esa baja -- cualquier endpoint que antes aceptaba TESORERO debe ahora
+    responder 403 con este cliente."""
+
+    def _override_sesion():
+        yield db_session
+
+    def _override_token():
+        return {"sub": "tesorero@cataclub.test", "persona_id": 1, "roles": ["TESORERO"]}
+
+    app.dependency_overrides[obtener_sesion] = _override_sesion
+    app.dependency_overrides[GestorAutenticacion.decodificar_token] = _override_token
+
+    with TestClient(app) as c:
+        yield c
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
 def client_sin_token(db_session):
     """Cliente SIN autenticar: el override del token se elimina, de modo que
     cualquier endpoint que dependa de `GestorAutenticacion.decodificar_token`

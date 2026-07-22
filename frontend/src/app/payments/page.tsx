@@ -208,8 +208,12 @@ export default function PaymentsPage(): React.ReactElement {
     }
   }
 
+  // "tesorero" deliberately dropped from allowedRoles below — the role is
+  // deactivated system-wide (see BACKEND_ROLE_TO_USER_ROLE in
+  // lib/server/auth.ts); no session can carry that UserRole anymore, so it
+  // never reaches this check today.
   return (
-    <ProtectedRoute allowedRoles={["admin", "tesorero"]}>
+    <ProtectedRoute allowedRoles={["admin"]}>
       <AppShell
         eyebrow="Validación de Pagos"
         title="Membresías y Pagos"

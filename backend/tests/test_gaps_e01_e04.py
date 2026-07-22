@@ -53,6 +53,16 @@ def test_asignar_y_quitar_rol(client):
     assert resp.json()["roles"] == []
 
 
+def test_asignar_rol_tesorero_esta_deshabilitado(client):
+    """El rol TESORERO está dado de baja (sin eliminarlo del dominio): ya
+    no se puede asignar a ninguna persona nueva."""
+    persona = _crear_persona(client, "1744444444")
+    _registrar_credenciales(client, persona["cedula"], "u3@x.com")
+
+    resp = client.post(f"/api/v1/personas/{persona['id']}/roles", json={"tipo_rol": "TESORERO"})
+    assert resp.status_code == 400
+
+
 def test_login_real_funciona_tras_asignar_rol(client):
     """Antes de este fix, un Usuario nunca podía obtener ningún rol -> nunca
     pasaba GestorPermisos. Prueba end-to-end de que ahora sí funciona."""

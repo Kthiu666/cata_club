@@ -17,7 +17,11 @@ from app.presentacion.schemas.tesoreria_schemas import (
 router = APIRouter(prefix="/tesoreria", tags=["tesoreria"])
 
 ROL_ADMIN = ["ADMINISTRADOR"]
-ROL_ADMIN_O_TESORERO = ["ADMINISTRADOR", "TESORERO"]
+# TESORERO está dado de baja del sistema (ver RolServicio.asignar_rol): ya no
+# se le puede asignar a nadie, y a quien ya lo tuviera tampoco le sigue
+# otorgando acceso acá. Se deja ADMINISTRADOR solo, sin quitar TESORERO del
+# dominio -- reactivarlo es agregar el string de vuelta a esta lista.
+ROL_ADMIN_O_TESORERO = ["ADMINISTRADOR"]
 
 
 # --- Eventos de recaudación (E04-RF010) --------------------------------------
