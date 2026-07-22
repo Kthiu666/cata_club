@@ -147,7 +147,7 @@ describe("MembersPage — Roles popover", () => {
 
     expect(within(row).getByRole("checkbox", { name: /admin/i })).toBeInTheDocument();
     expect(within(row).getByRole("checkbox", { name: /entrenador/i })).toBeInTheDocument();
-    expect(within(row).getByRole("checkbox", { name: /tesorero/i })).toBeInTheDocument();
+    expect(within(row).getByRole("checkbox", { name: /representante/i })).toBeInTheDocument();
     expect(within(row).getByRole("checkbox", { name: /alumno/i })).toBeInTheDocument();
   });
 
