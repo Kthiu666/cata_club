@@ -274,6 +274,10 @@ describe("ProfilePage — student/representante summary view", () => {
     expect(screen.getAllByText("No disponible — consulte con administración")).toHaveLength(2);
     expect(screen.queryByText("Vencida")).not.toBeInTheDocument();
     expect(mockFetchMiPerfil).not.toHaveBeenCalled();
+    // Hero center blocks (Ranking / Membresía) use "No aplica" for a
+    // self:null account — distinct from "No disponible", which would
+    // wrongly imply the account itself has an unreported status.
+    expect(screen.getAllByText("No aplica")).toHaveLength(2);
   });
 
   it("shows the real membership status for self alongside representados who correctly get the 'no disponible' fallback (owner-scoping regression test)", async () => {
@@ -355,6 +359,24 @@ describe("ProfilePage — student/representante summary view", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar su cuenta.");
     expect(screen.getByRole("button", { name: /reintentar/i })).toBeInTheDocument();
+  });
+});
+
+describe("ProfilePage — staff view loading/error (structurally distinct from the student branch)", () => {
+  it("shows an error with retry when fetchMiPerfil fails, and refetches on retry", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("admin"));
+    mockFetchMiPerfil.mockRejectedValueOnce(new Error("No se pudo cargar su perfil."));
+
+    render(<ProfilePage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar su perfil.");
+    const retryButton = screen.getByRole("button", { name: /reintentar/i });
+
+    mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
+    fireEvent.click(retryButton);
+
+    expect(await screen.findAllByText("Ana Admin")).toHaveLength(2);
+    expect(mockFetchMiPerfil).toHaveBeenCalledTimes(2);
   });
 });
 

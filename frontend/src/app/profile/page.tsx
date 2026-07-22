@@ -390,7 +390,9 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
                     <Trophy size={13} strokeWidth={1.5} aria-hidden="true" />
                     Ranking / Nivel
                   </dt>
-                  <dd className="mt-1 text-sm font-semibold text-cata-text">{ranking ? ranking.label : "No disponible"}</dd>
+                  <dd className="mt-1 text-sm font-semibold text-cata-text">
+                    {ranking ? ranking.label : self ? "No disponible" : "No aplica"}
+                  </dd>
                 </div>
                 <div>
                   <dt className="flex items-center gap-1.5 text-xs font-medium text-cata-text/65">
@@ -398,7 +400,7 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
                     Suscripción / Membresía
                   </dt>
                   <dd className="mt-1 text-sm font-semibold text-cata-text">
-                    {membership ? membership.label : "No disponible"}
+                    {membership ? membership.label : self ? "No disponible" : "No aplica"}
                   </dd>
                 </div>
               </>
