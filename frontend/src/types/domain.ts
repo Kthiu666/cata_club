@@ -465,6 +465,22 @@ export interface PersonaReporte {
   fechaRegistro?: string | null;
 }
 
+/** Basic Persona shape returned by PATCH /personas/{id}. */
+export interface PersonaResponse {
+  id: number;
+  nombres: string;
+  apellidos: string;
+  cedula: string;
+  fechaNacimiento: string;
+  telefono: string;
+  telefonoContacto?: string | null;
+  fotoUrl?: string | null;
+  representanteId?: number | null;
+  prioridadMunicipal: boolean;
+  porcentajeBeca: number;
+  motivoBeca?: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Ranking — Notificaciones & Justificativos (E03-RF006a/b + in-app
 // notifications). Mirrors backend/app/dominio/enums.py's
