@@ -50,23 +50,17 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
         { href: "/payments", label: "Membresías y Pagos" },
         { href: "/attendance", label: "Horarios y Asistencia" },
         { href: "/clases-extra", label: "Clases Extra" },
-        { href: "/groups/seleccion-oficial", label: "Selección Oficial" },
         { href: "/reports", label: "Reportes" },
-        { href: "/perfil", label: "Perfil" },
       );
       break;
     case "trainer":
       links.push(
         { href: "/trainer", label: "Entrenador" },
         { href: "/trainer/ranking", label: "Ranking" },
-        { href: "/perfil", label: "Perfil" },
       );
       break;
     case "tesorero":
-      links.push(
-        { href: "/payments", label: "Membresías y Pagos" },
-        { href: "/perfil", label: "Perfil" },
-      );
+      links.push({ href: "/payments", label: "Membresías y Pagos" });
       break;
     case "representante":
     case "estudiante":

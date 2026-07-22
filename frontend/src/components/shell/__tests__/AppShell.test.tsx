@@ -285,8 +285,8 @@ describe("AppShell", (): void => {
     fireEvent.click(screen.getByRole("button", { name: /Colapsar menú/i }));
 
     expect(container.querySelector("aside")).toHaveClass("lg:w-[76px]");
-    const groupsLink = screen.getByRole("link", { name: /Grupos/i });
-    expect(groupsLink).toHaveAttribute("title", "Grupos");
+    const groupsLink = screen.getByRole("link", { name: /Grupos y Horarios/i });
+    expect(groupsLink).toHaveAttribute("title", "Grupos y Horarios");
     expect(groupsLink.querySelector("span")).toHaveClass("lg:hidden");
     expect(screen.getByRole("button", { name: /Expandir menú/i })).toBeInTheDocument();
   });

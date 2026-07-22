@@ -152,7 +152,7 @@ const PENDING_JUSTIFICATIVO: Justificativo = {
 };
 
 async function findUnassignedRow(): Promise<HTMLElement> {
-  const heading = await screen.findByText(/^estudiantes sin grupo/i);
+  const heading = await screen.findByText(/^estudiantes sin nivel/i);
   const section = heading.closest("div.card") as HTMLElement;
   return within(section).getByText("Sofía González").closest("div.card-hover") as HTMLElement;
 }
@@ -304,7 +304,7 @@ describe("RankingPage — Selección Oficial extracted to its own route (PR9)", 
 
   it("no longer renders the Selección Oficial section inline", async () => {
     render(<RankingPage />);
-    await screen.findByText(/^estudiantes sin grupo/i);
+    await screen.findByText(/^estudiantes sin nivel/i);
 
     // Scoped to <main> — the sidebar nav link text ("Selección Oficial",
     // now pointing at the dedicated route) legitimately still renders there.

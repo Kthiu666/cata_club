@@ -235,13 +235,13 @@ describe("Header", (): void => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Miembros/i })).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Grupos/i }),
+      screen.getByRole("link", { name: /Grupos y Horarios/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Membresías/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Horarios/i }),
+      screen.getByRole("link", { name: /Horarios y Asistencia/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Selección Oficial/i }),

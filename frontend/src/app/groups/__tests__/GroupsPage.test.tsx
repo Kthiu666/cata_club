@@ -157,7 +157,7 @@ async function findUnassignedRow(): Promise<HTMLElement> {
   return within(section).getByText("Sofía González").closest("div.card-hover") as HTMLElement;
 }
 
-describe("GroupsPage — unassigned dropdown assign", () => {
+describe.skip("GroupsPage — unassigned dropdown assign (MOVED to RankingPage — issue #43)", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();
     mockAssignStudentToNivel.mockReset();
@@ -208,7 +208,7 @@ describe("GroupsPage — unassigned dropdown assign", () => {
   });
 });
 
-describe("GroupsPage — justificativo Aprobar/Rechazar confirmation gating", () => {
+describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating (MOVED to RankingPage — issue #44)", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();
     mockAssignStudentToNivel.mockReset();
@@ -304,7 +304,7 @@ describe("GroupsPage — Selección Oficial extracted to its own route (PR9)", (
 
   it("no longer renders the Selección Oficial section inline", async () => {
     render(<GroupsPage />);
-    await screen.findByText(/^estudiantes sin grupo/i);
+    await screen.findByText(/horarios de entrenamiento/i);
 
     // Scoped to <main> — the sidebar nav link text ("Selección Oficial",
     // now pointing at the dedicated route) legitimately still renders there.
