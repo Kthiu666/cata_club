@@ -511,6 +511,7 @@ export interface Justificativo {
   mes: number;
   motivo: string;
   archivoUrl: string | null;
+  observaciones: string | null;
   estado: EstadoJustificativoRanking;
   motivoRechazo: string | null;
   fechaSolicitud: string;

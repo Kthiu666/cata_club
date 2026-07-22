@@ -1040,6 +1040,7 @@ export interface SubmitJustificativoDTO {
   mes: number;
   motivo: string;
   archivoUrl?: string;
+  observaciones?: string;
 }
 
 /** Submit a justificativo for a missed ranking month (E03-RF006a) — `POST /ranking/:personaId/justificativos`. */
@@ -1082,6 +1083,7 @@ export async function evaluarJustificativo(
       mes: target?.mes ?? new Date().getMonth() + 1,
       motivo: target?.motivo ?? "",
       archivoUrl: target?.archivoUrl ?? null,
+      observaciones: target?.observaciones ?? null,
       estado: data.estado,
       motivoRechazo: data.motivoRechazo ?? null,
       fechaSolicitud: target?.fechaSolicitud ?? new Date().toISOString(),

@@ -23,6 +23,7 @@ interface CrearJustificativoRequestBody {
   mes?: unknown;
   motivo?: unknown;
   archivoUrl?: unknown;
+  observaciones?: unknown;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           mes: body.mes,
           motivo: body.motivo,
           archivo_url: body.archivoUrl,
+          observaciones: body.observaciones ?? null,
         }),
         signal: controller.signal,
       },

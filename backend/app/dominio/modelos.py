@@ -577,6 +577,7 @@ class JustificativoRanking(Base):
     mes: Mapped[int] = mapped_column()
     motivo: Mapped[str] = mapped_column(String(255))
     archivo_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    observaciones: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     estado: Mapped[EstadoJustificativoRanking] = mapped_column(
         SAEnum(EstadoJustificativoRanking), default=EstadoJustificativoRanking.PENDIENTE
     )

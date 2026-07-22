@@ -350,6 +350,7 @@ function makeJustificativo(overrides: Partial<Justificativo> = {}): Justificativ
     mes: 7,
     motivo: "Viaje familiar",
     archivoUrl: null,
+    observaciones: null,
     estado: "PENDIENTE",
     motivoRechazo: null,
     fechaSolicitud: "2026-07-19T10:00:00Z",

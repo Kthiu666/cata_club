@@ -454,6 +454,7 @@ class RankingServicio:
             mes=datos.mes,
             motivo=datos.motivo,
             archivo_url=datos.archivo_url,
+            observaciones=datos.observaciones,
         )
         return self.repo_justificativo.crear(justificativo)
 

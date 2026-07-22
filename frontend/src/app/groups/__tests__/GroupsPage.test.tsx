@@ -143,6 +143,7 @@ const PENDING_JUSTIFICATIVO: Justificativo = {
   mes: 7,
   motivo: "Viaje familiar",
   archivoUrl: null,
+  observaciones: null,
   estado: "PENDIENTE",
   motivoRechazo: null,
   fechaSolicitud: "2026-07-01T00:00:00.000Z",
