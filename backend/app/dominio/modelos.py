@@ -16,7 +16,7 @@ from decimal import Decimal
 from typing import List, Optional
 
 from sqlalchemy import (
-    String, ForeignKey, Numeric, DateTime, Date, Time, Boolean, Table, Column,
+    String, ForeignKey, Numeric, DateTime, Date, Time, Boolean, Integer, Table, Column,
     Enum as SAEnum, UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -123,6 +123,10 @@ class Usuario(Base):
     correo: Mapped[str] = mapped_column(String(100), unique=True)
     contrasenia: Mapped[str] = mapped_column(String(255))
     fecha_creacion: Mapped[datetime] = mapped_column(DateTime, default=_ahora_utc)
+    # E01-RF003: versión monotónica de la contraseña. Cada vez que se
+    # restablece o cambia la contraseña se incrementa, invalidando tokens de
+    # recuperación emitidos antes de ese cambio (single-use por diseño).
+    version_contrasenia: Mapped[int] = mapped_column(Integer, default=1)
     # E01-RF013: permite al Administrador suspender una cuenta sin borrar los
     # datos (Persona/historial). Antes solo existía DELETE (borrado duro).
     activo: Mapped[bool] = mapped_column(Boolean, default=True)

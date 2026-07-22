@@ -142,7 +142,9 @@ class AuthServicio:
         """
         usuario = self.repo.obtener_por_correo(correo)
         if usuario:
-            token = GestorAutenticacion.crear_token_recuperacion(correo)
+            token = GestorAutenticacion.crear_token_recuperacion(
+                correo, usuario.version_contrasenia
+            )
             from app.infraestructura.tareas.recuperacion_tareas import enviar_enlace_recuperacion
             try:
                 enviar_enlace_recuperacion.delay(correo, token)
@@ -153,9 +155,16 @@ class AuthServicio:
         return {"mensaje": "Si el correo está registrado, se envió un enlace de recuperación"}
 
     def restablecer_contrasenia(self, token: str, nueva_contrasenia: str) -> None:
-        correo = GestorAutenticacion.decodificar_token_recuperacion(token)
-        usuario = self.repo.obtener_por_correo(correo)
-        if not usuario:
+        payload = GestorAutenticacion.decodificar_token_recuperacion(token)
+        correo = payload["sub"]
+        version_token = payload.get("ver")
+        if not isinstance(version_token, int):
             raise CredencialesInvalidas("El enlace de recuperación es inválido o expiró")
+
+        usuario = self.repo.obtener_por_correo(correo)
+        if not usuario or usuario.version_contrasenia != version_token:
+            raise CredencialesInvalidas("El enlace de recuperación es inválido o expiró")
+
         usuario.contrasenia = GestorAutenticacion.obtener_hash_contrasenia(nueva_contrasenia)
+        usuario.version_contrasenia += 1
         self.db.commit()
