@@ -6,6 +6,7 @@ from app.infraestructura.db import obtener_sesion
 from app.presentacion.schemas.auth_schemas import (
     RegistroUsuarioDTO, RefreshTokenDTO, UsuarioMeResponseDTO, LogoutResponseDTO,
     SolicitarRecuperacionDTO, SolicitarRecuperacionResponseDTO, RestablecerContraseniaDTO,
+    ActualizarPerfilPropioDTO, ActualizarPerfilPropioResponseDTO,
 )
 from app.seguridad.gestor_auth import GestorAutenticacion
 from app.servicios_negocio.auth_servicio import AuthServicio
@@ -43,7 +44,25 @@ async def obtener_perfil(
         "nombres": usuario.persona.nombres,
         "apellidos": usuario.persona.apellidos,
         "roles": [rol.tipo_rol.value for rol in usuario.roles],
+        "telefono": usuario.persona.telefono,
     }
+
+
+# --- Issue #36: perfil propio (self-service, cualquier rol autenticado) -----
+@router.patch("/me", response_model=ActualizarPerfilPropioResponseDTO)
+async def actualizar_perfil_propio(
+    cambios: ActualizarPerfilPropioDTO,
+    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
+    db: Session = Depends(obtener_sesion),
+):
+    """
+    Self-service: el usuario autenticado edita SU PROPIO correo/teléfono.
+    Se resuelve la identidad vía el `sub` del JWT (no vía un persona_id de
+    path param), de modo que un usuario nunca pueda editar el registro de
+    otro. Distinto del edit-completo de ADMINISTRADOR (`PUT /personas/{id}`),
+    que sigue existiendo sin cambios para cualquier persona.
+    """
+    return AuthServicio(db).actualizar_perfil_propio(token_payload["sub"], cambios)
 
 
 @router.post("/refresh")
