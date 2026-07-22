@@ -389,26 +389,22 @@ export async function backendLogout(accessToken: string): Promise<void> {
 
 /**
  * Explicit adapter: every backend role string `/auth/me` can return, mapped
- * to its frontend `UserRole`. `REPRESENTANTE` is intentionally absent — the
- * backend never sends it as a role (see the doc comment on `UserRole` in
- * src/types/domain.ts: "representante" is a derived, frontend-only concept
- * for the parent/self-owner relationship, unrelated to authenticated
- * backend roles). Any backend string not present here is unrecognized.
+ * to its frontend `UserRole`. Any backend string not present here is
+ * unrecognized.
  */
 const BACKEND_ROLE_TO_USER_ROLE: Readonly<Record<string, UserRole>> = {
   ADMINISTRADOR: "admin",
   ENTRENADOR: "trainer",
-  TESORERO: "tesorero",
+  REPRESENTANTE: "representante",
   ALUMNO: "estudiante",
 };
 
 /**
  * Deterministic precedence for picking a user's *primary* frontend role when
  * `/auth/me` returns more than one backend role. Earlier entries win.
- * Recommended by the auth integration plan: administrator > treasurer >
- * trainer > student.
+ * Administrator > representante > trainer > estudiante.
  */
-const ROLE_PRECEDENCE: readonly UserRole[] = ["admin", "tesorero", "trainer", "estudiante"];
+const ROLE_PRECEDENCE: readonly UserRole[] = ["admin", "representante", "trainer", "estudiante"];
 
 /**
  * Pick the primary role from a set of already-mapped frontend roles, using
@@ -430,9 +426,9 @@ export function pickPrimaryRole(mappedRoles: UserRole[]): UserRole | null {
  * Map the backend's role list to the single frontend `UserRole` most of the
  * app still gates on (nav, ProtectedRoute, default-route redirects).
  *
- * All four backend roles (ADMINISTRADOR, ENTRENADOR, TESORERO, ALUMNO) map
- * explicitly via `BACKEND_ROLE_TO_USER_ROLE`. Multi-role users resolve to a
- * single primary role via `pickPrimaryRole`'s deterministic precedence.
+ * All four backend roles (ADMINISTRADOR, ENTRENADOR, REPRESENTANTE, ALUMNO)
+ * map explicitly via `BACKEND_ROLE_TO_USER_ROLE`. Multi-role users resolve
+ * to a single primary role via `pickPrimaryRole`'s deterministic precedence.
  *
  * An authenticated user whose roles are empty or entirely unrecognized maps
  * to `"unsupported"` — a real, explicit `UserRole` value (not a silent
@@ -466,10 +462,9 @@ export function buildSession(me: BackendMeResponse): ServerSession {
     id: String(me.personaId),
     name: `${me.nombres} ${me.apellidos}`.trim(),
     email: me.correo,
-    // /auth/me doesn't return the representante_id graph — "representante"
-    // as a Usuario.role is a separate, non-authenticated derivation (see
-    // mapBackendRoleToUserRole's doc comment) that this BFF session never
-    // produces. Left null (self-owner shape) here.
+    // /auth/me doesn't return the representante_id graph. Left null —
+    // a representante who logs in gets role "representante" via the
+    // REPRESENTANTE backend role, not via this field.
     representanteId: null,
   };
 
