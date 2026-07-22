@@ -31,7 +31,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
@@ -40,6 +40,7 @@ import {
   actualizarMiPerfil,
   solicitarRecuperacion,
   fetchStudentPortal,
+  subirFotoPerfil,
   ApiClientError,
 } from "@/services/api";
 import type { StudentPortalSummary, StudentProfileSummary, StudentMembershipSummary } from "@/services/api";
@@ -69,6 +70,7 @@ import {
   ChevronRight,
   Zap,
   AlertTriangle,
+  Camera,
 } from "lucide-react";
 import { formatDate } from "@/lib/format-utils";
 
@@ -235,6 +237,36 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
+  // ---- Profile photo upload (staff-only, caller's own hero avatar). Only
+  // built for the account that OWNS the profile being viewed; student/
+  // representante roles never fetch `PerfilPropio` (hard invariant, see
+  // `ProfileContent` below), so they have no `fotoUrl` to display or update
+  // in this pass — the hero avatar stays the generic icon for them. ----
+  const fotoInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [fotoError, setFotoError] = useState<string | null>(null);
+  const [fotoSuccess, setFotoSuccess] = useState(false);
+
+  async function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    if (props.kind !== "staff") return;
+    const archivo = e.target.files?.[0];
+    e.target.value = ""; // reset so re-selecting the same file re-triggers onChange
+    if (!archivo) return;
+
+    setUploadingFoto(true);
+    setFotoError(null);
+    setFotoSuccess(false);
+    try {
+      const updated = await subirFotoPerfil(archivo);
+      props.onSaved(updated);
+      setFotoSuccess(true);
+    } catch (error: unknown) {
+      setFotoError(toErrorMessage(error, "No se pudo actualizar la foto de perfil."));
+    } finally {
+      setUploadingFoto(false);
+    }
+  }
+
   function startEditing(): void {
     if (props.kind !== "staff") return;
     setCorreo(props.perfil.correo);
@@ -341,8 +373,44 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
         <div className="relative grid gap-6 sm:grid-cols-2 sm:items-center lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           {/* Left: avatar + name + correo + status badge */}
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-cata-red/10">
-              <User size={28} className="text-cata-red" strokeWidth={1.5} aria-hidden="true" />
+            <div className="relative shrink-0">
+              <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-cata-red/10">
+                {props.kind === "staff" && props.perfil.fotoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- external Cloudinary URL, not a local/static asset
+                  <img
+                    src={props.perfil.fotoUrl}
+                    alt="Foto de perfil"
+                    className="h-16 w-16 rounded-full object-cover"
+                  />
+                ) : (
+                  <User size={28} className="text-cata-red" strokeWidth={1.5} aria-hidden="true" />
+                )}
+              </div>
+              {props.kind === "staff" && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => fotoInputRef.current?.click()}
+                    disabled={uploadingFoto}
+                    aria-label="Cambiar foto de perfil"
+                    className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-cata-red text-white shadow-sm disabled:opacity-50"
+                  >
+                    {uploadingFoto ? (
+                      <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Camera size={12} strokeWidth={2} aria-hidden="true" />
+                    )}
+                  </button>
+                  <input
+                    ref={fotoInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    onChange={(e) => void handleFotoChange(e)}
+                    className="hidden"
+                    data-testid="foto-perfil-input"
+                  />
+                </>
+              )}
             </div>
             <div>
               <h2 className="text-lg font-bold tracking-tight text-cata-text">{fullName}</h2>
@@ -361,6 +429,16 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
                   )
                 ) : null}
               </div>
+              {props.kind === "staff" && fotoError && (
+                <p role="alert" className="mt-1 text-xs text-cata-red">
+                  {fotoError}
+                </p>
+              )}
+              {props.kind === "staff" && fotoSuccess && (
+                <p role="status" className="mt-1 text-xs text-cata-state-ok">
+                  Foto actualizada.
+                </p>
+              )}
             </div>
           </div>
 

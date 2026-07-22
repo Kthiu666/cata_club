@@ -42,12 +42,14 @@ const mockFetchMiPerfil = vi.fn();
 const mockActualizarMiPerfil = vi.fn();
 const mockSolicitarRecuperacion = vi.fn();
 const mockFetchStudentPortal = vi.fn();
+const mockSubirFotoPerfil = vi.fn();
 
 vi.mock("@/services/api", () => ({
   fetchMiPerfil: () => mockFetchMiPerfil(),
   actualizarMiPerfil: (data: unknown) => mockActualizarMiPerfil(data),
   solicitarRecuperacion: (correo: string) => mockSolicitarRecuperacion(correo),
   fetchStudentPortal: (personaId: string) => mockFetchStudentPortal(personaId),
+  subirFotoPerfil: (archivo: File) => mockSubirFotoPerfil(archivo),
   ApiClientError: class ApiClientError extends Error {
     status: number;
     constructor(message: string, status: number) {
@@ -112,6 +114,7 @@ beforeEach(() => {
   mockActualizarMiPerfil.mockReset();
   mockSolicitarRecuperacion.mockReset();
   mockFetchStudentPortal.mockReset();
+  mockSubirFotoPerfil.mockReset();
   mockUseAuth.mockReset();
 });
 
@@ -559,5 +562,108 @@ describe("ProfilePage — unified layout structure", () => {
       "/dashboard",
     );
     expect(within(linksColumn).getByRole("link", { name: "Miembros" })).toHaveAttribute("href", "/members");
+  });
+});
+
+describe("ProfilePage — profile photo upload (staff, own hero avatar only)", () => {
+  it("shows the generic icon (no <img>) when the staff profile has no fotoUrl yet", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("admin"));
+    mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
+
+    render(<ProfilePage />);
+
+    await screen.findAllByText("Ana Admin");
+    const hero = screen.getByTestId("profile-hero");
+    expect(within(hero).queryByRole("img", { name: /foto de perfil/i })).not.toBeInTheDocument();
+  });
+
+  it("renders the actual photo in the hero avatar when fotoUrl is present", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("admin"));
+    mockFetchMiPerfil.mockResolvedValueOnce({
+      ...PERFIL_ADMIN,
+      fotoUrl: "https://res.cloudinary.com/test/image/upload/perfil-ana.jpg",
+    });
+
+    render(<ProfilePage />);
+
+    await screen.findAllByText("Ana Admin");
+    const hero = screen.getByTestId("profile-hero");
+    const img = within(hero).getByRole("img", { name: /foto de perfil/i });
+    expect(img).toHaveAttribute("src", "https://res.cloudinary.com/test/image/upload/perfil-ana.jpg");
+  });
+
+  it("only accepts image files via the hidden file input", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("admin"));
+    mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
+
+    render(<ProfilePage />);
+
+    await screen.findAllByText("Ana Admin");
+    expect(screen.getByTestId("foto-perfil-input")).toHaveAttribute("accept", "image/jpeg,image/png");
+  });
+
+  it("uploads the selected file and updates the displayed avatar on success", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("admin"));
+    mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
+    mockSubirFotoPerfil.mockResolvedValueOnce({
+      ...PERFIL_ADMIN,
+      fotoUrl: "https://res.cloudinary.com/test/image/upload/perfil-ana.jpg",
+    });
+
+    render(<ProfilePage />);
+    await screen.findAllByText("Ana Admin");
+
+    const input = screen.getByTestId("foto-perfil-input");
+    const archivo = new File(["contenido"], "foto.jpg", { type: "image/jpeg" });
+    fireEvent.change(input, { target: { files: [archivo] } });
+
+    await waitFor(() => {
+      expect(mockSubirFotoPerfil).toHaveBeenCalledWith(archivo);
+    });
+
+    const hero = await screen.findByTestId("profile-hero");
+    await waitFor(() => {
+      expect(within(hero).getByRole("img", { name: /foto de perfil/i })).toHaveAttribute(
+        "src",
+        "https://res.cloudinary.com/test/image/upload/perfil-ana.jpg",
+      );
+    });
+  });
+
+  it("shows an error message when the upload fails", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("admin"));
+    mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
+    mockSubirFotoPerfil.mockRejectedValueOnce(new Error("No se pudo actualizar la foto de perfil."));
+
+    render(<ProfilePage />);
+    await screen.findAllByText("Ana Admin");
+
+    const input = screen.getByTestId("foto-perfil-input");
+    const archivo = new File(["contenido"], "foto.jpg", { type: "image/jpeg" });
+    fireEvent.change(input, { target: { files: [archivo] } });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo actualizar la foto de perfil.");
+  });
+
+  it("does not offer a photo-upload trigger for the student/representante branch", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("estudiante"));
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      self: {
+        personaId: "1",
+        nombres: "Sofía",
+        apellidos: "Alumna",
+        fechaNacimiento: "2012-05-10",
+        ranking: { status: "unavailable", reason: "error" },
+        recentSessions: [],
+      },
+      representados: [],
+      membershipPlans: [],
+      memberships: [],
+    });
+
+    render(<ProfilePage />);
+
+    await screen.findAllByText("Sofía Alumna");
+    expect(screen.queryByTestId("foto-perfil-input")).not.toBeInTheDocument();
   });
 });

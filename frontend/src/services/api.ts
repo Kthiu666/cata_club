@@ -299,8 +299,13 @@ async function request<T>(
 
   const timeoutId = controller !== undefined ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
 
+  // FormData (multipart file uploads, e.g. `subirFotoPerfil`) must NOT get a
+  // manual Content-Type: the browser needs to set its own multipart boundary
+  // — forcing "application/json" (or any fixed value) here would break the
+  // upload server-side.
+  const isFormDataBody = typeof FormData !== "undefined" && options.body instanceof FormData;
   const headers = toPlainHeaders(
-    { "Content-Type": "application/json" },
+    isFormDataBody ? {} : { "Content-Type": "application/json" },
     options.headers,
   );
 
@@ -1165,6 +1170,23 @@ export async function actualizarMiPerfil(data: ActualizarPerfilPropioPayload): P
   return request<PerfilPropio>(apiEndpoint("/auth/me"), {
     method: "PATCH",
     body: JSON.stringify(body),
+  });
+}
+
+/**
+ * Upload/replace the logged-in user's own profile photo — POST /api/auth/me/foto.
+ * Sends `multipart/form-data` (a `FormData` body, NOT `JSON.stringify`) — see
+ * `request()`'s FormData branch, which skips the default
+ * `Content-Type: application/json` header so the browser sets its own
+ * multipart boundary. Only JPG/PNG are accepted server-side.
+ */
+export async function subirFotoPerfil(archivo: File): Promise<PerfilPropio> {
+  const formData = new FormData();
+  formData.append("archivo", archivo);
+
+  return request<PerfilPropio>(apiEndpoint("/auth/me/foto"), {
+    method: "POST",
+    body: formData,
   });
 }
 

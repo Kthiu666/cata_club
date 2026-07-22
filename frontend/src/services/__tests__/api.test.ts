@@ -27,6 +27,7 @@ import {
   fetchJustificativosPendientes,
   fetchMiPerfil,
   actualizarMiPerfil,
+  subirFotoPerfil,
 } from "../api";
 import type { PaymentValidationRequest } from "../api";
 import type { Notificacion, Justificativo, PerfilPropio } from "@/types/domain";
@@ -610,6 +611,35 @@ describe("actualizarMiPerfil", () => {
     await expect(actualizarMiPerfil({ correo: "duplicado@cataclub.com" })).rejects.toThrow(
       "El correo ya está en uso.",
     );
+  });
+});
+
+describe("subirFotoPerfil", () => {
+  it("POSTs multipart/form-data (not JSON) to /api/auth/me/foto and returns the updated profile", async () => {
+    const perfil = makePerfilPropio({ fotoUrl: "https://res.cloudinary.com/test/image/upload/perfil-fake.jpg" });
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(perfil));
+
+    const archivo = new File(["contenido"], "foto.jpg", { type: "image/jpeg" });
+    const result = await subirFotoPerfil(archivo);
+
+    expect(global.fetch).toHaveBeenCalledWith("/api/auth/me/foto", expect.anything());
+    const [, init] = vi.mocked(global.fetch).mock.calls[0];
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBeInstanceOf(FormData);
+    // Content-Type must NOT be forced to application/json (or anything else)
+    // — the browser needs to set its own multipart boundary.
+    const headers = new Headers(init?.headers);
+    expect(headers.get("Content-Type")).toBeNull();
+    expect(result).toEqual(perfil);
+  });
+
+  it("throws a typed error when the backend rejects an unsupported file type", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      errorResponse(400, { message: "Formato de archivo no permitido. Use JPG o PNG" }),
+    );
+
+    const archivo = new File(["contenido"], "archivo.pdf", { type: "application/pdf" });
+    await expect(subirFotoPerfil(archivo)).rejects.toThrow("Formato de archivo no permitido. Use JPG o PNG");
   });
 });
 
