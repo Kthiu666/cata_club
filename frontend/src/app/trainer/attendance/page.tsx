@@ -42,6 +42,7 @@ import {
   CheckCircle,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   AlertTriangle,
   ClipboardList,
   XCircle,
@@ -56,8 +57,9 @@ import {
   resolveDisplayTrainerName,
   type SessionStudent,
 } from "./attendance-utils";
-import { getAttendanceBadgeTokens, formatDay } from "@/app/attendance/attendance-utils";
+import { getAttendanceBadgeTokens, formatDay, groupSchedulesByDay } from "@/app/attendance/attendance-utils";
 import type { TrainingSchedule } from "@/app/attendance/attendance-utils";
+import type { DiaSemana } from "@/types/domain";
 import {
   fetchTrainingSchedules,
   fetchNivelesConOcupacion,
@@ -115,6 +117,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
 
   const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
   const [selectedNivelId, setSelectedNivelId] = useState<number | null>(null);
+  const [expandedDays, setExpandedDays] = useState<Set<DiaSemana>>(new Set());
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterError, setRosterError] = useState<string | null>(null);
 
@@ -204,6 +207,18 @@ export default function TrainerAttendancePage(): React.ReactElement {
     }
   }
 
+  function toggleDay(day: DiaSemana): void {
+    setExpandedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(day)) {
+        next.delete(day);
+      } else {
+        next.add(day);
+      }
+      return next;
+    });
+  }
+
   function handleDirectAttendanceSet(studentIndex: number, state: EstadoAsistencia): void {
     setStudents((prev) =>
       prev.map((s, i) => (i === studentIndex ? { ...s, attendance: state } : s)),
@@ -245,6 +260,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
   // ---- Step renderers ----
 
   function renderSessionSelection(): React.ReactElement {
+    const dayGroups = groupSchedulesByDay(schedules);
     return (
       <div className="space-y-6">
         <div>
@@ -254,41 +270,71 @@ export default function TrainerAttendancePage(): React.ReactElement {
           {schedules.length === 0 ? (
             <p className="text-sm text-cata-text/45">No hay horarios registrados.</p>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {schedules.map((sched) => {
-                const isActive = sched.id === selectedScheduleId;
+            <div className="space-y-2">
+              {dayGroups.map((group) => {
+                const isExpanded = expandedDays.has(group.day);
+                const panelId = `schedule-day-${group.day}`;
                 return (
-                  <button
-                    key={sched.id}
-                    type="button"
-                    onClick={() => setSelectedScheduleId(sched.id)}
-                    className={`card-hover p-5 text-left transition-all duration-150 ${
-                      isActive
-                        ? "ring-2 ring-cata-red/30 border-cata-red/20"
-                        : ""
-                    }`}
-                  >
-                    <div className="mb-2.5 flex items-center gap-2.5">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
-                        <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                      </div>
-                      <span className="text-sm font-bold text-cata-text">
-                        {formatDay(sched.diaSemana)}
+                  <div key={group.day} className="overflow-hidden rounded-xl border border-cata-border bg-cata-surface">
+                    <button
+                      type="button"
+                      onClick={() => toggleDay(group.day)}
+                      aria-expanded={isExpanded}
+                      aria-controls={panelId}
+                      className="flex w-full items-center justify-between gap-2.5 p-4 text-left transition-colors duration-150 hover:bg-cata-bg/40"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                          <Calendar size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                        </div>
+                        <span className="text-sm font-bold text-cata-text">{group.label}</span>
+                        <span className="text-xs text-cata-text/45">
+                          ({group.schedules.length}{" "}
+                          {group.schedules.length === 1 ? "horario" : "horarios"})
+                        </span>
                       </span>
-                    </div>
-                    <div className="rounded-lg bg-cata-bg/60 px-3 py-2">
-                      <p className="flex items-center gap-1.5 text-xs text-cata-text/70">
-                        <Clock size={13} strokeWidth={1.5} className="text-cata-red/70" aria-hidden="true" />
-                        <span className="font-semibold text-cata-text">{sched.horaInicio}</span>
-                        <span className="text-cata-text/40">a</span>
-                        <span className="font-semibold text-cata-text">{sched.horaFin}</span>
-                      </p>
-                      <p className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/55">
-                        <UserCheck size={12} strokeWidth={1.5} aria-hidden="true" />
-                        {sched.entrenadorNombre}
-                      </p>
-                    </div>
-                  </button>
+                      <ChevronDown
+                        size={16}
+                        strokeWidth={1.5}
+                        className={`shrink-0 text-cata-text/45 transition-transform duration-150 ${
+                          isExpanded ? "rotate-180" : ""
+                        }`}
+                        aria-hidden="true"
+                      />
+                    </button>
+                    {isExpanded && (
+                      <div id={panelId} className="grid gap-2 border-t border-cata-border p-3 sm:grid-cols-2">
+                        {group.schedules.map((sched) => {
+                          const isActive = sched.id === selectedScheduleId;
+                          return (
+                            <button
+                              key={sched.id}
+                              type="button"
+                              onClick={() => setSelectedScheduleId(sched.id)}
+                              className={`card-hover p-5 text-left transition-all duration-150 ${
+                                isActive
+                                  ? "ring-2 ring-cata-red/30 border-cata-red/20"
+                                  : ""
+                              }`}
+                            >
+                              <div className="rounded-lg bg-cata-bg/60 px-3 py-2">
+                                <p className="flex items-center gap-1.5 text-xs text-cata-text/70">
+                                  <Clock size={13} strokeWidth={1.5} className="text-cata-red/70" aria-hidden="true" />
+                                  <span className="font-semibold text-cata-text">{sched.horaInicio}</span>
+                                  <span className="text-cata-text/40">a</span>
+                                  <span className="font-semibold text-cata-text">{sched.horaFin}</span>
+                                </p>
+                                <p className="mt-1 flex items-center gap-1.5 text-xs text-cata-text/55">
+                                  <UserCheck size={12} strokeWidth={1.5} aria-hidden="true" />
+                                  {sched.entrenadorNombre}
+                                </p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>

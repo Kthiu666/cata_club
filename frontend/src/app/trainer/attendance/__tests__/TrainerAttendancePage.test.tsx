@@ -88,18 +88,19 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
   it("lets a trainer directly select each visibly labeled attendance state", async () => {
     mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
     mockFetchTrainingSchedules.mockResolvedValue([
-      { id: 12, diaSemana: "lunes", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+      { id: 12, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
     ]);
     mockFetchNivelesConOcupacion.mockResolvedValue([
       { id: 4, numeroNivel: 2, nombre: "Intermedio", nivelCategoria: "intermedio", personasActuales: 1 },
     ]);
     mockFetchNivelRoster.mockResolvedValue([
-      { personaId: 9, personaNombreCompleto: "Ana López", posicionActual: 1, puntajeAcumulado: 20, estaEnRanking: true },
+      { personaId: 9, personaNombreCompleto: "Ana López", estaEnRanking: true },
     ]);
 
     render(<TrainerAttendancePage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /lunes/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
     fireEvent.click(screen.getByRole("button", { name: /intermedio/i }));
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
 
@@ -119,19 +120,20 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
     if (trainerAuth.session) trainerAuth.session.user.id = "17";
     mockUseAuth.mockReturnValue(trainerAuth);
     mockFetchTrainingSchedules.mockResolvedValue([
-      { id: 12, diaSemana: "lunes", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+      { id: 12, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
     ]);
     mockFetchNivelesConOcupacion.mockResolvedValue([
       { id: 4, numeroNivel: 2, nombre: "Intermedio", nivelCategoria: "intermedio", personasActuales: 1 },
     ]);
     mockFetchNivelRoster.mockResolvedValue([
-      { personaId: 9, personaNombreCompleto: "Ana López", posicionActual: 1, puntajeAcumulado: 20, estaEnRanking: true },
+      { personaId: 9, personaNombreCompleto: "Ana López", estaEnRanking: true },
     ]);
     mockRegisterAttendance.mockResolvedValue({ createdCount: 1, failed: [] });
 
     render(<TrainerAttendancePage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /lunes/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
     fireEvent.click(screen.getByRole("button", { name: /intermedio/i }));
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
     const stateSelector = await screen.findByRole("group", { name: "Estado de asistencia de Ana López" });
@@ -150,22 +152,122 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
   it("opens named help that preserves the existing Justificado semantics", async () => {
     mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
     mockFetchTrainingSchedules.mockResolvedValue([
-      { id: 12, diaSemana: "lunes", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+      { id: 12, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
     ]);
     mockFetchNivelesConOcupacion.mockResolvedValue([
       { id: 4, numeroNivel: 2, nombre: "Intermedio", nivelCategoria: "intermedio", personasActuales: 1 },
     ]);
     mockFetchNivelRoster.mockResolvedValue([
-      { personaId: 9, personaNombreCompleto: "Ana López", posicionActual: 1, puntajeAcumulado: 20, estaEnRanking: true },
+      { personaId: 9, personaNombreCompleto: "Ana López", estaEnRanking: true },
     ]);
 
     render(<TrainerAttendancePage />);
-    fireEvent.click(await screen.findByRole("button", { name: /lunes/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
     fireEvent.click(screen.getByRole("button", { name: /intermedio/i }));
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
     fireEvent.click(await screen.findByRole("button", { name: "Ayuda sobre el estado Justificado" }));
 
     const help = screen.getByRole("region", { name: "Ayuda sobre el estado Justificado" });
     expect(help).toHaveTextContent("no modifica la validación ni el significado actual");
+  });
+});
+
+describe("TrainerAttendancePage — schedule accordion grouped by day (Slice A)", () => {
+  beforeEach(() => {
+    mockReplace.mockReset();
+    mockFetchTrainingSchedules.mockResolvedValue([]);
+    mockFetchNivelesConOcupacion.mockResolvedValue([]);
+    mockFetchNivelRoster.mockResolvedValue([]);
+    mockRegisterAttendance.mockReset();
+  });
+
+  it("groups schedules on Monday, Wednesday and Friday into three independent day sections", async () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    mockFetchTrainingSchedules.mockResolvedValue([
+      { id: 1, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+      { id: 2, diaSemana: "mie", horaInicio: "09:00", horaFin: "10:00", entrenadorId: 18, entrenadorNombre: "Coach Diaz" },
+      { id: 3, diaSemana: "vie", horaInicio: "20:00", horaFin: "21:00", entrenadorId: 19, entrenadorNombre: "Coach Ruiz" },
+    ]);
+
+    render(<TrainerAttendancePage />);
+
+    const mondaySection = await screen.findByRole("button", { name: /^lunes/i });
+    const wednesdaySection = screen.getByRole("button", { name: /^miércoles/i });
+    const fridaySection = screen.getByRole("button", { name: /^viernes/i });
+    expect(mondaySection).toBeInTheDocument();
+    expect(wednesdaySection).toBeInTheDocument();
+    expect(fridaySection).toBeInTheDocument();
+
+    // Collapsed by default: no schedule card is reachable before expanding.
+    expect(screen.queryByRole("button", { name: /18:00/i })).not.toBeInTheDocument();
+
+    fireEvent.click(mondaySection);
+    expect(await screen.findByRole("button", { name: /18:00/i })).toBeInTheDocument();
+    // Wednesday/Friday remain collapsed — their cards are not shown.
+    expect(screen.queryByRole("button", { name: /09:00/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /20:00/i })).not.toBeInTheDocument();
+  });
+
+  it("expands and collapses each day section independently of the others", async () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    mockFetchTrainingSchedules.mockResolvedValue([
+      { id: 1, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+      { id: 2, diaSemana: "mie", horaInicio: "09:00", horaFin: "10:00", entrenadorId: 18, entrenadorNombre: "Coach Diaz" },
+    ]);
+
+    render(<TrainerAttendancePage />);
+
+    const mondaySection = await screen.findByRole("button", { name: /^lunes/i });
+    const wednesdaySection = screen.getByRole("button", { name: /^miércoles/i });
+
+    fireEvent.click(mondaySection);
+    expect(await screen.findByRole("button", { name: /18:00/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /09:00/i })).not.toBeInTheDocument();
+
+    fireEvent.click(wednesdaySection);
+    expect(await screen.findByRole("button", { name: /09:00/i })).toBeInTheDocument();
+    // Monday card is still visible — expanding Wednesday did not collapse it.
+    expect(screen.getByRole("button", { name: /18:00/i })).toBeInTheDocument();
+
+    fireEvent.click(mondaySection);
+    expect(screen.queryByRole("button", { name: /18:00/i })).not.toBeInTheDocument();
+    // Wednesday remains expanded — collapsing Monday did not affect it.
+    expect(screen.getByRole("button", { name: /09:00/i })).toBeInTheDocument();
+  });
+
+  it("omits the day section for a day with no schedules", async () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    mockFetchTrainingSchedules.mockResolvedValue([
+      { id: 1, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+    ]);
+
+    render(<TrainerAttendancePage />);
+
+    await screen.findByRole("button", { name: /^lunes/i });
+    expect(screen.queryByRole("button", { name: /^martes/i })).not.toBeInTheDocument();
+  });
+
+  it("still triggers roster loading when a schedule card is selected inside an expanded day", async () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    mockFetchTrainingSchedules.mockResolvedValue([
+      { id: 12, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+    ]);
+    mockFetchNivelesConOcupacion.mockResolvedValue([
+      { id: 4, numeroNivel: 2, nombre: "Intermedio", nivelCategoria: "intermedio", personasActuales: 1 },
+    ]);
+    mockFetchNivelRoster.mockResolvedValue([
+      { personaId: 9, personaNombreCompleto: "Ana López", estaEnRanking: true },
+    ]);
+
+    render(<TrainerAttendancePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
+    fireEvent.click(screen.getByRole("button", { name: /intermedio/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    await waitFor(() => expect(mockFetchNivelRoster).toHaveBeenCalled());
+    expect(await screen.findByText("Ana López")).toBeInTheDocument();
   });
 });

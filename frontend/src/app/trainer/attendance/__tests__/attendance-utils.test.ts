@@ -104,8 +104,8 @@ describe("buildAttendanceSummary", () => {
 
 describe("buildRosterFromTabla", () => {
   const tabla: TablaRankingItem[] = [
-    { personaId: 3, personaNombreCompleto: "Sofia Alumna", posicionActual: null, puntajeAcumulado: 0, estaEnRanking: true },
-    { personaId: 7, personaNombreCompleto: "Mateo Rodríguez", posicionActual: 2, puntajeAcumulado: 40, estaEnRanking: true },
+    { personaId: 3, personaNombreCompleto: "Sofia Alumna", estaEnRanking: true },
+    { personaId: 7, personaNombreCompleto: "Mateo Rodríguez", estaEnRanking: true },
   ];
 
   it("maps each roster row to a SessionStudent defaulted to absent", () => {
