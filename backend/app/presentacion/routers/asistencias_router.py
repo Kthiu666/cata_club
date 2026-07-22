@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
 
+from app.dominio.enums import Categoria
 from app.infraestructura.db import obtener_sesion
 from app.presentacion.schemas.asistencia_schemas import (
     AsistenciaCreateDTO, AsistenciaResponseDTO, HorarioCreateDTO, HorarioUpdateDTO, HorarioResponseDTO,
@@ -39,8 +40,11 @@ async def eliminar_horario(horario_id: int, db: Session = Depends(obtener_sesion
     response_model=List[HorarioResponseDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
-def listar_horarios(db: Session = Depends(obtener_sesion)):
-    return AsistenciaServicio(db).listar_horarios()
+def listar_horarios(
+    categoria: Optional[Categoria] = Query(default=None),
+    db: Session = Depends(obtener_sesion),
+):
+    return AsistenciaServicio(db).listar_horarios(categoria)
 
 
 @router.post("/", response_model=AsistenciaResponseDTO, status_code=status.HTTP_201_CREATED,
