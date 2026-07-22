@@ -28,6 +28,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import ContextualHelp from "@/components/ContextualHelp";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Calendar,
@@ -405,6 +406,9 @@ export default function TrainerAttendancePage(): React.ReactElement {
               {justifiedCount} Justificados
             </span>
           </div>
+          <ContextualHelp title="Ayuda sobre el estado Justificado">
+            <p>Use Justificado según el criterio actual del club. Esta selección no modifica la validación ni el significado actual del estado.</p>
+          </ContextualHelp>
         </div>
 
         {/* Student list with attendance toggle */}

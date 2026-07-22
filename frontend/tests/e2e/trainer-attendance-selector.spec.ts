@@ -67,3 +67,24 @@ test("trainer directly selects every attendance state at 390px", async ({ page }
     await expect(stateControl).toHaveAttribute("aria-pressed", "true");
   }
 });
+
+test("trainer discovers mobile navigation and Justificado guidance at 390px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTrainerAttendanceRuntime(page);
+
+  await page.goto("/trainer/attendance");
+
+  const menu = page.getByRole("button", { name: "Abrir menú principal" });
+  await expect(menu).toHaveText("Menú");
+  await menu.click();
+  await expect(page.getByRole("navigation", { name: "Navegación principal" })).toBeVisible();
+  await page.getByRole("button", { name: "Cerrar menú" }).click();
+
+  await page.getByRole("button", { name: /lunes/i }).click();
+  await page.getByRole("button", { name: /elite/i }).click();
+  await page.getByRole("button", { name: "Continuar" }).click();
+  await page.getByRole("button", { name: "Ayuda sobre el estado Justificado" }).click();
+
+  const help = page.getByRole("region", { name: "Ayuda sobre el estado Justificado" });
+  await expect(help).toContainText("no modifica la validación ni el significado actual");
+});

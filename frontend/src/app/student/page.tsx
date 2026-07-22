@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import ContextualHelp from "@/components/ContextualHelp";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchStudentPortal, fetchMembresiasPorPersona, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra, submitJustificativo, fetchJustificativosDePersona, fetchPagosDePersona, ApiClientError } from "@/services/api";
 import type { StudentPortalSummary, StudentProfileSummary, MembresiaPorPersona, PagoPersona } from "@/services/api";
@@ -83,6 +84,9 @@ function MembershipUnavailableCard(): React.ReactElement {
       <p className="text-xs leading-relaxed text-cata-text/55">
         No disponible desde este portal por el momento. Consulte con administración del club.
       </p>
+      <ContextualHelp title="Ayuda sobre membresía no disponible">
+        <p>La membresía no está disponible desde este portal por el momento. Consulte con administración para conocer las opciones disponibles.</p>
+      </ContextualHelp>
       <a href="mailto:administracion@cataclub.local" className="mt-3 inline-flex text-xs font-medium text-cata-red hover:text-cata-red-light">
         Consultar con administración
       </a>

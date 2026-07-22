@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import StudentPage from "@/app/student/page";
 import type { StudentPortalSummary, PagoPersona } from "@/services/api";
 import type { Justificativo } from "@/types/domain";
@@ -230,6 +230,17 @@ describe("StudentPage — unavailable membership recovery", () => {
 
     const recovery = await screen.findByRole("region", { name: /membresía no disponible/i });
     expect(recovery).toHaveTextContent("No disponible desde este portal por el momento.");
+    expect(screen.getByRole("link", { name: /consultar con administración/i })).toHaveAttribute("href", "mailto:administracion@cataclub.local");
+  });
+
+  it("opens named help that explains the unavailable membership limitation without promising access", async () => {
+    render(<StudentPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Ayuda sobre membresía no disponible" }));
+
+    const help = screen.getByRole("region", { name: "Ayuda sobre membresía no disponible" });
+    expect(help).toHaveTextContent("no está disponible desde este portal");
+    expect(help).toHaveTextContent("Consulte con administración");
     expect(screen.getByRole("link", { name: /consultar con administración/i })).toHaveAttribute("href", "mailto:administracion@cataclub.local");
   });
 });

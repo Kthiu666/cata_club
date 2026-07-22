@@ -197,3 +197,16 @@ describe("MembersPage — Crear membresía inline form width (live-QA bugfix)", 
     expect(membershipBlock?.className).toMatch(/sm:col-span-2/);
   });
 });
+
+describe("MembersPage — capped results help", () => {
+  it("opens named help that truthfully describes the known 200-result cap", async () => {
+    render(<MembersPage />);
+    await findAccountRow();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ayuda sobre límite de resultados" }));
+
+    const help = screen.getByRole("region", { name: "Ayuda sobre límite de resultados" });
+    expect(help).toHaveTextContent("hasta 200 registros");
+    expect(help).toHaveTextContent("no confirma que se hayan cargado todos los miembros");
+  });
+});
