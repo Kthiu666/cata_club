@@ -321,23 +321,23 @@ describe("Header", (): void => {
   // --- Active link highlighting ---
 
   // Every admin/trainer/student nav destination is now an app-shell route
-  // (hidden header, see the describe block above) except /trainer/ranking,
+  // (hidden header, see the describe block above) except /trainer/nivel,
   // which stays on the top header and matches one of its own nav links —
   // the realistic case left for active-link coverage.
   it("marks the active link with aria-current=\"page\"", (): void => {
-    mockPathname.mockReturnValue("/trainer/ranking");
+    mockPathname.mockReturnValue("/trainer/nivel");
     mockUseAuth.mockReturnValue(
       createAuthenticatedAuth("trainer", "Carlos Entrenador"),
     );
 
     render(<Header />);
 
-    const rankingLink = screen.getByRole("link", { name: /Ranking/i });
-    expect(rankingLink).toHaveAttribute("aria-current", "page");
+    const nivelLink = screen.getByRole("link", { name: /Nivel/i });
+    expect(nivelLink).toHaveAttribute("aria-current", "page");
   });
 
   it("does not apply aria-current to non-current route links", (): void => {
-    mockPathname.mockReturnValue("/trainer/ranking");
+    mockPathname.mockReturnValue("/trainer/nivel");
     mockUseAuth.mockReturnValue(
       createAuthenticatedAuth("trainer", "Carlos Entrenador"),
     );

@@ -56,7 +56,7 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
     case "trainer":
       links.push(
         { href: "/trainer", label: "Entrenador" },
-        { href: "/trainer/ranking", label: "Ranking" },
+        { href: "/trainer/nivel", label: "Nivel" },
       );
       break;
     case "tesorero":
