@@ -17,10 +17,8 @@ from app.servicios_negocio.gestor_permisos import GestorPermisos
 
 router = APIRouter(prefix="/membresias", tags=["Membresías y Pagos"])
 
-# Reutilizado para endpoints admin (mismo string que usaba el código original).
+# Reutilizado para endpoints admin.
 ROL_ADMIN = ["ADMINISTRADOR"]
-# Tesorero también accede a la cola de pagos (ver tesoreria_router.py).
-ROL_ADMIN_O_TESORERO = ["ADMINISTRADOR", "TESORERO"]
 
 
 # --- TipoMembresia ---
@@ -114,7 +112,7 @@ async def listar_membresias_por_persona(
 @router.get(
     "/pagos",
     response_model=PaginatedResponse[PagoListItemDTO],
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_TESORERO))],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
 )
 def listar_pagos(
     estado_pago: Optional[EstadoPago] = Query(default=None),
@@ -174,7 +172,7 @@ async def registrar_pago(
 
 
 @router.patch("/pagos/{pago_id}/validar", response_model=PagoResponseDTO,
-              dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_TESORERO))])
+              dependencies=[Depends(GestorPermisos(ROL_ADMIN))])
 async def validar_pago(pago_id: int, datos: PagoValidarDTO, db: Session = Depends(obtener_sesion)):
     return PagoServicio(db).validar_pago(pago_id, datos)
 

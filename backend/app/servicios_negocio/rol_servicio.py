@@ -16,9 +16,10 @@ class RolServicio:
     comentario) pero ese "por separado" nunca se construyó -- sin esto,
     ningún usuario podía pasar un `GestorPermisos` jamás.
 
-    "Representante" NO es un TipoRol asignable aquí (sigue siendo la
-    relación `Persona.representante_id`, ya validado antes). Este servicio
-    solo maneja ALUMNO / ENTRENADOR / ADMINISTRADOR / TESORERO.
+    Este servicio maneja ALUMNO / ENTRENADOR / ADMINISTRADOR /
+    REPRESENTANTE. El rol REPRESENTANTE se asigna automáticamente al
+    representante legal durante la autoinscripción (enrollment_servicio),
+    no mediante este endpoint admin.
     """
 
     def __init__(self, db: Session):

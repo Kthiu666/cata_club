@@ -59,9 +59,6 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
         { href: "/trainer/ranking", label: "Ranking" },
       );
       break;
-    case "tesorero":
-      links.push({ href: "/payments", label: "Membresías y Pagos" });
-      break;
     case "representante":
     case "estudiante":
       links.push({ href: "/student", label: "Mi Cuenta" });
@@ -111,8 +108,6 @@ export function getDefaultRoute(role: UserRole): string {
       return "/dashboard";
     case "trainer":
       return "/trainer";
-    case "tesorero":
-      return "/payments";
     case "representante":
     case "estudiante":
       return "/student";
@@ -130,8 +125,6 @@ export function getRoleLabel(role: UserRole): string {
       return "Administrador";
     case "trainer":
       return "Entrenador";
-    case "tesorero":
-      return "Tesorero";
     case "representante":
       return "Representante";
     case "estudiante":

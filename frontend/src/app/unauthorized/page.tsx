@@ -2,11 +2,11 @@
  * /unauthorized — Explicit landing page for the "unsupported role" state.
  *
  * Reached by an AUTHENTICATED user whose backend `roles` (ADMINISTRADOR,
- * ENTRENADOR, TESORERO, ALUMNO) are empty or entirely unrecognized — see
- * `mapBackendRoleToUserRole` in src/lib/server/auth.ts, which maps that case
- * to the `"unsupported"` UserRole instead of silently falling back to a real
- * role (or to "representante", which is an unrelated, non-authenticated
- * concept).
+ * ENTRENADOR, REPRESENTANTE, ALUMNO) are empty or entirely unrecognized —
+ * see `mapBackendRoleToUserRole` in src/lib/server/auth.ts, which maps
+ * that case to the `"unsupported"` UserRole instead of silently falling
+ * back. For the representante case, REPRESENTANTE is a recognized backend
+ * role and maps to "representante", not "unsupported".
  *
  * Gated the same way every other role-restricted page is gated — via
  * ProtectedRoute with allowedRoles={["unsupported"]} — rather than a
@@ -44,7 +44,7 @@ function UnauthorizedContent(): React.ReactElement {
           Su cuenta{session?.user.name ? ` (${session.user.name})` : ""} no
           tiene un rol reconocido por el sistema. Contacte a un administrador
           del club para que le asigne un rol (Administrador, Entrenador,
-          Tesorero o Alumno).
+          Representante o Alumno).
         </p>
         <button
           type="button"
