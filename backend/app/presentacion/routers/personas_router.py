@@ -49,27 +49,34 @@ def listar_personas(skip: int = 0, limit: int = 50, db: Session = Depends(obtene
 # interpretando "reportes" como persona_id.
 @router.get(
     "/reportes",
-    response_model=List[PersonaResponseDTO],
+    response_model=PaginatedResponse[PersonaResponseDTO],
     dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
 )
 async def reporte_por_etiquetas(
     prioridad_municipal: Optional[bool] = Query(default=None),
     becado: Optional[bool] = Query(default=None),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
     db: Session = Depends(obtener_sesion),
 ):
-    return PersonaServicio(db).reporte_por_etiquetas(
+    todos = PersonaServicio(db).reporte_por_etiquetas(
         prioridad_municipal=prioridad_municipal, becado=becado
     )
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get(
     "/reportes/nuevos-por-periodo",
-    response_model=List[PersonaResponseDTO],
+    response_model=PaginatedResponse[PersonaResponseDTO],
     dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
 )
 async def reporte_nuevos_por_periodo(
     fecha_inicio: date = Query(...),
     fecha_fin: date = Query(...),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
     db: Session = Depends(obtener_sesion),
 ):
     if fecha_inicio >= fecha_fin:
@@ -79,7 +86,10 @@ async def reporte_nuevos_por_periodo(
         )
     inicio = datetime.combine(fecha_inicio, time.min, tzinfo=timezone.utc)
     fin = datetime.combine(fecha_fin, time.max, tzinfo=timezone.utc)
-    return PersonaServicio(db).reporte_nuevos_por_periodo(inicio, fin)
+    todos = PersonaServicio(db).reporte_nuevos_por_periodo(inicio, fin)
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get(
@@ -93,11 +103,19 @@ async def obtener_persona(persona_id: int, db: Session = Depends(obtener_sesion)
 
 @router.get(
     "/{persona_id}/representados",
-    response_model=List[PersonaResponseDTO],
+    response_model=PaginatedResponse[PersonaResponseDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
-async def listar_representados(persona_id: int, db: Session = Depends(obtener_sesion)):
-    return PersonaServicio(db).listar_representados(persona_id)
+async def listar_representados(
+    persona_id: int,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
+    db: Session = Depends(obtener_sesion),
+):
+    todos = PersonaServicio(db).listar_representados(persona_id)
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.put(

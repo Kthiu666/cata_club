@@ -199,6 +199,9 @@ class Persona(Base):
     )
     notificaciones: Mapped[List["Notificacion"]] = relationship(back_populates="persona")
 
+    # Asignación directa a horarios
+    alumno_horarios: Mapped[List["AlumnoHorario"]] = relationship(back_populates="persona")
+
     # Como entrenador:
     horarios_a_cargo: Mapped[List["HorarioEntrenamiento"]] = relationship(
         back_populates="entrenador", foreign_keys="HorarioEntrenamiento.entrenador_id"
@@ -364,6 +367,7 @@ class HorarioEntrenamiento(Base):
     nivel_ranking: Mapped[Optional["NivelRanking"]] = relationship(back_populates="horarios")
 
     asistencias: Mapped[List["Asistencia"]] = relationship(back_populates="horario")
+    alumno_horarios: Mapped[List["AlumnoHorario"]] = relationship(back_populates="horario")
     solicitudes_clase_extra: Mapped[List["SolicitudClaseExtra"]] = relationship(back_populates="horario")
 
 
@@ -393,6 +397,21 @@ class Asistencia(Base):
 
     horario_id: Mapped[int] = mapped_column(ForeignKey("horario_entrenamiento.id"))
     horario: Mapped["HorarioEntrenamiento"] = relationship(back_populates="asistencias")
+
+
+# ---------------------------------------------------------------------------
+# Asignación directa Alumno ↔ Horario (muchos a muchos)
+# Permite que dos alumnos en el mismo nivel asistan a horarios distintos.
+# ---------------------------------------------------------------------------
+class AlumnoHorario(Base):
+    __tablename__ = "alumno_horario"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    persona_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
+    horario_id: Mapped[int] = mapped_column(ForeignKey("horario_entrenamiento.id"))
+    fecha_asignacion: Mapped[datetime] = mapped_column(DateTime, default=_ahora_utc)
+
+    persona: Mapped["Persona"] = relationship(back_populates="alumno_horarios")
+    horario: Mapped["HorarioEntrenamiento"] = relationship(back_populates="alumno_horarios")
 
 
 # ---------------------------------------------------------------------------

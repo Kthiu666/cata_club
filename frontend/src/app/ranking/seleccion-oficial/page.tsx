@@ -26,10 +26,13 @@ import {
 } from "@/services/api";
 import type { SeleccionOficialRosterItem } from "@/services/api";
 import type { StudentRef } from "@/lib/groups-utils";
+import Pagination, { PAGE_SIZE, getTotalPages } from "@/components/Pagination";
 
 export default function SeleccionOficialPage(): React.ReactElement {
   const [allStudents, setAllStudents] = useState<StudentRef[]>([]);
   const [roster, setRoster] = useState<SeleccionOficialRosterItem[]>([]);
+  const [rosterTotal, setRosterTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [seleccionEstudianteId, setSeleccionEstudianteId] = useState("");
@@ -55,10 +58,17 @@ export default function SeleccionOficialPage(): React.ReactElement {
     }
   }, []);
 
-  const loadRoster = useCallback(async (): Promise<void> => {
+  const loadRoster = useCallback(async (page: number = 1): Promise<void> => {
     try {
-      const data = await fetchSeleccionOficial();
-      setRoster(data);
+      const skip = (page - 1) * PAGE_SIZE;
+      const data = await fetchSeleccionOficial({ skip, limit: PAGE_SIZE });
+      if (Array.isArray(data)) {
+        setRoster(data);
+        setRosterTotal(data.length);
+      } else {
+        setRoster(data.items);
+        setRosterTotal(data.total);
+      }
     } catch {
       // Silently fail — the roster table just won't show persisted entries
     }
@@ -66,7 +76,7 @@ export default function SeleccionOficialPage(): React.ReactElement {
 
   useEffect(() => {
     void loadStudents();
-    void loadRoster();
+    void loadRoster(1);
   }, [loadStudents, loadRoster]);
 
   async function handleSeleccionOficialSubmit(event: React.FormEvent): Promise<void> {
@@ -82,7 +92,8 @@ export default function SeleccionOficialPage(): React.ReactElement {
     try {
       await seleccionOficial({ estudianteId: seleccionEstudianteId });
       setSeleccionEstudianteId("");
-      await loadRoster();
+      setCurrentPage(1);
+      await loadRoster(1);
     } catch (err) {
       console.error("[seleccion-oficial] seleccionOficial failed", err);
       setSeleccionError(
@@ -96,7 +107,11 @@ export default function SeleccionOficialPage(): React.ReactElement {
   async function handleQuitar(personaId: number): Promise<void> {
     try {
       await quitarDeSeleccionOficial(personaId);
-      setRoster((prev) => prev.filter((item) => item.persona_id !== personaId));
+      const newTotal = rosterTotal - 1;
+      const newTotalPages = getTotalPages(newTotal);
+      const pageToLoad = currentPage > newTotalPages ? newTotalPages : currentPage;
+      setCurrentPage(pageToLoad);
+      await loadRoster(pageToLoad);
     } catch (err) {
       console.error("[seleccion-oficial] quitarDeSeleccionOficial failed", err);
       setSeleccionError(
@@ -104,6 +119,13 @@ export default function SeleccionOficialPage(): React.ReactElement {
       );
     }
   }
+
+  function handlePageChange(page: number): void {
+    setCurrentPage(page);
+    void loadRoster(page);
+  }
+
+  const totalPages = getTotalPages(rosterTotal);
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
@@ -166,7 +188,7 @@ export default function SeleccionOficialPage(): React.ReactElement {
             </div>
           </form>
 
-          {roster.length > 0 && (
+          {rosterTotal > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
@@ -198,6 +220,7 @@ export default function SeleccionOficialPage(): React.ReactElement {
               </table>
             </div>
           )}
+          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
         </div>
       </AppShell>
     </ProtectedRoute>

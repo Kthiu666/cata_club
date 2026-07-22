@@ -25,6 +25,7 @@ import {
   submitJustificativo,
   evaluarJustificativo,
   fetchJustificativosPendientes,
+  extractItems,
 } from "../api";
 import type { PaymentValidationRequest } from "../api";
 import type { Notificacion, Justificativo } from "@/types/domain";
@@ -438,7 +439,7 @@ describe("evaluarJustificativo", () => {
 
   it("simulates the decision against the mock pending list in mock mode, without calling the backend", async () => {
     process.env.NEXT_PUBLIC_USE_MOCKS = "true";
-    const pendientesBefore = await fetchJustificativosPendientes();
+    const pendientesBefore = extractItems(await fetchJustificativosPendientes());
     const target = pendientesBefore[0];
 
     const result = await evaluarJustificativo(target.id, {
@@ -453,7 +454,7 @@ describe("evaluarJustificativo", () => {
 
     // A second fetchJustificativosPendientes() reflects the evaluation, same
     // as a real backend would after an approve/reject.
-    const pendientesAfter = await fetchJustificativosPendientes();
+    const pendientesAfter = extractItems(await fetchJustificativosPendientes());
     expect(pendientesAfter.find((j) => j.id === target.id)).toBeUndefined();
   });
 });
@@ -462,7 +463,7 @@ describe("fetchJustificativosPendientes", () => {
   it("returns curated mock data when NEXT_PUBLIC_USE_MOCKS is unset (defaults to mock mode)", async () => {
     delete process.env.NEXT_PUBLIC_USE_MOCKS;
 
-    const result = await fetchJustificativosPendientes();
+    const result = extractItems(await fetchJustificativosPendientes());
 
     expect(result.length).toBeGreaterThan(0);
     expect(global.fetch).not.toHaveBeenCalled();
@@ -473,7 +474,7 @@ describe("fetchJustificativosPendientes", () => {
     const items = [makeJustificativo()];
     vi.mocked(global.fetch).mockResolvedValue(okResponse(items));
 
-    const result = await fetchJustificativosPendientes();
+    const result = extractItems(await fetchJustificativosPendientes());
 
     expect(global.fetch).toHaveBeenCalledWith(
       "/api/ranking/justificativos/pendientes",

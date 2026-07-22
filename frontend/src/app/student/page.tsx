@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Pagination, { getTotalPages, paginate } from "@/components/Pagination";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchStudentPortal, fetchMembresiasPorPersona, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra, submitJustificativo, fetchJustificativosDePersona, fetchPagosDePersona } from "@/services/api";
+import { fetchStudentPortal, fetchMembresiasPorPersona, fetchTrainingSchedules, listarClasesExtra, solicitarClaseExtra, submitJustificativo, fetchJustificativosDePersona, fetchPagosDePersona, extractItems } from "@/services/api";
 import type { StudentPortalSummary, StudentProfileSummary, MembresiaPorPersona, PagoPersona } from "@/services/api";
 import type { SolicitudClaseExtra, Justificativo } from "@/types/domain";
 import type { TrainingSchedule } from "@/app/attendance/attendance-utils";
@@ -107,6 +108,14 @@ function RankingCard({ profile }: { profile: StudentProfileSummary }): React.Rea
 }
 
 function RecentSessionsSection({ profile }: { profile: StudentProfileSummary }): React.ReactElement {
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [profile.personaId]);
+
+  const paginatedSessions = paginate(profile.recentSessions, currentPage);
+
   return (
     <section className="mb-8">
       <div className="mb-4 flex items-center gap-2">
@@ -118,8 +127,9 @@ function RecentSessionsSection({ profile }: { profile: StudentProfileSummary }):
           <p className="text-sm text-cata-text/50">Aún no hay asistencias registradas.</p>
         </div>
       ) : (
+        <>
         <div className="grid gap-3 sm:grid-cols-2">
-          {profile.recentSessions.map((session) => {
+          {paginatedSessions.map((session) => {
             const tokens = ATTENDANCE_BADGE_TOKENS[session.estado];
             return (
               <div key={`${session.fecha}-${session.horario}`} className="card-hover p-5">
@@ -139,6 +149,12 @@ function RecentSessionsSection({ profile }: { profile: StudentProfileSummary }):
             );
           })}
         </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={getTotalPages(profile.recentSessions.length)}
+          onPageChange={setCurrentPage}
+        />
+        </>
       )}
     </section>
   );
@@ -163,6 +179,7 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const numericPersonaId = Number(personaId);
   const numericHorarioId = Number(horarioId);
@@ -170,6 +187,7 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
   useEffect(() => {
     let cancelled = false;
     setState({ status: "loading" });
+    setCurrentPage(1);
     setSubmitError(null);
     setSubmitSuccess(false);
 
@@ -180,7 +198,7 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
     ])
       .then(([memberships, schedules, history]) => {
         if (cancelled) return;
-        const activeMembership = memberships.find((m) => m.estado === "ACTIVA" || m.estado === "VENCIDA");
+        const activeMembership = extractItems(memberships).find((m) => m.estado === "ACTIVA" || m.estado === "VENCIDA");
         const personalized = activeMembership?.tipo?.modalidad === "PERSONALIZADA";
 
         if (!activeMembership) {
@@ -188,7 +206,7 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
         } else if (!personalized) {
           setState({ status: "unavailable", reason: "not-personalized" });
         } else {
-          setState({ status: "ready", membership: activeMembership, schedules, history });
+          setState({ status: "ready", membership: activeMembership, schedules, history: extractItems(history) });
         }
       })
       .catch((error: unknown) => {
@@ -292,6 +310,7 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
   }
 
   const { membership, schedules, history } = state;
+  const paginatedHistory = paginate(history, currentPage);
 
   return (
     <section className="mb-8">
@@ -391,8 +410,9 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
             <p className="text-sm text-cata-text/50">Aún no hay solicitudes de clases extra.</p>
           </div>
         ) : (
+          <>
           <div className="grid gap-3">
-            {history.map((solicitud) => (
+            {paginatedHistory.map((solicitud) => (
               <div key={solicitud.id} className="card-hover flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
@@ -430,6 +450,12 @@ function ExtraClassesSection({ personaId }: { personaId: string }): React.ReactE
               </div>
             ))}
           </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={getTotalPages(history.length)}
+            onPageChange={setCurrentPage}
+          />
+          </>
         )}
       </div>
     </section>
@@ -481,13 +507,15 @@ type PagosState =
 function PagosSection({ personaId }: { personaId: string }): React.ReactElement {
   const [state, setState] = useState<PagosState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
     setState({ status: "loading" });
+    setCurrentPage(1);
     fetchPagosDePersona(personaId)
       .then((pagos) => {
-        if (!cancelled) setState({ status: "ready", pagos });
+        if (!cancelled) setState({ status: "ready", pagos: extractItems(pagos) });
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -529,8 +557,9 @@ function PagosSection({ personaId }: { personaId: string }): React.ReactElement 
             <p className="text-sm text-cata-text/50">Todavía no hay pagos registrados.</p>
           </div>
         ) : (
+          <>
           <div className="grid gap-3">
-            {state.pagos.map((pago) => (
+            {paginate(state.pagos, currentPage).map((pago) => (
               <div
                 key={pago.id}
                 className="card-hover flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
@@ -556,6 +585,12 @@ function PagosSection({ personaId }: { personaId: string }): React.ReactElement 
               </div>
             ))}
           </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={getTotalPages(state.pagos.length)}
+            onPageChange={setCurrentPage}
+          />
+          </>
         ))}
     </section>
   );
@@ -608,12 +643,14 @@ function JustificativosSection({ personaId }: { personaId: string }): React.Reac
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [historial, setHistorial] = useState<Justificativo[]>([]);
   const [historialLoading, setHistorialLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
 
   async function cargarHistorial(): Promise<void> {
     setHistorialLoading(true);
+    setCurrentPage(1);
     try {
       const data = await fetchJustificativosDePersona(personaId);
-      setHistorial(data);
+      setHistorial(extractItems(data));
     } catch {
       // Best-effort: si falla la carga del historial, se deja la lista
       // previa (o vacía) en vez de romper el resto de la sección.
@@ -761,8 +798,9 @@ function JustificativosSection({ personaId }: { personaId: string }): React.Reac
             <p className="text-sm text-cata-text/50">Todavía no enviaste ningún justificativo.</p>
           </div>
         ) : (
+          <>
           <div className="grid gap-3">
-            {historial.map((j) => (
+            {paginate(historial, currentPage).map((j) => (
               <div
                 key={j.id}
                 className="card-hover flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
@@ -788,6 +826,12 @@ function JustificativosSection({ personaId }: { personaId: string }): React.Reac
               </div>
             ))}
           </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={getTotalPages(historial.length)}
+            onPageChange={setCurrentPage}
+          />
+          </>
         )}
       </div>
     </section>

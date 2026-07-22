@@ -23,6 +23,7 @@ import {
   fetchSeleccionOficial,
   quitarDeSeleccionOficial,
   ApiClientError,
+  extractItems,
 } from "@/services/api";
 import type { SeleccionOficialRosterItem } from "@/services/api";
 import type { StudentRef } from "@/lib/groups-utils";
@@ -58,7 +59,7 @@ export default function SeleccionOficialPage(): React.ReactElement {
   const loadRoster = useCallback(async (): Promise<void> => {
     try {
       const data = await fetchSeleccionOficial();
-      setRoster(data);
+      setRoster(extractItems(data));
     } catch {
       // Silently fail — the roster table just won't show persisted entries
     }

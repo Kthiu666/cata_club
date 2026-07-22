@@ -107,6 +107,24 @@ export interface ApiError {
   status: number;
 }
 
+/** Standard backend paginated response shape. */
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
+export interface PaginationParams {
+  skip?: number;
+  limit?: number;
+}
+
+/** Normalize a paginated or plain array response to always return items[]. */
+export function extractItems<T>(response: T[] | PaginatedResponse<T>): T[] {
+  return Array.isArray(response) ? response : response.items;
+}
+
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
@@ -352,12 +370,20 @@ async function request<T>(
 
 /**
  * Fetch all payment validation requests.
+ * When skip/limit are provided, the BFF returns a paginated subset.
  */
-export async function fetchPaymentValidations(): Promise<PaymentValidationRequest[]> {
+export async function fetchPaymentValidations(
+  pagination?: PaginationParams,
+): Promise<PaymentValidationRequest[] | PaginatedResponse<PaymentValidationRequest>> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<PaymentValidationRequest[]>(apiEndpoint("/payments"), {
-    headers: mockHeaders,
-  });
+  const qs = new URLSearchParams();
+  if (pagination?.skip !== undefined) qs.set("skip", String(pagination.skip));
+  if (pagination?.limit !== undefined) qs.set("limit", String(pagination.limit));
+  const query = qs.toString();
+  return request<PaymentValidationRequest[] | PaginatedResponse<PaymentValidationRequest>>(
+    apiEndpoint(`/payments${query ? `?${query}` : ""}`),
+    { headers: mockHeaders },
+  );
 }
 
 /**
@@ -439,30 +465,68 @@ export async function fetchTrainingSchedules(): Promise<TrainingSchedule[]> {
   return request<TrainingSchedule[]>(apiEndpoint("/attendance/schedules"));
 }
 
+/** Fetch the persisted official-selection roster. */
+export async function fetchSeleccionOficial(
+  pagination?: PaginationParams,
+): Promise<SeleccionOficialRosterItem[] | PaginatedResponse<SeleccionOficialRosterItem>> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  const qs = new URLSearchParams();
+  if (pagination?.skip !== undefined) qs.set("skip", String(pagination.skip));
+  if (pagination?.limit !== undefined) qs.set("limit", String(pagination.limit));
+  const query = qs.toString();
+  return request<SeleccionOficialRosterItem[] | PaginatedResponse<SeleccionOficialRosterItem>>(
+    apiEndpoint(`/ranking/seleccion-oficial${query ? `?${query}` : ""}`),
+    { headers: mockHeaders },
+  );
+}
+
 /** Fetch attendance records (Asistencia), optionally filtered by date range/horario/persona. */
 export async function fetchAttendanceRecords(params?: {
   fechaInicio?: string;
   fechaFin?: string;
   horarioId?: number;
   personaId?: number;
-}): Promise<AttendanceRecord[]> {
+  skip?: number;
+  limit?: number;
+}): Promise<AttendanceRecord[] | PaginatedResponse<AttendanceRecord>> {
   const qs = new URLSearchParams();
   if (params?.fechaInicio) qs.set("fechaInicio", params.fechaInicio);
   if (params?.fechaFin) qs.set("fechaFin", params.fechaFin);
   if (params?.horarioId !== undefined) qs.set("horarioId", String(params.horarioId));
   if (params?.personaId !== undefined) qs.set("personaId", String(params.personaId));
+  if (params?.skip !== undefined) qs.set("skip", String(params.skip));
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
   const query = qs.toString();
-  return request<AttendanceRecord[]>(apiEndpoint(`/attendance/records${query ? `?${query}` : ""}`));
+  return request<AttendanceRecord[] | PaginatedResponse<AttendanceRecord>>(
+    apiEndpoint(`/attendance/records${query ? `?${query}` : ""}`),
+  );
 }
 
 /** List ranking levels (Grupo) with current occupancy. */
-export async function fetchNivelesConOcupacion(): Promise<NivelConOcupacion[]> {
-  return request<NivelConOcupacion[]>(apiEndpoint("/ranking/niveles"));
+export async function fetchNivelesConOcupacion(
+  pagination?: PaginationParams,
+): Promise<NivelConOcupacion[] | PaginatedResponse<NivelConOcupacion>> {
+  const qs = new URLSearchParams();
+  if (pagination?.skip !== undefined) qs.set("skip", String(pagination.skip));
+  if (pagination?.limit !== undefined) qs.set("limit", String(pagination.limit));
+  const query = qs.toString();
+  return request<NivelConOcupacion[] | PaginatedResponse<NivelConOcupacion>>(
+    apiEndpoint(`/ranking/niveles${query ? `?${query}` : ""}`),
+  );
 }
 
 /** Fetch a nivel's roster (E03-RF010) — used to derive who to mark attendance for. */
-export async function fetchNivelRoster(nivelId: number): Promise<TablaRankingItem[]> {
-  return request<TablaRankingItem[]>(apiEndpoint(`/ranking/niveles/${nivelId}/tabla`));
+export async function fetchNivelRoster(
+  nivelId: number,
+  pagination?: PaginationParams,
+): Promise<TablaRankingItem[] | PaginatedResponse<TablaRankingItem>> {
+  const qs = new URLSearchParams();
+  if (pagination?.skip !== undefined) qs.set("skip", String(pagination.skip));
+  if (pagination?.limit !== undefined) qs.set("limit", String(pagination.limit));
+  const query = qs.toString();
+  return request<TablaRankingItem[] | PaginatedResponse<TablaRankingItem>>(
+    apiEndpoint(`/ranking/niveles/${nivelId}/tabla${query ? `?${query}` : ""}`),
+  );
 }
 
 /** Persist attendance for a session (one real `POST /asistencias` per student, partial-failure-tolerant). */
@@ -503,11 +567,18 @@ export interface ActualizarHorarioDTO {
 }
 
 /** Fetch all training schedules. */
-export async function fetchHorarios(): Promise<Horario[]> {
+export async function fetchHorarios(
+  pagination?: PaginationParams,
+): Promise<Horario[] | PaginatedResponse<Horario>> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<Horario[]>(apiEndpoint("/asistencias/horarios"), {
-    headers: mockHeaders,
-  });
+  const qs = new URLSearchParams();
+  if (pagination?.skip !== undefined) qs.set("skip", String(pagination.skip));
+  if (pagination?.limit !== undefined) qs.set("limit", String(pagination.limit));
+  const query = qs.toString();
+  return request<Horario[] | PaginatedResponse<Horario>>(
+    apiEndpoint(`/asistencias/horarios${query ? `?${query}` : ""}`),
+    { headers: mockHeaders },
+  );
 }
 
 /** Create a new training schedule. */
@@ -544,8 +615,16 @@ export async function eliminarHorario(id: number): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /** List every account (responsible payer + managed students) and ranking niveles with occupancy, aggregated server-side — see src/lib/server/members-adapter.ts. */
-export async function fetchMembers(): Promise<{ accounts: MemberAccount[]; niveles: NivelConOcupacion[] }> {
-  return request<{ accounts: MemberAccount[]; niveles: NivelConOcupacion[] }>(apiEndpoint("/members"));
+export async function fetchMembers(
+  pagination?: PaginationParams,
+): Promise<{ accounts: MemberAccount[]; niveles: NivelConOcupacion[]; total?: number }> {
+  const qs = new URLSearchParams();
+  if (pagination?.skip !== undefined) qs.set("skip", String(pagination.skip));
+  if (pagination?.limit !== undefined) qs.set("limit", String(pagination.limit));
+  const query = qs.toString();
+  return request<{ accounts: MemberAccount[]; niveles: NivelConOcupacion[]; total?: number }>(
+    apiEndpoint(`/members${query ? `?${query}` : ""}`),
+  );
 }
 
 /**
@@ -753,14 +832,6 @@ export async function seleccionOficial(
   });
 }
 
-/** Fetch the persisted official-selection roster. */
-export async function fetchSeleccionOficial(): Promise<SeleccionOficialRosterItem[]> {
-  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<SeleccionOficialRosterItem[]>(apiEndpoint("/ranking/seleccion-oficial"), {
-    headers: mockHeaders,
-  });
-}
-
 /** Remove a student from the official-selection roster. */
 export async function quitarDeSeleccionOficial(personaId: number): Promise<void> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
@@ -818,26 +889,45 @@ export interface CierreMensualRanking {
   cerrado_en: string;
 }
 
-export async function fetchAsignacionesRanking(): Promise<AsignacionRanking[]> {
-  return request<AsignacionRanking[]>(apiEndpoint("/ranking/asignaciones"));
+export async function fetchAsignacionesRanking(
+  pagination?: PaginationParams,
+): Promise<AsignacionRanking[] | PaginatedResponse<AsignacionRanking>> {
+  const qs = new URLSearchParams();
+  if (pagination?.skip !== undefined) qs.set("skip", String(pagination.skip));
+  if (pagination?.limit !== undefined) qs.set("limit", String(pagination.limit));
+  const query = qs.toString();
+  return request<AsignacionRanking[] | PaginatedResponse<AsignacionRanking>>(
+    apiEndpoint(`/ranking/asignaciones${query ? `?${query}` : ""}`),
+  );
 }
 
 export async function fetchResultadosMensualesRanking(
-  filtros?: { nivel_id?: number; anio?: number; mes?: number },
-): Promise<ResultadoMensualRanking[]> {
+  filtros?: { nivel_id?: number; anio?: number; mes?: number; skip?: number; limit?: number },
+): Promise<ResultadoMensualRanking[] | PaginatedResponse<ResultadoMensualRanking>> {
   const qs = new URLSearchParams();
   if (filtros?.nivel_id !== undefined) qs.set("nivel_id", String(filtros.nivel_id));
   if (filtros?.anio !== undefined) qs.set("anio", String(filtros.anio));
   if (filtros?.mes !== undefined) qs.set("mes", String(filtros.mes));
+  if (filtros?.skip !== undefined) qs.set("skip", String(filtros.skip));
+  if (filtros?.limit !== undefined) qs.set("limit", String(filtros.limit));
   const query = qs.toString();
-  return request<ResultadoMensualRanking[]>(apiEndpoint(`/ranking/resultados-mensuales${query ? `?${query}` : ""}`));
+  return request<ResultadoMensualRanking[] | PaginatedResponse<ResultadoMensualRanking>>(
+    apiEndpoint(`/ranking/resultados-mensuales${query ? `?${query}` : ""}`),
+  );
 }
 
 export async function fetchCierresMensualesRanking(
   nivel_id?: number,
-): Promise<CierreMensualRanking[]> {
-  const qs = nivel_id !== undefined ? `?nivel_id=${nivel_id}` : "";
-  return request<CierreMensualRanking[]>(apiEndpoint(`/ranking/cierres-mensuales${qs}`));
+  pagination?: PaginationParams,
+): Promise<CierreMensualRanking[] | PaginatedResponse<CierreMensualRanking>> {
+  const qs = new URLSearchParams();
+  if (nivel_id !== undefined) qs.set("nivel_id", String(nivel_id));
+  if (pagination?.skip !== undefined) qs.set("skip", String(pagination.skip));
+  if (pagination?.limit !== undefined) qs.set("limit", String(pagination.limit));
+  const query = qs.toString();
+  return request<CierreMensualRanking[] | PaginatedResponse<CierreMensualRanking>>(
+    apiEndpoint(`/ranking/cierres-mensuales${query ? `?${query}` : ""}`),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -848,24 +938,36 @@ export async function fetchCierresMensualesRanking(
 export async function fetchPersonasPorEtiquetas(filtros: {
   prioridadMunicipal?: boolean;
   becado?: boolean;
-}): Promise<PersonaReporte[]> {
+  skip?: number;
+  limit?: number;
+}): Promise<PersonaReporte[] | PaginatedResponse<PersonaReporte>> {
   const qs = new URLSearchParams();
   if (filtros.prioridadMunicipal !== undefined) qs.set("prioridad_municipal", String(filtros.prioridadMunicipal));
   if (filtros.becado !== undefined) qs.set("becado", String(filtros.becado));
+  if (filtros.skip !== undefined) qs.set("skip", String(filtros.skip));
+  if (filtros.limit !== undefined) qs.set("limit", String(filtros.limit));
   const query = qs.toString();
-  return request<PersonaReporte[]>(apiEndpoint(`/personas/reportes${query ? `?${query}` : ""}`));
+  return request<PersonaReporte[] | PaginatedResponse<PersonaReporte>>(
+    apiEndpoint(`/personas/reportes${query ? `?${query}` : ""}`),
+  );
 }
 
 /** Fetch new personas registered within a given date range. */
 export async function fetchNuevosPorPeriodo(
   fechaInicio: string,
   fechaFin: string,
-): Promise<PersonaReporte[]> {
+  skip?: number,
+  limit?: number,
+): Promise<PersonaReporte[] | PaginatedResponse<PersonaReporte>> {
   const qs = new URLSearchParams({
     fecha_inicio: fechaInicio,
     fecha_fin: fechaFin,
   });
-  return request<PersonaReporte[]>(apiEndpoint(`/personas/reportes/nuevos-por-periodo?${qs.toString()}`));
+  if (skip !== undefined) qs.set("skip", String(skip));
+  if (limit !== undefined) qs.set("limit", String(limit));
+  return request<PersonaReporte[] | PaginatedResponse<PersonaReporte>>(
+    apiEndpoint(`/personas/reportes/nuevos-por-periodo?${qs.toString()}`),
+  );
 }
 
 
@@ -918,8 +1020,17 @@ export interface MembresiaPorPersona {
 }
 
 /** Fetch a persona's memberships — `GET /api/membresias/persona/[id]`. */
-export async function fetchMembresiasPorPersona(personaId: number): Promise<MembresiaPorPersona[]> {
-  return request<MembresiaPorPersona[]>(apiEndpoint(`/membresias/persona/${personaId}`));
+export async function fetchMembresiasPorPersona(
+  personaId: number,
+  pagination?: PaginationParams,
+): Promise<MembresiaPorPersona[] | PaginatedResponse<MembresiaPorPersona>> {
+  const qs = new URLSearchParams();
+  if (pagination?.skip !== undefined) qs.set("skip", String(pagination.skip));
+  if (pagination?.limit !== undefined) qs.set("limit", String(pagination.limit));
+  const query = qs.toString();
+  return request<MembresiaPorPersona[] | PaginatedResponse<MembresiaPorPersona>>(
+    apiEndpoint(`/membresias/persona/${personaId}${query ? `?${query}` : ""}`),
+  );
 }
 
 /**
@@ -949,11 +1060,19 @@ export interface PagoPersona {
  * "always real, not mock-gated" pattern — mock mode only adds the `x-mock-role`
  * header) — `GET /membresias/pagos/persona/:personaId`.
  */
-export async function fetchPagosDePersona(personaId: string): Promise<PagoPersona[]> {
+export async function fetchPagosDePersona(
+  personaId: string,
+  pagination?: PaginationParams,
+): Promise<PagoPersona[] | PaginatedResponse<PagoPersona>> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<PagoPersona[]>(apiEndpoint(`/membresias/pagos/persona/${personaId}`), {
-    headers: mockHeaders,
-  });
+  const qs = new URLSearchParams();
+  if (pagination?.skip !== undefined) qs.set("skip", String(pagination.skip));
+  if (pagination?.limit !== undefined) qs.set("limit", String(pagination.limit));
+  const query = qs.toString();
+  return request<PagoPersona[] | PaginatedResponse<PagoPersona>>(
+    apiEndpoint(`/membresias/pagos/persona/${personaId}${query ? `?${query}` : ""}`),
+    { headers: mockHeaders },
+  );
 }
 
 /** Catalog entry for a membership plan type. */
@@ -1004,8 +1123,17 @@ export async function solicitarClaseExtra(
 }
 
 /** List extra-class requests for a given persona. */
-export async function listarClasesExtra(personaId: number): Promise<SolicitudClaseExtra[]> {
-  return request<SolicitudClaseExtra[]>(apiEndpoint(`/clases-extra/persona/${personaId}`));
+export async function listarClasesExtra(
+  personaId: number,
+  pagination?: PaginationParams,
+): Promise<SolicitudClaseExtra[] | PaginatedResponse<SolicitudClaseExtra>> {
+  const qs = new URLSearchParams();
+  if (pagination?.skip !== undefined) qs.set("skip", String(pagination.skip));
+  if (pagination?.limit !== undefined) qs.set("limit", String(pagination.limit));
+  const query = qs.toString();
+  return request<SolicitudClaseExtra[] | PaginatedResponse<SolicitudClaseExtra>>(
+    apiEndpoint(`/clases-extra/persona/${personaId}${query ? `?${query}` : ""}`),
+  );
 }
 
 /** Admin-only: approve or reject an extra-class request. */
@@ -1083,11 +1211,18 @@ export async function actualizarFichaMedica(
 // ---------------------------------------------------------------------------
 
 /** List the logged-in persona's own in-app ranking notifications — `GET /ranking/notificaciones/mias`. */
-export async function fetchNotificaciones(): Promise<Notificacion[]> {
+export async function fetchNotificaciones(
+  pagination?: PaginationParams,
+): Promise<Notificacion[] | PaginatedResponse<Notificacion>> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<Notificacion[]>(apiEndpoint("/ranking/notificaciones/mias"), {
-    headers: mockHeaders,
-  });
+  const qs = new URLSearchParams();
+  if (pagination?.skip !== undefined) qs.set("skip", String(pagination.skip));
+  if (pagination?.limit !== undefined) qs.set("limit", String(pagination.limit));
+  const query = qs.toString();
+  return request<Notificacion[] | PaginatedResponse<Notificacion>>(
+    apiEndpoint(`/ranking/notificaciones/mias${query ? `?${query}` : ""}`),
+    { headers: mockHeaders },
+  );
 }
 
 /** Mark one of the caller's own notifications as read — `PATCH /ranking/notificaciones/:id/leer`. */
@@ -1172,9 +1307,17 @@ export async function evaluarJustificativo(
  * are removed by `evaluarJustificativo` above so a subsequent call reflects
  * the change, same as the real backend would after approve/reject.
  */
-export async function fetchJustificativosPendientes(): Promise<Justificativo[]> {
+export async function fetchJustificativosPendientes(
+  pagination?: PaginationParams,
+): Promise<Justificativo[] | PaginatedResponse<Justificativo>> {
   if (isMockMode()) return mockJustificativosPendientes;
-  return request<Justificativo[]>(apiEndpoint("/ranking/justificativos/pendientes"));
+  const qs = new URLSearchParams();
+  if (pagination?.skip !== undefined) qs.set("skip", String(pagination.skip));
+  if (pagination?.limit !== undefined) qs.set("limit", String(pagination.limit));
+  const query = qs.toString();
+  return request<Justificativo[] | PaginatedResponse<Justificativo>>(
+    apiEndpoint(`/ranking/justificativos/pendientes${query ? `?${query}` : ""}`),
+  );
 }
 
 /**
@@ -1185,9 +1328,72 @@ export async function fetchJustificativosPendientes(): Promise<Justificativo[]> 
  * pattern as `submitJustificativo`/`fetchNotificaciones` above — not
  * mock-gated like `fetchJustificativosPendientes`.
  */
-export async function fetchJustificativosDePersona(personaId: string): Promise<Justificativo[]> {
+export async function fetchJustificativosDePersona(
+  personaId: string,
+  pagination?: PaginationParams,
+): Promise<Justificativo[] | PaginatedResponse<Justificativo>> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<Justificativo[]>(apiEndpoint(`/ranking/${personaId}/justificativos`), {
+  const qs = new URLSearchParams();
+  if (pagination?.skip !== undefined) qs.set("skip", String(pagination.skip));
+  if (pagination?.limit !== undefined) qs.set("limit", String(pagination.limit));
+  const query = qs.toString();
+  return request<Justificativo[] | PaginatedResponse<Justificativo>>(
+    apiEndpoint(`/ranking/${personaId}/justificativos${query ? `?${query}` : ""}`),
+    { headers: mockHeaders },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Asignación directa Alumno ↔ Horario
+// ---------------------------------------------------------------------------
+
+export interface AlumnoHorario {
+  id: number;
+  persona_id: number;
+  persona_nombre_completo: string;
+  horario_id: number;
+  horario_dia: string;
+  horario_hora_inicio: string;
+  horario_hora_fin: string;
+  fecha_asignacion: string;
+}
+
+export interface AsignarAlumnoHorarioDTO {
+  persona_id: number;
+  horario_id: number;
+}
+
+/** Assign a student directly to a schedule. */
+export async function asignarAlumnoAHorario(data: AsignarAlumnoHorarioDTO): Promise<AlumnoHorario> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<AlumnoHorario>(apiEndpoint("/asistencias/asignar-alumno"), {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: mockHeaders,
+  });
+}
+
+/** Unassign a student from a schedule. */
+export async function desasignarAlumnoDeHorario(personaId: number, horarioId: number): Promise<void> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  await request<unknown>(
+    apiEndpoint(`/asistencias/desasignar-alumno?persona_id=${personaId}&horario_id=${horarioId}`),
+    { method: "DELETE", headers: mockHeaders },
+  );
+}
+
+/** List all students assigned to a specific schedule. */
+export async function fetchAlumnosPorHorario(horarioId: number): Promise<AlumnoHorario[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<AlumnoHorario[]>(apiEndpoint(`/asistencias/horarios/${horarioId}/alumnos`), {
+    headers: mockHeaders,
+  });
+}
+
+/** List all schedules assigned to a specific student. */
+export async function fetchHorariosPorAlumno(personaId: number): Promise<AlumnoHorario[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<AlumnoHorario[]>(apiEndpoint(`/asistencias/alumnos/${personaId}/horarios`), {
     headers: mockHeaders,
   });
 }

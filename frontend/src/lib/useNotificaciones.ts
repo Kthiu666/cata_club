@@ -9,7 +9,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { fetchNotificaciones, marcarNotificacionLeida } from "@/services/api";
+import { fetchNotificaciones, marcarNotificacionLeida, extractItems } from "@/services/api";
 import type { Notificacion } from "@/types/domain";
 
 const NOTIFICACIONES_POLL_INTERVAL_MS = 60_000;
@@ -25,7 +25,7 @@ export function useNotificaciones(enabled: boolean): {
   const load = useCallback(async (): Promise<void> => {
     try {
       const data = await fetchNotificaciones();
-      setNotificaciones(data);
+      setNotificaciones(extractItems(data));
       setLoadError(false);
     } catch {
       // Silent — the bell degrades to "no notifications" rather than

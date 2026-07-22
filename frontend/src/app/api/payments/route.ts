@@ -31,7 +31,11 @@ interface PaginatedPersonas {
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const pagosResult = await backendFetchAuthed(request, "/membresias/pagos?limit=200");
+  const { searchParams } = new URL(request.url);
+  const skip = searchParams.get("skip") ?? "0";
+  const limit = searchParams.get("limit") ?? "200";
+
+  const pagosResult = await backendFetchAuthed(request, `/membresias/pagos?skip=${skip}&limit=${limit}`);
   if (!pagosResult.ok) {
     return NextResponse.json({ message: "No se pudo cargar la cola de pagos." }, { status: pagosResult.status });
   }
@@ -39,7 +43,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return passthroughBackendError(pagosResult.response, "No se pudo cargar la cola de pagos.");
   }
 
-  const paginated = (await pagosResult.response.json()) as PaginatedPagos;
+  const paginated = (await pagosResult.response.json()) as PaginatedPagos & { total: number };
 
   // Resolve each payment's "responsable de pago" (payer) name — self-managed
   // vs represented — from the same bulk `/personas/` fetch members-adapter.ts
@@ -81,7 +85,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   });
 
-  const response = NextResponse.json(items);
+  const response = NextResponse.json({ items, total: paginated.total ?? items.length });
   if (pagosResult.refreshedAccessToken) {
     setAuthCookies(response, { accessToken: pagosResult.refreshedAccessToken });
   }

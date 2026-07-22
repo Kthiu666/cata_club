@@ -39,9 +39,11 @@ import {
   Building2,
   Hash,
 } from "lucide-react";
+import Pagination, { PAGE_SIZE, getTotalPages } from "@/components/Pagination";
 import type {
   PaymentValidationRequest,
   MembershipStatus,
+  PaginatedResponse,
   ValidationStatus,
 } from "@/services/api";
 import { fetchPaymentValidations, updatePaymentValidation } from "@/services/api";
@@ -87,13 +89,25 @@ export default function PaymentsPage(): React.ReactElement {
   const [rejectionValidationError, setRejectionValidationError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [confirmApproveOpen, setConfirmApproveOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [total, setTotal] = useState(0);
 
-  const loadRequests = useCallback(async (): Promise<void> => {
+  const totalPages = getTotalPages(total);
+
+  const loadRequests = useCallback(async (page: number): Promise<void> => {
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchPaymentValidations();
-      setRequests(data);
+      const skip = (page - 1) * PAGE_SIZE;
+      const data = await fetchPaymentValidations({ skip, limit: PAGE_SIZE });
+      const res = (data as PaginatedResponse<PaymentValidationRequest>);
+      if (res && Array.isArray(res.items)) {
+        setRequests(res.items);
+        setTotal(res.total);
+      } else {
+        setRequests(data as PaymentValidationRequest[]);
+        setTotal((data as PaymentValidationRequest[]).length);
+      }
     } catch (err) {
       console.error("[payments] fetchPaymentValidations failed", err);
       setError("Error al cargar las solicitudes de validación de pago");
@@ -103,8 +117,12 @@ export default function PaymentsPage(): React.ReactElement {
   }, []);
 
   useEffect(() => {
-    loadRequests();
-  }, [loadRequests]);
+    loadRequests(currentPage);
+  }, [loadRequests, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeFilter]);
 
   const filtered =
     activeFilter === "all"
@@ -292,7 +310,7 @@ export default function PaymentsPage(): React.ReactElement {
                 <p className="text-sm text-cata-red">{error}</p>
                 <button
                   type="button"
-                  onClick={() => loadRequests()}
+                  onClick={() => loadRequests(currentPage)}
                   className="btn-ghost mt-3 text-xs text-cata-red"
                 >
                   Reintentar
@@ -319,6 +337,7 @@ export default function PaymentsPage(): React.ReactElement {
 
             {/* Request table */}
             {!loading && !error && filtered.length > 0 && (
+              <>
               <div className="card overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
@@ -383,6 +402,12 @@ export default function PaymentsPage(): React.ReactElement {
                   </table>
                 </div>
               </div>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
+              </>
             )}
           </>
         ) : (

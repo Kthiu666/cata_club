@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.infraestructura.db import obtener_sesion
+from app.presentacion.schemas.base import PaginatedResponse
 from app.seguridad.gestor_auth import GestorAutenticacion
 from app.servicios_negocio.gestor_permisos import GestorPermisos
 from app.servicios_negocio.ranking_servicio import (
@@ -35,55 +36,87 @@ async def crear_nivel(datos: NivelRankingCreateDTO, db: Session = Depends(obtene
 
 
 @router.get(
-    "/niveles", response_model=List[NivelRankingConOcupacionDTO],
+    "/niveles", response_model=PaginatedResponse[NivelRankingConOcupacionDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
-async def listar_niveles(db: Session = Depends(obtener_sesion)):
-    return NivelRankingServicio(db).listar_niveles_con_ocupacion()
+async def listar_niveles(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
+    db: Session = Depends(obtener_sesion),
+):
+    todos = NivelRankingServicio(db).listar_niveles_con_ocupacion()
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get(
-    "/asignaciones", response_model=List[AsignacionRankingResponseDTO],
+    "/asignaciones", response_model=PaginatedResponse[AsignacionRankingResponseDTO],
     dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
 )
-async def listar_asignaciones(db: Session = Depends(obtener_sesion)):
+async def listar_asignaciones(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
+    db: Session = Depends(obtener_sesion),
+):
     """Listado de todos los alumnos en el ranking (con su nivel y posición)."""
-    return RankingServicio(db).listar_asignaciones()
+    todos = RankingServicio(db).listar_asignaciones()
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get(
-    "/resultados-mensuales", response_model=List[ResultadoMensualRankingResponseDTO],
+    "/resultados-mensuales", response_model=PaginatedResponse[ResultadoMensualRankingResponseDTO],
     dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
 )
 async def listar_resultados_mensuales(
     nivel_id: int | None = Query(default=None),
     anio: int | None = Query(default=None),
     mes: int | None = Query(default=None, ge=1, le=12),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
     db: Session = Depends(obtener_sesion),
 ):
     """Listado de resultados mensuales, filtrable por nivel, año y mes."""
-    return RankingServicio(db).listar_resultados_mensuales(nivel_id, anio, mes)
+    todos = RankingServicio(db).listar_resultados_mensuales(nivel_id, anio, mes)
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get(
-    "/cierres-mensuales", response_model=List[CierreMensualRankingResponseDTO],
+    "/cierres-mensuales", response_model=PaginatedResponse[CierreMensualRankingResponseDTO],
     dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
 )
 async def listar_cierres_mensuales(
     nivel_id: int | None = Query(default=None),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
     db: Session = Depends(obtener_sesion),
 ):
     """Historial de cierres mensuales de ranking."""
-    return RankingServicio(db).listar_cierres_mensuales(nivel_id)
+    todos = RankingServicio(db).listar_cierres_mensuales(nivel_id)
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get(
-    "/niveles/{nivel_id}/tabla", response_model=List[TablaRankingItemDTO],
+    "/niveles/{nivel_id}/tabla", response_model=PaginatedResponse[TablaRankingItemDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
-async def obtener_tabla_de_nivel(nivel_id: int, db: Session = Depends(obtener_sesion)):
+async def obtener_tabla_de_nivel(
+    nivel_id: int,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
+    db: Session = Depends(obtener_sesion),
+):
     """E03-RF010: tabla de posiciones de un nivel."""
-    return RankingServicio(db).obtener_tabla_de_nivel(nivel_id)
+    todos = RankingServicio(db).obtener_tabla_de_nivel(nivel_id)
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 # --- Asignación de nivel inicial (E03-RF002) --------------------------------
@@ -136,13 +169,20 @@ async def cerrar_mes(
 
 # --- Justificativos (E03-RF006a/RF006b) -------------------------------------
 @router.get(
-    "/justificativos/pendientes", response_model=List[JustificativoResponseDTO],
+    "/justificativos/pendientes", response_model=PaginatedResponse[JustificativoResponseDTO],
     dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
 )
-async def listar_justificativos_pendientes(db: Session = Depends(obtener_sesion)):
+async def listar_justificativos_pendientes(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
+    db: Session = Depends(obtener_sesion),
+):
     """Listado de justificativos pendientes de evaluación, para el panel de
     revisión del administrador (E03-RF006b)."""
-    return RankingServicio(db).listar_justificativos_pendientes()
+    todos = RankingServicio(db).listar_justificativos_pendientes()
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.post(
@@ -166,11 +206,13 @@ async def crear_justificativo(
 
 
 @router.get(
-    "/{persona_id}/justificativos", response_model=List[JustificativoResponseDTO],
+    "/{persona_id}/justificativos", response_model=PaginatedResponse[JustificativoResponseDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
 async def listar_justificativos_de_persona(
     persona_id: int,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
     db: Session = Depends(obtener_sesion),
     token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
 ):
@@ -178,10 +220,13 @@ async def listar_justificativos_de_persona(
     motivo) de los justificativos de una persona. Alumno o Representante; la
     autorización (dueño o representante) se valida en el servicio, igual que
     en `crear_justificativo`."""
-    return RankingServicio(db).listar_justificativos_de_persona(
+    todos = RankingServicio(db).listar_justificativos_de_persona(
         persona_id_solicitante=token_payload.get("persona_id"),
         persona_id_objetivo=persona_id,
     )
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.patch(
@@ -210,15 +255,20 @@ async def reingresar(persona_id: int, db: Session = Depends(obtener_sesion)):
 
 # --- Selección oficial (E03-RF011) ------------------------------------------
 @router.get(
-    "/seleccion-oficial", response_model=List[SeleccionOficialItemDTO],
+    "/seleccion-oficial", response_model=PaginatedResponse[SeleccionOficialItemDTO],
     dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
 )
 async def listar_seleccion_oficial(
     anio: int | None = Query(default=None),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
     db: Session = Depends(obtener_sesion),
 ):
     """Listar el roster actual de selección oficial, filtrable por año."""
-    return RankingServicio(db).listar_seleccion_oficial(anio)
+    todos = RankingServicio(db).listar_seleccion_oficial(anio)
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.post(
@@ -261,14 +311,19 @@ async def obtener_perfil_alumno(
 
 # --- Notificaciones in-app ---------------------------------------------------
 @router.get(
-    "/notificaciones/mias", response_model=List[NotificacionResponseDTO],
+    "/notificaciones/mias", response_model=PaginatedResponse[NotificacionResponseDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
 async def listar_mis_notificaciones(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
     db: Session = Depends(obtener_sesion),
     token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
 ):
-    return NotificacionServicio(db).listar_propias(token_payload.get("persona_id"))
+    todos = NotificacionServicio(db).listar_propias(token_payload.get("persona_id"))
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.patch(

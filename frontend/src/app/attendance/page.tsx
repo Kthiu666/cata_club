@@ -33,19 +33,17 @@ import {
   AlertTriangle,
   Clock3,
   HelpCircle,
-  ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { fetchTrainingSchedules, fetchAttendanceRecords } from "@/services/api";
+import { fetchTrainingSchedules, fetchAttendanceRecords, extractItems } from "@/services/api";
 import {
   buildAttendanceStats,
   getAttendanceBadgeTokens,
   ATTENDANCE_LABELS,
-  paginateRecords,
-  getTotalPages,
   type AttendanceRecord,
   type TrainingSchedule,
 } from "./attendance-utils";
+import Pagination, { PAGE_SIZE, getTotalPages, paginate } from "@/components/Pagination";
 
 // ---------------------------------------------------------------------------
 // Attendance state icon
@@ -107,7 +105,7 @@ export default function AttendancePage(): React.ReactElement {
         fetchAttendanceRecords(),
       ]);
       setSchedules(scheduleData);
-      setRecords(recordData);
+      setRecords(extractItems(recordData));
     } catch (err) {
       console.error("[attendance] loadData failed", err);
       setError("Error al cargar horarios y asistencias");
@@ -130,7 +128,7 @@ export default function AttendancePage(): React.ReactElement {
 
   const recordsTotalPages = useMemo(() => getTotalPages(records.length), [records]);
   const paginatedRecords = useMemo(
-    () => paginateRecords(records, recordsPage),
+    () => paginate(records, recordsPage, PAGE_SIZE),
     [records, recordsPage],
   );
 
@@ -288,30 +286,12 @@ export default function AttendancePage(): React.ReactElement {
                   </div>
 
                   {recordsTotalPages > 1 && (
-                    <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
-                      <p className="text-sm font-semibold text-cata-text">
-                        Página {recordsPage} de {recordsTotalPages}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setRecordsPage((p) => Math.max(1, p - 1))}
-                          disabled={recordsPage <= 1}
-                          className="btn-secondary px-4 py-2 text-xs"
-                        >
-                          <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
-                          Anterior
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRecordsPage((p) => Math.min(recordsTotalPages, p + 1))}
-                          disabled={recordsPage >= recordsTotalPages}
-                          className="btn-secondary px-4 py-2 text-xs"
-                        >
-                          Siguiente
-                          <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
-                        </button>
-                      </div>
+                    <div className="mt-4">
+                      <Pagination
+                        currentPage={recordsPage}
+                        totalPages={recordsTotalPages}
+                        onPageChange={setRecordsPage}
+                      />
                     </div>
                   )}
                 </>

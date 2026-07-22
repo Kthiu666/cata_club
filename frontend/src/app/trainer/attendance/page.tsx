@@ -62,10 +62,12 @@ import {
   fetchNivelesConOcupacion,
   fetchNivelRoster,
   registerAttendance,
+  extractItems,
   type NivelConOcupacion,
   type RegisterAttendanceResult,
 } from "@/services/api";
 import type { EstadoAsistencia } from "@/types/domain";
+import Pagination, { PAGE_SIZE, getTotalPages, paginate } from "@/components/Pagination";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -118,6 +120,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
   const [rosterError, setRosterError] = useState<string | null>(null);
 
   const [students, setStudents] = useState<SessionStudent[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -132,7 +135,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
         fetchNivelesConOcupacion(),
       ]);
       setSchedules(scheduleData);
-      setNiveles(nivelData);
+      setNiveles(extractItems(nivelData));
     } catch (err) {
       console.error("[trainer/attendance] loadOptions failed", err);
       setLoadError("Error al cargar horarios y grupos");
@@ -179,7 +182,8 @@ export default function TrainerAttendancePage(): React.ReactElement {
     setRosterError(null);
     try {
       const tabla = await fetchNivelRoster(selectedNivelId);
-      setStudents(buildRosterFromTabla(tabla));
+      setStudents(buildRosterFromTabla(extractItems(tabla)));
+      setCurrentPage(1);
       setStep("mark-attendance");
     } catch (err) {
       console.error("[trainer/attendance] fetchNivelRoster failed", err);
@@ -247,6 +251,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
     setSelectedScheduleId(null);
     setSelectedNivelId(null);
     setStudents([]);
+    setCurrentPage(1);
     setConfirmed(false);
     setSubmitting(false);
     setSubmitError(null);
@@ -379,6 +384,8 @@ export default function TrainerAttendancePage(): React.ReactElement {
     const absentCount = countByState(students, "absent");
     const lateCount = countByState(students, "late");
     const justifiedCount = countByState(students, "justified");
+    const totalPages = getTotalPages(students.length);
+    const paginatedStudents = paginate(students, currentPage);
 
     return (
       <div className="space-y-4">
@@ -427,7 +434,9 @@ export default function TrainerAttendancePage(): React.ReactElement {
           </div>
         ) : (
           <div className="space-y-2">
-            {students.map((student, idx) => (
+            {paginatedStudents.map((student, idx) => {
+              const originalIndex = (currentPage - 1) * PAGE_SIZE + idx;
+              return (
               <div
                 key={student.id}
                 className="card-hover flex items-center justify-between gap-3 p-4"
@@ -451,7 +460,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
                         <button
                           key={state}
                           type="button"
-                          onClick={() => handleDirectAttendanceSet(idx, state)}
+                          onClick={() => handleDirectAttendanceSet(originalIndex, state)}
                           title={ATTENDANCE_LABELS[state]}
                           className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
                             isActive
@@ -469,7 +478,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
                   {/* Mobile/compact toggle (cycle) */}
                   <button
                     type="button"
-                    onClick={() => handleToggleAttendance(idx)}
+                    onClick={() => handleToggleAttendance(originalIndex)}
                     className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 sm:hidden ${
                       getAttendanceBadgeTokens(student.attendance).badgeClass
                     }`}
@@ -479,7 +488,13 @@ export default function TrainerAttendancePage(): React.ReactElement {
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
           </div>
         )}
 

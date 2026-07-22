@@ -1,11 +1,16 @@
 from sqlalchemy.orm import Session
 
-from app.dominio.modelos import Asistencia, HorarioEntrenamiento
+from app.dominio.modelos import Asistencia, HorarioEntrenamiento, AlumnoHorario
 from app.dominio.enums import TipoRol
 from app.dominio.excepciones import EntidadNoEncontrada, OperacionInvalida
 from app.infraestructura.repositorios.persona_repositorio import PersonaRepositorio
-from app.infraestructura.repositorios.asistencia_repositorio import AsistenciaRepositorio, HorarioRepositorio
-from app.presentacion.schemas.asistencia_schemas import AsistenciaCreateDTO, HorarioCreateDTO, HorarioUpdateDTO
+from app.infraestructura.repositorios.asistencia_repositorio import (
+    AsistenciaRepositorio, HorarioRepositorio, AlumnoHorarioRepositorio
+)
+from app.presentacion.schemas.asistencia_schemas import (
+    AsistenciaCreateDTO, HorarioCreateDTO, HorarioUpdateDTO,
+    AlumnoHorarioCreateDTO, AlumnoHorarioDetalleDTO
+)
 
 
 class AsistenciaServicio:
@@ -13,6 +18,7 @@ class AsistenciaServicio:
         self.repo = AsistenciaRepositorio(db)
         self.repo_horario = HorarioRepositorio(db)
         self.repo_persona = PersonaRepositorio(db)
+        self.repo_alumno_horario = AlumnoHorarioRepositorio(db)
 
     def _validar_entrenador(self, persona_id: int) -> None:
         """Un entrenador (titular o sustituto) debe ser una Persona con un
@@ -86,3 +92,78 @@ class AsistenciaServicio:
             horario_id=horario_id, persona_id=persona_id,
             fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
         )
+
+    # --- Asignación directa Alumno ↔ Horario ---------------------------------
+    def asignar_alumno_a_horario(self, datos: AlumnoHorarioCreateDTO) -> AlumnoHorario:
+        """Asigna un alumno a un horario específico de forma directa."""
+        if not self.repo_persona.obtener_por_id(datos.persona_id):
+            raise EntidadNoEncontrada(f"Persona con id {datos.persona_id} no encontrada")
+        if not self.repo_horario.obtener_por_id(datos.horario_id):
+            raise EntidadNoEncontrada(f"Horario con id {datos.horario_id} no encontrado")
+
+        existente = self.repo_alumno_horario.obtener_por_persona_y_horario(
+            datos.persona_id, datos.horario_id
+        )
+        if existente:
+            raise OperacionInvalida(
+                f"El alumno {datos.persona_id} ya está asignado al horario {datos.horario_id}"
+            )
+
+        alumno_horario = AlumnoHorario(
+            persona_id=datos.persona_id,
+            horario_id=datos.horario_id,
+        )
+        return self.repo_alumno_horario.crear(alumno_horario)
+
+    def desasignar_alumno_de_horario(
+        self, persona_id: int, horario_id: int
+    ) -> None:
+        """Elimina la asignación directa de un alumno a un horario."""
+        asignacion = self.repo_alumno_horario.obtener_por_persona_y_horario(
+            persona_id, horario_id
+        )
+        if not asignacion:
+            raise EntidadNoEncontrada(
+                f"No existe asignación del alumno {persona_id} al horario {horario_id}"
+            )
+        self.repo_alumno_horario.eliminar(asignacion)
+
+    def listar_alumnos_por_horario(self, horario_id: int) -> list[AlumnoHorarioDetalleDTO]:
+        """Lista todos los alumnos asignados a un horario específico."""
+        if not self.repo_horario.obtener_por_id(horario_id):
+            raise EntidadNoEncontrada(f"Horario con id {horario_id} no encontrado")
+
+        asignaciones = self.repo_alumno_horario.listar_por_horario(horario_id)
+        return [
+            AlumnoHorarioDetalleDTO(
+                id=a.id,
+                persona_id=a.persona_id,
+                persona_nombre_completo=f"{a.persona.nombres} {a.persona.apellidos}",
+                horario_id=a.horario_id,
+                horario_dia=a.horario.dia_semana,
+                horario_hora_inicio=a.horario.hora_inicio,
+                horario_hora_fin=a.horario.hora_fin,
+                fecha_asignacion=a.fecha_asignacion,
+            )
+            for a in asignaciones
+        ]
+
+    def listar_horarios_por_alumno(self, persona_id: int) -> list[AlumnoHorarioDetalleDTO]:
+        """Lista todos los horarios asignados a un alumno específico."""
+        if not self.repo_persona.obtener_por_id(persona_id):
+            raise EntidadNoEncontrada(f"Persona con id {persona_id} no encontrada")
+
+        asignaciones = self.repo_alumno_horario.listar_por_persona(persona_id)
+        return [
+            AlumnoHorarioDetalleDTO(
+                id=a.id,
+                persona_id=a.persona_id,
+                persona_nombre_completo=f"{a.persona.nombres} {a.persona.apellidos}",
+                horario_id=a.horario_id,
+                horario_dia=a.horario.dia_semana,
+                horario_hora_inicio=a.horario.hora_inicio,
+                horario_hora_fin=a.horario.hora_fin,
+                fecha_asignacion=a.fecha_asignacion,
+            )
+            for a in asignaciones
+        ]

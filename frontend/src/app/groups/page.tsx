@@ -26,8 +26,11 @@ import {
   Loader2,
   Clock,
   GraduationCap,
+  UserPlus,
+  UserMinus,
 } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import Pagination, { getTotalPages, paginate } from "@/components/Pagination";
 import {
   fetchHorarios,
   crearHorario,
@@ -35,9 +38,13 @@ import {
   eliminarHorario,
   fetchMembers,
   fetchNivelesConOcupacion,
+  fetchAlumnosPorHorario,
+  asignarAlumnoAHorario,
+  desasignarAlumnoDeHorario,
   ApiClientError,
+  extractItems,
 } from "@/services/api";
-import type { Horario, CrearHorarioDTO, ActualizarHorarioDTO, NivelConOcupacion } from "@/services/api";
+import type { Horario, CrearHorarioDTO, ActualizarHorarioDTO, NivelConOcupacion, AlumnoHorario } from "@/services/api";
 import type { StudentRef } from "@/lib/groups-utils";
 
 const DIA_LABELS: Record<string, string> = {
@@ -93,15 +100,61 @@ export default function GroupsPage(): React.ReactElement {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
+  const [currentPage, setCurrentPage] = useState(1);
   const [notification, setNotification] = useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
 
+  // Asignación directa alumno ↔ horario
+  const [horarioSeleccionado, setHorarioSeleccionado] = useState<number | null>(null);
+  const [alumnosPorHorario, setAlumnosPorHorario] = useState<AlumnoHorario[]>([]);
+  const [cargandoAlumnos, setCargandoAlumnos] = useState(false);
+  const [asignandoAlumno, setAsignandoAlumno] = useState(false);
+  const [alumnoSeleccionado, setAlumnoSeleccionado] = useState<number | null>(null);
+
   const showNotification = useCallback((type: "success" | "error", message: string): void => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 4000);
   }, []);
+
+  const cargarAlumnosPorHorario = useCallback(async (horarioId: number): Promise<void> => {
+    setCargandoAlumnos(true);
+    try {
+      const alumnos = await fetchAlumnosPorHorario(horarioId);
+      setAlumnosPorHorario(alumnos);
+    } catch {
+      showNotification("error", "Error al cargar los alumnos del horario.");
+    } finally {
+      setCargandoAlumnos(false);
+    }
+  }, [showNotification]);
+
+  const handleAsignarAlumno = useCallback(async (): Promise<void> => {
+    if (!horarioSeleccionado || !alumnoSeleccionado) return;
+    setAsignandoAlumno(true);
+    try {
+      await asignarAlumnoAHorario({ persona_id: alumnoSeleccionado, horario_id: horarioSeleccionado });
+      showNotification("success", "Alumno asignado correctamente al horario.");
+      setAlumnoSeleccionado(null);
+      await cargarAlumnosPorHorario(horarioSeleccionado);
+    } catch (err) {
+      showNotification("error", extractErrorMessage(err, "Error al asignar el alumno."));
+    } finally {
+      setAsignandoAlumno(false);
+    }
+  }, [horarioSeleccionado, alumnoSeleccionado, cargarAlumnosPorHorario, showNotification]);
+
+  const handleDesasignarAlumno = useCallback(async (personaId: number): Promise<void> => {
+    if (!horarioSeleccionado) return;
+    try {
+      await desasignarAlumnoDeHorario(personaId, horarioSeleccionado);
+      showNotification("success", "Alumno desasignado del horario.");
+      await cargarAlumnosPorHorario(horarioSeleccionado);
+    } catch (err) {
+      showNotification("error", extractErrorMessage(err, "Error al desasignar el alumno."));
+    }
+  }, [horarioSeleccionado, cargarAlumnosPorHorario, showNotification]);
 
   const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -112,8 +165,9 @@ export default function GroupsPage(): React.ReactElement {
         fetchNivelesConOcupacion(),
         fetchMembers(),
       ]);
-      setHorarios(horariosData);
-      setNiveles(nivelesData);
+      setHorarios(extractItems(horariosData));
+      setNiveles(extractItems(nivelesData));
+      setCurrentPage(1);
       const students: StudentRef[] = membersData.accounts.flatMap((account) =>
         account.estudiantes.map((estudiante) => ({
           id: estudiante.id,
@@ -216,6 +270,14 @@ export default function GroupsPage(): React.ReactElement {
   }
 
   const entrenadores = allStudents.length > 0 ? [] : [];
+  const totalPages = getTotalPages(horarios.length);
+  const paginatedHorarios = paginate(horarios, currentPage);
+
+  // Alumnos disponibles para asignar (los que no están ya en este horario)
+  const alumnosAsignadosIds = new Set(alumnosPorHorario.map((a) => a.persona_id));
+  const alumnosDisponibles = allStudents.filter(
+    (s) => s.activo && !alumnosAsignadosIds.has(Number(s.id))
+  );
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
@@ -362,8 +424,9 @@ export default function GroupsPage(): React.ReactElement {
             <p className="text-sm text-cata-text/50">Cargando horarios…</p>
           </div>
         ) : horarios.length > 0 ? (
+          <>
           <div className="space-y-3">
-            {horarios.map((h) => {
+            {paginatedHorarios.map((h) => {
               const nivel = niveles.find((n) => n.id === h.nivelRankingId);
               const studentsInNivel = h.nivelRankingId
                 ? allStudents.filter((s) => s.grupoId === String(h.nivelRankingId))
@@ -399,6 +462,18 @@ export default function GroupsPage(): React.ReactElement {
                           {studentsInNivel.length} alumno{studentsInNivel.length !== 1 ? "s" : ""}
                         </div>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHorarioSeleccionado(h.id);
+                          void cargarAlumnosPorHorario(h.id);
+                        }}
+                        disabled={isDeleting}
+                        className="rounded-lg border border-cata-border p-1.5 text-cata-text/50 transition-colors hover:bg-cata-red/10 hover:text-cata-red disabled:opacity-50"
+                        title="Asignar alumnos a este horario"
+                      >
+                        <UserPlus size={13} strokeWidth={1.5} aria-hidden="true" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => openEditForm(h)}
@@ -445,6 +520,101 @@ export default function GroupsPage(): React.ReactElement {
               );
             })}
           </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
+
+          {/* Panel de asignación directa alumno ↔ horario */}
+          {horarioSeleccionado && (
+            <div className="card mt-6 p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserPlus size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                  <h3 className="text-sm font-bold text-cata-text">
+                    Asignar alumnos al horario
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setHorarioSeleccionado(null); setAlumnosPorHorario([]); }}
+                  className="btn-secondary text-xs"
+                >
+                  Cerrar
+                </button>
+              </div>
+
+              {cargandoAlumnos ? (
+                <div className="flex items-center gap-2 py-4 text-sm text-cata-text/50">
+                  <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                  Cargando alumnos...
+                </div>
+              ) : (
+                <>
+                  {/* Alumnos asignados actualmente */}
+                  {alumnosPorHorario.length > 0 && (
+                    <div className="mb-4">
+                      <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-cata-text/40">
+                        Alumnos asignados ({alumnosPorHorario.length})
+                      </p>
+                      <div className="space-y-2">
+                        {alumnosPorHorario.map((a) => (
+                          <div key={a.id} className="flex items-center justify-between rounded-lg bg-cata-bg px-3 py-2">
+                            <span className="text-sm text-cata-text">{a.persona_nombre_completo}</span>
+                            <button
+                              type="button"
+                              onClick={() => void handleDesasignarAlumno(a.persona_id)}
+                              className="rounded-lg border border-cata-border p-1 text-cata-text/50 transition-colors hover:bg-red-50 hover:text-cata-red"
+                              title="Desasignar alumno"
+                            >
+                              <UserMinus size={12} strokeWidth={1.5} aria-hidden="true" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Formulario para asignar nuevo alumno */}
+                  <div className="flex items-end gap-3">
+                    <div className="flex-1">
+                      <label htmlFor="alumno-select" className="mb-1 block text-xs font-medium text-cata-text/65">
+                        Seleccionar alumno
+                      </label>
+                      <select
+                        id="alumno-select"
+                        className="input-field w-full"
+                        value={alumnoSeleccionado ?? ""}
+                        onChange={(e) => setAlumnoSeleccionado(e.target.value ? Number(e.target.value) : null)}
+                      >
+                        <option value="">Seleccionar alumno...</option>
+                        {alumnosDisponibles.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.nombres} {s.apellidos}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleAsignarAlumno()}
+                      disabled={!alumnoSeleccionado || asignandoAlumno}
+                      className="btn-primary inline-flex items-center gap-1.5 text-xs"
+                    >
+                      {asignandoAlumno ? (
+                        <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+                      ) : (
+                        <UserPlus size={12} strokeWidth={2} aria-hidden="true" />
+                      )}
+                      Asignar
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          </>
         ) : (
           <div className="card flex flex-col items-center py-16 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-cata-red/10">

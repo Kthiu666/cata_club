@@ -58,6 +58,7 @@ import {
   evaluarJustificativo,
   ApiClientError,
 } from "@/services/api";
+import Pagination, { getTotalPages, paginate } from "@/components/Pagination";
 import type { EvaluarJustificativoDTO, NivelConOcupacion } from "@/services/api";
 import type { Justificativo } from "@/types/domain";
 import { getUnassignedStudents, getLevelLabel, type StudentRef, type GroupCardData } from "@/lib/groups-utils";
@@ -155,6 +156,9 @@ export default function RankingPage(): React.ReactElement {
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectionValidationError, setRejectionValidationError] = useState<string | null>(null);
 
+  const [justificativosPage, setJustificativosPage] = useState(1);
+  const [unassignedPage, setUnassignedPage] = useState(1);
+
   // Quick-assign dropdown selection per unassigned student, keyed by
   // estudianteId -> nivel id (as a string, matching the <select> value).
   const [pendingAssignment, setPendingAssignment] = useState<Record<string, string>>({});
@@ -162,8 +166,9 @@ export default function RankingPage(): React.ReactElement {
   const loadJustificativos = useCallback(async (): Promise<void> => {
     setJustificativosLoading(true);
     try {
-      const pendientes = await fetchJustificativosPendientes();
-      setJustificativosPendientes(pendientes);
+      const result = await fetchJustificativosPendientes();
+      setJustificativosPendientes(Array.isArray(result) ? result : result.items);
+      setJustificativosPage(1);
     } catch {
       setJustificativosPendientes([]);
     } finally {
@@ -191,6 +196,7 @@ export default function RankingPage(): React.ReactElement {
         })),
       );
       setAllStudents(students);
+      setUnassignedPage(1);
     } catch {
       setLoadError("No se pudieron cargar los niveles de ranking. Intente nuevamente.");
     } finally {
@@ -209,6 +215,11 @@ export default function RankingPage(): React.ReactElement {
   const assignedStudentsForSelected = selectedGroupId
     ? allStudents.filter((s) => s.grupoId === selectedGroupId)
     : [];
+
+  const paginatedUnassigned = paginate(unassigned, unassignedPage);
+  const unassignedTotalPages = getTotalPages(unassigned.length);
+  const paginatedJustificativos = paginate(justificativosPendientes, justificativosPage);
+  const justificativosTotalPages = getTotalPages(justificativosPendientes.length);
 
   const showNotification = useCallback((type: "success" | "error", message: string): void => {
     setNotification({ type, message });
@@ -441,8 +452,9 @@ export default function RankingPage(): React.ReactElement {
               </div>
 
               {unassigned.length > 0 ? (
+                <>
                 <div className="space-y-2">
-                  {unassigned.map((student) => (
+                  {paginatedUnassigned.map((student) => (
                     <div
                       key={student.id}
                       className="card-hover flex items-center justify-between px-4 py-3"
@@ -499,6 +511,12 @@ export default function RankingPage(): React.ReactElement {
                     </div>
                   ))}
                 </div>
+                <Pagination
+                  currentPage={unassignedPage}
+                  totalPages={unassignedTotalPages}
+                  onPageChange={setUnassignedPage}
+                />
+                </>
               ) : (
                 <div className="flex items-center gap-2 py-4">
                   <CheckCircle2 size={14} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />
@@ -728,8 +746,9 @@ export default function RankingPage(): React.ReactElement {
               <p className="text-xs text-cata-text/40">Cargando justificativos…</p>
             </div>
           ) : justificativosPendientes.length > 0 ? (
+            <>
             <div className="space-y-2">
-              {justificativosPendientes.map((j) => {
+              {paginatedJustificativos.map((j) => {
                 const student = allStudents.find((s) => Number(s.id) === j.personaId);
                 const isEvaluando = evaluandoId === j.id;
                 const isRejecting = rejectingJustificativoId === j.id;
@@ -816,6 +835,12 @@ export default function RankingPage(): React.ReactElement {
                 );
               })}
             </div>
+            <Pagination
+              currentPage={justificativosPage}
+              totalPages={justificativosTotalPages}
+              onPageChange={setJustificativosPage}
+            />
+            </>
           ) : (
             <div className="flex items-center gap-2 py-4">
               <CheckCircle2 size={14} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />

@@ -27,7 +27,7 @@ import {
   XCircle,
   Trophy,
 } from "lucide-react";
-import { fetchTrainingSchedules, fetchAttendanceRecords } from "@/services/api";
+import { fetchTrainingSchedules, fetchAttendanceRecords, extractItems } from "@/services/api";
 import {
   buildAttendanceStats,
   jsDayIndexToDiaSemana,
@@ -55,7 +55,7 @@ export default function TrainerPage(): React.ReactElement {
         fetchAttendanceRecords({ fechaInicio: today, fechaFin: today }),
       ]);
       setSchedules(scheduleData);
-      setTodayRecords(recordData);
+      setTodayRecords(extractItems(recordData));
     } catch (err) {
       console.error("[trainer] loadData failed", err);
       setError("Error al cargar el resumen de hoy");

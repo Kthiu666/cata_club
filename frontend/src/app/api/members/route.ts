@@ -28,14 +28,18 @@ interface PaginatedPagos {
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const personasResult = await backendFetchAuthed(request, "/personas/?limit=200");
+  const { searchParams } = new URL(request.url);
+  const skip = searchParams.get("skip") ?? "0";
+  const limit = searchParams.get("limit") ?? "200";
+
+  const personasResult = await backendFetchAuthed(request, `/personas/?skip=${skip}&limit=${limit}`);
   if (!personasResult.ok) {
     return NextResponse.json({ message: "No se pudieron cargar las personas." }, { status: personasResult.status });
   }
   if (!personasResult.response.ok) {
     return passthroughBackendError(personasResult.response, "No se pudieron cargar las personas.");
   }
-  const personasBody = (await personasResult.response.json()) as PaginatedPersonas;
+  const personasBody = (await personasResult.response.json()) as PaginatedPersonas & { total: number };
 
   const [pagosResult, tiposResult, nivelesResult] = await Promise.all([
     backendFetchAuthed(request, "/membresias/pagos?limit=200"),
@@ -47,8 +51,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     pagosResult.ok && pagosResult.response.ok ? ((await pagosResult.response.json()) as PaginatedPagos).items : [];
   const tipos: BackendTipoMembresia[] =
     tiposResult.ok && tiposResult.response.ok ? await tiposResult.response.json() : [];
-  const niveles: NivelConOcupacion[] =
-    nivelesResult.ok && nivelesResult.response.ok ? await nivelesResult.response.json() : [];
+  const nivelesResultBody = nivelesResult.ok && nivelesResult.response.ok ? await nivelesResult.response.json() : { items: [] };
+  const niveles: NivelConOcupacion[] = Array.isArray(nivelesResultBody) ? nivelesResultBody : nivelesResultBody.items ?? [];
 
   const latestPagoByPersona = new Map<number, BackendPagoListItem>();
   for (const pago of pagos) {
@@ -84,7 +88,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const accounts = buildMemberAccounts(personasBody.items, latestPagoByPersona, membresiaById, tipoById, nivelIdByPersona);
 
-  const response = NextResponse.json({ accounts, niveles });
+  const response = NextResponse.json({
+    accounts,
+    niveles,
+    total: personasBody.total ?? accounts.length,
+  });
   if (personasResult.refreshedAccessToken) {
     setAuthCookies(response, { accessToken: personasResult.refreshedAccessToken });
   }

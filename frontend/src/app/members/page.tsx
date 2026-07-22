@@ -40,6 +40,7 @@ import {
   ToggleLeft,
   ToggleRight,
 } from "lucide-react";
+import Pagination, { getTotalPages, paginate } from "@/components/Pagination";
 import { fetchMembers, asignarRol, quitarRol, cambiarEstadoCuenta, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia } from "@/services/api";
 import type { TipoMembresiaCatalogo } from "@/services/api";
 import { nivelToGrupo } from "@/app/groups/groups-page-utils";
@@ -809,6 +810,7 @@ export default function MembersPage(): React.ReactElement {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [rolesMenuOpen, setRolesMenuOpen] = useState<Set<string>>(new Set());
 
   const toggleRolesMenu = useCallback((accountId: string) => {
@@ -845,6 +847,12 @@ export default function MembersPage(): React.ReactElement {
   const filteredAccounts = filterAccounts(accounts, searchTerm).filter((account) =>
     accountMatchesFlag(account, activeFlag),
   );
+
+  const totalPages = getTotalPages(filteredAccounts.length);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, activeFlag]);
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
@@ -947,6 +955,7 @@ export default function MembersPage(): React.ReactElement {
             <p className="text-sm text-cata-text/50">Cargando miembros…</p>
           </div>
         ) : filteredAccounts.length > 0 ? (
+          <>
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
@@ -961,7 +970,7 @@ export default function MembersPage(): React.ReactElement {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cata-border">
-                  {filteredAccounts.map((account, index) => (
+                  {paginate(filteredAccounts, currentPage).map((account, index) => (
                     <AccountRow
                       key={account.id}
                       account={account}
@@ -975,6 +984,8 @@ export default function MembersPage(): React.ReactElement {
               </table>
             </div>
           </div>
+          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+          </>
         ) : (
           /* Empty state */
           <div className="card flex flex-col items-center py-16 text-center">

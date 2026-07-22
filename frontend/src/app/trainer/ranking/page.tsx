@@ -37,6 +37,7 @@ import {
   Plus,
 } from "lucide-react";
 import type { ResultadoMensual, CierreMensual } from "@/types/domain";
+import Pagination, { PAGE_SIZE, getTotalPages, paginate } from "@/components/Pagination";
 import {
   fetchMembers,
   assignStudentToNivel,
@@ -211,6 +212,9 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successId, setSuccessId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = getTotalPages(students.length);
+  const paginatedStudents = paginate(students, currentPage);
 
   async function handleAssign(estudianteId: string): Promise<void> {
     const nivelId = drafts[estudianteId];
@@ -272,7 +276,7 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
               </tr>
             </thead>
             <tbody className="divide-y divide-cata-border">
-              {students.map((student) => (
+              {paginatedStudents.map((student) => (
                 <tr key={student.id}>
                   <td className="px-4 py-3">
                     <span className="font-medium text-cata-text">
@@ -326,12 +330,19 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
+            </table>
+          </div>
+        )}
+        {students.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
+        )}
+      </div>
+    );
+  }
 
 // ---------------------------------------------------------------------------
 // Tab 2 — Resultados Mensuales
@@ -358,6 +369,9 @@ function ResultadosMensualesTab({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = getTotalPages(resultados.length);
+  const paginatedResultados = paginate(resultados, currentPage);
 
   async function handleSubmit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -521,7 +535,7 @@ function ResultadosMensualesTab({
                 </tr>
               </thead>
               <tbody className="divide-y divide-cata-border">
-                {resultados.map((r) => (
+                {paginatedResultados.map((r) => (
                   <tr key={r.id}>
                     <td className="px-4 py-3 font-medium text-cata-text">
                       {studentDisplayName(students, r.personaId)}
@@ -539,6 +553,13 @@ function ResultadosMensualesTab({
               </tbody>
             </table>
           </div>
+        )}
+        {resultados.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
         )}
       </div>
     </div>
@@ -564,6 +585,9 @@ function CierreMesTab({ niveles, cierres, cerradoPorNombre, onClosed }: CierreMe
   const [closing, setClosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = getTotalPages(cierres.length);
+  const paginatedCierres = paginate(cierres, currentPage);
 
   function handleRequestClose(): void {
     setSuccessMessage(null);
@@ -700,7 +724,7 @@ function CierreMesTab({ niveles, cierres, cerradoPorNombre, onClosed }: CierreMe
                 </tr>
               </thead>
               <tbody className="divide-y divide-cata-border">
-                {cierres.map((c, i) => (
+                {paginatedCierres.map((c, i) => (
                   <tr key={`${c.nivelRankingId}-${c.anio}-${c.mes}-${i}`}>
                     <td className="px-4 py-3 font-medium text-cata-text">
                       {nivelLabel(niveles, c.nivelRankingId)}
@@ -716,6 +740,13 @@ function CierreMesTab({ niveles, cierres, cerradoPorNombre, onClosed }: CierreMe
               </tbody>
             </table>
           </div>
+        )}
+        {cierres.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
         )}
       </div>
 

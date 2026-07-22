@@ -6,7 +6,9 @@ from datetime import date
 from app.infraestructura.db import obtener_sesion
 from app.presentacion.schemas.asistencia_schemas import (
     AsistenciaCreateDTO, AsistenciaResponseDTO, HorarioCreateDTO, HorarioUpdateDTO, HorarioResponseDTO,
+    AlumnoHorarioCreateDTO, AlumnoHorarioDetalleDTO,
 )
+from app.presentacion.schemas.base import PaginatedResponse
 from app.seguridad.gestor_auth import GestorAutenticacion
 from app.servicios_negocio.asistencia_servicio import AsistenciaServicio
 from app.servicios_negocio.gestor_permisos import GestorPermisos
@@ -35,11 +37,18 @@ async def eliminar_horario(horario_id: int, db: Session = Depends(obtener_sesion
 # Listado de horarios: lectura para cualquier autenticado (no anónimo).
 @router.get(
     "/horarios",
-    response_model=List[HorarioResponseDTO],
+    response_model=PaginatedResponse[HorarioResponseDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
-def listar_horarios(db: Session = Depends(obtener_sesion)):
-    return AsistenciaServicio(db).listar_horarios()
+def listar_horarios(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
+    db: Session = Depends(obtener_sesion),
+):
+    todos = AsistenciaServicio(db).listar_horarios()
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.post("/", response_model=AsistenciaResponseDTO, status_code=status.HTTP_201_CREATED,
@@ -52,17 +61,25 @@ async def registrar_asistencia(datos: AsistenciaCreateDTO, db: Session = Depends
 # requiere autenticación (no anónimo).
 @router.get(
     "/persona/{persona_id}",
-    response_model=List[AsistenciaResponseDTO],
+    response_model=PaginatedResponse[AsistenciaResponseDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
-async def historial_asistencia_persona(persona_id: int, db: Session = Depends(obtener_sesion)):
-    return AsistenciaServicio(db).historial_por_persona(persona_id)
+async def historial_asistencia_persona(
+    persona_id: int,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
+    db: Session = Depends(obtener_sesion),
+):
+    todos = AsistenciaServicio(db).historial_por_persona(persona_id)
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 # --- E02-RF005: reporte de asistencia por horario, periodo o alumno --------
 @router.get(
     "/reportes",
-    response_model=List[AsistenciaResponseDTO],
+    response_model=PaginatedResponse[AsistenciaResponseDTO],
     dependencies=[Depends(GestorPermisos(["ADMINISTRADOR", "ENTRENADOR"]))],
 )
 async def reporte_asistencia(
@@ -70,9 +87,64 @@ async def reporte_asistencia(
     persona_id: Optional[int] = Query(default=None),
     fecha_inicio: Optional[date] = Query(default=None),
     fecha_fin: Optional[date] = Query(default=None),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
     db: Session = Depends(obtener_sesion),
 ):
-    return AsistenciaServicio(db).generar_reporte(
+    todos = AsistenciaServicio(db).generar_reporte(
         horario_id=horario_id, persona_id=persona_id,
         fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
     )
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
+
+
+# --- Asignación directa Alumno ↔ Horario ------------------------------------
+@router.post(
+    "/asignar-alumno",
+    response_model=AlumnoHorarioDetalleDTO,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR", "ENTRENADOR"]))],
+)
+async def asignar_alumno_a_horario(
+    datos: AlumnoHorarioCreateDTO, db: Session = Depends(obtener_sesion)
+):
+    servicio = AsistenciaServicio(db)
+    asignacion = servicio.asignar_alumno_a_horario(datos)
+    return servicio.listar_alumnos_por_horario(datos.horario_id)[-1]
+
+
+@router.delete(
+    "/desasignar-alumno",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR", "ENTRENADOR"]))],
+)
+async def desasignar_alumno_de_horario(
+    persona_id: int = Query(...),
+    horario_id: int = Query(...),
+    db: Session = Depends(obtener_sesion),
+):
+    AsistenciaServicio(db).desasignar_alumno_de_horario(persona_id, horario_id)
+
+
+@router.get(
+    "/horarios/{horario_id}/alumnos",
+    response_model=List[AlumnoHorarioDetalleDTO],
+    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
+)
+async def listar_alumnos_por_horario(
+    horario_id: int, db: Session = Depends(obtener_sesion)
+):
+    return AsistenciaServicio(db).listar_alumnos_por_horario(horario_id)
+
+
+@router.get(
+    "/alumnos/{persona_id}/horarios",
+    response_model=List[AlumnoHorarioDetalleDTO],
+    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
+)
+async def listar_horarios_por_alumno(
+    persona_id: int, db: Session = Depends(obtener_sesion)
+):
+    return AsistenciaServicio(db).listar_horarios_por_alumno(persona_id)

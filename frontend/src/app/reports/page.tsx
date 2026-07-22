@@ -38,6 +38,7 @@ import {
   type TrainingSchedule,
 } from "@/app/attendance/attendance-utils";
 import type { PersonaReporte } from "@/types/domain";
+import Pagination, { PAGE_SIZE, getTotalPages } from "@/components/Pagination";
 
 type ReportTab = "etiquetas" | "periodo" | "asistencia";
 
@@ -80,6 +81,9 @@ function ReportsContent(): React.ReactElement {
   const [searchTerm, setSearchTerm] = useState("");
   const [edadMin, setEdadMin] = useState("");
   const [edadMax, setEdadMax] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [personaTotal, setPersonaTotal] = useState(0);
+  const [attendanceTotal, setAttendanceTotal] = useState(0);
 
   function switchTab(next: ReportTab): void {
     setTab(next);
@@ -90,6 +94,9 @@ function ReportsContent(): React.ReactElement {
     setSearchTerm("");
     setEdadMin("");
     setEdadMax("");
+    setCurrentPage(1);
+    setPersonaTotal(0);
+    setAttendanceTotal(0);
   }
 
   /** Calculate age in years from a birth date string. */
@@ -134,27 +141,82 @@ function ReportsContent(): React.ReactElement {
       .catch(() => {});
   }, []);
 
-  async function handleEtiquetasSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
-    e.preventDefault();
+  const personaTotalPages = getTotalPages(personaTotal);
+  const attendanceTotalPages = getTotalPages(attendanceTotal);
+
+  async function fetchReport(
+    reportTab: ReportTab,
+    page: number,
+  ): Promise<void> {
     setLoading(true);
     setError(null);
-    setSearched(true);
-
     try {
-      const filtros: { prioridadMunicipal?: boolean; becado?: boolean } = {};
-      if (useFilters) {
-        if (prioridadMunicipal) filtros.prioridadMunicipal = true;
-        if (becado) filtros.becado = true;
+      if (reportTab === "etiquetas") {
+        const filtros: { prioridadMunicipal?: boolean; becado?: boolean; skip?: number; limit?: number } = {};
+        if (useFilters) {
+          if (prioridadMunicipal) filtros.prioridadMunicipal = true;
+          if (becado) filtros.becado = true;
+        }
+        filtros.skip = (page - 1) * PAGE_SIZE;
+        filtros.limit = PAGE_SIZE;
+        const raw = await fetchPersonasPorEtiquetas(filtros);
+        if (Array.isArray(raw)) {
+          setPersonaResults(raw);
+          setPersonaTotal(raw.length);
+        } else {
+          setPersonaResults(raw.items);
+          setPersonaTotal(raw.total);
+        }
+      } else if (reportTab === "periodo") {
+        const raw = await fetchNuevosPorPeriodo(fechaInicio, fechaFin, (page - 1) * PAGE_SIZE, PAGE_SIZE);
+        if (Array.isArray(raw)) {
+          setPersonaResults(raw);
+          setPersonaTotal(raw.length);
+        } else {
+          setPersonaResults(raw.items);
+          setPersonaTotal(raw.total);
+        }
+      } else if (reportTab === "asistencia") {
+        const params: { fechaInicio?: string; fechaFin?: string; horarioId?: number; skip?: number; limit?: number } = {};
+        if (attFechaInicio) params.fechaInicio = attFechaInicio;
+        if (attFechaFin) params.fechaFin = attFechaFin;
+        if (attHorarioId) params.horarioId = Number(attHorarioId);
+        params.skip = (page - 1) * PAGE_SIZE;
+        params.limit = PAGE_SIZE;
+        const raw = await fetchAttendanceRecords(params);
+        if (Array.isArray(raw)) {
+          setAttendanceResults(raw);
+          setAttendanceTotal(raw.length);
+        } else {
+          setAttendanceResults(raw.items);
+          setAttendanceTotal(raw.total);
+        }
       }
-      const data = await fetchPersonasPorEtiquetas(filtros);
-      setPersonaResults(data);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error al cargar reportes.";
       setError(message);
-      setPersonaResults([]);
+      if (reportTab === "etiquetas" || reportTab === "periodo") {
+        setPersonaResults([]);
+        setPersonaTotal(0);
+      } else {
+        setAttendanceResults([]);
+        setAttendanceTotal(0);
+      }
     } finally {
       setLoading(false);
     }
+  }
+
+  function handlePageChange(page: number): void {
+    setCurrentPage(page);
+    void fetchReport(tab, page);
+  }
+
+  async function handleEtiquetasSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
+    e.preventDefault();
+    setSearched(true);
+    setCurrentPage(1);
+    await fetchReport("etiquetas", 1);
   }
 
   async function handlePeriodoSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
@@ -168,43 +230,16 @@ function ReportsContent(): React.ReactElement {
       return;
     }
 
-    setLoading(true);
-    setError(null);
     setSearched(true);
-
-    try {
-      const data = await fetchNuevosPorPeriodo(fechaInicio, fechaFin);
-      setPersonaResults(data);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Error al cargar reportes.";
-      setError(message);
-      setPersonaResults([]);
-    } finally {
-      setLoading(false);
-    }
+    setCurrentPage(1);
+    await fetchReport("periodo", 1);
   }
 
   async function handleAsistenciaSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
-
-    setLoading(true);
-    setError(null);
     setSearched(true);
-
-    try {
-      const params: { fechaInicio?: string; fechaFin?: string; horarioId?: number } = {};
-      if (attFechaInicio) params.fechaInicio = attFechaInicio;
-      if (attFechaFin) params.fechaFin = attFechaFin;
-      if (attHorarioId) params.horarioId = Number(attHorarioId);
-      const data = await fetchAttendanceRecords(params);
-      setAttendanceResults(data);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Error al cargar reportes de asistencia.";
-      setError(message);
-      setAttendanceResults([]);
-    } finally {
-      setLoading(false);
-    }
+    setCurrentPage(1);
+    await fetchReport("asistencia", 1);
   }
 
   return (
@@ -418,7 +453,8 @@ function ReportsContent(): React.ReactElement {
 
       {/* ---- Persona results table (etiquetas / periodo) ---- */}
       {searched && !loading && (tab === "etiquetas" || tab === "periodo") && (
-        <div className="card overflow-hidden">
+        <>
+          <div className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-cata-border px-6 py-4">
             <h3 className="text-sm font-semibold text-cata-text">
               {filteredPersonaResults.length} persona{filteredPersonaResults.length !== 1 ? "s" : ""} encontrada{filteredPersonaResults.length !== 1 ? "s" : ""}
@@ -554,11 +590,14 @@ function ReportsContent(): React.ReactElement {
             </div>
           )}
         </div>
+        <Pagination currentPage={currentPage} totalPages={personaTotalPages} onPageChange={handlePageChange} />
+        </>
       )}
 
       {/* ---- Attendance results table ---- */}
       {searched && !loading && tab === "asistencia" && (
-        <div className="card overflow-hidden">
+        <>
+          <div className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-cata-border px-6 py-4">
             <h3 className="text-sm font-semibold text-cata-text">
               {attendanceResults.length} registro{attendanceResults.length !== 1 ? "s" : ""} encontrado{attendanceResults.length !== 1 ? "s" : ""}
@@ -611,6 +650,8 @@ function ReportsContent(): React.ReactElement {
             </div>
           )}
         </div>
+        <Pagination currentPage={currentPage} totalPages={attendanceTotalPages} onPageChange={handlePageChange} />
+        </>
       )}
     </AppShell>
   );

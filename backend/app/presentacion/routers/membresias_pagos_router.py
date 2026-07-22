@@ -32,11 +32,18 @@ async def crear_tipo_membresia(datos: TipoMembresiaCreateDTO, db: Session = Depe
 
 # Tipos de membresía son datos de catálogo: lectura para cualquier autenticado.
 @router.get(
-    "/tipos", response_model=List[TipoMembresiaResponseDTO],
+    "/tipos", response_model=PaginatedResponse[TipoMembresiaResponseDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
-async def listar_tipos_membresia(db: Session = Depends(obtener_sesion)):
-    return MembresiaServicio(db).listar_tipos_membresia()
+async def listar_tipos_membresia(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
+    db: Session = Depends(obtener_sesion),
+):
+    todos = MembresiaServicio(db).listar_tipos_membresia()
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 # --- Membresia ---
@@ -65,11 +72,19 @@ async def listar_membresias(
 
 @router.get(
     "/persona/{persona_id}",
-    response_model=List[MembresiaResponseDTO],
+    response_model=PaginatedResponse[MembresiaResponseDTO],
     dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
 )
-async def listar_membresias_por_persona(persona_id: int, db: Session = Depends(obtener_sesion)):
-    return MembresiaServicio(db).listar_membresias_por_persona(persona_id)
+async def listar_membresias_por_persona(
+    persona_id: int,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
+    db: Session = Depends(obtener_sesion),
+):
+    todos = MembresiaServicio(db).listar_membresias_por_persona(persona_id)
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 # --- Pago ---
@@ -161,19 +176,24 @@ async def obtener_pago(pago_id: int, db: Session = Depends(obtener_sesion)):
 # ver la nota de orden de rutas más arriba en este archivo.
 @router.get(
     "/pagos/persona/{persona_id}",
-    response_model=List[PagoResponseDTO],
+    response_model=PaginatedResponse[PagoResponseDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
 async def listar_pagos_de_persona(
     persona_id: int,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=200),
     db: Session = Depends(obtener_sesion),
     token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
 ):
-    return PagoServicio(db).listar_pagos_de_persona(
+    todos = PagoServicio(db).listar_pagos_de_persona(
         persona_id_objetivo=persona_id,
         persona_id_solicitante=token_payload.get("persona_id"),
         roles_solicitante=token_payload.get("roles", []),
     )
+    total = len(todos)
+    items = todos[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 # --- ComprobantePago (PDF oficial generado por Celery al aprobar) ---

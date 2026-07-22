@@ -9,10 +9,11 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import type { Notificacion, TipoNotificacion } from "@/types/domain";
 import { formatDateTime } from "@/lib/format-utils";
+import Pagination, { getTotalPages, paginate } from "@/components/Pagination";
 
 const TIPO_LABELS: Record<TipoNotificacion, string> = {
   RANKING_ELIMINACION_PROXIMA: "Próxima eliminación del ranking",
@@ -49,7 +50,14 @@ export default function NotificationBell({
   variant = "dark",
 }: NotificationBellProps): React.ReactElement {
   const [open, setOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const unreadCount = notificaciones.filter((n) => !n.leida).length;
+  const totalPages = getTotalPages(notificaciones.length);
+  const paginatedNotificaciones = paginate(notificaciones, currentPage);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [notificaciones]);
 
   return (
     <div className="relative">
@@ -95,8 +103,9 @@ export default function NotificationBell({
           )}
 
           {notificaciones.length > 0 && (
-            <ul className="max-h-96 space-y-1 overflow-y-auto">
-              {notificaciones.map((n) => (
+            <>
+              <ul className="space-y-1">
+                {paginatedNotificaciones.map((n) => (
                 <li key={n.id}>
                   <button
                     type="button"
@@ -116,7 +125,9 @@ export default function NotificationBell({
                   </button>
                 </li>
               ))}
-            </ul>
+              </ul>
+              <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+            </>
           )}
         </div>
       )}
