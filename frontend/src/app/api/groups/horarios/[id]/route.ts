@@ -7,9 +7,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { ACCESS_TOKEN_COOKIE, getBackendApiUrl } from "@/lib/server/auth";
-
-const BACKEND_TIMEOUT_MS = 10_000;
+import {
+  extractAccessToken,
+  parseJsonBody,
+  parseJsonResponse,
+  extractBackendErrorMessage,
+  handleProxyError,
+  backendTimeout,
+  backendUrl,
+  unauthorizedResponse,
+  badRequestResponse,
+} from "@/lib/server/bff-helpers";
 
 interface ActualizarHorarioBody {
   dia_semana?: unknown;
@@ -19,68 +27,19 @@ interface ActualizarHorarioBody {
   nivel_ranking_id?: unknown;
 }
 
-function extractToken(request: NextRequest): NextResponse | string {
-  const token = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
-  if (!token) {
-    return NextResponse.json({ message: "No autenticado." }, { status: 401 });
-  }
-  return token;
-}
-
 function buildBackendUrl(id: string): string {
-  return `${getBackendApiUrl()}/asistencias/horarios/${encodeURIComponent(id)}`;
-}
-
-function extractErrorMessage(data: unknown, status: number): string {
-  if (
-    typeof data === "object" &&
-    data !== null &&
-    typeof (data as Record<string, unknown>).message === "string"
-  ) {
-    return (data as { message: string }).message;
-  }
-  return `El servidor respondió con un error (${status}).`;
-}
-
-async function parseResponseJson(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
-
-function handleAbortError(): NextResponse {
-  return NextResponse.json(
-    { message: "La solicitud al servidor tardó demasiado." },
-    { status: 504 },
-  );
-}
-
-function handleNetworkError(): NextResponse {
-  return NextResponse.json(
-    { message: "No se pudo contactar al servidor." },
-    { status: 503 },
-  );
+  return backendUrl(`/asistencias/horarios/${encodeURIComponent(id)}`);
 }
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } },
 ): Promise<NextResponse> {
-  const tokenOrResponse = extractToken(request);
-  if (tokenOrResponse instanceof NextResponse) return tokenOrResponse;
-  const accessToken = tokenOrResponse;
+  const accessToken = extractAccessToken(request);
+  if (!accessToken) return unauthorizedResponse();
 
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    return NextResponse.json(
-      { message: "JSON inválido en el cuerpo de la solicitud." },
-      { status: 400 },
-    );
-  }
+  const [rawBody, bodyError] = await parseJsonBody(request);
+  if (bodyError) return bodyError;
 
   const body = rawBody as ActualizarHorarioBody;
   const UPDATABLE_FIELDS: Array<[keyof ActualizarHorarioBody, string]> = [
@@ -96,14 +55,10 @@ export async function PUT(
   }
 
   if (Object.keys(payload).length === 0) {
-    return NextResponse.json(
-      { message: "No se proporcionaron campos para actualizar." },
-      { status: 400 },
-    );
+    return badRequestResponse("No se proporcionaron campos para actualizar.");
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
+  const [controller, done] = backendTimeout();
   try {
     const response = await fetch(buildBackendUrl(params.id), {
       method: "PUT",
@@ -115,23 +70,20 @@ export async function PUT(
       signal: controller.signal,
     });
 
-    const data = await parseResponseJson(response);
+    const data = await parseJsonResponse(response);
 
     if (!response.ok) {
       return NextResponse.json(
-        { message: extractErrorMessage(data, response.status) },
+        { message: extractBackendErrorMessage(data, response.status) },
         { status: response.status },
       );
     }
 
     return NextResponse.json(data, { status: 200 });
   } catch (error: unknown) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      return handleAbortError();
-    }
-    return handleNetworkError();
+    return handleProxyError(error);
   } finally {
-    clearTimeout(timeoutId);
+    done();
   }
 }
 
@@ -139,12 +91,10 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } },
 ): Promise<NextResponse> {
-  const tokenOrResponse = extractToken(request);
-  if (tokenOrResponse instanceof NextResponse) return tokenOrResponse;
-  const accessToken = tokenOrResponse;
+  const accessToken = extractAccessToken(request);
+  if (!accessToken) return unauthorizedResponse();
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
+  const [controller, done] = backendTimeout();
   try {
     const response = await fetch(buildBackendUrl(params.id), {
       method: "DELETE",
@@ -153,20 +103,17 @@ export async function DELETE(
     });
 
     if (!response.ok) {
-      const data = await parseResponseJson(response);
+      const data = await parseJsonResponse(response);
       return NextResponse.json(
-        { message: extractErrorMessage(data, response.status) },
+        { message: extractBackendErrorMessage(data, response.status) },
         { status: response.status },
       );
     }
 
     return new NextResponse(null, { status: 204 });
   } catch (error: unknown) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      return handleAbortError();
-    }
-    return handleNetworkError();
+    return handleProxyError(error);
   } finally {
-    clearTimeout(timeoutId);
+    done();
   }
 }

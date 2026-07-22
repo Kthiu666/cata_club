@@ -7,32 +7,33 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { ACCESS_TOKEN_COOKIE, getBackendApiUrl } from "@/lib/server/auth";
-
-const BACKEND_TIMEOUT_MS = 10_000;
+import {
+  extractAccessToken,
+  parseJsonResponse,
+  extractBackendErrorMessage,
+  handleProxyError,
+  backendTimeout,
+  backendUrl,
+  unauthorizedResponse,
+  badRequestResponse,
+} from "@/lib/server/bff-helpers";
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { personaId: string } },
 ): Promise<NextResponse> {
-  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
-  if (!accessToken) {
-    return NextResponse.json({ message: "No autenticado." }, { status: 401 });
-  }
+  const accessToken = extractAccessToken(request);
+  if (!accessToken) return unauthorizedResponse();
 
   const personaId = Number(params.personaId);
   if (Number.isNaN(personaId)) {
-    return NextResponse.json(
-      { message: "personaId debe ser un número válido." },
-      { status: 400 },
-    );
+    return badRequestResponse("personaId debe ser un número válido.");
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
+  const [controller, done] = backendTimeout();
   try {
     const response = await fetch(
-      `${getBackendApiUrl()}/ranking/seleccion-oficial/${encodeURIComponent(String(personaId))}`,
+      backendUrl(`/ranking/seleccion-oficial/${encodeURIComponent(String(personaId))}`),
       {
         method: "DELETE",
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -41,32 +42,17 @@ export async function DELETE(
     );
 
     if (!response.ok) {
-      let data: unknown = null;
-      try {
-        data = await response.json();
-      } catch {
-        // no body
-      }
-      const message =
-        typeof data === "object" && data !== null && typeof (data as Record<string, unknown>).message === "string"
-          ? (data as { message: string }).message
-          : `El servidor respondió con un error (${response.status}).`;
-      return NextResponse.json({ message }, { status: response.status });
+      const data = await parseJsonResponse(response);
+      return NextResponse.json(
+        { message: extractBackendErrorMessage(data, response.status) },
+        { status: response.status },
+      );
     }
 
     return new NextResponse(null, { status: 204 });
   } catch (error: unknown) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      return NextResponse.json(
-        { message: "La solicitud al servidor tardó demasiado." },
-        { status: 504 },
-      );
-    }
-    return NextResponse.json(
-      { message: "No se pudo contactar al servidor." },
-      { status: 503 },
-    );
+    return handleProxyError(error);
   } finally {
-    clearTimeout(timeoutId);
+    done();
   }
 }

@@ -13,7 +13,7 @@
  * Connected to the real backend (Fase 4): `GET /api/ranking/niveles` (list),
  * `GET /api/members` (student roster + current group, flattened) and two
  * mutation routes, `POST /api/groups/assign` and `PATCH
- * /api/groups/move` — see src/app/ranking/ranking-page-utils.ts for the
+ * /api/groups/move` — see src/app/groups/groups-page-utils.ts for the
  * `NivelRanking → Grupo` adapter.
  *
  * Two real backend gaps affect this page (do not work around either —
@@ -61,7 +61,7 @@ import {
 import type { EvaluarJustificativoDTO, NivelConOcupacion } from "@/services/api";
 import type { Justificativo } from "@/types/domain";
 import { getUnassignedStudents, getLevelLabel, type StudentRef, type GroupCardData } from "@/lib/groups-utils";
-import { buildGroupCardsFromNiveles, getLevelBadgeClass, getCapacityBarColor } from "./ranking-page-utils";
+import { buildGroupCardsFromNiveles, getLevelBadgeClass, getCapacityBarColor } from "@/app/groups/groups-page-utils";
 
 interface LevelBadgeProps {
   level: string;

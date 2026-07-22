@@ -6,9 +6,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { ACCESS_TOKEN_COOKIE, getBackendApiUrl } from "@/lib/server/auth";
-
-const BACKEND_TIMEOUT_MS = 10_000;
+import {
+  extractAccessToken,
+  parseJsonBody,
+  parseJsonResponse,
+  extractBackendErrorMessage,
+  handleProxyError,
+  backendTimeout,
+  backendUrl,
+  unauthorizedResponse,
+  badRequestResponse,
+} from "@/lib/server/bff-helpers";
 
 interface CrearHorarioBody {
   dia_semana?: unknown;
@@ -19,20 +27,11 @@ interface CrearHorarioBody {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
-  if (!accessToken) {
-    return NextResponse.json({ message: "No autenticado." }, { status: 401 });
-  }
+  const accessToken = extractAccessToken(request);
+  if (!accessToken) return unauthorizedResponse();
 
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    return NextResponse.json(
-      { message: "JSON inválido en el cuerpo de la solicitud." },
-      { status: 400 },
-    );
-  }
+  const [rawBody, bodyError] = await parseJsonBody(request);
+  if (bodyError) return bodyError;
 
   const body = rawBody as CrearHorarioBody;
   if (
@@ -41,16 +40,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     typeof body.hora_fin !== "string" ||
     typeof body.entrenador_id !== "number"
   ) {
-    return NextResponse.json(
-      { message: "dia_semana, hora_inicio, hora_fin y entrenador_id son obligatorios." },
-      { status: 400 },
-    );
+    return badRequestResponse("dia_semana, hora_inicio, hora_fin y entrenador_id son obligatorios.");
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
+  const [controller, done] = backendTimeout();
   try {
-    const response = await fetch(`${getBackendApiUrl()}/asistencias/horarios`, {
+    const response = await fetch(backendUrl("/asistencias/horarios"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -66,34 +61,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       signal: controller.signal,
     });
 
-    let data: unknown = null;
-    try {
-      data = await response.json();
-    } catch {
-      // no body
-    }
+    const data = await parseJsonResponse(response);
 
     if (!response.ok) {
-      const message =
-        typeof data === "object" && data !== null && typeof (data as Record<string, unknown>).message === "string"
-          ? (data as { message: string }).message
-          : `El servidor respondió con un error (${response.status}).`;
-      return NextResponse.json({ message }, { status: response.status });
+      return NextResponse.json(
+        { message: extractBackendErrorMessage(data, response.status) },
+        { status: response.status },
+      );
     }
 
     return NextResponse.json(data, { status: 201 });
   } catch (error: unknown) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      return NextResponse.json(
-        { message: "La solicitud al servidor tardó demasiado." },
-        { status: 504 },
-      );
-    }
-    return NextResponse.json(
-      { message: "No se pudo contactar al servidor." },
-      { status: 503 },
-    );
+    return handleProxyError(error);
   } finally {
-    clearTimeout(timeoutId);
+    done();
   }
 }

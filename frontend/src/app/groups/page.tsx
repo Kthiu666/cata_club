@@ -98,7 +98,6 @@ export default function GroupsPage(): React.ReactElement {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const [currentPage, setCurrentPage] = useState(1);
   const [notification, setNotification] = useState<{
     type: "success" | "error";
     message: string;
@@ -265,8 +264,6 @@ export default function GroupsPage(): React.ReactElement {
       setDeletingId(null);
     }
   }
-
-  const entrenadores = allStudents.length > 0 ? [] : [];
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
