@@ -1191,3 +1191,58 @@ export async function fetchJustificativosDePersona(personaId: string): Promise<J
     headers: mockHeaders,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Asignación directa Alumno ↔ Horario
+// ---------------------------------------------------------------------------
+
+export interface AlumnoHorario {
+  id: number;
+  persona_id: number;
+  persona_nombre_completo: string;
+  horario_id: number;
+  horario_dia: string;
+  horario_hora_inicio: string;
+  horario_hora_fin: string;
+  fecha_asignacion: string;
+}
+
+export interface AsignarAlumnoHorarioDTO {
+  persona_id: number;
+  horario_id: number;
+}
+
+/** Assign a student directly to a schedule. */
+export async function asignarAlumnoAHorario(data: AsignarAlumnoHorarioDTO): Promise<AlumnoHorario> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<AlumnoHorario>(apiEndpoint("/asistencias/asignar-alumno"), {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: mockHeaders,
+  });
+}
+
+/** Unassign a student from a schedule. */
+export async function desasignarAlumnoDeHorario(personaId: number, horarioId: number): Promise<void> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  await request<unknown>(
+    apiEndpoint(`/asistencias/desasignar-alumno?persona_id=${personaId}&horario_id=${horarioId}`),
+    { method: "DELETE", headers: mockHeaders },
+  );
+}
+
+/** List all students assigned to a specific schedule. */
+export async function fetchAlumnosPorHorario(horarioId: number): Promise<AlumnoHorario[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<AlumnoHorario[]>(apiEndpoint(`/asistencias/horarios/${horarioId}/alumnos`), {
+    headers: mockHeaders,
+  });
+}
+
+/** List all schedules assigned to a specific student. */
+export async function fetchHorariosPorAlumno(personaId: number): Promise<AlumnoHorario[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<AlumnoHorario[]>(apiEndpoint(`/asistencias/alumnos/${personaId}/horarios`), {
+    headers: mockHeaders,
+  });
+}
