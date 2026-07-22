@@ -34,11 +34,12 @@ vi.mock("@/components/auth/AuthShell", () => ({
 }));
 
 const mockShowError = vi.fn();
+const mockShowSuccess = vi.fn();
 vi.mock("@/contexts/ToastContext", () => ({
   useToast: () => ({
     showToast: vi.fn(),
     showError: mockShowError,
-    showSuccess: vi.fn(),
+    showSuccess: mockShowSuccess,
   }),
 }));
 
@@ -51,6 +52,7 @@ import {
   createUnauthenticatedAuth,
   createAuthenticatedAuth,
   createLoadingAuth,
+  createMockSession,
 } from "@/components/__tests__/test-utils";
 
 const mockUseAuth = vi.mocked(useAuth);
@@ -71,6 +73,7 @@ describe("LoginPage", () => {
     mockReplace.mockReset();
     mockUseAuth.mockReset();
     mockShowError.mockReset();
+    mockShowSuccess.mockReset();
   });
 
   it("shows the loading state, never the form, while session is hydrating", () => {
@@ -158,6 +161,25 @@ describe("LoginPage", () => {
         );
       });
       expect(document.querySelector(".alert-error")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("successful submission", () => {
+    it("shows an 'Inicio de sesión exitoso' toast and redirects to the role's default route", async () => {
+      const session = createMockSession();
+      const mockLogin = vi.fn().mockResolvedValue({ ok: true, session });
+      mockUseAuth.mockReturnValue({
+        ...createUnauthenticatedAuth(false),
+        login: mockLogin,
+      });
+
+      render(<LoginPage />);
+      submitLoginForm();
+
+      await waitFor(() => {
+        expect(mockShowSuccess).toHaveBeenCalledWith("Inicio de sesión exitoso");
+      });
+      expect(mockReplace).toHaveBeenCalledWith("/dashboard");
     });
   });
 });
