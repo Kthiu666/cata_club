@@ -43,6 +43,7 @@ class UsuarioMeResponseDTO(ResponseBase, BaseModel):
     roles: List[str]
     telefono: str
     fecha_creacion: datetime
+    foto_url: Optional[str] = None
 
 
 class LogoutResponseDTO(ResponseBase, BaseModel):
@@ -66,11 +67,21 @@ class ActualizarPerfilPropioResponseDTO(ResponseBase, BaseModel):
     roles: List[str]
     telefono: str
     fecha_creacion: datetime
+    foto_url: Optional[str] = None
     access_token: Optional[str] = None
     """Presente SOLO si `correo` cambió (el `sub` del JWT es el correo; sin
     reemisión, el access token vigente del usuario dejaría de resolver a su
     cuenta en el próximo request)."""
     refresh_token: Optional[str] = None
+
+
+# --- Foto de perfil (self-service, POST /auth/me/foto) -----------------------
+# Reutiliza el mismo shape que ActualizarPerfilPropioResponseDTO (correo,
+# persona_id, nombres, apellidos, roles, telefono, fecha_creacion, foto_url):
+# la subida de foto nunca cambia el correo, así que access_token/refresh_token
+# quedan siempre en None aquí, pero se mantienen para uniformidad de
+# respuesta con el resto del perfil propio.
+ActualizarFotoPerfilResponseDTO = ActualizarPerfilPropioResponseDTO
 
 
 # --- E01-RF003: recuperación de contraseña ----------------------------------
