@@ -215,6 +215,28 @@ describe("MembersPage — Editar member modal", () => {
     expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it('reconciles local state when the backend reports "no tiene el rol" on unassign', async () => {
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    const dialog = screen.getByRole("dialog");
+    const adminCheckbox = within(dialog).getByRole("checkbox", { name: /admin/i });
+
+    // First click assigns (default mockAsignarRol success) so the checkbox
+    // is checked before we exercise the removal-reconciliation branch.
+    fireEvent.click(adminCheckbox);
+    await waitFor(() => expect(adminCheckbox).toBeChecked());
+
+    mockQuitarRol.mockRejectedValueOnce(new Error("Esta persona no tiene el rol ADMINISTRADOR"));
+    fireEvent.click(adminCheckbox);
+
+    await waitFor(() => {
+      expect(adminCheckbox).not.toBeChecked();
+    });
+    expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("toggling the account activo/inactivo state inside the modal calls cambiarEstadoCuenta", async () => {
     render(<MembersPage />);
     const row = await findAccountRow();
@@ -237,6 +259,32 @@ describe("MembersPage — Editar member modal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^cerrar$/i }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("returns focus to the Editar button when the modal closes", async () => {
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    const editButton = within(row).getByRole("button", { name: /^editar$/i });
+    fireEvent.click(editButton);
+    fireEvent.click(screen.getByRole("button", { name: /^cerrar$/i }));
+
+    expect(document.activeElement).toBe(editButton);
+  });
+
+  it("does not carry a stale error into a freshly reopened modal", async () => {
+    mockAsignarRol.mockRejectedValueOnce(new Error("Error de red"));
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /admin/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Error de red");
+
+    fireEvent.click(screen.getByRole("button", { name: /^cerrar$/i }));
+    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("closes the modal when clicking the backdrop", async () => {

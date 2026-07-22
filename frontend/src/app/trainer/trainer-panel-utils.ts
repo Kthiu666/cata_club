@@ -18,9 +18,19 @@ export interface RecentDateRange {
   fechaFin: string;
 }
 
-/** "YYYY-MM-DD" for a given Date — same UTC-slice convention already used by `todayIsoDate` on this page. */
+/**
+ * "YYYY-MM-DD" for a given Date, using LOCAL date components (not
+ * `toISOString`, which is UTC-based). `recentDateRange` below computes
+ * `start` via local `setDate`/`getDate` arithmetic — formatting that result
+ * through a UTC conversion would silently shift the range by a day for any
+ * non-UTC timezone. Matches `currentPeriodo()`'s local-component convention
+ * in `src/app/trainer/ranking/ranking-utils.ts`.
+ */
 function toIsoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 /**

@@ -14,7 +14,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
@@ -786,18 +786,48 @@ function AccountRow({
     }
   }
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const editTriggerRef = useRef<HTMLButtonElement>(null);
+
+  // Focus trap (mirrors ConfirmDialog.tsx's convention, generalized to an
+  // arbitrary number of focusable elements since this dialog has a variable
+  // set of role checkboxes): clear any stale error from a previous session,
+  // focus the close button on open, Tab/Shift+Tab cycles every focusable
+  // element inside the dialog, Escape closes, focus returns to the
+  // triggering "Editar" button on close.
   useEffect(() => {
     if (!editModalOpen) return;
+
+    setRoleError(null);
+    setStateError(null);
+    closeButtonRef.current?.focus();
 
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.key === "Escape") {
         onToggleEditModal();
+        return;
       }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusable.length === 0) return;
+
+      event.preventDefault();
+      const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
+      const nextIndex = (currentIndex + (event.shiftKey ? -1 : 1) + focusable.length) % focusable.length;
+      focusable[nextIndex].focus();
     }
 
     document.addEventListener("keydown", handleKeyDown);
+    const triggerElement = editTriggerRef.current;
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      triggerElement?.focus();
     };
   }, [editModalOpen, onToggleEditModal]);
 
@@ -873,6 +903,7 @@ function AccountRow({
               {statusBadge.label}
             </span>
             <button
+              ref={editTriggerRef}
               type="button"
               onClick={onToggleEditModal}
               className="inline-flex items-center gap-1 rounded-lg border border-cata-border p-1.5 text-cata-text/50 transition-colors hover:bg-cata-red/10 hover:text-cata-red"
@@ -895,6 +926,7 @@ function AccountRow({
             onClick={onToggleEditModal}
           >
             <div
+              ref={dialogRef}
               role="dialog"
               aria-modal="true"
               aria-labelledby={`edit-member-title-${account.id}`}
@@ -909,6 +941,7 @@ function AccountRow({
                   Editar miembro
                 </h2>
                 <button
+                  ref={closeButtonRef}
                   type="button"
                   onClick={onToggleEditModal}
                   aria-label="Cerrar"
