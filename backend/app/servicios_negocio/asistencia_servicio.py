@@ -5,7 +5,7 @@ from app.dominio.enums import TipoRol
 from app.dominio.excepciones import EntidadNoEncontrada, OperacionInvalida
 from app.infraestructura.repositorios.persona_repositorio import PersonaRepositorio
 from app.infraestructura.repositorios.asistencia_repositorio import AsistenciaRepositorio, HorarioRepositorio
-from app.presentacion.schemas.asistencia_schemas import AsistenciaCreateDTO, HorarioCreateDTO
+from app.presentacion.schemas.asistencia_schemas import AsistenciaCreateDTO, HorarioCreateDTO, HorarioUpdateDTO
 
 
 class AsistenciaServicio:
@@ -37,6 +37,27 @@ class AsistenciaServicio:
 
     def listar_horarios(self) -> list[HorarioEntrenamiento]:
         return self.repo_horario.listar()
+
+    def actualizar_horario(self, horario_id: int, datos: HorarioUpdateDTO) -> HorarioEntrenamiento:
+        horario = self.repo_horario.obtener_por_id(horario_id)
+        if not horario:
+            raise EntidadNoEncontrada(f"Horario con id {horario_id} no encontrado")
+        update_data = datos.model_dump(exclude_unset=True)
+        if not update_data:
+            raise OperacionInvalida("No se proporcionaron campos para actualizar")
+        if "entrenador_id" in update_data:
+            self._validar_entrenador(update_data["entrenador_id"])
+        for key, value in update_data.items():
+            setattr(horario, key, value)
+        if horario.hora_inicio >= horario.hora_fin:
+            raise OperacionInvalida("La hora de inicio debe ser anterior a la hora de fin")
+        return self.repo_horario.actualizar(horario)
+
+    def eliminar_horario(self, horario_id: int) -> None:
+        horario = self.repo_horario.obtener_por_id(horario_id)
+        if not horario:
+            raise EntidadNoEncontrada(f"Horario con id {horario_id} no encontrado")
+        self.repo_horario.eliminar(horario)
 
     def registrar_asistencia(self, datos: AsistenciaCreateDTO) -> Asistencia:
         """entrenador_id se recibe explícito en cada registro (no se copia

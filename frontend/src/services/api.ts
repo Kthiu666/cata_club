@@ -474,6 +474,72 @@ export async function registerAttendance(data: RegisterAttendanceRequest): Promi
 }
 
 // ---------------------------------------------------------------------------
+// Horarios (Training Schedules) CRUD
+// ---------------------------------------------------------------------------
+
+export interface Horario {
+  id: number;
+  diaSemana: string;
+  horaInicio: string;
+  horaFin: string;
+  entrenadorId: number;
+  nivelRankingId: number | null;
+}
+
+export interface CrearHorarioDTO {
+  dia_semana: string;
+  hora_inicio: string;
+  hora_fin: string;
+  entrenador_id: number;
+  nivel_ranking_id?: number | null;
+}
+
+export interface ActualizarHorarioDTO {
+  dia_semana?: string;
+  hora_inicio?: string;
+  hora_fin?: string;
+  entrenador_id?: number;
+  nivel_ranking_id?: number | null;
+}
+
+/** Fetch all training schedules. */
+export async function fetchHorarios(): Promise<Horario[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<Horario[]>(apiEndpoint("/asistencias/horarios"), {
+    headers: mockHeaders,
+  });
+}
+
+/** Create a new training schedule. */
+export async function crearHorario(data: CrearHorarioDTO): Promise<Horario> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<Horario>(apiEndpoint("/asistencias/horarios"), {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: mockHeaders,
+  });
+}
+
+/** Update an existing training schedule. */
+export async function actualizarHorario(id: number, data: ActualizarHorarioDTO): Promise<Horario> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<Horario>(apiEndpoint(`/asistencias/horarios/${id}`), {
+    method: "PUT",
+    body: JSON.stringify(data),
+    headers: mockHeaders,
+  });
+}
+
+/** Delete a training schedule. */
+export async function eliminarHorario(id: number): Promise<void> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  await request<unknown>(apiEndpoint(`/asistencias/horarios/${id}`), {
+    method: "DELETE",
+    headers: mockHeaders,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Members & Groups API Methods (Fase 4)
 // ---------------------------------------------------------------------------
 

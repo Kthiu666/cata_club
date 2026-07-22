@@ -5,7 +5,7 @@ from datetime import date
 
 from app.infraestructura.db import obtener_sesion
 from app.presentacion.schemas.asistencia_schemas import (
-    AsistenciaCreateDTO, AsistenciaResponseDTO, HorarioCreateDTO, HorarioResponseDTO,
+    AsistenciaCreateDTO, AsistenciaResponseDTO, HorarioCreateDTO, HorarioUpdateDTO, HorarioResponseDTO,
 )
 from app.seguridad.gestor_auth import GestorAutenticacion
 from app.servicios_negocio.asistencia_servicio import AsistenciaServicio
@@ -18,6 +18,18 @@ router = APIRouter(prefix="/asistencias", tags=["Asistencias"])
              dependencies=[Depends(GestorPermisos(["ADMINISTRADOR", "ENTRENADOR"]))])
 async def crear_horario(datos: HorarioCreateDTO, db: Session = Depends(obtener_sesion)):
     return AsistenciaServicio(db).crear_horario(datos)
+
+
+@router.put("/horarios/{horario_id}", response_model=HorarioResponseDTO,
+             dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))])
+async def actualizar_horario(horario_id: int, datos: HorarioUpdateDTO, db: Session = Depends(obtener_sesion)):
+    return AsistenciaServicio(db).actualizar_horario(horario_id, datos)
+
+
+@router.delete("/horarios/{horario_id}", status_code=status.HTTP_204_NO_CONTENT,
+               dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))])
+async def eliminar_horario(horario_id: int, db: Session = Depends(obtener_sesion)):
+    AsistenciaServicio(db).eliminar_horario(horario_id)
 
 
 # Listado de horarios: lectura para cualquier autenticado (no anónimo).

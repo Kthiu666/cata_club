@@ -11,6 +11,15 @@ class HorarioCreateDTO(BaseModel):
     hora_inicio: time
     hora_fin: time
     entrenador_id: int
+    nivel_ranking_id: Optional[int] = None
+
+
+class HorarioUpdateDTO(BaseModel):
+    dia_semana: Optional[DiaSemana] = None
+    hora_inicio: Optional[time] = None
+    hora_fin: Optional[time] = None
+    entrenador_id: Optional[int] = None
+    nivel_ranking_id: Optional[int] = None
 
 
 class HorarioResponseDTO(ResponseBase, HorarioCreateDTO):

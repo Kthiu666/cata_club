@@ -25,6 +25,15 @@ class HorarioRepositorio:
         self.db.refresh(horario)
         return horario
 
+    def actualizar(self, horario: HorarioEntrenamiento) -> HorarioEntrenamiento:
+        self.db.commit()
+        self.db.refresh(horario)
+        return horario
+
+    def eliminar(self, horario: HorarioEntrenamiento) -> None:
+        self.db.delete(horario)
+        self.db.commit()
+
 
 class AsistenciaRepositorio:
     def __init__(self, db: Session):
