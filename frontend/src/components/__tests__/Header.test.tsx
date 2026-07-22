@@ -135,6 +135,8 @@ describe("Header", (): void => {
   it.each([
     "/dashboard",
     "/members",
+    "/ranking",
+    "/ranking/seleccion-oficial",
     "/groups",
     "/payments",
     "/attendance",
