@@ -29,6 +29,8 @@ import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ContextualHelp from "@/components/ContextualHelp";
+import Pagination from "@/components/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Calendar,
@@ -119,6 +121,10 @@ export default function TrainerAttendancePage(): React.ReactElement {
   const [rosterError, setRosterError] = useState<string | null>(null);
 
   const [students, setStudents] = useState<SessionStudent[]>([]);
+  // Roster is raw component state (not a derived/filtered array), so no
+  // useMemo is needed to keep its reference stable across unrelated
+  // re-renders — see usePagination's reset-on-reference-change contract.
+  const rosterPagination = usePagination({ records: students });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -419,46 +425,57 @@ export default function TrainerAttendancePage(): React.ReactElement {
           </div>
         ) : (
           <div className="space-y-2">
-            {students.map((student, idx) => (
-              <div
-                key={student.id}
-                className="card-hover flex items-center justify-between gap-3 p-4"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cata-red/15">
-                    <UserCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            {rosterPagination.currentItems.map((student) => {
+              // Attendance handlers need the student's index in the full
+              // (unpaginated) `students` array, not its index within the
+              // current page's slice.
+              const idx = students.findIndex((s) => s.id === student.id);
+              return (
+                <div
+                  key={student.id}
+                  className="card-hover flex items-center justify-between gap-3 p-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cata-red/15">
+                      <UserCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                    </div>
+                    <span className="text-sm font-medium text-cata-text">
+                      {student.name}
+                    </span>
                   </div>
-                  <span className="text-sm font-medium text-cata-text">
-                    {student.name}
-                  </span>
-                </div>
 
-                <fieldset>
-                  <legend className="sr-only">Estado de asistencia de {student.name}</legend>
-                  <div className="grid grid-cols-2 gap-1 sm:flex">
-                    {ATTENDANCE_STATES.map((state) => {
-                      const isActive = student.attendance === state;
-                      return (
-                        <button
-                          key={state}
-                          type="button"
-                          onClick={() => handleDirectAttendanceSet(idx, state)}
-                          aria-pressed={isActive}
-                          className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
-                            isActive
-                              ? `border-current/20 ${getAttendanceBadgeTokens(state).badgeClass}`
-                              : "border-transparent text-cata-text/45 hover:border-cata-border hover:text-cata-text/65"
-                          }`}
-                        >
-                          {ATTENDANCE_ICONS[state]}
-                          <span>{ATTENDANCE_LABELS[state]}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-              </div>
-            ))}
+                  <fieldset>
+                    <legend className="sr-only">Estado de asistencia de {student.name}</legend>
+                    <div className="grid grid-cols-2 gap-1 sm:flex">
+                      {ATTENDANCE_STATES.map((state) => {
+                        const isActive = student.attendance === state;
+                        return (
+                          <button
+                            key={state}
+                            type="button"
+                            onClick={() => handleDirectAttendanceSet(idx, state)}
+                            aria-pressed={isActive}
+                            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
+                              isActive
+                                ? `border-current/20 ${getAttendanceBadgeTokens(state).badgeClass}`
+                                : "border-transparent text-cata-text/45 hover:border-cata-border hover:text-cata-text/65"
+                            }`}
+                          >
+                            {ATTENDANCE_ICONS[state]}
+                            <span>{ATTENDANCE_LABELS[state]}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                </div>
+              );
+            })}
+            <Pagination
+              page={rosterPagination.page}
+              totalPages={rosterPagination.totalPages}
+              onPageChange={rosterPagination.setPage}
+            />
           </div>
         )}
 

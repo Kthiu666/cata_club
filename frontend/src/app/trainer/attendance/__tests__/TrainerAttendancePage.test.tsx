@@ -169,3 +169,57 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
     expect(help).toHaveTextContent("no modifica la validación ni el significado actual");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Roster pagination (Issue #41) — the "mark attendance" step's student list
+// (attendance-utils.ts row #12, spec appendix line 422).
+// ---------------------------------------------------------------------------
+
+const ROSTER_15 = Array.from({ length: 15 }, (_, i) => ({
+  personaId: i + 1,
+  personaNombreCompleto: `Estudiante ${i + 1}`,
+  posicionActual: i + 1,
+  puntajeAcumulado: 0,
+  estaEnRanking: true,
+}));
+
+describe("TrainerAttendancePage — roster pagination (Issue #41)", () => {
+  beforeEach(() => {
+    mockReplace.mockReset();
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    mockFetchTrainingSchedules.mockResolvedValue([
+      { id: 12, diaSemana: "lunes", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+    ]);
+    mockFetchNivelesConOcupacion.mockResolvedValue([
+      { id: 4, numeroNivel: 2, nombre: "Intermedio", nivelCategoria: "intermedio", personasActuales: 15 },
+    ]);
+    mockFetchNivelRoster.mockResolvedValue(ROSTER_15);
+    mockRegisterAttendance.mockReset();
+  });
+
+  it("renders only 10 roster students initially and shows pagination controls", async () => {
+    render(<TrainerAttendancePage />);
+    fireEvent.click(await screen.findByRole("button", { name: /lunes/i }));
+    fireEvent.click(screen.getByRole("button", { name: /intermedio/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(await screen.findByText("Estudiante 1")).toBeInTheDocument();
+    expect(screen.queryByText("Estudiante 11")).not.toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 2")).toBeInTheDocument();
+  });
+
+  it("advances the roster to the next page and persists across an unrelated re-render", async () => {
+    const { rerender } = render(<TrainerAttendancePage />);
+    fireEvent.click(await screen.findByRole("button", { name: /lunes/i }));
+    fireEvent.click(screen.getByRole("button", { name: /intermedio/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    await screen.findByText("Estudiante 1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Página siguiente" }));
+    expect(await screen.findByText("Estudiante 11")).toBeInTheDocument();
+
+    rerender(<TrainerAttendancePage />);
+    expect(screen.getByText("Estudiante 11")).toBeInTheDocument();
+    expect(screen.queryByText("Estudiante 1")).not.toBeInTheDocument();
+  });
+});

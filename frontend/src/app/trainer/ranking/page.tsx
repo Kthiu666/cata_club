@@ -22,9 +22,11 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import Pagination from "@/components/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Trophy,
@@ -108,7 +110,12 @@ export default function RankingPage(): React.ReactElement {
     void loadData();
   }, [loadData]);
 
-  const students = buildRankingStudents(members);
+  // `buildRankingStudents` derives a brand-new array from `members` on every
+  // call — without useMemo it would get a fresh reference on every
+  // RankingPage re-render (tab switch, a registered resultado, a closed
+  // month), silently resetting AsignarNivelTab's and ResultadosMensualesTab's
+  // usePagination to page 1 on unrelated re-renders (Issue #41 gotcha).
+  const students = useMemo(() => buildRankingStudents(members), [members]);
 
   return (
     <ProtectedRoute allowedRoles={["trainer"]}>
@@ -211,6 +218,7 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successId, setSuccessId] = useState<string | null>(null);
+  const pagination = usePagination({ records: students });
 
   async function handleAssign(estudianteId: string): Promise<void> {
     const nivelId = drafts[estudianteId];
@@ -272,7 +280,7 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
               </tr>
             </thead>
             <tbody className="divide-y divide-cata-border">
-              {students.map((student) => (
+              {pagination.currentItems.map((student) => (
                 <tr key={student.id}>
                   <td className="px-4 py-3">
                     <span className="font-medium text-cata-text">
@@ -327,6 +335,13 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
               ))}
             </tbody>
           </table>
+          <div className="px-5 pb-4">
+            <Pagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              onPageChange={pagination.setPage}
+            />
+          </div>
         </div>
       )}
     </div>
@@ -358,6 +373,8 @@ function ResultadosMensualesTab({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const estudiantePagination = usePagination({ records: students });
+  const resultadosPagination = usePagination({ records: resultados });
 
   async function handleSubmit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -434,21 +451,31 @@ function ResultadosMensualesTab({
         )}
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="block text-sm">
-            <span className="mb-1 block text-xs font-medium text-cata-text/65">Estudiante</span>
-            <select
-              className="input-field"
-              value={estudianteId}
-              onChange={(e) => setEstudianteId(e.target.value)}
-            >
-              <option value="">Seleccionar...</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nombres} {s.apellidos}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="block text-sm">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-cata-text/65">Estudiante</span>
+              <select
+                className="input-field"
+                value={estudianteId}
+                onChange={(e) => setEstudianteId(e.target.value)}
+              >
+                <option value="">Seleccionar...</option>
+                {estudiantePagination.currentItems.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombres} {s.apellidos}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {/* Kept outside the <label> — nesting it inside would fold the
+                Pagination control's own text ("Página X de Y", "Siguiente")
+                into the <select>'s implicit accessible name. */}
+            <Pagination
+              page={estudiantePagination.page}
+              totalPages={estudiantePagination.totalPages}
+              onPageChange={estudiantePagination.setPage}
+            />
+          </div>
 
           <label className="block text-sm">
             <span className="mb-1 block text-xs font-medium text-cata-text/65">Período</span>
@@ -521,7 +548,7 @@ function ResultadosMensualesTab({
                 </tr>
               </thead>
               <tbody className="divide-y divide-cata-border">
-                {resultados.map((r) => (
+                {resultadosPagination.currentItems.map((r) => (
                   <tr key={r.id}>
                     <td className="px-4 py-3 font-medium text-cata-text">
                       {studentDisplayName(students, r.personaId)}
@@ -538,6 +565,13 @@ function ResultadosMensualesTab({
                 ))}
               </tbody>
             </table>
+            <div className="px-5 pb-4">
+              <Pagination
+                page={resultadosPagination.page}
+                totalPages={resultadosPagination.totalPages}
+                onPageChange={resultadosPagination.setPage}
+              />
+            </div>
           </div>
         )}
       </div>
@@ -564,6 +598,7 @@ function CierreMesTab({ niveles, cierres, cerradoPorNombre, onClosed }: CierreMe
   const [closing, setClosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const pagination = usePagination({ records: cierres });
 
   function handleRequestClose(): void {
     setSuccessMessage(null);
@@ -700,7 +735,7 @@ function CierreMesTab({ niveles, cierres, cerradoPorNombre, onClosed }: CierreMe
                 </tr>
               </thead>
               <tbody className="divide-y divide-cata-border">
-                {cierres.map((c, i) => (
+                {pagination.currentItems.map((c, i) => (
                   <tr key={`${c.nivelRankingId}-${c.anio}-${c.mes}-${i}`}>
                     <td className="px-4 py-3 font-medium text-cata-text">
                       {nivelLabel(niveles, c.nivelRankingId)}
@@ -715,6 +750,13 @@ function CierreMesTab({ niveles, cierres, cerradoPorNombre, onClosed }: CierreMe
                 ))}
               </tbody>
             </table>
+            <div className="px-5 pb-4">
+              <Pagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                onPageChange={pagination.setPage}
+              />
+            </div>
           </div>
         )}
       </div>
