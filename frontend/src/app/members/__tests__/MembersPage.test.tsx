@@ -1,9 +1,11 @@
 /**
- * Component tests for MembersPage — Roles popover replacing 4 always-visible
- * pill buttons per account row (PR5, design decision #11).
- * Covers: a single "Roles" trigger opens a popover of 4 checkable role rows,
- * and toggling a role in the popover fires the same asignarRol/quitarRol
- * calls the old buttons fired.
+ * Component tests for MembersPage — Editar member modal replacing the inline
+ * Roles popover + activo/inactivo toggle button in each account row.
+ * Covers: a single "Editar" trigger per row opens a floating modal dialog
+ * (role="dialog") with the same role checkboxes and activo toggle, closeable
+ * via the X button, backdrop click, and Escape; only one modal can be open
+ * at a time; and the same asignarRol/quitarRol/cambiarEstadoCuenta calls and
+ * "ya tiene el rol" reconciliation the old inline popover fired.
  *
  * @vitest-environment jsdom
  */
@@ -62,6 +64,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 const mockFetchMembers = vi.fn();
 const mockAsignarRol = vi.fn();
 const mockQuitarRol = vi.fn();
+const mockCambiarEstadoCuenta = vi.fn();
 const mockFetchNotificaciones = vi.fn().mockResolvedValue([]);
 const mockMarcarNotificacionLeida = vi.fn().mockResolvedValue(undefined);
 
@@ -78,7 +81,7 @@ vi.mock("@/services/api", () => {
     fetchMembers: () => mockFetchMembers(),
     asignarRol: (personaId: number, tipoRol: string) => mockAsignarRol(personaId, tipoRol),
     quitarRol: (personaId: number, tipoRol: string) => mockQuitarRol(personaId, tipoRol),
-    cambiarEstadoCuenta: vi.fn(),
+    cambiarEstadoCuenta: (personaId: number, activo: boolean) => mockCambiarEstadoCuenta(personaId, activo),
     fetchFichaMedica: vi.fn(),
     actualizarFichaMedica: vi.fn(),
     fetchTiposMembresia: vi.fn().mockResolvedValue([]),
@@ -120,43 +123,60 @@ async function findAccountRow(): Promise<HTMLElement> {
   return (await screen.findByText("María González")).closest("tr") as HTMLElement;
 }
 
-describe("MembersPage — Roles popover", () => {
+describe("MembersPage — Editar member modal", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();
     mockAsignarRol.mockReset();
     mockQuitarRol.mockReset();
+    mockCambiarEstadoCuenta.mockReset();
     mockFetchMembers.mockResolvedValue({ accounts: [ACCOUNT], niveles: [] });
     mockAsignarRol.mockResolvedValue({ roles: ["ADMINISTRADOR"] });
     mockQuitarRol.mockResolvedValue({ roles: [] });
+    mockCambiarEstadoCuenta.mockResolvedValue({ activo: false });
   });
 
-  it("renders a single Roles trigger per account row instead of 4 always-visible pill buttons", async () => {
+  it("renders a single Editar trigger per account row instead of inline role/status controls", async () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    expect(within(row).getByRole("button", { name: /^roles$/i })).toBeInTheDocument();
-    expect(within(row).queryByRole("button", { name: /^admin$/i })).not.toBeInTheDocument();
-    expect(within(row).queryByRole("button", { name: /^entrenador$/i })).not.toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: /^editar$/i })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: /^roles$/i })).not.toBeInTheDocument();
+    expect(within(row).queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("opens a popover of 4 checkable role rows when the Roles trigger is clicked", async () => {
+  it("opens a floating modal dialog with 4 checkable role rows when Editar is clicked", async () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    fireEvent.click(within(row).getByRole("button", { name: /^roles$/i }));
+    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
 
-    expect(within(row).getByRole("checkbox", { name: /admin/i })).toBeInTheDocument();
-    expect(within(row).getByRole("checkbox", { name: /entrenador/i })).toBeInTheDocument();
-    expect(within(row).getByRole("checkbox", { name: /representante/i })).toBeInTheDocument();
-    expect(within(row).getByRole("checkbox", { name: /alumno/i })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(within(dialog).getByRole("checkbox", { name: /admin/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole("checkbox", { name: /entrenador/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole("checkbox", { name: /representante/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole("checkbox", { name: /alumno/i })).toBeInTheDocument();
   });
 
-  it("selecting a role in the popover fires asignarRol, same as the old buttons", async () => {
+  it("shows the member's read-only name and telefono inside the modal", async () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    fireEvent.click(within(row).getByRole("button", { name: /^roles$/i }));
-    fireEvent.click(within(row).getByRole("checkbox", { name: /admin/i }));
+    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("María González");
+    expect(dialog).toHaveTextContent("0999999999");
+  });
+
+  it("selecting a role in the modal fires asignarRol, same as the old popover", async () => {
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /admin/i }));
 
     await waitFor(() => {
       expect(mockAsignarRol).toHaveBeenCalledWith(1, "ADMINISTRADOR");
@@ -167,8 +187,9 @@ describe("MembersPage — Roles popover", () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    fireEvent.click(within(row).getByRole("button", { name: /^roles$/i }));
-    const adminCheckbox = within(row).getByRole("checkbox", { name: /admin/i });
+    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    const dialog = screen.getByRole("dialog");
+    const adminCheckbox = within(dialog).getByRole("checkbox", { name: /admin/i });
 
     fireEvent.click(adminCheckbox);
     await waitFor(() => expect(mockAsignarRol).toHaveBeenCalledWith(1, "ADMINISTRADOR"));
@@ -177,6 +198,129 @@ describe("MembersPage — Roles popover", () => {
     await waitFor(() => {
       expect(mockQuitarRol).toHaveBeenCalledWith(1, "ADMINISTRADOR");
     });
+  });
+
+  it('reconciles local state when the backend reports "ya tiene el rol" on assign', async () => {
+    mockAsignarRol.mockRejectedValueOnce(new Error("Esta persona ya tiene el rol ADMINISTRADOR"));
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /admin/i }));
+
+    await waitFor(() => {
+      expect(within(dialog).getByRole("checkbox", { name: /admin/i })).toBeChecked();
+    });
+    expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it('reconciles local state when the backend reports "no tiene el rol" on unassign', async () => {
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    const dialog = screen.getByRole("dialog");
+    const adminCheckbox = within(dialog).getByRole("checkbox", { name: /admin/i });
+
+    // First click assigns (default mockAsignarRol success) so the checkbox
+    // is checked before we exercise the removal-reconciliation branch.
+    fireEvent.click(adminCheckbox);
+    await waitFor(() => expect(adminCheckbox).toBeChecked());
+
+    mockQuitarRol.mockRejectedValueOnce(new Error("Esta persona no tiene el rol ADMINISTRADOR"));
+    fireEvent.click(adminCheckbox);
+
+    await waitFor(() => {
+      expect(adminCheckbox).not.toBeChecked();
+    });
+    expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("toggling the account activo/inactivo state inside the modal calls cambiarEstadoCuenta", async () => {
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /^activa$/i }));
+
+    await waitFor(() => {
+      expect(mockCambiarEstadoCuenta).toHaveBeenCalledWith(1, false);
+    });
+  });
+
+  it("closes the modal when the close (X) button is clicked", async () => {
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^cerrar$/i }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("returns focus to the Editar button when the modal closes", async () => {
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    const editButton = within(row).getByRole("button", { name: /^editar$/i });
+    fireEvent.click(editButton);
+    fireEvent.click(screen.getByRole("button", { name: /^cerrar$/i }));
+
+    expect(document.activeElement).toBe(editButton);
+  });
+
+  it("does not carry a stale error into a freshly reopened modal", async () => {
+    mockAsignarRol.mockRejectedValueOnce(new Error("Error de red"));
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /admin/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Error de red");
+
+    fireEvent.click(screen.getByRole("button", { name: /^cerrar$/i }));
+    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("closes the modal when clicking the backdrop", async () => {
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(screen.getByRole("dialog"));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("closes the modal on Escape", async () => {
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opening a second row's modal closes any previously open modal (only one at a time)", async () => {
+    mockFetchMembers.mockResolvedValue({ accounts: createAccounts(2), niveles: [] });
+    render(<MembersPage />);
+
+    const row1 = (await screen.findByText("Responsable 1 González")).closest("tr") as HTMLElement;
+    const row2 = screen.getByText("Responsable 2 González").closest("tr") as HTMLElement;
+
+    fireEvent.click(within(row1).getByRole("button", { name: /^editar$/i }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Responsable 1");
+
+    fireEvent.click(within(row2).getByRole("button", { name: /^editar$/i }));
+    const dialogs = screen.getAllByRole("dialog");
+    expect(dialogs).toHaveLength(1);
+    expect(dialogs[0]).toHaveTextContent("Responsable 2");
   });
 });
 

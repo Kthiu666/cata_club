@@ -35,8 +35,10 @@ import {
   XCircle,
   AlertTriangle,
   Plus,
+  Search,
+  GraduationCap,
 } from "lucide-react";
-import type { ResultadoMensual, CierreMensual } from "@/types/domain";
+import type { ResultadoMensual, CierreMensual, NivelTecnico } from "@/types/domain";
 import {
   fetchMembers,
   assignStudentToNivel,
@@ -47,6 +49,9 @@ import {
   type NivelConOcupacion,
 } from "@/services/api";
 import { isValidPeriodo, currentPeriodo, parsePeriodo, buildRankingStudents } from "./ranking-utils";
+import { filterStudentsByQuery, resolveNivelCategoria } from "../trainer-panel-utils";
+import { getLevelLabel } from "@/lib/groups-utils";
+import { getLevelBadgeClass } from "@/app/groups/groups-page-utils";
 
 type TabKey = "asignar" | "resultados" | "cierre";
 
@@ -73,6 +78,29 @@ function studentDisplayName(
 /** Local-only pairing of a closure with who triggered it — the backend response has no such field. */
 interface CierreConAutor extends CierreMensual {
   cerradoPor: string;
+}
+
+interface LevelBadgeProps {
+  level: string;
+}
+
+/**
+ * Color-coded "nivel actual" badge for the AsignarNivelTab table — a
+ * trivial adaptation of the admin Ranking page's `LevelBadge`
+ * (src/app/ranking/page.tsx), reusing the SAME `LEVEL_BADGE` color/class
+ * convention (src/app/groups/groups-page-utils.ts) instead of a second,
+ * drifting color mapping. Not imported directly: the admin page's
+ * `LevelBadge` is a local, unexported component.
+ */
+function LevelBadge({ level }: Readonly<LevelBadgeProps>): React.ReactElement {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getLevelBadgeClass(level)}`}
+    >
+      <GraduationCap size={10} strokeWidth={2} className="mr-1" aria-hidden="true" />
+      {getLevelLabel(level as NivelTecnico)}
+    </span>
+  );
 }
 
 export default function RankingPage(): React.ReactElement {
@@ -211,6 +239,9 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successId, setSuccessId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+
+  const filteredStudents = filterStudentsByQuery(students, query);
 
   async function handleAssign(estudianteId: string): Promise<void> {
     const nivelId = drafts[estudianteId];
@@ -238,29 +269,29 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
     }
   }
 
-  return (
-    <div className="card overflow-hidden">
-      <div className="flex items-center gap-2 border-b border-cata-border px-5 py-4">
-        <Users size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-        <h2 className="text-sm font-bold text-cata-text">Estudiantes ({students.length})</h2>
+  let tableSection: React.ReactElement;
+  if (loading) {
+    tableSection = (
+      <div className="flex flex-col items-center py-12 text-center">
+        <p className="text-sm text-cata-text/50">Cargando estudiantes…</p>
       </div>
-
-      {error && (
-        <div className="alert-error mx-5 mt-4" role="alert">
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <div className="flex flex-col items-center py-12 text-center">
-          <p className="text-sm text-cata-text/50">Cargando estudiantes…</p>
-        </div>
-      ) : students.length === 0 ? (
-        <div className="flex flex-col items-center py-12 text-center">
-          <Users size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
-          <p className="text-sm text-cata-text/50">No hay estudiantes registrados.</p>
-        </div>
-      ) : (
+    );
+  } else if (students.length === 0) {
+    tableSection = (
+      <div className="flex flex-col items-center py-12 text-center">
+        <Users size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
+        <p className="text-sm text-cata-text/50">No hay estudiantes registrados.</p>
+      </div>
+    );
+  } else if (filteredStudents.length === 0) {
+    tableSection = (
+      <div className="flex flex-col items-center py-12 text-center">
+        <Search size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
+        <p className="text-sm text-cata-text/50">Ningún estudiante coincide con la búsqueda.</p>
+      </div>
+    );
+  } else {
+    tableSection = (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
@@ -272,7 +303,22 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
               </tr>
             </thead>
             <tbody className="divide-y divide-cata-border">
-              {students.map((student) => (
+              {filteredStudents.map((student) => {
+                const nivelCategoria = resolveNivelCategoria(student.nivelRankingId, niveles);
+
+                let assignButtonLabel: React.ReactNode = "Asignar";
+                if (savingId === student.id) {
+                  assignButtonLabel = "Guardando...";
+                } else if (successId === student.id) {
+                  assignButtonLabel = (
+                    <>
+                      <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
+                      Asignado
+                    </>
+                  );
+                }
+
+                return (
                 <tr key={student.id}>
                   <td className="px-4 py-3">
                     <span className="font-medium text-cata-text">
@@ -285,7 +331,11 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
                     )}
                   </td>
                   <td className="px-4 py-3 text-cata-text/65">
-                    {nivelLabel(niveles, student.nivelRankingId)}
+                    {nivelCategoria ? (
+                      <LevelBadge level={nivelCategoria} />
+                    ) : (
+                      nivelLabel(niveles, student.nivelRankingId)
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <select
@@ -311,24 +361,50 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
                       onClick={() => handleAssign(student.id)}
                       className="btn-secondary py-1.5 text-xs"
                     >
-                      {savingId === student.id ? (
-                        "Guardando..."
-                      ) : successId === student.id ? (
-                        <>
-                          <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
-                          Asignado
-                        </>
-                      ) : (
-                        "Asignar"
-                      )}
+                      {assignButtonLabel}
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
+    );
+  }
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-cata-border px-5 py-4">
+        <div className="flex items-center gap-2">
+          <Users size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+          <h2 className="text-sm font-bold text-cata-text">Estudiantes ({filteredStudents.length})</h2>
+        </div>
+        <div className="relative w-full max-w-xs">
+          <Search
+            size={14}
+            strokeWidth={1.5}
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
+            aria-hidden="true"
+          />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar alumno..."
+            className="input-field pl-9"
+            aria-label="Buscar alumno"
+          />
+        </div>
+      </div>
+
+      {error && (
+        <div className="alert-error mx-5 mt-4" role="alert">
+          {error}
+        </div>
       )}
+
+      {tableSection}
     </div>
   );
 }
