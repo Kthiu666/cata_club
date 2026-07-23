@@ -235,6 +235,7 @@ const APP_SHELL_ROUTES = new Set([
   "/reports",
   "/clases-extra",
   "/student",
+  "/profile",
 ]);
 
 export default function Header({ hideOnLanding = false }: HeaderProps): React.ReactElement | null {
