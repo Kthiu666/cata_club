@@ -9,18 +9,20 @@ from app.presentacion.schemas.base import ResponseBase
 class HorarioCreateDTO(BaseModel):
     """`hora_inicio`/`hora_fin` NO son campos de entrada: el servicio los
     deriva server-side de `CATEGORIA_METADATA[categoria]` para que el
-    contrato nunca pueda desviarse de los 5 horarios fijos de negocio."""
+    contrato nunca pueda desviarse de los 5 horarios fijos de negocio.
+
+    El nivel de ranking NO vive en el horario: horario y nivel son
+    independientes (un alumno puede trained en cualquier horario sin que
+    medie su nivel, y el nivel se asigna por `Ranking.nivel_ranking_id`)."""
     categoria: Categoria
     dia_semana: DiaSemana
     entrenador_id: int
-    nivel_ranking_id: Optional[int] = None
 
 
 class HorarioUpdateDTO(BaseModel):
     categoria: Optional[Categoria] = None
     dia_semana: Optional[DiaSemana] = None
     entrenador_id: Optional[int] = None
-    nivel_ranking_id: Optional[int] = None
 
 
 class HorarioResponseDTO(ResponseBase, HorarioCreateDTO):
