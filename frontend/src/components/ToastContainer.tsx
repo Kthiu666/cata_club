@@ -14,12 +14,16 @@ import { useToastState, type ToastItem } from "@/contexts/ToastContext";
 const VARIANT_CLASSES: Record<ToastItem["variant"], string> = {
   error: "toast-error",
   success: "toast-success",
+  info: "toast-info",
+  warning: "toast-warning",
 };
 
-// Screen-reader role per variant: errors interrupt (alert), success confirms (status).
+// Screen-reader role per variant: errors interrupt (alert), success/info confirm (status), warning interrupts (alert).
 const VARIANT_ROLES: Record<ToastItem["variant"], "alert" | "status"> = {
   error: "alert",
   success: "status",
+  info: "status",
+  warning: "alert",
 };
 
 export default function ToastContainer(): React.ReactElement | null {

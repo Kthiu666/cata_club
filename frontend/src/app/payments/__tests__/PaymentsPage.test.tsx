@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import PaymentsPage from "@/app/payments/page";
 import type { PaymentValidationRequest } from "@/services/api";
+import { ToastProvider } from "@/contexts/ToastContext";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -84,7 +85,7 @@ const PENDING_REQUEST: PaymentValidationRequest = {
 };
 
 async function renderAndSelectPending(): Promise<void> {
-  render(<PaymentsPage />);
+  render(<ToastProvider><PaymentsPage /></ToastProvider>);
   await waitFor(() => {
     expect(screen.getByText("Juan Pérez")).toBeInTheDocument();
   });

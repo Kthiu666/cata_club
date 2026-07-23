@@ -147,10 +147,11 @@ describe("getNavLinksForRole", () => {
 
   it("returns trainer links including Ranking", () => {
     const links = getNavLinksForRole("trainer");
-    expect(links).toHaveLength(3);
+    expect(links).toHaveLength(4);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
     expect(links[1]).toEqual({ href: "/trainer", label: "Entrenador" });
     expect(links[2]).toEqual({ href: "/trainer/ranking", label: "Ranking" });
+    expect(links[3]).toEqual({ href: "/trainer/attendance/history", label: "Historial Asistencia" });
   });
 
   it("returns only Inicio for unsupported (no role-specific nav)", () => {

@@ -46,6 +46,7 @@ import type {
 } from "@/services/api";
 import { fetchPaymentValidations, updatePaymentValidation } from "@/services/api";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format-utils";
+import { useToast } from "@/contexts/ToastContext";
 
 type FilterKey = "all" | "pendiente" | "validado" | "rechazado";
 
@@ -75,6 +76,7 @@ const validationStatusStyles: Record<ValidationStatus, string> = {
 };
 
 export default function PaymentsPage(): React.ReactElement {
+  const { showError } = useToast();
   const [requests, setRequests] = useState<PaymentValidationRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +108,10 @@ export default function PaymentsPage(): React.ReactElement {
   useEffect(() => {
     loadRequests();
   }, [loadRequests]);
+
+  useEffect(() => {
+    if (actionError) showError(actionError);
+  }, [actionError, showError]);
 
   const filtered =
     activeFilter === "all"
@@ -621,12 +627,6 @@ export default function PaymentsPage(): React.ReactElement {
                       <ShieldCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                       <h2 className="text-base font-semibold text-cata-text">Acción de Validación</h2>
                     </div>
-
-                    {actionError && (
-                      <div className="alert-error mb-4" role="alert">
-                        {actionError}
-                      </div>
-                    )}
 
                     {!showRejectForm ? (
                       <div className="space-y-3">

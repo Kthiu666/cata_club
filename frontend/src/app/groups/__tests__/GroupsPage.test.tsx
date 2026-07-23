@@ -15,6 +15,7 @@ import GroupsPage from "@/app/groups/page";
 import type { NivelConOcupacion } from "@/services/api";
 import type { Justificativo } from "@/types/domain";
 import type { MemberAccount } from "@/app/members/members-utils";
+import { ToastProvider } from "@/contexts/ToastContext";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -170,7 +171,7 @@ describe.skip("GroupsPage — unassigned dropdown assign (MOVED to RankingPage �
   });
 
   it("renders one dropdown + Asignar button per unassigned student, not one button per nivel", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     const row = await findUnassignedRow();
 
     const select = within(row).getByRole("combobox");
@@ -183,7 +184,7 @@ describe.skip("GroupsPage — unassigned dropdown assign (MOVED to RankingPage �
   });
 
   it("fires handleAssignStudent's mutation with the nivel picked from the dropdown", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     const row = await findUnassignedRow();
 
     const select = within(row).getByRole("combobox");
@@ -196,7 +197,7 @@ describe.skip("GroupsPage — unassigned dropdown assign (MOVED to RankingPage �
   });
 
   it("disables the Asignar button until a nivel is picked", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     const row = await findUnassignedRow();
 
     const assignButton = within(row).getByRole("button", { name: /asignar/i });
@@ -221,7 +222,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("opens a confirmation dialog on Aprobar without mutating yet", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^aprobar$/i }));
@@ -231,7 +232,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("evaluates as APROBADO only after the confirm control is activated", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^aprobar$/i }));
@@ -243,7 +244,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("reveals an inline reason input on Rechazar instead of a plain confirm dialog", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
@@ -254,7 +255,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("cancels the reject form without mutating", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
@@ -265,7 +266,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("shows a client-side error and does not call evaluarJustificativo when submitting an empty reason", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
@@ -276,7 +277,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("calls evaluarJustificativo with the trimmed motivoRechazo when a reason is typed and submitted", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
@@ -303,7 +304,7 @@ describe("GroupsPage — Selección Oficial extracted to its own route (PR9)", (
   });
 
   it("no longer renders the Selección Oficial section inline", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     // Scoped to <main> — the sidebar nav link text ("Selección Oficial",

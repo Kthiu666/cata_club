@@ -276,7 +276,12 @@ async def listar_mis_notificaciones(
     db: Session = Depends(obtener_sesion),
     token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
 ):
-    return NotificacionServicio(db).listar_propias(token_payload.get("persona_id"))
+    persona_id = token_payload.get("persona_id")
+    roles = token_payload.get("roles", [])
+    servicio = NotificacionServicio(db)
+    if "REPRESENTANTE" in roles:
+        return servicio.listar_para_persona_y_hijos(persona_id)
+    return servicio.listar_propias(persona_id)
 
 
 @router.patch(

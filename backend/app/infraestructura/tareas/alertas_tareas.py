@@ -95,19 +95,42 @@ def alertar_vencimientos_hoy_mas_5(self) -> dict:
 def _disparar_notificacion_vencimiento(
     persona: Persona, membresia: Membresia, pago: Pago, vence: date
 ) -> None:
-    """
-    Simula el disparo de una notificación. En producción se reemplaza por una
-    llamada a `ServicioNotificaciones` (infraestructura/SMTP, WhatsApp, push),
-    inyectado aquí (DI) — por ahora dejamos un log estructurado que es la
-    'simulación' pedida por el enunciado.
-    """
-    logger.info(
-        "[NOTIFICAR_VENCIMIENTO] "
-        "persona_id=%s cedula=%s telefono=%s "
-        "membresia_id=%s vence=%s",
-        persona.id,
-        persona.cedula,
-        persona.telefono,
-        membresia.id,
-        vence.isoformat(),
-    )
+    """Crea notificaciones in-app para el alumno (y su representante si existe),
+    y envía un correo electrónico real si SMTP está configurado."""
+    from app.dominio.modelos import Notificacion
+    from app.dominio.enums import TipoNotificacion
+
+    with SessionLocal() as db:
+        notif_alumno = Notificacion(
+            tipo=TipoNotificacion.MIEMBRESIA_VENCIMIENTO_PROXIMO,
+            mensaje=f"Tu membresía vence el {vence.strftime('%d/%m/%Y')}.",
+            persona_id=persona.id,
+        )
+        db.add(notif_alumno)
+
+        if persona.representante_id:
+            notif_rep = Notificacion(
+                tipo=TipoNotificacion.MIEMBRESIA_VENCIMIENTO_PROXIMO,
+                mensaje=f"La membresía de {persona.nombres} {persona.apellidos} vence el {vence.strftime('%d/%m/%Y')}.",
+                persona_id=persona.representante_id,
+            )
+            db.add(notif_rep)
+
+        db.commit()
+
+    try:
+        from app.infraestructura.notificaciones_servicio import ServicioNotificaciones
+        svc = ServicioNotificaciones()
+        svc.enviar_correo(
+            destinatario=persona.usuario.correo,
+            asunto="Vencimiento de membresía - Cata Club",
+            cuerpo_texto=(
+                f"Hola {persona.nombres},\n\n"
+                f"Tu membresía vence el {vence.strftime('%d/%m/%Y')}. "
+                f"Por favor, regulariza tu pago para evitar la suspensión de beneficios."
+            ),
+        )
+    except RuntimeError:
+        logger.warning(
+            "SMTP no configurado — email no enviado para persona_id=%s", persona.id
+        )

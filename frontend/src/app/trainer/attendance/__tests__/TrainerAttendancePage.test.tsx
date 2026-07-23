@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import TrainerAttendancePage from "@/app/trainer/attendance/page";
 import { createAuthenticatedAuth } from "@/components/__tests__/test-utils";
+import { ToastProvider } from "@/contexts/ToastContext";
 
 const mockReplace = vi.fn();
 
@@ -70,7 +71,7 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
   ] as const)("grants access to role=%s instead of redirecting away", async (role, name) => {
     mockUseAuth.mockReturnValue(createAuthenticatedAuth(role, name));
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
 
     expect(await screen.findByText("Seleccione el horario de entrenamiento:")).toBeInTheDocument();
     expect(mockReplace).not.toHaveBeenCalled();
@@ -79,7 +80,7 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
   it("redirects a role with no attendance access (e.g. representante) away", async () => {
     mockUseAuth.mockReturnValue(createAuthenticatedAuth("representante", "Representante User"));
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
 
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/student"));
     expect(screen.queryByText("Seleccione el horario de entrenamiento:")).not.toBeInTheDocument();
@@ -97,7 +98,7 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
       { personaId: 9, personaNombreCompleto: "Ana López", posicionActual: 1, puntajeAcumulado: 20, estaEnRanking: true },
     ]);
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
 
     fireEvent.click(await screen.findByRole("button", { name: /lunes/i }));
     fireEvent.click(screen.getByRole("button", { name: /intermedio/i }));
@@ -129,7 +130,7 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
     ]);
     mockRegisterAttendance.mockResolvedValue({ createdCount: 1, failed: [] });
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
 
     fireEvent.click(await screen.findByRole("button", { name: /lunes/i }));
     fireEvent.click(screen.getByRole("button", { name: /intermedio/i }));
@@ -159,7 +160,7 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
       { personaId: 9, personaNombreCompleto: "Ana López", posicionActual: 1, puntajeAcumulado: 20, estaEnRanking: true },
     ]);
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
     fireEvent.click(await screen.findByRole("button", { name: /lunes/i }));
     fireEvent.click(screen.getByRole("button", { name: /intermedio/i }));
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));

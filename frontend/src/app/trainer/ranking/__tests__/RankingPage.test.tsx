@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import RankingPage from "@/app/trainer/ranking/page";
 import { createAuthenticatedAuth } from "@/components/__tests__/test-utils";
+import { ToastProvider } from "@/contexts/ToastContext";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -62,7 +63,7 @@ describe("RankingPage — AsignarNivelTab search + level-color badge", () => {
   });
 
   it("renders every student before searching", async () => {
-    render(<RankingPage />);
+    render(<ToastProvider><RankingPage /></ToastProvider>);
 
     expect(await screen.findByText("Ana López")).toBeInTheDocument();
     expect(screen.getByText("Carlos Martínez")).toBeInTheDocument();
@@ -70,7 +71,7 @@ describe("RankingPage — AsignarNivelTab search + level-color badge", () => {
   });
 
   it("filters the table by name (case-insensitive substring)", async () => {
-    render(<RankingPage />);
+    render(<ToastProvider><RankingPage /></ToastProvider>);
     await screen.findByText("Ana López");
 
     fireEvent.change(screen.getByPlaceholderText("Buscar alumno..."), { target: { value: "ana" } });
@@ -81,7 +82,7 @@ describe("RankingPage — AsignarNivelTab search + level-color badge", () => {
   });
 
   it("filters by a different substring, matching apellidos (triangulation)", async () => {
-    render(<RankingPage />);
+    render(<ToastProvider><RankingPage /></ToastProvider>);
     await screen.findByText("Ana López");
 
     fireEvent.change(screen.getByPlaceholderText("Buscar alumno..."), { target: { value: "núñez" } });
@@ -101,7 +102,7 @@ describe("RankingPage — AsignarNivelTab search + level-color badge", () => {
   }
 
   it("renders a principiante-colored badge for a student in nivel 1", async () => {
-    render(<RankingPage />);
+    render(<ToastProvider><RankingPage /></ToastProvider>);
     await screen.findByText("Ana López");
 
     const badge = within(nivelActualCell("Ana López")).getByText("Principiante");
@@ -110,7 +111,7 @@ describe("RankingPage — AsignarNivelTab search + level-color badge", () => {
   });
 
   it("renders an avanzado-colored badge for a student in nivel 2 (triangulation)", async () => {
-    render(<RankingPage />);
+    render(<ToastProvider><RankingPage /></ToastProvider>);
     await screen.findByText("Carlos Martínez");
 
     const badge = within(nivelActualCell("Carlos Martínez")).getByText("Avanzado");
@@ -120,7 +121,7 @@ describe("RankingPage — AsignarNivelTab search + level-color badge", () => {
 
   it("preserves the existing assign flow for an unassigned student", async () => {
     mockAssignStudentToNivel.mockResolvedValue(undefined);
-    render(<RankingPage />);
+    render(<ToastProvider><RankingPage /></ToastProvider>);
     await screen.findByText("Beatriz Núñez");
 
     const row = screen.getByText("Beatriz Núñez").closest("tr");
