@@ -45,11 +45,9 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
         { href: "/dashboard", label: "Administración" },
         { href: "/members", label: "Miembros" },
         { href: "/ranking", label: "Ranking" },
-        { href: "/ranking/seleccion-oficial", label: "Selección Oficial" },
         { href: "/groups", label: "Gestión de Horarios" },
         { href: "/payments", label: "Membresías y Pagos" },
         { href: "/attendance", label: "Horarios y Asistencia" },
-        { href: "/clases-extra", label: "Clases Extra" },
         { href: "/reports", label: "Reportes" },
       );
       break;

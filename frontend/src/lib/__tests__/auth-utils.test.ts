@@ -130,19 +130,17 @@ describe("getNavLinksForRole", () => {
     expect(links[1]).toEqual({ href: "/login", label: "Iniciar Sesión" });
   });
 
-  it("returns admin links including /groups, /members, /attendance, /clases-extra and Selección Oficial", () => {
+  it("returns admin links including /groups, /members and /attendance", () => {
     const links = getNavLinksForRole("admin");
-    expect(links).toHaveLength(10);
+    expect(links).toHaveLength(8);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
     expect(links[1]).toEqual({ href: "/dashboard", label: "Administración" });
     expect(links[2]).toEqual({ href: "/members", label: "Miembros" });
     expect(links[3]).toEqual({ href: "/ranking", label: "Ranking" });
-    expect(links[4]).toEqual({ href: "/ranking/seleccion-oficial", label: "Selección Oficial" });
-    expect(links[5]).toEqual({ href: "/groups", label: "Gestión de Horarios" });
-    expect(links[6]).toEqual({ href: "/payments", label: "Membresías y Pagos" });
-    expect(links[7]).toEqual({ href: "/attendance", label: "Horarios y Asistencia" });
-    expect(links[8]).toEqual({ href: "/clases-extra", label: "Clases Extra" });
-    expect(links[9]).toEqual({ href: "/reports", label: "Reportes" });
+    expect(links[4]).toEqual({ href: "/groups", label: "Gestión de Horarios" });
+    expect(links[5]).toEqual({ href: "/payments", label: "Membresías y Pagos" });
+    expect(links[6]).toEqual({ href: "/attendance", label: "Horarios y Asistencia" });
+    expect(links[7]).toEqual({ href: "/reports", label: "Reportes" });
   });
 
   it("returns trainer links including Dashboard, Asistencia, Historial and Nivel", () => {

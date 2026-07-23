@@ -22,8 +22,8 @@ vi.mock("@/services/api", () => ({
 function makeNotificacion(overrides: Partial<Notificacion> = {}): Notificacion {
   return {
     id: 1,
-    tipo: "JUSTIFICATIVO_APROBADO",
-    mensaje: "Tu justificativo de 7/2026 fue aprobado.",
+    tipo: "MIEMBRESIA_VENCIMIENTO_PROXIMO",
+    mensaje: "Tu membresía vence pronto.",
     leida: false,
     fechaCreacion: "2026-07-19T10:00:00Z",
     entidadRelacionadaId: 5,

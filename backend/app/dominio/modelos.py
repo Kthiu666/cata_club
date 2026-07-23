@@ -17,14 +17,14 @@ from typing import List, Optional
 
 from sqlalchemy import (
     String, ForeignKey, Numeric, DateTime, Date, Time, Boolean, Integer, Table, Column,
-    Enum as SAEnum, UniqueConstraint,
+    Enum as SAEnum,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from app.dominio.enums import (
     TipoRol, EstadoMembresia, TipoModalidad, EstadoPago,
     TipoPago, EstadoAsistencia, TipoEscuela, NivelTecnicoAlumno, TipoSangre, DiaSemana,
-    EstadoSolicitudExtra, EstadoJustificativoRanking, TipoNotificacion,
+    TipoNotificacion,
     TipoManoDominante, Categoria,
 )
 
@@ -195,15 +195,8 @@ class Persona(Base):
     )
     pagos: Mapped[List["Pago"]] = relationship(back_populates="persona")
     membresias: Mapped[List["Membresia"]] = relationship(back_populates="persona")
-    solicitudes_clase_extra: Mapped[List["SolicitudClaseExtra"]] = relationship(back_populates="persona")
     # 1..0..1 con Ranking: una persona puede o no tener fila de ranking.
     ranking: Mapped[Optional["Ranking"]] = relationship(back_populates="persona", uselist=False)
-    resultados_ranking_mensual: Mapped[List["ResultadoRankingMensual"]] = relationship(
-        back_populates="persona"
-    )
-    justificativos_ranking: Mapped[List["JustificativoRanking"]] = relationship(
-        back_populates="persona", foreign_keys="JustificativoRanking.persona_id"
-    )
     notificaciones: Mapped[List["Notificacion"]] = relationship(back_populates="persona")
 
     # Asignación directa a horarios
@@ -266,7 +259,6 @@ class Membresia(Base):
     # Asociación simple (NO composición): el historial de pagos debe sobrevivir
     # aunque la membresía cambie de estado o se elimine.
     pagos: Mapped[List["Pago"]] = relationship(back_populates="membresia")
-    solicitudes_clase_extra: Mapped[List["SolicitudClaseExtra"]] = relationship(back_populates="membresia")
 
 
 class Pago(Base):
@@ -339,9 +331,6 @@ class NivelRanking(Base):
     capacidad_maxima: Mapped[int] = mapped_column(default=10)
 
     rankings: Mapped[List["Ranking"]] = relationship(back_populates="nivel_ranking")
-    resultados_mensuales: Mapped[List["ResultadoRankingMensual"]] = relationship(
-        back_populates="nivel_ranking"
-    )
 
 
 class HorarioEntrenamiento(Base):
@@ -371,7 +360,6 @@ class HorarioEntrenamiento(Base):
     # nivel de cada alumno vive exclusivamente en `Ranking.nivel_ranking_id`.
     asistencias: Mapped[List["Asistencia"]] = relationship(back_populates="horario")
     alumno_horarios: Mapped[List["AlumnoHorario"]] = relationship(back_populates="horario")
-    solicitudes_clase_extra: Mapped[List["SolicitudClaseExtra"]] = relationship(back_populates="horario")
 
 
 class Asistencia(Base):
@@ -455,31 +443,6 @@ class Enfermedades(Base):
 
 
 # ---------------------------------------------------------------------------
-# Clases extra (solo aplica a membresías con modalidad PERSONALIZADA;
-# la regla se valida en servicios_negocio, no aquí)
-# ---------------------------------------------------------------------------
-class SolicitudClaseExtra(Base):
-    __tablename__ = "solicitud_clase_extra"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    fecha_clase_solicitada: Mapped[date] = mapped_column(Date)
-    estado: Mapped[EstadoSolicitudExtra] = mapped_column(
-        SAEnum(EstadoSolicitudExtra), default=EstadoSolicitudExtra.PENDIENTE
-    )
-    costo_adicional: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
-    fecha_solicitud: Mapped[datetime] = mapped_column(DateTime, default=_ahora_utc)
-    observaciones: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-
-    persona_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
-    persona: Mapped["Persona"] = relationship(back_populates="solicitudes_clase_extra")
-
-    membresia_id: Mapped[int] = mapped_column(ForeignKey("membresia.id"))
-    membresia: Mapped["Membresia"] = relationship(back_populates="solicitudes_clase_extra")
-
-    horario_id: Mapped[int] = mapped_column(ForeignKey(_HORARIO_FK))
-    horario: Mapped["HorarioEntrenamiento"] = relationship(back_populates="solicitudes_clase_extra")
-
-
-# ---------------------------------------------------------------------------
 # Ranking (E03)
 #
 # Regla E03 (actualizada — el comentario original de este bloque describía una
@@ -513,7 +476,7 @@ class Ranking(Base):
     # slice B2 de `limpieza-asistencia-y-nivel-entrenador`). Ya no se exponen
     # en TablaRankingItemDTO/PerfilRankingAlumnoDTO/AsignacionRankingResponseDTO;
     # siguen en el modelo solo porque RankingResponseDTO (asignar-nivel-inicial,
-    # mover-de-nivel, seleccion-oficial) todavía los declara.
+    # mover-de-nivel) todavía los declara.
     puntaje_acumulado: Mapped[int] = mapped_column(default=0)
     posicion_actual: Mapped[Optional[int]] = mapped_column(nullable=True)
 
@@ -529,89 +492,13 @@ class Ranking(Base):
     )
     nivel_ranking: Mapped[Optional["NivelRanking"]] = relationship(back_populates="rankings")
 
-    # --- E03-RF007: contador de meses consecutivos sin participar (sin
-    # justificativo aprobado). Se resetea a 0 apenas el alumno vuelve a
-    # participar o presenta un justificativo aprobado para el mes. El
-    # mecanismo que lo incrementaba y eliminaba al llegar a 2 (cierre mensual)
-    # ya no existe (removido en slice B2 de `limpieza-asistencia-y-nivel-
-    # entrenador`) -- hoy solo se resetea a 0, nunca se incrementa.
-    meses_consecutivos_ausente: Mapped[int] = mapped_column(default=0)
-
-    # --- E03-RF011: selección oficial de Cata Club para representar al club
-    # en torneos del año vigente.
-    seleccion_oficial: Mapped[bool] = mapped_column(Boolean, default=False)
-    anio_seleccion: Mapped[Optional[int]] = mapped_column(nullable=True)
-
     persona: Mapped["Persona"] = relationship(back_populates="ranking")
 
 
 # ---------------------------------------------------------------------------
-# Resultado mensual de ranking (E03-RF003/RF004/RF005/RF007)
-# Historial mes a mes: necesario para (a) no perder el detalle al recalcular
-# el ranking vigente, y (b) poder verificar "2 meses consecutivos" sin
-# depender únicamente de un contador (el contador en Ranking es una
-# optimización; este historial es la fuente de verdad auditable).
-# ---------------------------------------------------------------------------
-class ResultadoRankingMensual(Base):
-    __tablename__ = "resultado_ranking_mensual"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    anio: Mapped[int] = mapped_column()
-    mes: Mapped[int] = mapped_column()  # 1-12
-    posicion: Mapped[Optional[int]] = mapped_column(nullable=True)  # None si no participó
-    puntos_obtenidos: Mapped[int] = mapped_column(default=0)
-    participo: Mapped[bool] = mapped_column(Boolean, default=False)
-    ausencia_justificada: Mapped[bool] = mapped_column(Boolean, default=False)
-    fecha_registro: Mapped[datetime] = mapped_column(DateTime, default=_ahora_utc)
-
-    persona_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
-    persona: Mapped["Persona"] = relationship(back_populates="resultados_ranking_mensual")
-
-    nivel_ranking_id: Mapped[int] = mapped_column(ForeignKey("nivel_ranking.id"))
-    nivel_ranking: Mapped["NivelRanking"] = relationship(back_populates="resultados_mensuales")
-
-    __table_args__ = (
-        UniqueConstraint("persona_id", "anio", "mes", name="uq_resultado_ranking_persona_periodo"),
-    )
-
-
-# ---------------------------------------------------------------------------
-# Justificativo de inasistencia al ranking mensual (E03-RF006a/RF006b)
-# ---------------------------------------------------------------------------
-class JustificativoRanking(Base):
-    __tablename__ = "justificativo_ranking"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    anio: Mapped[int] = mapped_column()
-    mes: Mapped[int] = mapped_column()
-    motivo: Mapped[str] = mapped_column(String(255))
-    archivo_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    observaciones: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    estado: Mapped[EstadoJustificativoRanking] = mapped_column(
-        SAEnum(EstadoJustificativoRanking), default=EstadoJustificativoRanking.PENDIENTE
-    )
-    motivo_rechazo: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    fecha_solicitud: Mapped[datetime] = mapped_column(DateTime, default=_ahora_utc)
-    fecha_evaluacion: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-
-    persona_id: Mapped[int] = mapped_column(ForeignKey("persona.id"))
-    persona: Mapped["Persona"] = relationship(
-        back_populates="justificativos_ranking", foreign_keys=[persona_id]
-    )
-
-    # Quién evalúa (aprueba/rechaza): un ADMINISTRADOR, por RF006b.
-    evaluado_por_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("persona.id"), nullable=True
-    )
-    evaluado_por: Mapped[Optional["Persona"]] = relationship(foreign_keys=[evaluado_por_id])
-
-    __table_args__ = (
-        UniqueConstraint("persona_id", "anio", "mes", name="uq_justificativo_persona_periodo"),
-    )
-
-
-# ---------------------------------------------------------------------------
-# Notificación in-app (usada por E03-RF005/RF007/RF009 y por evaluación de
-# justificativos). Genérica a propósito: no se acopla solo a Ranking, para
-# poder reutilizarse en otros flujos del sistema a futuro.
+# Notificación in-app. Genérica a propósito: no se acopla a un único flujo,
+# para poder reutilizarse en otros procesos del sistema (ej. vencimiento de
+# membresía, ver `alertas_tareas.py`).
 # ---------------------------------------------------------------------------
 class Notificacion(Base):
     __tablename__ = "notificacion"

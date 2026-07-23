@@ -30,9 +30,7 @@ import {
   Users,
   Calendar,
   Trophy,
-  Award,
   FileText,
-  BookOpen,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNavLinksForRole, type NavLinkDef } from "@/lib/auth-utils";
@@ -61,7 +59,6 @@ export const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
   "/dashboard": LayoutDashboard,
   "/members": Users,
   "/ranking": Trophy,
-  "/ranking/seleccion-oficial": Award,
   "/groups": Users,
   "/payments": ShieldCheck,
   "/attendance": Calendar,
@@ -69,7 +66,6 @@ export const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
   "/trainer/attendance": Calendar,
   "/trainer/nivel": Trophy,
   "/reports": FileText,
-  "/clases-extra": BookOpen,
   "/student": GraduationCap,
 };
 
@@ -225,7 +221,6 @@ const APP_SHELL_ROUTES = new Set([
   "/dashboard",
   "/members",
   "/ranking",
-  "/ranking/seleccion-oficial",
   "/groups",
   "/payments",
   "/attendance",
@@ -233,7 +228,6 @@ const APP_SHELL_ROUTES = new Set([
   "/trainer/attendance",
   "/trainer/nivel",
   "/reports",
-  "/clases-extra",
   "/student",
 ]);
 

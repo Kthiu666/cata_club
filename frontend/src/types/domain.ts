@@ -235,7 +235,7 @@ export interface Horario {
 }
 
 // ---------------------------------------------------------------------------
-// Extra classes, roles and editable medical record (Grupo B)
+// Roles and editable medical record (Grupo B)
 // ---------------------------------------------------------------------------
 
 /** Backend blood-type enum values — matches TipoSangre in app/dominio/enums.py. */
@@ -252,46 +252,6 @@ export type TipoSangre =
 
 /** Backend role enum values as sent/received by the personas router. */
 export type BackendTipoRol = "ADMINISTRADOR" | "ENTRENADOR" | "REPRESENTANTE" | "ALUMNO";
-
-/** States of a personalized-membership extra-class request. */
-export type EstadoSolicitudExtra = "PENDIENTE" | "APROBADA" | "RECHAZADA";
-
-/**
- * Extra-class request — returned by the backend already camelCase.
- * Backend source: SolicitudClaseExtraResponseDTO.
- */
-export interface SolicitudClaseExtra {
-  id: number;
-  fechaClaseSolicitada: string;
-  estado: EstadoSolicitudExtra;
-  /** Decimal from backend serialized as string to preserve precision. */
-  costoAdicional: string | null;
-  fechaSolicitud: string;
-  observaciones: string | null;
-  personaId: number;
-  personaNombreCompleto?: string;
-  membresiaId: number;
-  horarioId: number;
-  horarioDiaSemana?: string;
-  horarioHoraInicio?: string;
-  horarioHoraFin?: string;
-}
-
-/** Payload to create an extra-class request (snake_case is sent to backend). */
-export interface SolicitudClaseExtraCreate {
-  fechaClaseSolicitada: string;
-  personaId: number;
-  membresiaId: number;
-  horarioId: number;
-  observaciones?: string;
-}
-
-/** Admin resolver payload for an extra-class request. */
-export interface SolicitudClaseExtraResolver {
-  estado: EstadoSolicitudExtra;
-  costoAdicional?: string;
-  observaciones?: string;
-}
 
 /** Response from the roles / account-state endpoints. */
 export interface RolesResponse {
@@ -411,55 +371,6 @@ export function getManagedAccounts(
   );
 }
 
-// ---------------------------------------------------------------------------
-// Ranking (Track Ranking) — competitive ranking system managed by trainers.
-//
-// `CategoriaRanking` is an intentionally SEPARATE 1–10 numeric taxonomy from
-// `NivelTecnico` above. `NivelTecnico` belongs to a Grupo (technical
-// level/horario placement); `CategoriaRanking` belongs to a student directly
-// and drives the competitive ranking ladder. Do not conflate the two — see
-// project notes on the 2026-07-18 domain clarification.
-// ---------------------------------------------------------------------------
-
-/**
- * A student's competitive ranking category, 1 (highest) through 10 (lowest)
- * — confirmed by the club as a plain numeric scale, unrelated to
- * `NivelTecnico`. Kept as a documented `number` rather than a `1|2|...|10`
- * literal union (no numeric-literal-union convention exists elsewhere in
- * this file); range (1–10, integer) is validated at the UI/BFF boundary,
- * not enforced by the type system.
- */
-export type CategoriaRanking = number;
-
-/**
- * A monthly ranking result registered for a student within a nivel
- * (Resultado Mensual) — mirrors the backend's `ResultadoMensualResponseDTO`
- * (persona_id, nivel_ranking_id, anio, mes, posicion, puntos_obtenidos,
- * participo, ausencia_justificada).
- */
-export interface ResultadoMensual {
-  id: number;
-  personaId: number;
-  nivelRankingId: number;
-  anio: number;
-  mes: number;
-  posicion: number | null;
-  puntosObtenidos: number;
-  participo: boolean;
-  ausenciaJustificada: boolean;
-}
-
-/**
- * An entry in the official-selection roster (Selección Oficial) —
- * admin-managed, independent of the trainer-managed monthly ranking flow.
- */
-export interface SeleccionOficial {
-  id: string;
-  estudianteId: string;
-  seleccionadoPor: string;
-  createdAt: string;
-}
-
 /**
  * Persona report entry — mirrors the camelCase output of PersonaResponseDTO
  * from the backend reportes endpoints (etiquetas & nuevos-por-periodo).
@@ -503,22 +414,18 @@ export interface PersonaBusqueda {
 }
 
 // ---------------------------------------------------------------------------
-// Ranking — Notificaciones & Justificativos (E03-RF006a/b + in-app
-// notifications). Mirrors backend/app/dominio/enums.py's
-// `TipoNotificacion`/`EstadoJustificativoRanking` and
-// ranking_schemas.py's `NotificacionResponseDTO`/`JustificativoResponseDTO`
-// — both confirmed live in ranking_router.py (GET/PATCH notificaciones,
-// POST/PATCH justificativos), not speculative.
+// In-app Notificaciones. Mirrors backend/app/dominio/enums.py's
+// `TipoNotificacion` and ranking_schemas.py's `NotificacionResponseDTO`
+// (still exposed via GET/PATCH `/ranking/notificaciones/*`, which now only
+// serves membership-expiration notices — the ranking-mensual and
+// justificativo notification types were removed with those features).
 // ---------------------------------------------------------------------------
 
 /** Notification type — mirrors backend's `TipoNotificacion` enum. */
-export type TipoNotificacion =
-  | "RANKING_REINGRESO_APROBADO"
-  | "JUSTIFICATIVO_APROBADO"
-  | "JUSTIFICATIVO_RECHAZADO";
+export type TipoNotificacion = "MIEMBRESIA_VENCIMIENTO_PROXIMO";
 
 /**
- * An in-app ranking notification (`GET /ranking/notificaciones/mias`) —
+ * An in-app notification (`GET /ranking/notificaciones/mias`) —
  * mirrors `NotificacionResponseDTO`, already camelCase via `ResponseBase`'s
  * alias_generator.
  */
@@ -529,29 +436,4 @@ export interface Notificacion {
   leida: boolean;
   fechaCreacion: string;
   entidadRelacionadaId: number | null;
-}
-
-/** Estado of a ranking justificativo — mirrors backend's `EstadoJustificativoRanking`. */
-export type EstadoJustificativoRanking = "PENDIENTE" | "APROBADO" | "RECHAZADO";
-
-/**
- * A justification for a missed ranking month (E03-RF006a/b) — mirrors
- * `JustificativoResponseDTO`. `motivoRechazo`/`fechaEvaluacion`/
- * `evaluadoPorId` are only populated once an admin evaluates it via
- * `PATCH /ranking/justificativos/:id/evaluar`, which returns this same DTO
- * (verified in ranking_router.py's `evaluar_justificativo`).
- */
-export interface Justificativo {
-  id: number;
-  personaId: number;
-  anio: number;
-  mes: number;
-  motivo: string;
-  archivoUrl: string | null;
-  observaciones: string | null;
-  estado: EstadoJustificativoRanking;
-  motivoRechazo: string | null;
-  fechaSolicitud: string;
-  fechaEvaluacion: string | null;
-  evaluadoPorId: number | null;
 }

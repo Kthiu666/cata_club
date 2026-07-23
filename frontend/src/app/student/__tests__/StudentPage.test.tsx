@@ -1,9 +1,6 @@
 /**
- * Component tests for StudentPage's Justificativos section — the student's
- * own justificativo history now fetches from the backend (`GET
- * /ranking/:personaId/justificativos`, E04-RF012 ampliado) instead of only
- * reflecting what was submitted during the current session, and a
- * RECHAZADO entry now surfaces its `motivoRechazo`.
+ * Component tests for StudentPage's Pagos section and unavailable-membership
+ * recovery state.
  *
  * Mirrors the mocking pattern established by PaymentsPage.test.tsx /
  * GroupsPage.test.tsx (ProtectedRoute, next/navigation, next/link,
@@ -16,7 +13,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import StudentPage from "@/app/student/page";
 import type { StudentPortalSummary, PagoPersona } from "@/services/api";
-import type { Justificativo } from "@/types/domain";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -63,21 +59,10 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 
 const mockFetchStudentPortal = vi.fn();
-const mockFetchMisMembresias = vi.fn();
-const mockFetchTrainingSchedules = vi.fn();
-const mockListarClasesExtra = vi.fn();
-const mockSubmitJustificativo = vi.fn();
-const mockFetchJustificativosDePersona = vi.fn();
 const mockFetchPagosDePersona = vi.fn();
 
 vi.mock("@/services/api", () => ({
   fetchStudentPortal: () => mockFetchStudentPortal(),
-  fetchMisMembresias: () => mockFetchMisMembresias(),
-  fetchTrainingSchedules: () => mockFetchTrainingSchedules(),
-  listarClasesExtra: () => mockListarClasesExtra(),
-  solicitarClaseExtra: vi.fn(),
-  submitJustificativo: (dto: unknown) => mockSubmitJustificativo(dto),
-  fetchJustificativosDePersona: (personaId: string) => mockFetchJustificativosDePersona(personaId),
   fetchPagosDePersona: (personaId: string) => mockFetchPagosDePersona(personaId),
 }));
 
@@ -93,36 +78,6 @@ const PORTAL: StudentPortalSummary = {
   representados: [],
   membershipPlans: [],
   memberships: [],
-};
-
-const RECHAZADO: Justificativo = {
-  id: 1,
-  personaId: 9,
-  anio: 2026,
-  mes: 6,
-  motivo: "Viaje familiar",
-  archivoUrl: null,
-  observaciones: null,
-  estado: "RECHAZADO",
-  motivoRechazo: "Comprobante ilegible",
-  fechaSolicitud: "2026-06-05T14:30:00Z",
-  fechaEvaluacion: "2026-06-10T09:00:00Z",
-  evaluadoPorId: 1,
-};
-
-const PENDIENTE: Justificativo = {
-  id: 2,
-  personaId: 9,
-  anio: 2026,
-  mes: 7,
-  motivo: "Certificado médico",
-  archivoUrl: null,
-  observaciones: null,
-  estado: "PENDIENTE",
-  motivoRechazo: null,
-  fechaSolicitud: "2026-07-05T14:30:00Z",
-  fechaEvaluacion: null,
-  evaluadoPorId: null,
 };
 
 const PAGO_RECHAZADO: PagoPersona = {
@@ -159,42 +114,7 @@ const PAGO_APROBADO: PagoPersona = {
 
 beforeEach(() => {
   mockFetchStudentPortal.mockReset().mockResolvedValue(PORTAL);
-  mockFetchMisMembresias.mockReset().mockResolvedValue([]);
-  mockFetchTrainingSchedules.mockReset().mockResolvedValue([]);
-  mockListarClasesExtra.mockReset().mockResolvedValue([]);
-  mockSubmitJustificativo.mockReset();
-  mockFetchJustificativosDePersona.mockReset().mockResolvedValue([]);
   mockFetchPagosDePersona.mockReset().mockResolvedValue([]);
-});
-
-describe("StudentPage — Justificativos section", () => {
-  it("fetches the persona's justificativo history from the service instead of only session state", async () => {
-    mockFetchJustificativosDePersona.mockResolvedValueOnce([RECHAZADO]);
-
-    render(<StudentPage />);
-
-    await waitFor(() => {
-      expect(mockFetchJustificativosDePersona).toHaveBeenCalledWith("9");
-    });
-    expect(await screen.findByText("Viaje familiar")).toBeInTheDocument();
-  });
-
-  it("shows the rejection reason for a RECHAZADO entry", async () => {
-    mockFetchJustificativosDePersona.mockResolvedValueOnce([RECHAZADO]);
-
-    render(<StudentPage />);
-
-    expect(await screen.findByText("Comprobante ilegible")).toBeInTheDocument();
-  });
-
-  it("does not show a rejection-reason block for a PENDIENTE entry", async () => {
-    mockFetchJustificativosDePersona.mockResolvedValueOnce([PENDIENTE]);
-
-    render(<StudentPage />);
-
-    await screen.findByText("Certificado médico");
-    expect(screen.queryByText(/motivo de rechazo/i)).not.toBeInTheDocument();
-  });
 });
 
 describe("StudentPage — Pagos section", () => {

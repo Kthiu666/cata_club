@@ -10,7 +10,6 @@ from app.presentacion.routers import (
     membresias_pagos_router,
     asistencias_router,
     ficha_medica_router,
-    clases_extra_router,
     geografia_router,
     ranking_router,
     enrollment_router,
@@ -74,7 +73,6 @@ app.include_router(personas_router.router, prefix="/api/v1")
 app.include_router(membresias_pagos_router.router, prefix="/api/v1")
 app.include_router(asistencias_router.router, prefix="/api/v1")
 app.include_router(ficha_medica_router.router, prefix="/api/v1")
-app.include_router(clases_extra_router.router, prefix="/api/v1")
 app.include_router(geografia_router.router, prefix="/api/v1")
 app.include_router(ranking_router.router, prefix="/api/v1")
 app.include_router(enrollment_router.router, prefix="/api/v1")

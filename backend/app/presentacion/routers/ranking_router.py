@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -11,17 +11,12 @@ from app.servicios_negocio.ranking_servicio import (
 from app.presentacion.schemas.ranking_schemas import (
     NivelRankingCreateDTO, NivelRankingResponseDTO, NivelRankingConOcupacionDTO,
     AsignarNivelInicialDTO, RankingResponseDTO, TablaRankingItemDTO,
-    ResultadoMensualRegistrarDTO, ResultadoMensualResponseDTO,
-    JustificativoCreateDTO, JustificativoEvaluarDTO, JustificativoResponseDTO,
-    ReingresoResponseDTO, SeleccionOficialDTO, SeleccionOficialItemDTO, PerfilRankingAlumnoDTO,
-    NotificacionResponseDTO, AsignacionRankingResponseDTO,
-    ResultadoMensualRankingResponseDTO,
+    PerfilRankingAlumnoDTO, NotificacionResponseDTO, AsignacionRankingResponseDTO,
 )
 
 router = APIRouter(prefix="/ranking", tags=["ranking"])
 
 ROL_ADMIN = ["ADMINISTRADOR"]
-ROL_ENTRENADOR = ["ENTRENADOR"]
 ROL_ADMIN_O_ENTRENADOR = ["ADMINISTRADOR", "ENTRENADOR"]
 
 
@@ -52,20 +47,6 @@ async def listar_asignaciones(db: Session = Depends(obtener_sesion)):
 
 
 @router.get(
-    "/resultados-mensuales", response_model=List[ResultadoMensualRankingResponseDTO],
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
-)
-async def listar_resultados_mensuales(
-    nivel_id: int | None = Query(default=None),
-    anio: int | None = Query(default=None),
-    mes: int | None = Query(default=None, ge=1, le=12),
-    db: Session = Depends(obtener_sesion),
-):
-    """Listado de resultados mensuales, filtrable por nivel, año y mes."""
-    return RankingServicio(db).listar_resultados_mensuales(nivel_id, anio, mes)
-
-
-@router.get(
     "/niveles/{nivel_id}/tabla", response_model=List[TablaRankingItemDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
@@ -91,122 +72,6 @@ async def mover_de_nivel(persona_id: int, nuevo_nivel_id: int, db: Session = Dep
     """Aplica manualmente un ascenso/descenso decidido por el
     Entrenador/Administrador."""
     return RankingServicio(db).mover_de_nivel(persona_id, nuevo_nivel_id)
-
-
-# --- Resultados mensuales (E03-RF003) ---------------------------------------
-@router.post(
-    "/resultados-mensuales", response_model=ResultadoMensualResponseDTO, status_code=201,
-    dependencies=[Depends(GestorPermisos(ROL_ENTRENADOR))],
-)
-async def registrar_resultado_mensual(
-    datos: ResultadoMensualRegistrarDTO, db: Session = Depends(obtener_sesion)
-):
-    return RankingServicio(db).registrar_resultado_mensual(datos)
-
-
-# --- Justificativos (E03-RF006a/RF006b) -------------------------------------
-@router.get(
-    "/justificativos/pendientes", response_model=List[JustificativoResponseDTO],
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
-)
-async def listar_justificativos_pendientes(db: Session = Depends(obtener_sesion)):
-    """Listado de justificativos pendientes de evaluación, para el panel de
-    revisión del administrador (E03-RF006b)."""
-    return RankingServicio(db).listar_justificativos_pendientes()
-
-
-@router.post(
-    "/{persona_id}/justificativos", response_model=JustificativoResponseDTO, status_code=201,
-    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
-)
-async def crear_justificativo(
-    persona_id: int,
-    datos: JustificativoCreateDTO,
-    db: Session = Depends(obtener_sesion),
-    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
-):
-    """Alumno o Representante. La autorización (dueño o representante) se
-    valida en el servicio, no aquí -- antes de la existencia, igual que en
-    el resto del sistema, para no filtrar existencia de recursos ajenos."""
-    return RankingServicio(db).crear_justificativo(
-        persona_id_solicitante=token_payload.get("persona_id"),
-        datos=datos,
-        persona_objetivo_id=persona_id,
-    )
-
-
-@router.get(
-    "/{persona_id}/justificativos", response_model=List[JustificativoResponseDTO],
-    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
-)
-async def listar_justificativos_de_persona(
-    persona_id: int,
-    db: Session = Depends(obtener_sesion),
-    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
-):
-    """Historial completo (cualquier estado, incluyendo RECHAZADO con su
-    motivo) de los justificativos de una persona. Alumno o Representante; la
-    autorización (dueño o representante) se valida en el servicio, igual que
-    en `crear_justificativo`."""
-    return RankingServicio(db).listar_justificativos_de_persona(
-        persona_id_solicitante=token_payload.get("persona_id"),
-        persona_id_objetivo=persona_id,
-    )
-
-
-@router.patch(
-    "/justificativos/{justificativo_id}/evaluar", response_model=JustificativoResponseDTO,
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
-)
-async def evaluar_justificativo(
-    justificativo_id: int, datos: JustificativoEvaluarDTO, db: Session = Depends(obtener_sesion)
-):
-    return RankingServicio(db).evaluar_justificativo(justificativo_id, datos)
-
-
-# --- Reingreso (E03-RF008) ---------------------------------------------------
-@router.post(
-    "/{persona_id}/reingresar", response_model=ReingresoResponseDTO,
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
-)
-async def reingresar(persona_id: int, db: Session = Depends(obtener_sesion)):
-    ranking = RankingServicio(db).reingresar(persona_id)
-    return ReingresoResponseDTO(
-        persona_id=persona_id,
-        nivel_ranking_id=ranking.nivel_ranking_id,
-        mensaje="Reingreso aplicado en el último nivel registrado",
-    )
-
-
-# --- Selección oficial (E03-RF011) ------------------------------------------
-@router.get(
-    "/seleccion-oficial", response_model=List[SeleccionOficialItemDTO],
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
-)
-async def listar_seleccion_oficial(
-    anio: int | None = Query(default=None),
-    db: Session = Depends(obtener_sesion),
-):
-    """Listar el roster actual de selección oficial, filtrable por año."""
-    return RankingServicio(db).listar_seleccion_oficial(anio)
-
-
-@router.post(
-    "/seleccion-oficial", response_model=List[RankingResponseDTO],
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
-)
-async def marcar_seleccion_oficial(datos: SeleccionOficialDTO, db: Session = Depends(obtener_sesion)):
-    return RankingServicio(db).marcar_seleccion_oficial(datos)
-
-
-@router.delete(
-    "/seleccion-oficial/{persona_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(GestorPermisos(ROL_ADMIN_O_ENTRENADOR))],
-)
-async def quitar_seleccion_oficial(persona_id: int, db: Session = Depends(obtener_sesion)):
-    """Quitar a una persona de la selección oficial."""
-    RankingServicio(db).quitar_seleccion_oficial(persona_id)
 
 
 # --- Perfil privado del alumno (E04-RF012) ----------------------------------

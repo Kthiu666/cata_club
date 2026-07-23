@@ -1,14 +1,15 @@
 /**
- * Ranking — Admin page for managing competitive ranking.
+ * Ranking — Admin page for managing training levels (Niveles).
  *
- * Displays all ranking levels (NivelRanking) with their technical level,
- * assigned students, and capacity. Shows unassigned students and lets an
- * admin assign/move students between levels. Includes reingreso
- * (reactivation) of inactive students and admin review of justificativos.
+ * Displays all ranking levels (NivelRanking — the "Grupo"/technical-level
+ * concept, NOT the competitive ranking mensual/selección oficial features,
+ * both removed) with their technical level, assigned students, and
+ * capacity. Shows unassigned students and lets an admin assign/move
+ * students between levels.
  *
- * Extracted from /groups/page.tsx (issue #44) — ranking functionality
- * now lives in its own dedicated screen, separate from group/schedule
- * management.
+ * Extracted from /groups/page.tsx (issue #44) — level-assignment
+ * functionality now lives in its own dedicated screen, separate from
+ * group/schedule management.
  *
  * Connected to the real backend (Fase 4): `GET /api/ranking/niveles` (list),
  * `GET /api/members` (student roster + current group, flattened) and two
@@ -43,23 +44,14 @@ import {
   CheckCircle2,
   MapPin,
   ArrowRight,
-  RotateCcw,
-  FileText,
-  XCircle,
-  Loader2,
 } from "lucide-react";
-import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   fetchMembers,
   assignStudentToNivel,
   moveStudentToNivel,
-  reingresar,
-  fetchJustificativosPendientes,
-  evaluarJustificativo,
   ApiClientError,
 } from "@/services/api";
-import type { EvaluarJustificativoDTO, NivelConOcupacion } from "@/services/api";
-import type { Justificativo } from "@/types/domain";
+import type { NivelConOcupacion } from "@/services/api";
 import { getUnassignedStudents, getLevelLabel, type StudentRef, type GroupCardData } from "@/lib/groups-utils";
 import { buildGroupCardsFromNiveles, getLevelBadgeClass, getCapacityBarColor } from "@/app/groups/groups-page-utils";
 
@@ -130,50 +122,9 @@ export default function RankingPage(): React.ReactElement {
     message: string;
   } | null>(null);
 
-  // Reingreso (Ranking track) — frontend-only session state: students
-  // re-admitted this session are tracked locally since there's no backend
-  // GET yet to refresh `activo` after a successful /ranking/:id/reingresar
-  // call. See src/app/api/ranking/[id]/reingresar/route.ts.
-  const [reingresandoId, setReingresandoId] = useState<string | null>(null);
-  const [reingresados, setReingresados] = useState<Set<string>>(new Set());
-
-  // Justificativos pendientes (Ranking track, E03-RF006b) — admin review
-  // queue. No backend endpoint lists pending justificativos yet (only
-  // POST .../justificativos and PATCH .../evaluar exist — see
-  // src/mocks/justificativos.ts), so `fetchJustificativosPendientes` is
-  // mock-only; evaluating one is a real backend call.
-  const [justificativosPendientes, setJustificativosPendientes] = useState<Justificativo[]>([]);
-  const [justificativosLoading, setJustificativosLoading] = useState(true);
-  const [evaluandoId, setEvaluandoId] = useState<number | null>(null);
-  const [confirmingApproveId, setConfirmingApproveId] = useState<number | null>(null);
-
-  // Rechazar requires a typed reason (owner-mandated, PR13) — a single
-  // reason/error pair is reused across rows, keyed by which row currently
-  // has its inline reject form open. Reset whenever the form opens for a
-  // different justificativo or is canceled.
-  const [rejectingJustificativoId, setRejectingJustificativoId] = useState<number | null>(null);
-  const [rejectionReason, setRejectionReason] = useState("");
-  const [rejectionValidationError, setRejectionValidationError] = useState<string | null>(null);
-
   // Quick-assign dropdown selection per unassigned student, keyed by
   // estudianteId -> nivel id (as a string, matching the <select> value).
   const [pendingAssignment, setPendingAssignment] = useState<Record<string, string>>({});
-
-  const loadJustificativos = useCallback(async (): Promise<void> => {
-    setJustificativosLoading(true);
-    try {
-      const pendientes = await fetchJustificativosPendientes();
-      setJustificativosPendientes(pendientes);
-    } catch {
-      setJustificativosPendientes([]);
-    } finally {
-      setJustificativosLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadJustificativos();
-  }, [loadJustificativos]);
 
   const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -203,7 +154,6 @@ export default function RankingPage(): React.ReactElement {
   }, [loadData]);
 
   const unassigned = getUnassignedStudents(allStudents);
-  const inactiveStudents = allStudents.filter((s) => !s.activo && !reingresados.has(s.id));
   const cardData = buildGroupCardsFromNiveles(niveles);
   const selectedNivel = selectedGroupId ? niveles.find((n) => String(n.id) === selectedGroupId) ?? null : null;
   const assignedStudentsForSelected = selectedGroupId
@@ -214,49 +164,6 @@ export default function RankingPage(): React.ReactElement {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 4000);
   }, []);
-
-  async function handleEvaluarJustificativo(
-    id: number,
-    estado: "APROBADO" | "RECHAZADO",
-    motivoRechazo?: string,
-  ): Promise<void> {
-    setEvaluandoId(id);
-    try {
-      const dto: EvaluarJustificativoDTO =
-        motivoRechazo !== undefined ? { estado, motivoRechazo } : { estado };
-      await evaluarJustificativo(id, dto);
-      setJustificativosPendientes((prev) => prev.filter((j) => j.id !== id));
-      showNotification("success", estado === "APROBADO" ? "Justificativo aprobado." : "Justificativo rechazado.");
-    } catch (err) {
-      showNotification("error", extractErrorMessage(err, "No se pudo evaluar el justificativo."));
-    } finally {
-      setEvaluandoId(null);
-    }
-  }
-
-  function handleRejectClick(id: number): void {
-    setRejectingJustificativoId(id);
-    setRejectionReason("");
-    setRejectionValidationError(null);
-  }
-
-  function handleRejectCancel(): void {
-    setRejectingJustificativoId(null);
-    setRejectionReason("");
-    setRejectionValidationError(null);
-  }
-
-  async function handleRejectSubmit(id: number): Promise<void> {
-    if (!rejectionReason.trim()) {
-      setRejectionValidationError("El motivo de rechazo es obligatorio.");
-      return;
-    }
-    const motivo = rejectionReason.trim();
-    await handleEvaluarJustificativo(id, "RECHAZADO", motivo);
-    setRejectingJustificativoId(null);
-    setRejectionReason("");
-    setRejectionValidationError(null);
-  }
 
   async function handleAssignStudent(estudianteId: string, targetGroupId: string): Promise<void> {
     const student = allStudents.find((s) => s.id === estudianteId);
@@ -277,27 +184,10 @@ export default function RankingPage(): React.ReactElement {
     }
   }
 
-  async function handleReingresar(estudianteId: string): Promise<void> {
-    setReingresandoId(estudianteId);
-    try {
-      await reingresar(estudianteId);
-      setReingresados((prev) => new Set(prev).add(estudianteId));
-      showNotification("success", "Estudiante reingresado al ranking correctamente.");
-    } catch (err) {
-      console.error("[ranking] reingresar failed", err);
-      showNotification(
-        "error",
-        err instanceof ApiClientError ? err.message : "Error al reingresar al estudiante.",
-      );
-    } finally {
-      setReingresandoId(null);
-    }
-  }
-
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
       <AppShell
-        eyebrow="Competitivo"
+        eyebrow="Niveles"
         title="Ranking"
       >
         {loadError && (
@@ -508,47 +398,6 @@ export default function RankingPage(): React.ReactElement {
                 </div>
               )}
             </div>
-
-            {/* Reingreso al ranking — inactive/dropped students (Ranking track) */}
-            <div className="card p-5">
-              <div className="mb-4 flex items-center gap-2">
-                <RotateCcw size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                <h3 className="text-sm font-bold text-cata-text">
-                  Estudiantes inactivos ({inactiveStudents.length})
-                </h3>
-              </div>
-
-              {inactiveStudents.length > 0 ? (
-                <div className="space-y-2">
-                  {inactiveStudents.map((student) => (
-                    <div
-                      key={student.id}
-                      className="card-hover flex items-center justify-between px-4 py-3"
-                    >
-                      <span className="text-sm text-cata-text">
-                        {student.nombres} {student.apellidos}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={reingresandoId === student.id}
-                        onClick={() => handleReingresar(student.id)}
-                        className="btn-ghost text-xs"
-                      >
-                        <RotateCcw size={12} strokeWidth={1.5} aria-hidden="true" />
-                        {reingresandoId === student.id ? "Reingresando..." : "Reingresar"}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 py-4">
-                  <CheckCircle2 size={14} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />
-                  <p className="text-xs text-cata-text/40">
-                    No hay estudiantes inactivos pendientes de reingreso.
-                  </p>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Right column: Level detail panel — sticky on desktop so it
@@ -705,125 +554,6 @@ export default function RankingPage(): React.ReactElement {
           </div>
         </div>
 
-        {/* Justificativos pendientes (Ranking track) — admin review queue for
-            E03-RF006b, independent of the Reingreso panel above and the
-            dedicated Selección Oficial page (/ranking/seleccion-oficial). See
-            the `justificativosPendientes` state doc comment: the listing is
-            mock-only (no backend GET yet), evaluating is real. */}
-        <div id="justificativos-pendientes" className="card mt-8 scroll-mt-24 p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <FileText size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <h3 className="text-sm font-bold text-cata-text">
-              Justificativos Pendientes ({justificativosPendientes.length})
-            </h3>
-          </div>
-          <p className="mb-4 text-sm leading-relaxed text-cata-text/65">
-            Justificativos de ausencia al ranking mensual enviados por estudiantes, a la espera de
-            aprobación o rechazo.
-          </p>
-
-          {justificativosLoading ? (
-            <div className="flex items-center gap-2 py-4">
-              <Loader2 size={14} className="animate-spin text-cata-text/40" aria-hidden="true" />
-              <p className="text-xs text-cata-text/40">Cargando justificativos…</p>
-            </div>
-          ) : justificativosPendientes.length > 0 ? (
-            <div className="space-y-2">
-              {justificativosPendientes.map((j) => {
-                const student = allStudents.find((s) => Number(s.id) === j.personaId);
-                const isEvaluando = evaluandoId === j.id;
-                const isRejecting = rejectingJustificativoId === j.id;
-                return (
-                  <div
-                    key={j.id}
-                    className="card-hover flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-cata-text">
-                        {student ? `${student.nombres} ${student.apellidos}` : `Persona #${j.personaId}`}
-                        {" — "}
-                        {j.mes}/{j.anio}
-                      </p>
-                      <p className="text-xs text-cata-text/65">{j.motivo}</p>
-                    </div>
-                    {isRejecting ? (
-                      <div className="w-full space-y-2 sm:max-w-xs">
-                        <div>
-                          <label
-                            htmlFor={`motivo-rechazo-${j.id}`}
-                            className="mb-1 block text-xs font-medium text-cata-text"
-                          >
-                            Motivo de Rechazo <span className="text-cata-red">*</span>
-                          </label>
-                          <textarea
-                            id={`motivo-rechazo-${j.id}`}
-                            rows={2}
-                            value={rejectionReason}
-                            onChange={(e) => {
-                              setRejectionReason(e.target.value);
-                              setRejectionValidationError(null);
-                            }}
-                            placeholder="Explique por qué se rechaza el justificativo..."
-                            className="input-field resize-y text-xs"
-                            disabled={isEvaluando}
-                          />
-                          {rejectionValidationError && (
-                            <p className="mt-1 text-xs text-cata-red">{rejectionValidationError}</p>
-                          )}
-                        </div>
-                        <div className="flex gap-1.5">
-                          <button
-                            type="button"
-                            disabled={isEvaluando}
-                            onClick={() => void handleRejectSubmit(j.id)}
-                            className="btn-primary flex-1 py-1.5 text-xs"
-                          >
-                            {isEvaluando ? "Procesando..." : "Confirmar"}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isEvaluando}
-                            onClick={handleRejectCancel}
-                            className="btn-secondary py-1.5 text-xs"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex gap-1.5">
-                        <button
-                          type="button"
-                          disabled={isEvaluando}
-                          onClick={() => setConfirmingApproveId(j.id)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
-                        >
-                          <CheckCircle2 size={12} strokeWidth={1.5} aria-hidden="true" />
-                          Aprobar
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isEvaluando}
-                          onClick={() => handleRejectClick(j.id)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-medium text-cata-red transition-colors hover:bg-red-100 disabled:opacity-50"
-                        >
-                          <XCircle size={12} strokeWidth={1.5} aria-hidden="true" />
-                          Rechazar
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 py-4">
-              <CheckCircle2 size={14} strokeWidth={1.5} className="text-cata-state-ok" aria-hidden="true" />
-              <p className="text-xs text-cata-text/40">No hay justificativos pendientes de revisión.</p>
-            </div>
-          )}
-        </div>
-
         {/* Domain info card */}
         <div className="card mt-8 p-6">
           <div className="mb-3 flex items-center gap-2">
@@ -839,20 +569,6 @@ export default function RankingPage(): React.ReactElement {
             un Administrador puede mover a un estudiante ya asignado entre niveles.
           </p>
         </div>
-
-        <ConfirmDialog
-          open={confirmingApproveId !== null}
-          variant="state-ok"
-          title="Aprobar justificativo"
-          message="¿Confirma que aprueba este justificativo de ausencia?"
-          onConfirm={() => {
-            if (confirmingApproveId === null) return;
-            const id = confirmingApproveId;
-            setConfirmingApproveId(null);
-            void handleEvaluarJustificativo(id, "APROBADO");
-          }}
-          onCancel={() => setConfirmingApproveId(null)}
-        />
       </AppShell>
     </ProtectedRoute>
   );
