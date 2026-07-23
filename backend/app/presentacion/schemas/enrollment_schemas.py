@@ -78,33 +78,3 @@ class EnrollmentResponseDTO(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     persona_id: int
-
-
-class AddChildRepresentanteDTO(BaseModel):
-    """Datos del alumno para agregar un representado (representante ya logueado)."""
-    nombres: str = Field(..., max_length=100)
-    apellidos: str = Field(..., max_length=100)
-    cedula: str = Field(..., min_length=10, max_length=10)
-    fecha_nacimiento: date
-    telefono: str = Field(..., max_length=15)
-
-
-class AddChildFichaMedicaDTO(BaseModel):
-    """Ficha médica del alumno a agregar (opcional)."""
-    tipo_sangre: TipoSangre = TipoSangre.DESCONOCIDO
-    enfermedades: List[str] = Field(default_factory=list)
-    alergias: Optional[str] = Field(default=None, max_length=255)
-    contacto_emergencia: Optional[str] = Field(default=None, max_length=150)
-    telefono_emergencia: Optional[str] = Field(default=None, max_length=15)
-
-
-class AddChildCreateDTO(BaseModel):
-    """Payload para agregar un representado desde el portal autenticado."""
-    alumno: AddChildRepresentanteDTO
-    ficha_medica: Optional[AddChildFichaMedicaDTO] = None
-
-
-class AddChildResponseDTO(BaseModel):
-    """Respuesta al agregar un representado: persona_id del hijo creado."""
-    persona_id: int
-    mensaje: str = "Estudiante registrado exitosamente."
