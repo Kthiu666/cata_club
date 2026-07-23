@@ -32,13 +32,15 @@ async def registrar_persona(persona_in: PersonaCreateDTO, db: Session = Depends(
     return PersonaServicio(db).registrar_persona(persona_in)
 
 
-# --- GETs: requieren token válido (no rol específico) para no exponer
-# datos sensibles (cédula, teléfono, fecha de nacimiento) a cualquier cliente
-# sin autenticar. Lo protegemos en el router, no sólo en el servicio.
+# --- ADMINISTRADOR-only: PersonaResponseDTO expone cédula, teléfono y
+# fecha de nacimiento — PII real. Antes solo exigía un token válido (no un
+# rol específico), lo que dejaba pedir el roster completo del club a
+# cualquier sesión autenticada (alumno, entrenador, representante), no solo
+# a admins. Único consumidor real es la página admin de Miembros.
 @router.get(
     "/",
     response_model=PaginatedResponse[PersonaResponseDTO],
-    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
+    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
 )
 def listar_personas(skip: int = 0, limit: int = 50, db: Session = Depends(obtener_sesion)):
     items, total = PersonaServicio(db).listar_personas(skip, limit)
@@ -223,6 +225,20 @@ class RolesResponseDTO(ResponseBase, BaseModel):
 
 class EstadoCuentaDTO(BaseModel):
     activo: bool
+
+
+@router.get(
+    "/{persona_id}/roles", response_model=RolesResponseDTO,
+    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
+)
+async def obtener_roles(persona_id: int, db: Session = Depends(obtener_sesion)):
+    """Lectura pura (no muta nada) del estado actual de roles/activo de una
+    persona. Existe para que el frontend pueda pre-cargar el estado real
+    antes de abrir el modal de edición de roles, en vez de asumir "sin
+    roles" / "activo" por defecto (bug: los checkboxes de rol arrancaban
+    todos destildados sin importar el estado real)."""
+    usuario = RolServicio(db).obtener_roles(persona_id)
+    return RolesResponseDTO(persona_id=persona_id, roles=[r.tipo_rol.value for r in usuario.roles], activo=usuario.activo)
 
 
 @router.post(

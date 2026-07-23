@@ -359,6 +359,12 @@ def main() -> None:
 
         for rep_data in REPRESENTANTES:
             rep = rep_data["representante"]
+            # Representante persona: necesita los roles REPRESENTANTE (para que
+            # `GestorPermisos(["REPRESENTANTE"])` y el frontend la reconozcan
+            # como tal) y ALUMNO (mismo criterio que el flujo real de
+            # autoinscripción, enrollment_servicio.py). El seed antes lo
+            # omitía y dejaba la cuenta sin rol utilizable (-> /unauthorized
+            # al loguearse).
             existing_rep_user = db.query(Usuario).filter(Usuario.correo == rep["correo"]).first()
             if existing_rep_user:
                 print(f"[seed] Representante {rep['correo']} ya existe — saltando.")

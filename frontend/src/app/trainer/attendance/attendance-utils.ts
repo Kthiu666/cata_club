@@ -11,7 +11,7 @@
 
 import type { EstadoAsistencia, UserRole } from "@/types/domain";
 import type { AlumnoHorario } from "@/services/api";
-import type { TrainingSchedule } from "@/app/attendance/attendance-utils";
+import type { AttendanceRecord, TrainingSchedule } from "@/app/attendance/attendance-utils";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -95,12 +95,24 @@ export function buildAttendanceSummary(students: SessionStudent[]): string {
  * Build the roster to mark attendance for from a Horario's assigned alumnos
  * (`GET /groups/horarios/:id/alumnos`), defaulting every student to "absent"
  * — the trainer marks who was actually present from there.
+ *
+ * `existingRecords` is optional — pass today's `AttendanceRecord[]` for this
+ * same horario (see `fetchAttendanceRecords`) to pre-select each student's
+ * already-registered `estado` instead of always defaulting to absent. This
+ * is what makes re-opening the wizard for a session that already has
+ * recorded attendance show the existing marks (and, combined with the
+ * backend upsert in `registrar_asistencia`, resubmitting updates those rows
+ * instead of creating duplicates).
  */
-export function buildRosterFromAlumnoHorarios(items: AlumnoHorario[]): SessionStudent[] {
+export function buildRosterFromAlumnoHorarios(
+  items: AlumnoHorario[],
+  existingRecords: AttendanceRecord[] = [],
+): SessionStudent[] {
+  const estadoByPersonaId = new Map(existingRecords.map((r) => [r.personaId, r.estado]));
   return items.map((item) => ({
     id: String(item.personaId),
     name: item.personaNombreCompleto,
-    attendance: "absent" as EstadoAsistencia,
+    attendance: estadoByPersonaId.get(item.personaId) ?? ("absent" as EstadoAsistencia),
   }));
 }
 

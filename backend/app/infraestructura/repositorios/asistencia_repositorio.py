@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Optional, List
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
@@ -47,6 +48,25 @@ class AsistenciaRepositorio:
         self.db.commit()
         self.db.refresh(asistencia)
         return asistencia
+
+    def actualizar(self, asistencia: Asistencia) -> Asistencia:
+        self.db.commit()
+        self.db.refresh(asistencia)
+        return asistencia
+
+    def buscar_por_persona_horario_fecha(
+        self, persona_id: int, horario_id: int, fecha_entrenamiento: date
+    ) -> Optional[Asistencia]:
+        """Busca un registro de Asistencia ya existente para la misma
+        combinación (persona, horario, fecha) -- usado para convertir
+        `registrar_asistencia` en un upsert y evitar duplicados cuando se
+        re-registra la asistencia de una sesión ya tomada."""
+        stmt = select(Asistencia).where(
+            Asistencia.persona_id == persona_id,
+            Asistencia.horario_id == horario_id,
+            Asistencia.fecha_entrenamiento == fecha_entrenamiento,
+        )
+        return self.db.execute(stmt).scalars().first()
 
     def listar_por_persona(self, persona_id: int) -> List[Asistencia]:
         stmt = (

@@ -53,6 +53,7 @@ async function mockTrainerAttendanceRuntime(page: Page): Promise<void> {
     },
   ]));
   await page.route("**/api/ranking/notificaciones/mias", (route: Route) => fulfillJson(route, []));
+  await page.route("**/api/attendance/records*", (route: Route) => fulfillJson(route, []));
 }
 
 test("trainer directly selects every attendance state at 390px", async ({ page }) => {

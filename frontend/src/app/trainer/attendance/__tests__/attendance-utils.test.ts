@@ -15,6 +15,7 @@ import {
   type SessionStudent,
 } from "../attendance-utils";
 import type { AlumnoHorario } from "@/services/api";
+import type { AttendanceRecord } from "@/app/attendance/attendance-utils";
 
 describe("nextAttendanceState", () => {
   it("cycles absent → present", () => {
@@ -147,6 +148,50 @@ describe("buildRosterFromAlumnoHorarios", () => {
   it("stringifies personaId for use as a stable React key / POST payload id", () => {
     const roster = buildRosterFromAlumnoHorarios(alumnoHorarios);
     expect(roster.every((s) => typeof s.id === "string")).toBe(true);
+  });
+
+  // Regression: re-opening the "Tomar asistencia" wizard for a session that
+  // already has recorded attendance must pre-select the existing estado
+  // instead of always defaulting to "absent" — the bug that made
+  // resubmitting duplicate/flip already-present students to absent.
+  it("pre-selects the existing record's estado for a student who already has one for this session", () => {
+    const existingRecords: AttendanceRecord[] = [
+      {
+        id: "att-1",
+        fecha: "2026-07-23",
+        horario: "Lunes 18:00 — 19:00",
+        personaId: 3,
+        estudiante: "Sofia Alumna",
+        estado: "present",
+        entrenador: "Coach Torres",
+      },
+    ];
+    const roster = buildRosterFromAlumnoHorarios(alumnoHorarios, existingRecords);
+    expect(roster).toEqual([
+      { id: "3", name: "Sofia Alumna", attendance: "present" },
+      { id: "7", name: "Mateo Rodríguez", attendance: "absent" },
+    ]);
+  });
+
+  it("defaults to absent when no existing record matches a student's personaId", () => {
+    const existingRecords: AttendanceRecord[] = [
+      {
+        id: "att-1",
+        fecha: "2026-07-23",
+        horario: "Lunes 18:00 — 19:00",
+        personaId: 999,
+        estudiante: "Someone Else",
+        estado: "present",
+        entrenador: "Coach Torres",
+      },
+    ];
+    const roster = buildRosterFromAlumnoHorarios(alumnoHorarios, existingRecords);
+    expect(roster.every((s) => s.attendance === "absent")).toBe(true);
+  });
+
+  it("still defaults to absent when existingRecords is omitted (backward compatible)", () => {
+    const roster = buildRosterFromAlumnoHorarios(alumnoHorarios);
+    expect(roster.every((s) => s.attendance === "absent")).toBe(true);
   });
 });
 
