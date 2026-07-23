@@ -192,9 +192,18 @@ export default function TrainerAttendancePage(): React.ReactElement {
       // updates on this same persona+horario+fecha match instead of
       // inserting a duplicate row).
       const today = new Date().toISOString().slice(0, 10);
+      // The prefill fetch is a convenience, not a requirement: if it fails,
+      // fall back to an empty list rather than failing the whole roster load
+      // (buildRosterFromAlumnoHorarios already defaults to "absent" when a
+      // student has no matching existing record).
       const [alumnoHorarios, existingRecords] = await Promise.all([
         fetchAlumnosPorHorario(selectedScheduleId),
-        fetchAttendanceRecords({ fechaInicio: today, fechaFin: today, horarioId: selectedScheduleId }),
+        fetchAttendanceRecords({ fechaInicio: today, fechaFin: today, horarioId: selectedScheduleId }).catch(
+          (err: unknown) => {
+            console.error("[trainer/attendance] fetchAttendanceRecords prefill failed", err);
+            return [];
+          },
+        ),
       ]);
       setStudents(buildRosterFromAlumnoHorarios(alumnoHorarios, existingRecords));
       setStudentPage(1);
