@@ -3,7 +3,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.dominio.modelos import Membresia, TipoMembresia, Pago, ComprobantePago, Persona
+from app.dominio.modelos import Membresia, TipoMembresia, Pago, ComprobantePago
 from app.dominio.enums import EstadoPago, EstadoMembresia
 from app.dominio.excepciones import EntidadNoEncontrada, OperacionInvalida, PermisosInsuficientes
 from app.infraestructura.repositorios.persona_repositorio import PersonaRepositorio
@@ -330,7 +330,6 @@ class PagoServicio:
             self.db.flush()
 
             self._aplicar_regla_familiar_si_corresponde(membresia, pago)
-            self._aplicar_beca_si_corresponde(membresia, persona=pago.persona)
 
             self.repo.guardar_cambios(pago)
             self._disparar_generacion_comprobante_pdf(pago_id)
@@ -366,22 +365,6 @@ class PagoServicio:
         if activas_familia >= FAMILIA_UMBRAL_GRATUIDAD + 1:
             membresia.monto_aplicado = Decimal("0.00")
             membresia.es_gratuidad_familiar = True
-        return None
-
-    # --- E01-RF011: beca/descuento -------------------------------------------
-    def _aplicar_beca_si_corresponde(self, membresia: Membresia, persona: Persona) -> None:
-        """
-        Aplica el porcentaje de beca/descuento de la persona (E01-RF011) sobre
-        el monto ya calculado. Se ejecuta DESPUÉS de la regla familiar (E04-RF002)
-        y respeta su resultado: si la gratuidad familiar ya dejó el monto en 0,
-        no hay nada que descontar (0 * cualquier% sigue siendo 0), así que no
-        hace falta un `if` explícito de exclusión -- pero se documenta para que
-        quede claro que el orden de aplicación importa y es intencional.
-        """
-        if not persona.porcentaje_beca:
-            return None
-        factor = (Decimal(100) - Decimal(persona.porcentaje_beca)) / Decimal(100)
-        membresia.monto_aplicado = (membresia.monto_aplicado * factor).quantize(Decimal("0.01"))
         return None
 
     def adjuntar_comprobante(self, pago_id: int, datos: ComprobantePagoCreateDTO) -> ComprobantePago:

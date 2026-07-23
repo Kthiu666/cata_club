@@ -59,9 +59,6 @@ export interface BackendPersonaFull {
   telefono: string;
   fechaNacimiento: string;
   representanteId: number | null;
-  prioridadMunicipal?: boolean;
-  porcentajeBeca?: number;
-  motivoBeca?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -100,9 +97,6 @@ function buildMemberStudentSummary(
     grupoId: nivelId !== undefined ? String(nivelId) : null,
     fechaNacimiento: persona.fechaNacimiento,
     activo: true, // gap #3 above — no readable account-active flag exists via any GET endpoint
-    prioridadMunicipal: persona.prioridadMunicipal ?? false,
-    porcentajeBeca: persona.porcentajeBeca ?? 0,
-    motivoBeca: persona.motivoBeca,
     membresia:
       membresia && pago
         ? {

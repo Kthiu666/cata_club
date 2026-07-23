@@ -55,20 +55,7 @@ class PersonaRepositorio:
         self.db.delete(persona)
         self.db.commit()
 
-    # --- Reportes (E01-RF010 / E04-RF014) -------------------------------------
-    def listar_por_etiquetas(
-        self, prioridad_municipal: Optional[bool] = None, becado: Optional[bool] = None
-    ) -> List[Persona]:
-        """E01-RF010: filtrar por las etiquetas informativas del perfil."""
-        query = self.db.query(Persona)
-        if prioridad_municipal is not None:
-            query = query.filter(Persona.prioridad_municipal == prioridad_municipal)
-        if becado is True:
-            query = query.filter(Persona.porcentaje_beca > 0)
-        elif becado is False:
-            query = query.filter(Persona.porcentaje_beca == 0)
-        return query.all()
-
+    # --- Reportes (E04-RF014) --------------------------------------------------
     def listar_nuevas_por_periodo(self, fecha_inicio, fecha_fin) -> List[Persona]:
         """E04-RF014: alumnos nuevos registrados en un rango de fechas."""
         return (

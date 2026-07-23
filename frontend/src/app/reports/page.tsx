@@ -1,10 +1,9 @@
 /**
  * Reports Page — admin-only analytics and filtered views.
  *
- * Three report types (each backed by a real backend endpoint):
- * 1. Por Etiquetas — filter personas by prioridad_municipal / becado tags
- * 2. Por Período — new members registered within a date range
- * 3. Asistencia — attendance records filtered by date range / horario
+ * Two report types (each backed by a real backend endpoint):
+ * 1. Por Período — new members registered within a date range
+ * 2. Asistencia — attendance records filtered by date range / horario
  *
  * Follows the dashboard/members page design patterns.
  */
@@ -16,16 +15,12 @@ import {
   Users,
   Calendar,
   Search,
-  Filter,
   AlertCircle,
-  Building2,
-  GraduationCap,
   CheckCircle,
 } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import {
-  fetchPersonasPorEtiquetas,
   fetchNuevosPorPeriodo,
   fetchAttendanceRecords,
   fetchTrainingSchedules,
@@ -39,7 +34,7 @@ import {
 } from "@/app/attendance/attendance-utils";
 import type { PersonaReporte } from "@/types/domain";
 
-type ReportTab = "etiquetas" | "periodo" | "asistencia";
+type ReportTab = "periodo" | "asistencia";
 
 export default function ReportsPage(): React.ReactElement {
   return (
@@ -50,7 +45,7 @@ export default function ReportsPage(): React.ReactElement {
 }
 
 function ReportsContent(): React.ReactElement {
-  const [tab, setTab] = useState<ReportTab>("etiquetas");
+  const [tab, setTab] = useState<ReportTab>("periodo");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -61,11 +56,6 @@ function ReportsContent(): React.ReactElement {
   // Attendance report results
   const [attendanceResults, setAttendanceResults] = useState<AttendanceRecord[]>([]);
   const [horarios, setHorarios] = useState<TrainingSchedule[]>([]);
-
-  // Etiquetas filters
-  const [prioridadMunicipal, setPrioridadMunicipal] = useState(false);
-  const [becado, setBecado] = useState(false);
-  const [useFilters, setUseFilters] = useState(false);
 
   // Periodo filters
   const [fechaInicio, setFechaInicio] = useState("");
@@ -134,29 +124,6 @@ function ReportsContent(): React.ReactElement {
       .catch(() => {});
   }, []);
 
-  async function handleEtiquetasSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSearched(true);
-
-    try {
-      const filtros: { prioridadMunicipal?: boolean; becado?: boolean } = {};
-      if (useFilters) {
-        if (prioridadMunicipal) filtros.prioridadMunicipal = true;
-        if (becado) filtros.becado = true;
-      }
-      const data = await fetchPersonasPorEtiquetas(filtros);
-      setPersonaResults(data);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Error al cargar reportes.";
-      setError(message);
-      setPersonaResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handlePeriodoSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
     if (!fechaInicio || !fechaFin) {
@@ -215,17 +182,6 @@ function ReportsContent(): React.ReactElement {
       {/* Tab selector */}
       <div className="mb-6 flex gap-1 rounded-xl bg-cata-bg p-1">
         <button
-          onClick={() => switchTab("etiquetas")}
-          className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${
-            tab === "etiquetas"
-              ? "bg-white text-cata-text shadow-soft"
-              : "text-cata-text/65 hover:text-cata-text"
-          }`}
-        >
-          <Filter size={15} strokeWidth={1.5} />
-          Por Etiquetas
-        </button>
-        <button
           onClick={() => switchTab("periodo")}
           className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${
             tab === "periodo"
@@ -248,56 +204,6 @@ function ReportsContent(): React.ReactElement {
           Asistencia
         </button>
       </div>
-
-      {/* ---- Etiquetas tab ---- */}
-      {tab === "etiquetas" && (
-        <form onSubmit={handleEtiquetasSubmit} className="card mb-6 p-6">
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-cata-text/45">
-            Filtrar por etiquetas
-          </h3>
-          <div className="flex flex-wrap items-end gap-6">
-            <label className="flex items-center gap-2.5 text-sm text-cata-text">
-              <input
-                type="checkbox"
-                checked={useFilters && prioridadMunicipal}
-                onChange={(e) => {
-                  setUseFilters(true);
-                  setPrioridadMunicipal(e.target.checked);
-                }}
-                className="h-4 w-4 rounded border-cata-border text-cata-red focus:ring-cata-red"
-              />
-              <Building2 size={15} strokeWidth={1.5} className="text-cata-text/50" />
-              Prioridad Municipal
-            </label>
-            <label className="flex items-center gap-2.5 text-sm text-cata-text">
-              <input
-                type="checkbox"
-                checked={useFilters && becado}
-                onChange={(e) => {
-                  setUseFilters(true);
-                  setBecado(e.target.checked);
-                }}
-                className="h-4 w-4 rounded border-cata-border text-cata-red focus:ring-cata-red"
-              />
-              <GraduationCap size={15} strokeWidth={1.5} className="text-cata-text/50" />
-              Becado
-            </label>
-            {!useFilters && (
-              <p className="text-xs text-cata-text/45">
-                Sin filtros: se listarán todas las personas
-              </p>
-            )}
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary ml-auto flex items-center gap-2"
-            >
-              <Search size={15} strokeWidth={1.5} />
-              {loading ? "Buscando..." : "Buscar"}
-            </button>
-          </div>
-        </form>
-      )}
 
       {/* ---- Periodo tab ---- */}
       {tab === "periodo" && (
@@ -416,8 +322,8 @@ function ReportsContent(): React.ReactElement {
         </div>
       )}
 
-      {/* ---- Persona results table (etiquetas / periodo) ---- */}
-      {searched && !loading && (tab === "etiquetas" || tab === "periodo") && (
+      {/* ---- Persona results table (periodo) ---- */}
+      {searched && !loading && tab === "periodo" && (
         <div className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-cata-border px-6 py-4">
             <h3 className="text-sm font-semibold text-cata-text">
@@ -505,8 +411,6 @@ function ReportsContent(): React.ReactElement {
                     <th className="px-6 py-3 font-medium text-cata-text/65">Fecha Nac.</th>
                     <th className="px-6 py-3 font-medium text-cata-text/65">Edad</th>
                     <th className="px-6 py-3 font-medium text-cata-text/65">Teléfono</th>
-                    <th className="px-6 py-3 font-medium text-cata-text/65">Prioridad Municipal</th>
-                    <th className="px-6 py-3 font-medium text-cata-text/65">Beca</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cata-border">
@@ -528,24 +432,6 @@ function ReportsContent(): React.ReactElement {
                       </td>
                       <td className="px-6 py-3 text-cata-text/65">
                         {persona.telefono}
-                      </td>
-                      <td className="px-6 py-3">
-                        {persona.prioridadMunicipal ? (
-                          <span className="inline-flex items-center rounded-full bg-cata-state-ok/10 px-2.5 py-0.5 text-xs font-medium text-cata-state-ok">
-                            Sí
-                          </span>
-                        ) : (
-                          <span className="text-xs text-cata-text/40">No</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-3">
-                        {persona.porcentajeBeca > 0 ? (
-                          <span className="inline-flex items-center rounded-full bg-cata-navy/10 px-2.5 py-0.5 text-xs font-medium text-cata-navy">
-                            {persona.porcentajeBeca}%
-                          </span>
-                        ) : (
-                          <span className="text-xs text-cata-text/40">—</span>
-                        )}
                       </td>
                     </tr>
                   ))}

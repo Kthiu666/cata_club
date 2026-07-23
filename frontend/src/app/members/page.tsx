@@ -34,18 +34,16 @@ import {
   Building2,
   AlertTriangle,
   Stethoscope,
-  Save,
   Loader2,
   Plus,
   ToggleLeft,
   ToggleRight,
-  Tag,
   Pencil,
   X,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { fetchMembers, asignarRol, quitarRol, cambiarEstadoCuenta, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia, actualizarPersona } from "@/services/api";
+import { fetchMembers, asignarRol, quitarRol, cambiarEstadoCuenta, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia } from "@/services/api";
 import type { TipoMembresiaCatalogo } from "@/services/api";
 import { nivelToGrupo } from "@/app/groups/groups-page-utils";
 import { getUserInitials } from "@/lib/auth-utils";
@@ -163,14 +161,6 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
   const [membershipError, setMembershipError] = useState<string | null>(null);
   const [membershipSuccess, setMembershipSuccess] = useState(false);
 
-  const [showLabels, setShowLabels] = useState(false);
-  const [prioridadMunicipal, setPrioridadMunicipal] = useState(student.prioridadMunicipal ?? false);
-  const [porcentajeBeca, setPorcentajeBeca] = useState<string>(String(student.porcentajeBeca ?? 0));
-  const [motivoBeca, setMotivoBeca] = useState(student.motivoBeca ?? "");
-  const [labelsSaving, setLabelsSaving] = useState(false);
-  const [labelsError, setLabelsError] = useState<string | null>(null);
-  const [labelsSuccess, setLabelsSuccess] = useState(false);
-
   const membershipLabel = student.membresia
     ? MEMBERSHIP_STATUS_LABELS[student.membresia.estado]
     : "Sin membresía";
@@ -188,25 +178,6 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
   const nivelDisplay = getNivelLabelFromGrupo(student.grupoId, grupos);
   const personaId = Number(student.id);
   const age = calculateAge(student.fechaNacimiento);
-
-  async function handleSaveLabels(): Promise<void> {
-    setLabelsSaving(true);
-    setLabelsError(null);
-    setLabelsSuccess(false);
-    try {
-      const beca = Number(porcentajeBeca);
-      await actualizarPersona(personaId, {
-        prioridadMunicipal,
-        porcentajeBeca: Number.isFinite(beca) && beca >= 0 && beca <= 100 ? beca : 0,
-        motivoBeca: motivoBeca.trim() || undefined,
-      });
-      setLabelsSuccess(true);
-    } catch (err) {
-      setLabelsError(err instanceof Error ? err.message : "No se pudieron guardar las etiquetas.");
-    } finally {
-      setLabelsSaving(false);
-    }
-  }
 
   async function handleOpenCreateMembership(): Promise<void> {
     setShowCreateMembership(true);
@@ -248,7 +219,7 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
 
   return (
     <div className="rounded-xl border border-cata-border bg-white p-4">
-      {/* Identity + tags */}
+      {/* Identity */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cata-bg text-sm font-bold text-cata-text/70">
@@ -261,24 +232,6 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
             {age !== null && <p className="text-xs text-cata-text/55">{age} años</p>}
           </div>
         </div>
-
-        {(student.prioridadMunicipal || (student.porcentajeBeca ?? 0) > 0) && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {student.prioridadMunicipal && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
-                Prioridad municipal
-              </span>
-            )}
-            {(student.porcentajeBeca ?? 0) > 0 && (
-              <span
-                className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-700"
-                title={student.motivoBeca || undefined}
-              >
-                Beca {student.porcentajeBeca ?? 0}%
-              </span>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Ficha — full-width row (card is now the modal's full content width,
@@ -396,14 +349,6 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
       <div className="mt-3 flex flex-wrap gap-2 border-t border-cata-border pt-3">
         <button
           type="button"
-          onClick={() => setShowLabels((v) => !v)}
-          className="inline-flex items-center gap-1 rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1 text-[11px] font-medium text-cata-text transition-colors hover:bg-cata-bg"
-        >
-          <Tag size={11} strokeWidth={1.5} aria-hidden="true" />
-          Etiquetas
-        </button>
-        <button
-          type="button"
           onClick={() => setShowMedical((v) => !v)}
           className="inline-flex items-center gap-1 rounded-lg bg-cata-red/15 px-2.5 py-1 text-[11px] font-medium text-cata-red transition-colors hover:bg-cata-red/25"
         >
@@ -411,75 +356,6 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
           Ficha médica
         </button>
       </div>
-
-      {showLabels && (
-        <div className="mt-3 rounded-xl border border-cata-border bg-cata-bg/60 p-3">
-          <h4 className="mb-2.5 flex items-center gap-1.5 text-xs font-bold text-cata-text">
-            <Tag size={12} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            Etiquetas
-          </h4>
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            <label className="flex items-center gap-2 rounded-lg border border-cata-border bg-white px-3 py-2 text-xs text-cata-text">
-              <input
-                type="checkbox"
-                checked={prioridadMunicipal}
-                onChange={(e) => setPrioridadMunicipal(e.target.checked)}
-                className="h-3.5 w-3.5 rounded border-cata-border text-cata-red focus:ring-cata-red"
-              />
-              Prioridad municipal
-            </label>
-            <div>
-              <label htmlFor={`beca-${student.id}`} className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-cata-text/50">
-                Beca (%)
-              </label>
-              <input
-                id={`beca-${student.id}`}
-                type="number"
-                min={0}
-                max={100}
-                value={porcentajeBeca}
-                onChange={(e) => setPorcentajeBeca(e.target.value)}
-                className="input-field w-full py-1.5 text-xs"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label htmlFor={`motivo-beca-${student.id}`} className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-cata-text/50">
-                Motivo de la beca
-              </label>
-              <input
-                id={`motivo-beca-${student.id}`}
-                type="text"
-                value={motivoBeca}
-                onChange={(e) => setMotivoBeca(e.target.value)}
-                placeholder="Ej: Deportista destacado"
-                className="input-field w-full py-1.5 text-xs"
-              />
-            </div>
-          </div>
-          <div className="mt-2.5 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => void handleSaveLabels()}
-              disabled={labelsSaving}
-              className="btn-primary inline-flex items-center gap-1.5 py-1.5 text-xs disabled:opacity-50"
-            >
-              {labelsSaving ? (
-                <Loader2 size={12} className="animate-spin" aria-hidden="true" />
-              ) : (
-                <Save size={12} strokeWidth={1.5} aria-hidden="true" />
-              )}
-              {labelsSaving ? "Guardando..." : "Guardar etiquetas"}
-            </button>
-            {labelsError && <p className="text-xs text-cata-red" role="alert">{labelsError}</p>}
-            {labelsSuccess && (
-              <p className="flex items-center gap-1 text-xs text-cata-state-ok" role="status">
-                <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
-                Etiquetas guardadas.
-              </p>
-            )}
-          </div>
-        </div>
-      )}
 
       {showMedical && <MedicalRecordEditor personaId={personaId} />}
     </div>

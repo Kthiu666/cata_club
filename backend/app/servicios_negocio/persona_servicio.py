@@ -134,12 +134,7 @@ class PersonaServicio:
         persona = self.obtener_persona(persona_id)
         self.repo.eliminar(persona)
 
-    # --- Reportes (E01-RF010 / E04-RF014) -------------------------------------
-    def reporte_por_etiquetas(
-        self, prioridad_municipal: bool | None = None, becado: bool | None = None
-    ) -> list[Persona]:
-        return self.repo.listar_por_etiquetas(prioridad_municipal=prioridad_municipal, becado=becado)
-
+    # --- Reportes (E04-RF014) --------------------------------------------------
     def reporte_nuevos_por_periodo(self, fecha_inicio, fecha_fin) -> list[Persona]:
         return self.repo.listar_nuevas_por_periodo(fecha_inicio, fecha_fin)
 

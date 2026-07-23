@@ -65,7 +65,6 @@ const mockFetchMembers = vi.fn();
 const mockAsignarRol = vi.fn();
 const mockQuitarRol = vi.fn();
 const mockCambiarEstadoCuenta = vi.fn();
-const mockActualizarPersona = vi.fn();
 const mockFetchFichaMedica = vi.fn();
 const mockActualizarFichaMedica = vi.fn();
 const mockFetchTiposMembresia = vi.fn().mockResolvedValue([]);
@@ -87,7 +86,6 @@ vi.mock("@/services/api", () => {
     asignarRol: (personaId: number, tipoRol: string) => mockAsignarRol(personaId, tipoRol),
     quitarRol: (personaId: number, tipoRol: string) => mockQuitarRol(personaId, tipoRol),
     cambiarEstadoCuenta: (personaId: number, activo: boolean) => mockCambiarEstadoCuenta(personaId, activo),
-    actualizarPersona: (personaId: number, data: unknown) => mockActualizarPersona(personaId, data),
     fetchFichaMedica: (personaId: number) => mockFetchFichaMedica(personaId),
     actualizarFichaMedica: (personaId: number, data: unknown) => mockActualizarFichaMedica(personaId, data),
     fetchTiposMembresia: () => mockFetchTiposMembresia(),
@@ -148,7 +146,6 @@ describe("MembersPage — Editar member modal", () => {
     mockAsignarRol.mockReset();
     mockQuitarRol.mockReset();
     mockCambiarEstadoCuenta.mockReset();
-    mockActualizarPersona.mockReset();
     mockFetchFichaMedica.mockReset();
     mockActualizarFichaMedica.mockReset();
     mockFetchTiposMembresia.mockReset().mockResolvedValue([]);
@@ -187,7 +184,7 @@ describe("MembersPage — Editar member modal", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Sofía González");
   });
 
-  it("shows each student's editable etiquetas and ficha médica actions inside the modal", async () => {
+  it("shows each student's editable ficha médica action inside the modal", async () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
@@ -196,30 +193,7 @@ describe("MembersPage — Editar member modal", () => {
 
     expect(within(dialog).getByText("Estudiantes a cargo")).toBeInTheDocument();
     expect(within(dialog).getByText("Sofía González")).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: /^etiquetas$/i })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: /ficha médica/i })).toBeInTheDocument();
-  });
-
-  it("saves a student's etiquetas via actualizarPersona using the student's own personaId", async () => {
-    mockActualizarPersona.mockResolvedValueOnce({ id: 10 });
-    render(<MembersPage />);
-    const row = await findAccountRow();
-
-    fireEvent.click(getEditButton(row));
-    const dialog = screen.getByRole("dialog");
-
-    fireEvent.click(within(dialog).getByRole("button", { name: /^etiquetas$/i }));
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: /prioridad municipal/i }));
-    fireEvent.click(within(dialog).getByRole("button", { name: /guardar etiquetas/i }));
-
-    await waitFor(() => {
-      expect(mockActualizarPersona).toHaveBeenCalledWith(
-        10,
-        expect.objectContaining({ prioridadMunicipal: true }),
-      );
-    });
-    // Never confused with the account holder's own personaId (1).
-    expect(mockActualizarPersona).not.toHaveBeenCalledWith(1, expect.anything());
   });
 
   it("renders one edit panel per student when an account manages multiple students", async () => {
@@ -243,7 +217,7 @@ describe("MembersPage — Editar member modal", () => {
 
     expect(within(dialog).getByText("Sofía González")).toBeInTheDocument();
     expect(within(dialog).getByText("Mateo González")).toBeInTheDocument();
-    expect(within(dialog).getAllByRole("button", { name: /^etiquetas$/i })).toHaveLength(2);
+    expect(within(dialog).getAllByRole("button", { name: /ficha médica/i })).toHaveLength(2);
   });
 
   it("opens a floating modal dialog with 4 checkable role rows when Editar is clicked", async () => {

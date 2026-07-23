@@ -45,26 +45,11 @@ def listar_personas(skip: int = 0, limit: int = 50, db: Session = Depends(obtene
     return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
-# --- Reportes (E01-RF010 / E04-RF014) ---------------------------------------
-# IMPORTANTE: deben declararse ANTES de `GET /{persona_id}` (más abajo), por
+# --- Reportes (E04-RF014) ----------------------------------------------------
+# IMPORTANTE: debe declararse ANTES de `GET /{persona_id}` (más abajo), por
 # la misma razón documentada en membresias_pagos_router.py: `/{persona_id}`
-# es un patrón de un solo segmento que capturaría "GET /personas/reportes"
+# es un patrón de un solo segmento que capturaría "GET /personas/reportes/..."
 # interpretando "reportes" como persona_id.
-@router.get(
-    "/reportes",
-    response_model=List[PersonaResponseDTO],
-    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
-)
-async def reporte_por_etiquetas(
-    prioridad_municipal: Optional[bool] = Query(default=None),
-    becado: Optional[bool] = Query(default=None),
-    db: Session = Depends(obtener_sesion),
-):
-    return PersonaServicio(db).reporte_por_etiquetas(
-        prioridad_municipal=prioridad_municipal, becado=becado
-    )
-
-
 @router.get(
     "/reportes/nuevos-por-periodo",
     response_model=List[PersonaResponseDTO],
