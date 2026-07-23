@@ -91,5 +91,5 @@ test("trainer discovers mobile navigation and Justificado guidance at 390px", as
   await page.getByRole("button", { name: /18:00 a 19:00/ }).click();
   await page.getByRole("button", { name: "Continuar" }).click();
 
-  await expect(page.getByText("Ana López")).toBeVisible();
+  await expect(page.getByText("Ana López", { exact: true })).toBeVisible();
 });
