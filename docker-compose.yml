@@ -114,6 +114,12 @@ services:
     restart: unless-stopped
     build:
       context: ./frontend
+      # The default bridge network's embedded DNS resolver fails to reach
+      # external registries (npm, Google Fonts) in some setups even when the
+      # host itself has working internet — build on the host's network stack
+      # instead, which sidesteps that resolver entirely. Build-time only;
+      # doesn't affect the running container's network at all.
+      network: host
       args:
         NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
         NEXT_PUBLIC_APP_NAME: Cata Club Admin
