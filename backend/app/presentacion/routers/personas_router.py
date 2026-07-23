@@ -129,12 +129,27 @@ async def obtener_persona(persona_id: int, db: Session = Depends(obtener_sesion)
     return PersonaServicio(db).obtener_persona(persona_id)
 
 
+
+# --- GET /{persona_id}/representados: mismo chequeo de ownership que el POST
+# hermano `crear_representado` (línea ~153) — la identidad de quien consulta
+# se toma de `token_payload["persona_id"]`, nunca de la URL sola. ADMINISTRADOR
+# y ENTRENADOR quedan exceptuados porque legítimamente necesitan consultar
+# representados de cualquier persona (panel admin).
 @router.get(
     "/{persona_id}/representados",
     response_model=List[PersonaResponseDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
-async def listar_representados(persona_id: int, db: Session = Depends(obtener_sesion)):
+async def listar_representados(
+    persona_id: int,
+    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
+    db: Session = Depends(obtener_sesion),
+):
+    roles_usuario = token_payload.get("roles", [])
+    es_propietario = persona_id == token_payload.get("persona_id")
+    tiene_rol_administrativo = any(rol in ("ADMINISTRADOR", "ENTRENADOR") for rol in roles_usuario)
+    if not es_propietario and not tiene_rol_administrativo:
+        raise PermisosInsuficientes("Permisos insuficientes para esta operación")
     return PersonaServicio(db).listar_representados(persona_id)
 
 
