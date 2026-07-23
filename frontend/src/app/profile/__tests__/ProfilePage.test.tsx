@@ -31,7 +31,23 @@ vi.mock("@/components/ProtectedRoute", () => ({
 
 const mockReplace = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: mockReplace }),
+  usePathname: () => "/profile",
+  useRouter: () => ({ replace: mockReplace, push: vi.fn() }),
+}));
+
+vi.mock("next/image", () => ({
+  __esModule: true,
+  // eslint-disable-next-line @next/next/no-img-element
+  default: (props: Record<string, unknown>) => <img alt="" {...props} />,
+}));
+
+vi.mock("next/link", () => ({
+  __esModule: true,
+  default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { children: React.ReactNode; href: string }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -43,6 +59,8 @@ const mockActualizarMiPerfil = vi.fn();
 const mockSolicitarRecuperacion = vi.fn();
 const mockFetchStudentPortal = vi.fn();
 const mockSubirFotoPerfil = vi.fn();
+const mockFetchNotificaciones = vi.fn().mockResolvedValue([]);
+const mockMarcarNotificacionLeida = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@/services/api", () => ({
   fetchMiPerfil: () => mockFetchMiPerfil(),
@@ -50,6 +68,8 @@ vi.mock("@/services/api", () => ({
   solicitarRecuperacion: (correo: string) => mockSolicitarRecuperacion(correo),
   fetchStudentPortal: (personaId: string) => mockFetchStudentPortal(personaId),
   subirFotoPerfil: (archivo: File) => mockSubirFotoPerfil(archivo),
+  fetchNotificaciones: () => mockFetchNotificaciones(),
+  marcarNotificacionLeida: (id: number) => mockMarcarNotificacionLeida(id),
   ApiClientError: class ApiClientError extends Error {
     status: number;
     constructor(message: string, status: number) {
@@ -143,8 +163,12 @@ describe("ProfilePage — staff view (ADMINISTRADOR/ENTRENADOR)", () => {
     render(<ProfilePage />);
 
     // Full name and correo appear twice by design (hero card + "Información
-    // personal" column) — assert both occurrences exist.
-    expect((await screen.findAllByText("Ana Admin")).length).toBe(2);
+    // personal" column) — assert both occurrences exist. Scoped to <main>
+    // since the session name ("Ana Admin") also appears once more in the
+    // AppShell sidebar footer, which is unrelated shell chrome.
+    await screen.findAllByText("Ana Admin");
+    const main = screen.getByRole("main");
+    expect(within(main).getAllByText("Ana Admin").length).toBe(2);
     expect(screen.getAllByText("ana.admin@cataclub.com").length).toBe(2);
     expect(screen.getByText("099111222")).toBeInTheDocument();
     expect(screen.getByText("ADMINISTRADOR")).toBeInTheDocument();
@@ -389,7 +413,8 @@ describe("ProfilePage — staff view loading/error (structurally distinct from t
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
     fireEvent.click(retryButton);
 
-    expect(await screen.findAllByText("Ana Admin")).toHaveLength(2);
+    await screen.findAllByText("Ana Admin");
+    expect(within(screen.getByRole("main")).getAllByText("Ana Admin")).toHaveLength(2);
     expect(mockFetchMiPerfil).toHaveBeenCalledTimes(2);
   });
 });

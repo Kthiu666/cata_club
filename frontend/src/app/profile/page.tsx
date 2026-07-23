@@ -43,6 +43,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/components/shell/AppShell";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   fetchMiPerfil,
@@ -112,6 +113,12 @@ function describeMembership(
 }
 
 const NO_MEMBERSHIP_FALLBACK = "No disponible — consulte con administración";
+
+// Mirrors the backend's own allow-list (`TIPOS_MIME_PERMITIDOS_FOTO_PERFIL` /
+// `TAMANO_MAXIMO_FOTO_PERFIL_BYTES` in auth_servicio.py) so an invalid file
+// is rejected immediately, without a round trip to the server.
+const TIPOS_FOTO_PERFIL_PERMITIDOS = new Set(["image/jpeg", "image/png"]);
+const TAMANO_MAXIMO_FOTO_PERFIL_BYTES = 5 * 1024 * 1024;
 
 type StaffLoadState =
   | { status: "loading" }
@@ -265,9 +272,18 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
     e.target.value = ""; // reset so re-selecting the same file re-triggers onChange
     if (!archivo) return;
 
+    setFotoSuccess(false);
+    if (!TIPOS_FOTO_PERFIL_PERMITIDOS.has(archivo.type)) {
+      setFotoError("Formato no válido. Solo se permiten imágenes JPG o PNG.");
+      return;
+    }
+    if (archivo.size > TAMANO_MAXIMO_FOTO_PERFIL_BYTES) {
+      setFotoError("La imagen supera el tamaño máximo permitido (5 MB).");
+      return;
+    }
+
     setUploadingFoto(true);
     setFotoError(null);
-    setFotoSuccess(false);
     try {
       const updated = await subirFotoPerfil(archivo);
       if (props.kind === "staff") {
@@ -363,22 +379,15 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
   const membership = props.kind === "student" && self ? describeMembership(props.data.memberships, self.personaId) : null;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 py-8">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-cata-text">Mi cuenta</h1>
-          <p className="mt-1 text-sm text-cata-text/65">
-            Gestiona tu información y consulta tu estado en el sistema.
-          </p>
-        </div>
-        {props.kind === "student" && (
+    <div className="mx-auto w-full max-w-6xl space-y-6">
+      {props.kind === "student" && (
+        <div className="flex justify-end">
           <Link href="/student" className="btn-secondary inline-flex items-center gap-2 text-sm">
             Ver portal completo
             <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
           </Link>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Hero card */}
       <div data-testid="profile-hero" className="card relative overflow-hidden p-6 sm:p-8">
@@ -856,43 +865,51 @@ function ProfileContent(): React.ReactElement | null {
 
   if (role === null) return null;
 
+  let content: React.ReactNode;
   if (isStudentRole) {
-    if (studentState.status === "loading") return <LoadingBlock text="Cargando su cuenta..." />;
-    if (studentState.status === "error") {
-      return (
+    if (studentState.status === "loading") {
+      content = <LoadingBlock text="Cargando su cuenta..." />;
+    } else if (studentState.status === "error") {
+      content = (
         <ErrorBlock
           message={studentState.message}
           onRetry={() => setStudentReload((n) => n + 1)}
           showIcon
         />
       );
+    } else {
+      content = (
+        <ProfileLayout
+          kind="student"
+          role={role}
+          data={studentState.data}
+          sessionEmail={session?.user.email ?? ""}
+          sessionName={session?.user.name ?? ""}
+          fotoUrl={studentFotoUrl}
+          onFotoUpdated={setStudentFotoUrl}
+        />
+      );
     }
-    return (
+  } else if (staffState.status === "loading") {
+    content = <LoadingBlock text="Cargando perfil..." />;
+  } else if (staffState.status === "error") {
+    content = <ErrorBlock message={staffState.message} onRetry={() => setStaffReload((n) => n + 1)} />;
+  } else {
+    content = (
       <ProfileLayout
-        kind="student"
+        kind="staff"
         role={role}
-        data={studentState.data}
-        sessionEmail={session?.user.email ?? ""}
-        sessionName={session?.user.name ?? ""}
-        fotoUrl={studentFotoUrl}
-        onFotoUpdated={setStudentFotoUrl}
+        perfil={staffState.perfil}
+        accountEmail={staffState.perfil.correo ?? session?.user.email}
+        onSaved={(perfil) => setStaffState({ status: "ready", perfil })}
       />
     );
   }
 
-  if (staffState.status === "loading") return <LoadingBlock text="Cargando perfil..." />;
-  if (staffState.status === "error") {
-    return <ErrorBlock message={staffState.message} onRetry={() => setStaffReload((n) => n + 1)} />;
-  }
-
   return (
-    <ProfileLayout
-      kind="staff"
-      role={role}
-      perfil={staffState.perfil}
-      accountEmail={staffState.perfil.correo ?? session?.user.email}
-      onSaved={(perfil) => setStaffState({ status: "ready", perfil })}
-    />
+    <AppShell title="Mi cuenta" subtitle="Gestiona tu información y consulta tu estado en el sistema.">
+      {content}
+    </AppShell>
   );
 }
 
