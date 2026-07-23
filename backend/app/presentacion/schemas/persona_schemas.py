@@ -24,7 +24,7 @@ class PersonaCreateDTO(BaseModel):
     fecha_nacimiento: date
     foto_url: Optional[str] = None
     telefono: str
-    telefono_contacto: Optional[str] = None
+    telefono_contacto: Optional[str] = Field(default=None, max_length=20)
     representante_id: Optional[int] = None
     direccion_id: Optional[int] = None
     institucion_id: Optional[int] = None
@@ -35,16 +35,14 @@ class PersonaCreateDTO(BaseModel):
 
 
 class PersonaUpdateDTO(BaseModel):
-    nombres: Optional[str] = None
-    apellidos: Optional[str] = None
-    telefono: Optional[str] = None
-    telefono_contacto: Optional[str] = None
+    nombres: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    apellidos: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    telefono: Optional[str] = Field(default=None, max_length=20)
+    telefono_contacto: Optional[str] = Field(default=None, max_length=20)
     foto_url: Optional[str] = None
     direccion_id: Optional[int] = None
     institucion_id: Optional[int] = None
-    # E01-RF009: etiqueta informativa, sin efecto en facturación.
     prioridad_municipal: Optional[bool] = None
-    # E01-RF011: porcentaje de 0 (sin beca) a 100 (exoneración total).
     porcentaje_beca: Optional[int] = Field(default=None, ge=0, le=100)
     motivo_beca: Optional[str] = Field(default=None, max_length=150)
 

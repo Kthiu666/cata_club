@@ -96,6 +96,7 @@ function buildMemberStudentSummary(
     id: String(persona.id),
     nombres: persona.nombres,
     apellidos: persona.apellidos,
+    telefono: persona.telefono,
     grupoId: nivelId !== undefined ? String(nivelId) : null,
     fechaNacimiento: persona.fechaNacimiento,
     activo: true, // gap #3 above — no readable account-active flag exists via any GET endpoint

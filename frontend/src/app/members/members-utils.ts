@@ -39,6 +39,7 @@ export interface MemberStudentSummary {
    * to resolve it per Persona. Omitted (not fabricated) when unavailable.
    */
   email?: string;
+  telefono?: string;
   /** The group this student belongs to (if assigned). Technical level is carried by the group, not the student. */
   grupoId: string | null;
   fechaNacimiento?: string;

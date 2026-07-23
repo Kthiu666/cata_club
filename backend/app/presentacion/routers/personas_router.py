@@ -137,7 +137,7 @@ async def listar_representados(persona_id: int, db: Session = Depends(obtener_se
     return PersonaServicio(db).listar_representados(persona_id)
 
 
-@router.put(
+@router.patch(
     "/{persona_id}", response_model=PersonaResponseDTO,
     dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
 )
