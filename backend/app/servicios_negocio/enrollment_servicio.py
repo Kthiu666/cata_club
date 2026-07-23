@@ -180,7 +180,7 @@ class EnrollmentServicio:
             return
         rol = self.repo_rol.obtener_o_crear(tipo_rol)
         usuario.roles.append(rol)
-        self.db.flush()
+        self.db.commit()
 
     def _emitir_tokens(self, usuario: Usuario) -> dict:
         """Emite el par access + refresh tokens para auto-login."""
