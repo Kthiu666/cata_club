@@ -25,8 +25,6 @@ import {
   Clock,
   ShieldCheck,
   Search,
-  ChevronDown,
-  ChevronRight,
   User,
   Phone,
   Mail,
@@ -48,6 +46,7 @@ import {
 import { fetchMembers, asignarRol, quitarRol, cambiarEstadoCuenta, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia, actualizarPersona } from "@/services/api";
 import type { TipoMembresiaCatalogo } from "@/services/api";
 import { nivelToGrupo } from "@/app/groups/groups-page-utils";
+import { getUserInitials } from "@/lib/auth-utils";
 import {
   buildMemberStats,
   formatMembershipPeriod,
@@ -130,7 +129,10 @@ function StatCard({ icon, label, value }: StatCardProps): React.ReactElement {
 
 
 // ---------------------------------------------------------------------------
-// Student detail row (expanded within an account)
+// Student edit panel — rendered inside the account's edit modal, one per
+// `account.estudiantes` entry. Was previously a `<tr>` shown by expanding
+// the account row; the row no longer expands, so all of this content
+// (and its editing actions) now lives exclusively in the modal.
 // ---------------------------------------------------------------------------
 
 interface StudentRowProps {
@@ -149,7 +151,7 @@ function calculateAge(fechaNacimiento: string | undefined): number | null {
   return age;
 }
 
-function StudentRow({ student, grupos }: StudentRowProps): React.ReactElement {
+function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElement {
   const [showMedical, setShowMedical] = useState(false);
   const [showCreateMembership, setShowCreateMembership] = useState(false);
   const [tiposMembresia, setTiposMembresia] = useState<TipoMembresiaCatalogo[]>([]);
@@ -159,7 +161,7 @@ function StudentRow({ student, grupos }: StudentRowProps): React.ReactElement {
   const [membershipSuccess, setMembershipSuccess] = useState(false);
 
   const [showLabels, setShowLabels] = useState(false);
-  const [prioridadMunicipal, setPrioridadMunicipal] = useState(student.prioridadMunicipal);
+  const [prioridadMunicipal, setPrioridadMunicipal] = useState(student.prioridadMunicipal ?? false);
   const [porcentajeBeca, setPorcentajeBeca] = useState<string>(String(student.porcentajeBeca ?? 0));
   const [motivoBeca, setMotivoBeca] = useState(student.motivoBeca ?? "");
   const [labelsSaving, setLabelsSaving] = useState(false);
@@ -242,270 +244,252 @@ function StudentRow({ student, grupos }: StudentRowProps): React.ReactElement {
   }
 
   return (
-    <tr id={`student-detail-${student.id}`} className="border-t border-cata-border bg-cata-bg/60">
-      <td colSpan={7} className="px-3 py-3">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {/* Student identity */}
-          <div>
-            <p className="flex items-center gap-1.5 text-sm font-medium text-cata-text">
-              <User size={14} strokeWidth={1.5} aria-hidden="true" />
+    <div className="rounded-xl border border-cata-border bg-white p-4">
+      {/* Identity + tags */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cata-bg text-sm font-bold text-cata-text/70">
+            {getUserInitials(`${student.nombres} ${student.apellidos}`)}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-cata-text">
               {student.nombres} {student.apellidos}
             </p>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-cata-text/65">
-              {nivelDisplay ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-cata-bg px-2 py-0.5">
-                  <GraduationCap size={10} strokeWidth={1.5} aria-hidden="true" />
-                  {nivelDisplay}
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 text-amber-400">
-                  Sin grupo asignado
-                </span>
-              )}
-              {student.fechaNacimiento && (
-                <span>
-                  {age !== null ? `${age} años` : ""}
-                </span>
-              )}
-            </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-              {student.prioridadMunicipal && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
-                  Prioridad municipal
-                </span>
-              )}
-              {(student.porcentajeBeca ?? 0) > 0 && (
-                <span
-                  className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-700"
-                  title={student.motivoBeca || undefined}
-                >
-                  Beca {student.porcentajeBeca ?? 0}%
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Membership — spans the full row while the "Crear membresía" form is
-              open so the type select and Crear/Cancelar buttons have room; a
-              single grid column is too narrow for the long option labels
-              ("{categoria} — ${precio} ({modalidad})") and made the form look
-              cut off (reported in live QA). */}
-          <div className={showCreateMembership ? "sm:col-span-2 lg:col-span-4" : undefined}>
-            <p className="mb-1 text-xs font-medium uppercase tracking-wider text-cata-text/40">
-              Membresía
-            </p>
-            {student.membresia ? (
-              <>
-                <span className={membershipBadge}>{membershipLabel}</span>
-                <p className="mt-1 text-xs text-cata-text/65">
-                  {student.membresia.tipo}{" "}
-                  &middot;{" "}
-                  {formatMembershipPeriod(
-                    student.membresia.fechaInicio,
-                    student.membresia.fechaFin,
-                  )}
-                </p>
-                <p className="text-xs text-cata-text/65">
-                  {formatCurrency(student.membresia.monto)}
-                </p>
-              </>
-            ) : membershipSuccess ? (
-              <span className="inline-flex items-center gap-1 text-xs text-cata-state-ok">
-                <CheckCircle2 size={11} strokeWidth={2} aria-hidden="true" />
-                Membresía creada. Recarga para verla.
-              </span>
-            ) : showCreateMembership ? (
-              <div className="max-w-md space-y-2">
-                <select
-                  value={selectedTipoId}
-                  onChange={(e) => setSelectedTipoId(e.target.value ? Number(e.target.value) : "")}
-                  className="w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
-                >
-                  <option value="">Seleccionar tipo...</option>
-                  {tiposMembresia.map((tipo) => (
-                    <option key={tipo.id} value={tipo.id}>
-                      {tipo.categoria} — ${tipo.precio} ({tipo.modalidad})
-                    </option>
-                  ))}
-                </select>
-                {membershipError && (
-                  <p className="text-xs text-cata-red">{membershipError}</p>
-                )}
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleCreateMembership()}
-                    disabled={!selectedTipoId || membershipLoading}
-                    className="inline-flex items-center gap-1 rounded-lg bg-cata-red px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-cata-red/80 disabled:opacity-50"
-                  >
-                    {membershipLoading ? (
-                      <Loader2 size={11} className="animate-spin" />
-                    ) : (
-                      <Plus size={11} />
-                    )}
-                    Crear
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateMembership(false)}
-                    className="rounded-lg border border-cata-border px-2.5 py-1 text-xs text-cata-text/65 transition-colors hover:bg-cata-surface"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <span className="text-xs text-cata-text/40">Sin membresía registrada</span>
-                <button
-                  type="button"
-                  onClick={() => handleOpenCreateMembership()}
-                  className="inline-flex items-center gap-1 rounded-lg bg-cata-red/15 px-2.5 py-1 text-xs font-medium text-cata-red transition-colors hover:bg-cata-red/25"
-                >
-                  <Plus size={11} strokeWidth={2} aria-hidden="true" />
-                  Crear membresía
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Last payment */}
-          <div>
-            <p className="mb-1 text-xs font-medium uppercase tracking-wider text-cata-text/40">
-              Último pago
-            </p>
-            {student.ultimoPago ? (
-              <>
-                <span className={paymentBadge}>
-                  <PaymentStatusIcon estado={student.ultimoPago.estado} />
-                  {paymentLabel}
-                </span>
-                <p className="mt-1 text-xs text-cata-text/65">
-                  {formatCurrency(student.ultimoPago.monto)} &middot;{" "}
-                  {student.ultimoPago.periodo}
-                </p>
-              </>
-            ) : (
-              <span className="text-xs text-cata-text/40">No registrado</span>
-            )}
-          </div>
-
-          {/* Status indicator + action buttons */}
-          <div className="flex flex-col items-end gap-2">
-            {student.activo ? (
-              <span className="inline-flex items-center gap-1 text-xs text-cata-state-ok">
-                <CheckCircle2 size={11} strokeWidth={2} aria-hidden="true" />
-                Activo
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-xs text-cata-text/40">
-                <XCircle size={11} strokeWidth={2} aria-hidden="true" />
-                Inactivo
-              </span>
-            )}
-            <div className="flex flex-wrap justify-end gap-1.5">
-              <button
-                type="button"
-                onClick={() => setShowLabels((v) => !v)}
-                className="inline-flex items-center gap-1 rounded-lg border border-cata-border bg-cata-surface px-2 py-1 text-[11px] font-medium text-cata-text transition-colors hover:bg-cata-bg"
-              >
-                <Tag size={11} strokeWidth={1.5} aria-hidden="true" />
-                Etiquetas
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowMedical((v) => !v)}
-                className="inline-flex items-center gap-1 rounded-lg bg-cata-red/15 px-2 py-1 text-[11px] font-medium text-cata-red transition-colors hover:bg-cata-red/25"
-              >
-                <Stethoscope size={11} strokeWidth={1.5} aria-hidden="true" />
-                Ficha médica
-              </button>
-            </div>
+            {age !== null && <p className="text-xs text-cata-text/55">{age} años</p>}
           </div>
         </div>
 
-        {showLabels && (
-          <div className="mt-3 rounded-2xl border border-cata-border bg-cata-surface p-3 sm:p-4">
-            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-cata-text">
-              <Tag size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-              Etiquetas
-            </h3>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <label className="flex items-center gap-2 rounded-lg border border-cata-border bg-cata-bg px-3 py-2 text-xs text-cata-text">
-                <input
-                  type="checkbox"
-                  checked={prioridadMunicipal}
-                  onChange={(e) => setPrioridadMunicipal(e.target.checked)}
-                  className="h-3.5 w-3.5 rounded border-cata-border text-cata-red focus:ring-cata-red"
-                />
+        {(student.prioridadMunicipal || (student.porcentajeBeca ?? 0) > 0) && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {student.prioridadMunicipal && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
                 Prioridad municipal
-              </label>
-              <div>
-                <label htmlFor={`beca-${student.id}`} className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-cata-text/50">
-                  Beca (%)
-                </label>
-                <input
-                  id={`beca-${student.id}`}
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={porcentajeBeca}
-                  onChange={(e) => setPorcentajeBeca(e.target.value)}
-                  className="input-field w-full py-1.5 text-xs"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label htmlFor={`motivo-beca-${student.id}`} className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-cata-text/50">
-                  Motivo de la beca
-                </label>
-                <input
-                  id={`motivo-beca-${student.id}`}
-                  type="text"
-                  value={motivoBeca}
-                  onChange={(e) => setMotivoBeca(e.target.value)}
-                  placeholder="Ej: Deportista destacado"
-                  className="input-field w-full py-1.5 text-xs"
-                />
-              </div>
-            </div>
-            <div className="mt-3 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => void handleSaveLabels()}
-                disabled={labelsSaving}
-                className="btn-primary inline-flex items-center gap-1.5 py-1.5 text-xs disabled:opacity-50"
+              </span>
+            )}
+            {(student.porcentajeBeca ?? 0) > 0 && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-700"
+                title={student.motivoBeca || undefined}
               >
-                {labelsSaving ? (
-                  <Loader2 size={12} className="animate-spin" aria-hidden="true" />
-                ) : (
-                  <Save size={12} strokeWidth={1.5} aria-hidden="true" />
-                )}
-                {labelsSaving ? "Guardando..." : "Guardar etiquetas"}
-              </button>
-              {labelsError && <p className="text-xs text-cata-red" role="alert">{labelsError}</p>}
-              {labelsSuccess && (
-                <p className="flex items-center gap-1 text-xs text-cata-state-ok" role="status">
-                  <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
-                  Etiquetas guardadas.
-                </p>
-              )}
-            </div>
+                Beca {student.porcentajeBeca ?? 0}%
+              </span>
+            )}
           </div>
         )}
+      </div>
 
-        {showMedical && <MedicalRecordEditor personaId={personaId} />}
-      </td>
-    </tr>
+      {/* Ficha — full-width row (card is now the modal's full content width,
+          not squeezed into a half-width grid column), four stats side by
+          side on larger screens instead of a cramped two-up layout. */}
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-cata-border pt-3 text-xs sm:grid-cols-4">
+        <div>
+          <dt className="text-cata-text/50">Estado</dt>
+          <dd className="mt-1">
+            <span className={student.activo ? "badge-success" : "badge-error"}>
+              {student.activo ? "Activo" : "Inactivo"}
+            </span>
+          </dd>
+        </div>
+        <div>
+          <dt className="text-cata-text/50">Grupo</dt>
+          <dd className="mt-1 font-medium text-cata-text">
+            {nivelDisplay ?? "Sin grupo asignado"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-cata-text/50">Membresía</dt>
+          <dd className="mt-1">
+            {student.membresia ? (
+              <span className={membershipBadge}>{membershipLabel}</span>
+            ) : (
+              <span className="text-cata-text/40">Sin membresía</span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-cata-text/50">Último pago</dt>
+          <dd className="mt-1">
+            {student.ultimoPago ? (
+              <span className={paymentBadge}>
+                <PaymentStatusIcon estado={student.ultimoPago.estado} />
+                {paymentLabel}
+              </span>
+            ) : (
+              <span className="text-cata-text/40">No registrado</span>
+            )}
+          </dd>
+        </div>
+      </dl>
+
+      {student.membresia && (
+        <p className="mt-1.5 text-[11px] text-cata-text/55">
+          {student.membresia.tipo} &middot;{" "}
+          {formatMembershipPeriod(student.membresia.fechaInicio, student.membresia.fechaFin)}
+          {" "}&middot; {formatCurrency(student.membresia.monto)}
+        </p>
+      )}
+      {student.ultimoPago && (
+        <p className="mt-0.5 text-[11px] text-cata-text/55">
+          {formatCurrency(student.ultimoPago.monto)} &middot; {student.ultimoPago.periodo}
+        </p>
+      )}
+
+      {!student.membresia &&
+        (membershipSuccess ? (
+          <p className="mt-2 flex items-center gap-1 text-xs text-cata-state-ok">
+            <CheckCircle2 size={11} strokeWidth={2} aria-hidden="true" />
+            Membresía creada. Recarga para verla.
+          </p>
+        ) : showCreateMembership ? (
+          <div className="mt-2.5 space-y-2 rounded-lg bg-cata-bg/60 p-2.5">
+            <select
+              value={selectedTipoId}
+              onChange={(e) => setSelectedTipoId(e.target.value ? Number(e.target.value) : "")}
+              className="w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+            >
+              <option value="">Seleccionar tipo...</option>
+              {tiposMembresia.map((tipo) => (
+                <option key={tipo.id} value={tipo.id}>
+                  {tipo.categoria} — ${tipo.precio} ({tipo.modalidad})
+                </option>
+              ))}
+            </select>
+            {membershipError && <p className="text-xs text-cata-red">{membershipError}</p>}
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleCreateMembership()}
+                disabled={!selectedTipoId || membershipLoading}
+                className="inline-flex items-center gap-1 rounded-lg bg-cata-red px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-cata-red/80 disabled:opacity-50"
+              >
+                {membershipLoading ? (
+                  <Loader2 size={11} className="animate-spin" />
+                ) : (
+                  <Plus size={11} />
+                )}
+                Crear
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreateMembership(false)}
+                className="rounded-lg border border-cata-border px-2.5 py-1 text-xs text-cata-text/65 transition-colors hover:bg-cata-surface"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => handleOpenCreateMembership()}
+            className="mt-2.5 inline-flex items-center gap-1 rounded-lg bg-cata-red/15 px-2.5 py-1 text-xs font-medium text-cata-red transition-colors hover:bg-cata-red/25"
+          >
+            <Plus size={11} strokeWidth={2} aria-hidden="true" />
+            Crear membresía
+          </button>
+        ))}
+
+      {/* Actions */}
+      <div className="mt-3 flex flex-wrap gap-2 border-t border-cata-border pt-3">
+        <button
+          type="button"
+          onClick={() => setShowLabels((v) => !v)}
+          className="inline-flex items-center gap-1 rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1 text-[11px] font-medium text-cata-text transition-colors hover:bg-cata-bg"
+        >
+          <Tag size={11} strokeWidth={1.5} aria-hidden="true" />
+          Etiquetas
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowMedical((v) => !v)}
+          className="inline-flex items-center gap-1 rounded-lg bg-cata-red/15 px-2.5 py-1 text-[11px] font-medium text-cata-red transition-colors hover:bg-cata-red/25"
+        >
+          <Stethoscope size={11} strokeWidth={1.5} aria-hidden="true" />
+          Ficha médica
+        </button>
+      </div>
+
+      {showLabels && (
+        <div className="mt-3 rounded-xl border border-cata-border bg-cata-bg/60 p-3">
+          <h4 className="mb-2.5 flex items-center gap-1.5 text-xs font-bold text-cata-text">
+            <Tag size={12} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            Etiquetas
+          </h4>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            <label className="flex items-center gap-2 rounded-lg border border-cata-border bg-white px-3 py-2 text-xs text-cata-text">
+              <input
+                type="checkbox"
+                checked={prioridadMunicipal}
+                onChange={(e) => setPrioridadMunicipal(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-cata-border text-cata-red focus:ring-cata-red"
+              />
+              Prioridad municipal
+            </label>
+            <div>
+              <label htmlFor={`beca-${student.id}`} className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-cata-text/50">
+                Beca (%)
+              </label>
+              <input
+                id={`beca-${student.id}`}
+                type="number"
+                min={0}
+                max={100}
+                value={porcentajeBeca}
+                onChange={(e) => setPorcentajeBeca(e.target.value)}
+                className="input-field w-full py-1.5 text-xs"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor={`motivo-beca-${student.id}`} className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-cata-text/50">
+                Motivo de la beca
+              </label>
+              <input
+                id={`motivo-beca-${student.id}`}
+                type="text"
+                value={motivoBeca}
+                onChange={(e) => setMotivoBeca(e.target.value)}
+                placeholder="Ej: Deportista destacado"
+                className="input-field w-full py-1.5 text-xs"
+              />
+            </div>
+          </div>
+          <div className="mt-2.5 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void handleSaveLabels()}
+              disabled={labelsSaving}
+              className="btn-primary inline-flex items-center gap-1.5 py-1.5 text-xs disabled:opacity-50"
+            >
+              {labelsSaving ? (
+                <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Save size={12} strokeWidth={1.5} aria-hidden="true" />
+              )}
+              {labelsSaving ? "Guardando..." : "Guardar etiquetas"}
+            </button>
+            {labelsError && <p className="text-xs text-cata-red" role="alert">{labelsError}</p>}
+            {labelsSuccess && (
+              <p className="flex items-center gap-1 text-xs text-cata-state-ok" role="status">
+                <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
+                Etiquetas guardadas.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showMedical && <MedicalRecordEditor personaId={personaId} />}
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Account row (collapsible)
+// Account row — all editing (roles, estado, per-student etiquetas/ficha
+// médica/membresía) happens in the edit modal; the row itself never expands.
 // ---------------------------------------------------------------------------
 
 interface AccountRowProps {
   account: MemberAccount;
-  defaultOpen: boolean;
   grupos: Grupo[];
   editModalOpen: boolean;
   onToggleEditModal: () => void;
@@ -520,14 +504,19 @@ const ROLE_LABELS: Record<BackendTipoRol, string> = {
   ALUMNO: "Alumno",
 };
 
+const ROLE_ICONS: Record<BackendTipoRol, typeof ShieldCheck> = {
+  ADMINISTRADOR: ShieldCheck,
+  ENTRENADOR: GraduationCap,
+  REPRESENTANTE: Building2,
+  ALUMNO: User,
+};
+
 function AccountRow({
   account,
-  defaultOpen,
   grupos,
   editModalOpen,
   onToggleEditModal,
 }: AccountRowProps): React.ReactElement {
-  const [expanded, setExpanded] = useState(defaultOpen);
   const [roles, setRoles] = useState<BackendTipoRol[]>([]);
   const [activo, setActivo] = useState(true);
   const [roleLoading, setRoleLoading] = useState<BackendTipoRol | null>(null);
@@ -583,7 +572,13 @@ function AccountRow({
 
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const editTriggerRef = useRef<HTMLButtonElement>(null);
+  // Two "Editar" triggers exist per row — a desktop one (in the sm-only
+  // contact/status column) and a mobile one (next to the status badge in
+  // the always-visible name column), since the desktop column is entirely
+  // CSS-hidden below `sm` and mobile would otherwise have no way to open
+  // the modal at all. Neither needs its own ref: focus-restoration below
+  // captures whichever element was actually focused (i.e. whichever
+  // trigger the user actually clicked) right before the dialog opens.
 
   // Native <dialog> shown via showModal(): the browser traps Tab focus and
   // renders the ::backdrop for us, so no manual focus trap is needed (unlike
@@ -599,6 +594,8 @@ function AccountRow({
     const dialog = dialogRef.current;
     if (!editModalOpen || !dialog) return;
 
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
     setRoleError(null);
     setStateError(null);
     if (!dialog.open) dialog.showModal();
@@ -613,36 +610,16 @@ function AccountRow({
 
     document.addEventListener("keydown", handleKeyDown);
     dialog.addEventListener("click", handleBackdropClick);
-    const triggerElement = editTriggerRef.current;
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       dialog.removeEventListener("click", handleBackdropClick);
-      triggerElement?.focus();
+      previouslyFocused?.focus();
     };
   }, [editModalOpen, onToggleEditModal]);
 
   return (
     <>
       <tr className="transition-colors hover:bg-cata-bg">
-        <td className="px-4 py-3.5">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setExpanded(!expanded);
-            }}
-            className="mr-2 inline-flex items-center text-cata-text/65"
-            aria-label={expanded ? "Contraer" : "Expandir"}
-            aria-expanded={expanded}
-            aria-controls={account.estudiantes.map((a) => `student-detail-${a.id}`).join(" ")}
-          >
-            {expanded ? (
-              <ChevronDown size={14} strokeWidth={1.5} />
-            ) : (
-              <ChevronRight size={14} strokeWidth={1.5} />
-            )}
-          </button>
-        </td>
         <td className="px-4 py-3.5">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cata-red/15">
@@ -659,9 +636,21 @@ function AccountRow({
               <p className="text-xs text-cata-text/65">
                 {getPayerTypeLabel(account.role)}
               </p>
-              <span className={`mt-1 inline-flex sm:hidden ${statusBadge.className}`}>
-                {statusBadge.label}
-              </span>
+              <div className="mt-1 flex items-center gap-2 sm:hidden">
+                <span className={statusBadge.className}>{statusBadge.label}</span>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.currentTarget.focus();
+                    onToggleEditModal();
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg border border-cata-border p-1.5 text-cata-text/50 transition-colors hover:bg-cata-red/10 hover:text-cata-red"
+                  aria-label="Editar"
+                  title="Editar miembro"
+                >
+                  <Pencil size={13} strokeWidth={1.5} aria-hidden="true" />
+                </button>
+              </div>
             </div>
           </div>
         </td>
@@ -693,9 +682,11 @@ function AccountRow({
               {statusBadge.label}
             </span>
             <button
-              ref={editTriggerRef}
               type="button"
-              onClick={onToggleEditModal}
+              onClick={(event) => {
+                event.currentTarget.focus();
+                onToggleEditModal();
+              }}
               className="inline-flex items-center gap-1 rounded-lg border border-cata-border p-1.5 text-cata-text/50 transition-colors hover:bg-cata-red/10 hover:text-cata-red"
               aria-label="Editar"
               title="Editar miembro"
@@ -705,10 +696,6 @@ function AccountRow({
           </div>
         </td>
       </tr>
-      {expanded &&
-        account.estudiantes.map((estudiante) => (
-          <StudentRow key={estudiante.id} student={estudiante} grupos={grupos} />
-        ))}
       {editModalOpen &&
         createPortal(
           <dialog
@@ -716,100 +703,181 @@ function AccountRow({
             aria-modal="true"
             aria-labelledby={`edit-member-title-${account.id}`}
             onCancel={(event) => event.preventDefault()}
-            className="card fixed inset-0 z-50 m-auto h-fit max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto p-6 backdrop:bg-cata-black/40"
+            className="fixed inset-0 z-50 m-auto flex h-fit max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-cata-border bg-white p-0 shadow-elevated backdrop:bg-cata-black/40"
           >
-            <div className="mb-4 flex items-center justify-between">
-                <h2
-                  id={`edit-member-title-${account.id}`}
-                  className="text-base font-semibold text-cata-text"
-                >
-                  Editar miembro
-                </h2>
+            {/* Header — avatar, name, phone, status badge, close */}
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-cata-border px-5 py-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-cata-red/15 text-sm font-bold text-cata-red">
+                  {getUserInitials(`${account.nombres} ${account.apellidos}`)}
+                </div>
+                <div className="min-w-0">
+                  <h2
+                    id={`edit-member-title-${account.id}`}
+                    className="truncate text-lg font-bold leading-tight text-cata-text"
+                  >
+                    {account.nombres} {account.apellidos}
+                  </h2>
+                  <p className="text-sm text-cata-text/65">{account.telefono}</p>
+                  <p className="mt-0.5 text-xs text-cata-text/50">{getPayerTypeLabel(account.role)}</p>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className={activo ? "badge-success" : "badge-error"}>
+                  {activo ? "Activo" : "Inactivo"}
+                </span>
                 <button
                   ref={closeButtonRef}
                   type="button"
                   onClick={onToggleEditModal}
                   aria-label="Cerrar"
-                  className="rounded-lg p-1 text-cata-text/50 transition-colors hover:bg-cata-bg hover:text-cata-text"
+                  className="rounded-lg p-1.5 text-cata-text/50 transition-colors hover:bg-cata-bg hover:text-cata-text"
                 >
                   <X size={16} strokeWidth={1.5} aria-hidden="true" />
                 </button>
               </div>
+            </div>
 
-              <div className="mb-4 space-y-1 text-sm text-cata-text/65">
-                <p className="font-medium text-cata-text">
-                  {account.nombres} {account.apellidos}
-                </p>
-                {account.email && (
-                  <p className="flex items-center gap-1.5">
-                    <Mail size={11} strokeWidth={1.5} aria-hidden="true" />
-                    {account.email}
-                  </p>
-                )}
-                <p className="flex items-center gap-1.5">
-                  <Phone size={11} strokeWidth={1.5} aria-hidden="true" />
-                  {account.telefono}
-                </p>
-              </div>
-
-              <div className="mb-4">
-                <h3 className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-cata-text/50">
-                  <ShieldCheck size={12} strokeWidth={1.5} aria-hidden="true" />
-                  Roles
-                </h3>
-                <div className="space-y-1.5">
-                  {ALL_BACKEND_ROLES.map((role) => {
-                    const selected = roles.includes(role);
-                    const isLoading = roleLoading === role;
-                    return (
-                      <label
-                        key={role}
-                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-cata-text transition-colors hover:bg-cata-bg"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          onChange={() => void toggleRole(role)}
-                          disabled={roleLoading !== null}
-                          className="h-3.5 w-3.5 rounded border-cata-border text-cata-red focus:ring-cata-red"
-                        />
-                        {isLoading && <Loader2 size={12} className="animate-spin" aria-hidden="true" />}
-                        {ROLE_LABELS[role]}
-                      </label>
-                    );
-                  })}
-                </div>
-                {roleError && (
-                  <p className="mt-2 text-xs text-cata-red" role="alert">
-                    {roleError}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-cata-text/50">
-                  Estado de la cuenta
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => void toggleEstado()}
-                  disabled={stateLoading}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-cata-border px-3 py-1.5 text-sm font-medium text-cata-text transition-colors hover:bg-cata-bg disabled:opacity-50"
-                  aria-pressed={activo}
-                >
-                  {activo ? (
-                    <ToggleRight size={16} className="text-cata-state-ok" aria-hidden="true" />
-                  ) : (
-                    <ToggleLeft size={16} className="text-cata-text/40" aria-hidden="true" />
+            {/* Scrollable body */}
+            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {/* Información general */}
+                <section className="rounded-xl border border-cata-border bg-cata-bg/50 p-4">
+                  <h3 className="mb-3 text-sm font-bold text-cata-text">Información general</h3>
+                  <dl className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="text-cata-text/55">Nombre</dt>
+                      <dd className="truncate text-right font-medium text-cata-text">
+                        {account.nombres} {account.apellidos}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="text-cata-text/55">Teléfono</dt>
+                      <dd className="flex items-center gap-1.5 font-medium text-cata-text">
+                        <Phone size={11} strokeWidth={1.5} aria-hidden="true" />
+                        {account.telefono}
+                      </dd>
+                    </div>
+                    {/* Email deliberately read-only, no editable input: see the
+                        gap noted below the dl — no admin endpoint mutates it. */}
+                    {account.email && (
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="text-cata-text/55">Correo</dt>
+                        <dd className="flex min-w-0 items-center gap-1.5 truncate font-medium text-cata-text">
+                          <Mail size={11} strokeWidth={1.5} aria-hidden="true" />
+                          <span className="truncate">{account.email}</span>
+                        </dd>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="text-cata-text/55">Estado</dt>
+                      <dd>
+                        <button
+                          type="button"
+                          onClick={() => void toggleEstado()}
+                          disabled={stateLoading}
+                          className={`${activo ? "badge-success" : "badge-error"} cursor-pointer disabled:opacity-50`}
+                          aria-pressed={activo}
+                        >
+                          {stateLoading ? (
+                            <Loader2 size={11} className="animate-spin" aria-hidden="true" />
+                          ) : activo ? (
+                            <ToggleRight size={12} aria-hidden="true" />
+                          ) : (
+                            <ToggleLeft size={12} aria-hidden="true" />
+                          )}
+                          {stateLoading ? "Actualizando..." : activo ? "Activa" : "Inactiva"}
+                        </button>
+                      </dd>
+                    </div>
+                  </dl>
+                  {stateError && (
+                    <p className="mt-2 text-xs text-cata-red" role="alert">
+                      {stateError}
+                    </p>
                   )}
-                  {stateLoading ? "Actualizando..." : activo ? "Activa" : "Inactiva"}
-                </button>
-                {stateError && (
-                  <p className="mt-2 text-xs text-cata-red" role="alert">
-                    {stateError}
-                  </p>
-                )}
+                </section>
+
+                {/* Roles — settings-style switches, two columns, one icon each */}
+                <section className="rounded-xl border border-cata-border bg-cata-bg/50 p-4">
+                  <h3 className="mb-3 flex items-center gap-1.5 text-sm font-bold text-cata-text">
+                    <ShieldCheck size={14} strokeWidth={1.5} className="text-cata-text/50" aria-hidden="true" />
+                    Roles
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {ALL_BACKEND_ROLES.map((role) => {
+                      const selected = roles.includes(role);
+                      const isLoading = roleLoading === role;
+                      const RoleIcon = ROLE_ICONS[role];
+                      return (
+                        <label
+                          key={role}
+                          className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors ${
+                            selected
+                              ? "border-cata-red/30 bg-cata-red/5 text-cata-red"
+                              : "border-cata-border bg-white text-cata-text hover:bg-cata-bg"
+                          }`}
+                        >
+                          <RoleIcon size={14} strokeWidth={1.5} className="shrink-0" aria-hidden="true" />
+                          <span className="flex-1 truncate">{ROLE_LABELS[role]}</span>
+                          {isLoading && (
+                            <Loader2 size={12} className="shrink-0 animate-spin" aria-hidden="true" />
+                          )}
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => void toggleRole(role)}
+                            disabled={roleLoading !== null}
+                            className="sr-only"
+                          />
+                          <span
+                            aria-hidden="true"
+                            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                              selected ? "bg-cata-red" : "bg-cata-border"
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${
+                                selected ? "translate-x-5" : "translate-x-1"
+                              }`}
+                            />
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {roleError && (
+                    <p className="mt-2 text-xs text-cata-red" role="alert">
+                      {roleError}
+                    </p>
+                  )}
+                </section>
               </div>
+
+              {account.estudiantes.length > 0 && (
+                <section>
+                  <h3 className="mb-3 text-sm font-bold text-cata-text">Estudiantes a cargo</h3>
+                  <div className="space-y-3">
+                    {account.estudiantes.map((estudiante) => (
+                      <StudentEditPanel key={estudiante.id} student={estudiante} grupos={grupos} />
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
+
+            {/* Footer — everything above already saves per-action (roles,
+                estado, etiquetas, ficha médica each call their own endpoint
+                immediately); these two just dismiss the modal, matching the
+                existing close behavior (X / Escape / backdrop). */}
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-cata-border px-5 py-3.5">
+              <button type="button" onClick={onToggleEditModal} className="btn-ghost text-sm">
+                Cancelar
+              </button>
+              <button type="button" onClick={onToggleEditModal} className="btn-primary text-sm">
+                Guardar cambios
+              </button>
+            </div>
           </dialog>,
           document.body,
         )}
@@ -982,7 +1050,6 @@ export default function MembersPage(): React.ReactElement {
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
-                    <th className="w-10 px-4 py-3 font-medium" />
                     <th className="px-4 py-3 font-medium">Responsable de pago</th>
                     <th className="hidden px-4 py-3 font-medium sm:table-cell">Contacto</th>
                     <th className="hidden px-4 py-3 text-center font-medium sm:table-cell">Estudiantes</th>
@@ -991,11 +1058,10 @@ export default function MembersPage(): React.ReactElement {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cata-border">
-                  {filteredAccounts.map((account, index) => (
+                  {filteredAccounts.map((account) => (
                     <AccountRow
                       key={account.id}
                       account={account}
-                      defaultOpen={index === 0 && filteredAccounts.length === 1}
                       grupos={grupos}
                       editModalOpen={editingAccountId === account.id}
                       onToggleEditModal={() => toggleEditModal(account.id)}
