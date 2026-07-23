@@ -65,6 +65,11 @@ const mockFetchMembers = vi.fn();
 const mockAsignarRol = vi.fn();
 const mockQuitarRol = vi.fn();
 const mockCambiarEstadoCuenta = vi.fn();
+const mockActualizarPersona = vi.fn();
+const mockFetchFichaMedica = vi.fn();
+const mockActualizarFichaMedica = vi.fn();
+const mockFetchTiposMembresia = vi.fn().mockResolvedValue([]);
+const mockCrearMembresia = vi.fn();
 const mockFetchNotificaciones = vi.fn().mockResolvedValue([]);
 const mockMarcarNotificacionLeida = vi.fn().mockResolvedValue(undefined);
 
@@ -82,10 +87,11 @@ vi.mock("@/services/api", () => {
     asignarRol: (personaId: number, tipoRol: string) => mockAsignarRol(personaId, tipoRol),
     quitarRol: (personaId: number, tipoRol: string) => mockQuitarRol(personaId, tipoRol),
     cambiarEstadoCuenta: (personaId: number, activo: boolean) => mockCambiarEstadoCuenta(personaId, activo),
-    fetchFichaMedica: vi.fn(),
-    actualizarFichaMedica: vi.fn(),
-    fetchTiposMembresia: vi.fn().mockResolvedValue([]),
-    crearMembresia: vi.fn(),
+    actualizarPersona: (personaId: number, data: unknown) => mockActualizarPersona(personaId, data),
+    fetchFichaMedica: (personaId: number) => mockFetchFichaMedica(personaId),
+    actualizarFichaMedica: (personaId: number, data: unknown) => mockActualizarFichaMedica(personaId, data),
+    fetchTiposMembresia: () => mockFetchTiposMembresia(),
+    crearMembresia: (data: unknown) => mockCrearMembresia(data),
     fetchNotificaciones: () => mockFetchNotificaciones(),
     marcarNotificacionLeida: (id: number) => mockMarcarNotificacionLeida(id),
     ApiClientError: MockApiClientError,
@@ -123,33 +129,128 @@ async function findAccountRow(): Promise<HTMLElement> {
   return (await screen.findByText("María González")).closest("tr") as HTMLElement;
 }
 
+/**
+ * Each row renders two "Editar" triggers — a desktop one and a
+ * mobile-visible duplicate (the desktop trigger's whole column is CSS-hidden
+ * below `sm`, so mobile needs its own reachable one). jsdom doesn't apply
+ * real CSS, so both match `getByRole` here; the mobile one comes first in
+ * DOM order (it lives in the always-rendered name column), which is also
+ * what the component's focus-restoration logic naturally targets when a
+ * test clicks this one.
+ */
+function getEditButton(container: HTMLElement): HTMLElement {
+  return within(container).getAllByRole("button", { name: /^editar$/i })[0];
+}
+
 describe("MembersPage — Editar member modal", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();
     mockAsignarRol.mockReset();
     mockQuitarRol.mockReset();
     mockCambiarEstadoCuenta.mockReset();
+    mockActualizarPersona.mockReset();
+    mockFetchFichaMedica.mockReset();
+    mockActualizarFichaMedica.mockReset();
+    mockFetchTiposMembresia.mockReset().mockResolvedValue([]);
+    mockCrearMembresia.mockReset();
     mockFetchMembers.mockResolvedValue({ accounts: [ACCOUNT], niveles: [] });
     mockAsignarRol.mockResolvedValue({ roles: ["ADMINISTRADOR"] });
     mockQuitarRol.mockResolvedValue({ roles: [] });
     mockCambiarEstadoCuenta.mockResolvedValue({ activo: false });
   });
 
-  it("renders a single Editar trigger per account row instead of inline role/status controls", async () => {
+  it("renders an Editar trigger per account row (desktop + a mobile-visible duplicate) instead of inline role/status controls", async () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    expect(within(row).getByRole("button", { name: /^editar$/i })).toBeInTheDocument();
+    // Two triggers exist by design — one in the desktop-only contact/status
+    // column, one next to the mobile status badge (that column is CSS-hidden
+    // below `sm`, so mobile needs its own reachable trigger). jsdom doesn't
+    // apply real CSS, so both are "in the document" here; only one is ever
+    // visually reachable at a given real viewport.
+    expect(within(row).getAllByRole("button", { name: /^editar$/i })).toHaveLength(2);
     expect(within(row).queryByRole("button", { name: /^roles$/i })).not.toBeInTheDocument();
     expect(within(row).queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("never renders a row expand/collapse control — the table no longer expands", async () => {
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    expect(within(row).queryByRole("button", { name: /^expandir$/i })).not.toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: /^contraer$/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Sofía González")).not.toBeInTheDocument();
+
+    fireEvent.click(getEditButton(row));
+    // The student only becomes visible once the modal is open — never via row interaction.
+    expect(screen.getByRole("dialog")).toHaveTextContent("Sofía González");
+  });
+
+  it("shows each student's editable etiquetas and ficha médica actions inside the modal", async () => {
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    fireEvent.click(getEditButton(row));
+    const dialog = screen.getByRole("dialog");
+
+    expect(within(dialog).getByText("Estudiantes a cargo")).toBeInTheDocument();
+    expect(within(dialog).getByText("Sofía González")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /^etiquetas$/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /ficha médica/i })).toBeInTheDocument();
+  });
+
+  it("saves a student's etiquetas via actualizarPersona using the student's own personaId", async () => {
+    mockActualizarPersona.mockResolvedValueOnce({ id: 10 });
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    fireEvent.click(getEditButton(row));
+    const dialog = screen.getByRole("dialog");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /^etiquetas$/i }));
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /prioridad municipal/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /guardar etiquetas/i }));
+
+    await waitFor(() => {
+      expect(mockActualizarPersona).toHaveBeenCalledWith(
+        10,
+        expect.objectContaining({ prioridadMunicipal: true }),
+      );
+    });
+    // Never confused with the account holder's own personaId (1).
+    expect(mockActualizarPersona).not.toHaveBeenCalledWith(1, expect.anything());
+  });
+
+  it("renders one edit panel per student when an account manages multiple students", async () => {
+    mockFetchMembers.mockResolvedValue({
+      accounts: [
+        {
+          ...ACCOUNT,
+          estudiantes: [
+            { ...ACCOUNT.estudiantes[0], id: "10", nombres: "Sofía", apellidos: "González" },
+            { ...ACCOUNT.estudiantes[0], id: "11", nombres: "Mateo", apellidos: "González" },
+          ],
+        },
+      ],
+      niveles: [],
+    });
+    render(<MembersPage />);
+    const row = await findAccountRow();
+
+    fireEvent.click(getEditButton(row));
+    const dialog = screen.getByRole("dialog");
+
+    expect(within(dialog).getByText("Sofía González")).toBeInTheDocument();
+    expect(within(dialog).getByText("Mateo González")).toBeInTheDocument();
+    expect(within(dialog).getAllByRole("button", { name: /^etiquetas$/i })).toHaveLength(2);
   });
 
   it("opens a floating modal dialog with 4 checkable role rows when Editar is clicked", async () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(getEditButton(row));
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveAttribute("aria-modal", "true");
@@ -163,7 +264,7 @@ describe("MembersPage — Editar member modal", () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(getEditButton(row));
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveTextContent("María González");
@@ -174,7 +275,7 @@ describe("MembersPage — Editar member modal", () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(getEditButton(row));
     const dialog = screen.getByRole("dialog");
     fireEvent.click(within(dialog).getByRole("checkbox", { name: /admin/i }));
 
@@ -187,7 +288,7 @@ describe("MembersPage — Editar member modal", () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(getEditButton(row));
     const dialog = screen.getByRole("dialog");
     const adminCheckbox = within(dialog).getByRole("checkbox", { name: /admin/i });
 
@@ -205,7 +306,7 @@ describe("MembersPage — Editar member modal", () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(getEditButton(row));
     const dialog = screen.getByRole("dialog");
     fireEvent.click(within(dialog).getByRole("checkbox", { name: /admin/i }));
 
@@ -219,7 +320,7 @@ describe("MembersPage — Editar member modal", () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(getEditButton(row));
     const dialog = screen.getByRole("dialog");
     const adminCheckbox = within(dialog).getByRole("checkbox", { name: /admin/i });
 
@@ -241,7 +342,7 @@ describe("MembersPage — Editar member modal", () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(getEditButton(row));
     const dialog = screen.getByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: /^activa$/i }));
 
@@ -254,7 +355,7 @@ describe("MembersPage — Editar member modal", () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(getEditButton(row));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /^cerrar$/i }));
@@ -265,7 +366,7 @@ describe("MembersPage — Editar member modal", () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    const editButton = within(row).getByRole("button", { name: /^editar$/i });
+    const editButton = getEditButton(row);
     fireEvent.click(editButton);
     fireEvent.click(screen.getByRole("button", { name: /^cerrar$/i }));
 
@@ -277,12 +378,12 @@ describe("MembersPage — Editar member modal", () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(getEditButton(row));
     fireEvent.click(screen.getByRole("checkbox", { name: /admin/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Error de red");
 
     fireEvent.click(screen.getByRole("button", { name: /^cerrar$/i }));
-    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(getEditButton(row));
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -291,7 +392,7 @@ describe("MembersPage — Editar member modal", () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(getEditButton(row));
     fireEvent.click(screen.getByRole("dialog"));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -301,7 +402,7 @@ describe("MembersPage — Editar member modal", () => {
     render(<MembersPage />);
     const row = await findAccountRow();
 
-    fireEvent.click(within(row).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(getEditButton(row));
     fireEvent.keyDown(document, { key: "Escape" });
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -314,39 +415,43 @@ describe("MembersPage — Editar member modal", () => {
     const row1 = (await screen.findByText("Responsable 1 González")).closest("tr") as HTMLElement;
     const row2 = screen.getByText("Responsable 2 González").closest("tr") as HTMLElement;
 
-    fireEvent.click(within(row1).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(getEditButton(row1));
     expect(screen.getByRole("dialog")).toHaveTextContent("Responsable 1");
 
-    fireEvent.click(within(row2).getByRole("button", { name: /^editar$/i }));
+    fireEvent.click(getEditButton(row2));
     const dialogs = screen.getAllByRole("dialog");
     expect(dialogs).toHaveLength(1);
     expect(dialogs[0]).toHaveTextContent("Responsable 2");
   });
 });
 
-describe("MembersPage — Crear membresía inline form width (live-QA bugfix)", () => {
+describe("MembersPage — Crear membresía inline form", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();
     mockFetchMembers.mockResolvedValue({ accounts: [ACCOUNT], niveles: [] });
+    mockFetchTiposMembresia.mockReset().mockResolvedValue([]);
   });
 
-  it("widens the Membresía block to the full row when the create-membership form is open, instead of staying cramped in a single grid column", async () => {
+  it("opens the create-membership form (type select + Crear/Cancelar) inside the student's card", async () => {
     render(<MembersPage />);
-    await findAccountRow();
+    const row = await findAccountRow();
 
-    // Single account with a single student is expanded by default (defaultOpen),
-    // so the student detail row (and its "Crear membresía" button) is already visible.
-    const crearButton = await screen.findByRole("button", { name: /crear membresía/i });
+    // Membership creation lives inside the student's edit-panel card, only
+    // reachable via the account's edit modal — no more row expansion. The
+    // card is fixed-width (no dynamic grid-column-span hack needed anymore,
+    // unlike the old cramped 4-column row layout).
+    fireEvent.click(getEditButton(row));
+    const dialog = screen.getByRole("dialog");
+
+    const crearButton = await within(dialog).findByRole("button", { name: /crear membresía/i });
     fireEvent.click(crearButton);
 
-    await waitFor(() => {
-      expect(screen.getByRole("combobox")).toBeInTheDocument();
-    });
-
-    const membershipBlock = screen.getByText("Membresía", { exact: true }).parentElement;
-    expect(membershipBlock).not.toBeNull();
-    expect(membershipBlock?.className).toMatch(/lg:col-span-4/);
-    expect(membershipBlock?.className).toMatch(/sm:col-span-2/);
+    const combobox = await within(dialog).findByRole("combobox");
+    // Scoped to the create-membership form itself: the modal footer also has
+    // its own "Cancelar" button, so a dialog-wide query would be ambiguous.
+    const form = combobox.parentElement as HTMLElement;
+    expect(within(form).getByRole("button", { name: /^crear$/i })).toBeInTheDocument();
+    expect(within(form).getByRole("button", { name: /^cancelar$/i })).toBeInTheDocument();
   });
 });
 

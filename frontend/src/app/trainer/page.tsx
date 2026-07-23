@@ -1,5 +1,6 @@
 /**
- * Trainer Dashboard — Today's real schedules and attendance summary.
+ * Trainer Dashboard — today's real schedules, attendance summary, and
+ * full attendance history (filterable + paginated) in one single page.
  *
  * Backend gap (see src/lib/server/attendance-adapter.ts): there's no API
  * exposing which NivelRanking (Grupo) a Horario belongs to, so a per-schedule
@@ -9,14 +10,18 @@
  * attendance records exist for today (`GET /asistencias/reportes?fecha_inicio=
  * fecha_fin=hoy`), reusing the same `buildAttendanceStats` the admin
  * `/attendance` page uses.
+ *
+ * Historial (previously at `/trainer/attendance/history`) was merged into
+ * this page below the stats cards. The old page now redirects here.
  */
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import StudentSearch from "@/components/StudentSearch";
 import {
   Calendar,
   Users,
@@ -26,18 +31,34 @@ import {
   Clock,
   XCircle,
   Trophy,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { fetchTrainingSchedules, fetchAttendanceRecords } from "@/services/api";
 import {
   buildAttendanceStats,
-  jsDayIndexToDiaSemana,
   getAttendanceBadgeTokens,
   ATTENDANCE_LABELS,
+  jsDayIndexToDiaSemana,
   formatDay,
+  paginateRecords,
+  getTotalPages,
   type AttendanceRecord,
   type TrainingSchedule,
 } from "@/app/attendance/attendance-utils";
-import { recentDateRange } from "./trainer-panel-utils";
+import type { PersonaBusqueda } from "@/types/domain";
+import { buildDateRange, type DateRangePreset } from "./trainer-history-utils";
+
+/** Page size for the history list — 10 rows per page, as specified. */
+const HISTORY_PAGE_SIZE = 10;
+
+/** Date range presets for the history filter. */
+const DATE_PRESETS: { key: DateRangePreset; label: string }[] = [
+  { key: "today", label: "Hoy" },
+  { key: "this_week", label: "Esta semana" },
+  { key: "this_month", label: "Este mes" },
+  { key: "custom", label: "Rango personalizado" },
+];
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -61,27 +82,29 @@ function AttendanceStateBadge({ estado }: Readonly<AttendanceStateBadgeProps>): 
   );
 }
 
-/** Filter state for the "Asistencias Recientes" list — date range + optional horario. */
-interface RecentAttendanceFilters {
-  fechaInicio: string;
-  fechaFin: string;
-  /** "" means "todos los horarios". */
-  horarioId: string;
-}
-
 export default function TrainerPage(): React.ReactElement {
   const [schedules, setSchedules] = useState<TrainingSchedule[]>([]);
   const [todayRecords, setTodayRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [filters, setFilters] = useState<RecentAttendanceFilters>(() => {
-    const { fechaInicio, fechaFin } = recentDateRange();
-    return { fechaInicio, fechaFin, horarioId: "" };
-  });
-  const [recentRecords, setRecentRecords] = useState<AttendanceRecord[]>([]);
-  const [recentLoading, setRecentLoading] = useState(true);
-  const [recentError, setRecentError] = useState<string | null>(null);
+  // --- Historial state ---
+  const [historyRecords, setHistoryRecords] = useState<AttendanceRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [datePreset, setDatePreset] = useState<DateRangePreset>("this_month");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [customDateError, setCustomDateError] = useState<string | null>(null);
+  const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<PersonaBusqueda | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
+  /**
+   * Contador que se incrementa para pedirle al <StudentSearch> que resetee
+   * su input cuando el padre limpia la selección externamente (botón
+   * "Limpiar selección"). Pasado como `resetSignal` al componente.
+   */
+  const [studentSearchReset, setStudentSearchReset] = useState(0);
 
   const loadData = useCallback(async (): Promise<void> => {
     try {
@@ -102,36 +125,100 @@ export default function TrainerPage(): React.ReactElement {
     }
   }, []);
 
-  const loadRecentAttendance = useCallback(async (): Promise<void> => {
+  const loadHistory = useCallback(async (): Promise<void> => {
+    setHistoryLoading(true);
+    setHistoryError(null);
     try {
-      setRecentLoading(true);
-      setRecentError(null);
-      const records = await fetchAttendanceRecords({
-        fechaInicio: filters.fechaInicio,
-        fechaFin: filters.fechaFin,
-        horarioId: filters.horarioId ? Number(filters.horarioId) : undefined,
-      });
-      setRecentRecords(records);
+      const range = datePreset === "custom"
+        ? { fechaInicio: customStart, fechaFin: customEnd }
+        : buildDateRange(datePreset);
+
+      const params: {
+        fechaInicio?: string;
+        fechaFin?: string;
+        horarioId?: number;
+        personaId?: number;
+      } = {};
+      if (range.fechaInicio) params.fechaInicio = range.fechaInicio;
+      if (range.fechaFin) params.fechaFin = range.fechaFin;
+      if (selectedScheduleId !== null) params.horarioId = selectedScheduleId;
+      if (selectedStudent !== null) params.personaId = selectedStudent.id;
+
+      const data = await fetchAttendanceRecords(
+        Object.keys(params).length > 0 ? params : undefined,
+      );
+      setHistoryRecords(data);
     } catch (err) {
-      console.error("[trainer] loadRecentAttendance failed", err);
-      setRecentError("Error al cargar las asistencias recientes");
+      console.error("[trainer] loadHistory failed", err);
+      setHistoryError("No se pudieron cargar los registros de asistencia.");
     } finally {
-      setRecentLoading(false);
+      setHistoryLoading(false);
     }
-  }, [filters]);
+  }, [datePreset, customStart, customEnd, selectedScheduleId, selectedStudent]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
+  /**
+   * Dispara la carga del historial cuando:
+   *  - El preset no es "custom" (rango derivado, siempre válido), o
+   *  - Es "custom" Y ambas fechas están seteadas Y la fecha de fin no es
+   *    menor que la de inicio (validación local, ver setCustomEnd handler).
+   */
   useEffect(() => {
-    loadRecentAttendance();
-  }, [loadRecentAttendance]);
+    if (datePreset !== "custom" || (customStart && customEnd && customEnd >= customStart)) {
+      loadHistory();
+    } else if (datePreset === "custom" && (!customStart || !customEnd)) {
+      // Rango incompleto: limpia resultados previos en lugar de mostrarlos
+      // desfasados con los filtros actuales.
+      setHistoryRecords([]);
+    }
+  }, [datePreset, customStart, customEnd, selectedScheduleId, selectedStudent, loadHistory]);
+
+  /** Resetea a página 1 cada vez que cambian los registros del historial. */
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [historyRecords]);
 
   const todayDia = jsDayIndexToDiaSemana(new Date().getDay());
   const todaySchedules = schedules.filter((s) => s.diaSemana === todayDia);
   const stats = buildAttendanceStats(todayRecords);
   const presentPercent = stats.totalStudents > 0 ? Math.round((stats.totalPresent / stats.totalStudents) * 100) : 0;
+
+  const totalPages = useMemo(
+    () => getTotalPages(historyRecords.length, HISTORY_PAGE_SIZE),
+    [historyRecords.length],
+  );
+  const paginatedRecords = useMemo(
+    () => paginateRecords(historyRecords, historyPage, HISTORY_PAGE_SIZE),
+    [historyRecords, historyPage],
+  );
+
+  /** Validación: la fecha de fin no puede ser menor que la de inicio. */
+  function handleCustomEndChange(value: string): void {
+    setCustomEnd(value);
+    if (customStart && value && value < customStart) {
+      setCustomDateError("La fecha límite no puede ser menor que la fecha de inicio.");
+      setHistoryRecords([]);
+    } else {
+      setCustomDateError(null);
+    }
+  }
+
+  function handleCustomStartChange(value: string): void {
+    setCustomStart(value);
+    if (customEnd && value && customEnd < value) {
+      setCustomDateError("La fecha límite no puede ser menor que la fecha de inicio.");
+      setHistoryRecords([]);
+    } else {
+      setCustomDateError(null);
+    }
+  }
+
+  function handleStudentSelect(alumno: PersonaBusqueda): void {
+    setSelectedStudent(alumno);
+  }
 
   return (
     <ProtectedRoute allowedRoles={["trainer"]}>
@@ -187,8 +274,8 @@ export default function TrainerPage(): React.ReactElement {
           </div>
         )}
 
+        {/* Stats cards */}
         {!loading && !error && (
-          <>
           <div className="mb-10 grid gap-5 sm:grid-cols-3">
             <div className="card-hover flex items-center gap-3 p-4 sm:p-5">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
@@ -221,74 +308,129 @@ export default function TrainerPage(): React.ReactElement {
               </p>
             </div>
           </div>
-          </>
         )}
 
-        {/* Asistencias Recientes — filterable list, default: last 7 days */}
-        <div className="mb-8">
+        {/* Historial de Asistencias — integrado debajo de las estadísticas */}
+        <section aria-labelledby="historial-asistencias-title" className="mb-8">
           <div className="mb-4 flex items-center gap-2">
-            <UserCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <h2 className="text-lg font-bold text-cata-text">Asistencias Recientes</h2>
+            <ClipboardList size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            <h2 id="historial-asistencias-title" className="text-lg font-bold text-cata-text">
+              Historial de Asistencias
+            </h2>
           </div>
 
           {/* Filters */}
-          <div className="card mb-4 grid gap-4 p-4 sm:grid-cols-3">
-            <label className="block text-sm">
-              <span className="mb-1 block text-xs font-medium text-cata-text/65">Desde</span>
-              <input
-                type="date"
-                className="input-field"
-                aria-label="Filtrar desde fecha"
-                value={filters.fechaInicio}
-                onChange={(e) => setFilters((prev) => ({ ...prev, fechaInicio: e.target.value }))}
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-xs font-medium text-cata-text/65">Hasta</span>
-              <input
-                type="date"
-                className="input-field"
-                aria-label="Filtrar hasta fecha"
-                value={filters.fechaFin}
-                onChange={(e) => setFilters((prev) => ({ ...prev, fechaFin: e.target.value }))}
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-xs font-medium text-cata-text/65">Horario</span>
-              <select
-                className="input-field"
-                aria-label="Filtrar por horario"
-                value={filters.horarioId}
-                onChange={(e) => setFilters((prev) => ({ ...prev, horarioId: e.target.value }))}
-              >
-                <option value="">Todos los horarios</option>
-                {schedules.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {formatDay(s.diaSemana)} {s.horaInicio} — {s.horaFin}
-                  </option>
+          <div className="card mb-4 space-y-4 p-4">
+            {/* Date range presets */}
+            <div>
+              <span className="mb-2 block text-xs font-medium text-cata-text/65">Rango de fechas</span>
+              <div className="flex flex-wrap gap-2">
+                {DATE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.key}
+                    type="button"
+                    onClick={() => setDatePreset(preset.key)}
+                    className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      datePreset === preset.key
+                        ? "border-cata-red bg-cata-red/10 text-cata-red"
+                        : "border-cata-border text-cata-text/65 hover:bg-cata-surface"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
                 ))}
-              </select>
-            </label>
+              </div>
+              {datePreset === "custom" && (
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-xs font-medium text-cata-text/65">Fecha de inicio</span>
+                    <input
+                      type="date"
+                      className="input-field"
+                      aria-label="Fecha de inicio"
+                      value={customStart}
+                      onChange={(e) => handleCustomStartChange(e.target.value)}
+                    />
+                  </label>
+                  <span className="mt-5 text-cata-text/45">—</span>
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-xs font-medium text-cata-text/65">Fecha límite</span>
+                    <input
+                      type="date"
+                      className="input-field"
+                      aria-label="Fecha límite"
+                      value={customEnd}
+                      onChange={(e) => handleCustomEndChange(e.target.value)}
+                    />
+                  </label>
+                </div>
+              )}
+              {customDateError && datePreset === "custom" && (
+                <p className="mt-2 text-xs text-red-600" role="alert">
+                  {customDateError}
+                </p>
+              )}
+            </div>
+
+            {/* Schedule + Student filters */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block text-sm">
+                <span className="mb-1 block text-xs font-medium text-cata-text/65">Horario</span>
+                <select
+                  className="input-field"
+                  aria-label="Filtrar por horario"
+                  value={selectedScheduleId ?? ""}
+                  onChange={(e) => setSelectedScheduleId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Todos los horarios</option>
+                  {schedules.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {formatDay(s.diaSemana)} {s.horaInicio} — {s.horaFin} ({s.entrenadorNombre})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="block text-sm">
+                <span className="mb-1 block text-xs font-medium text-cata-text/65">Alumno</span>
+                <StudentSearch
+                  onSelect={handleStudentSelect}
+                  placeholder="Buscar alumno..."
+                  resetSignal={studentSearchReset}
+                />
+                {selectedStudent && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStudent(null);
+                      setStudentSearchReset((n) => n + 1);
+                    }}
+                    className="mt-2 text-xs text-cata-red hover:underline"
+                  >
+                    Limpiar selección
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* Loading state */}
-          {recentLoading && (
+          {/* History loading state */}
+          {historyLoading && (
             <div className="flex items-center justify-center py-16">
               <div className="flex items-center gap-2">
                 <Clock size={16} strokeWidth={1.5} className="animate-spin text-cata-text/65" aria-hidden="true" />
-                <p className="text-sm text-cata-text/50">Cargando asistencias recientes...</p>
+                <p className="text-sm text-cata-text/50">Cargando historial...</p>
               </div>
             </div>
           )}
 
-          {/* Error state */}
-          {recentError && !recentLoading && (
-            <div className="card border border-red-200 bg-red-50 p-6 text-center">
+          {/* History error state */}
+          {historyError && !historyLoading && (
+            <div className="card mb-4 border border-red-200 bg-red-50 p-6 text-center">
               <XCircle size={32} strokeWidth={1.5} className="mx-auto mb-3 text-red-700" aria-hidden="true" />
-              <p className="text-sm text-cata-red">{recentError}</p>
+              <p className="text-sm text-cata-red">{historyError}</p>
               <button
                 type="button"
-                onClick={() => loadRecentAttendance()}
+                onClick={() => loadHistory()}
                 className="btn-ghost mt-3 text-xs text-cata-red"
               >
                 Reintentar
@@ -296,46 +438,80 @@ export default function TrainerPage(): React.ReactElement {
             </div>
           )}
 
-          {!recentLoading && !recentError && (
+          {/* History table / empty state */}
+          {!historyLoading && !historyError && (
             <>
-              {recentRecords.length > 0 ? (
+              {historyRecords.length > 0 ? (
                 <div className="card overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                       <thead>
                         <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
-                          <th className="px-4 py-3 font-medium">Estudiante</th>
                           <th className="px-4 py-3 font-medium">Fecha</th>
+                          <th className="px-4 py-3 font-medium">Alumno</th>
                           <th className="px-4 py-3 font-medium">Horario</th>
                           <th className="px-4 py-3 font-medium">Estado</th>
+                          <th className="px-4 py-3 font-medium">Entrenador</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-cata-border">
-                        {recentRecords.map((record) => (
+                        {paginatedRecords.map((record) => (
                           <tr key={record.id} className="transition-colors hover:bg-cata-bg">
-                            <td className="px-4 py-3 text-sm font-medium text-cata-text">{record.estudiante}</td>
                             <td className="px-4 py-3 text-xs text-cata-text/65">{record.fecha}</td>
+                            <td className="px-4 py-3 text-sm font-medium text-cata-text">{record.estudiante}</td>
                             <td className="px-4 py-3 text-xs text-cata-text">{record.horario}</td>
                             <td className="px-4 py-3">
                               <AttendanceStateBadge estado={record.estado} />
                             </td>
+                            <td className="px-4 py-3 text-xs text-cata-text/65">{record.entrenador}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between border-t border-cata-border bg-cata-bg px-4 py-3">
+                      <p className="text-xs text-cata-text/65">
+                        Página {historyPage} de {totalPages} · {historyRecords.length} registro{historyRecords.length !== 1 ? "s" : ""}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                          disabled={historyPage === 1}
+                          className="btn-secondary inline-flex items-center gap-1 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                          aria-label="Página anterior"
+                        >
+                          <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+                          Anterior
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setHistoryPage((p) => Math.min(totalPages, p + 1))}
+                          disabled={historyPage === totalPages}
+                          className="btn-secondary inline-flex items-center gap-1 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                          aria-label="Página siguiente"
+                        >
+                          Siguiente
+                          <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="card flex flex-col items-center py-12 text-center">
-                  <UserCheck size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
+                  <ClipboardList size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
                   <p className="text-sm text-cata-text/50">
-                    No hay asistencias registradas en este rango.
+                    No se encontraron registros de asistencia para los filtros seleccionados.
                   </p>
                 </div>
               )}
             </>
           )}
-        </div>
+        </section>
       </AppShell>
     </ProtectedRoute>
   );

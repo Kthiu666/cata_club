@@ -26,7 +26,7 @@ export function extractAccessToken(request: NextRequest): string | null {
   return request.cookies.get(ACCESS_TOKEN_COOKIE)?.value ?? null;
 }
 
-/** Build the full backend URL for a given path (e.g. `/ranking/seleccion-oficial`). */
+/** Build the full backend URL for a given path (e.g. `/ranking/niveles`). */
 export function backendUrl(path: string): string {
   return `${getBackendApiUrl()}${path}`;
 }

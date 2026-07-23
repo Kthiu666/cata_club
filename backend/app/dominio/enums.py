@@ -101,14 +101,6 @@ class NivelTecnicoAlumno(str, enum.Enum):
     NIVEL_10 = "NIVEL 10"
 
 
-class EstadoSolicitudExtra(str, enum.Enum):
-    """Estado de una solicitud de clase adicional dentro de una membresía
-    PERSONALIZADA. Es un objeto propio, no reutiliza EstadoPago ni EstadoMembresia."""
-    PENDIENTE = "PENDIENTE"
-    APROBADA = "APROBADA"
-    RECHAZADA = "RECHAZADA"
-
-
 class TipoSangre(str, enum.Enum):
     A_POSITIVO = "A_POSITIVO"
     A_NEGATIVO = "A_NEGATIVO"
@@ -121,26 +113,6 @@ class TipoSangre(str, enum.Enum):
     DESCONOCIDO = "DESCONOCIDO"
 
 
-# ---------------------------------------------------------------------------
-# Ranking (E03) — módulo agregado en la integración con el frontend.
-# ---------------------------------------------------------------------------
-class EstadoJustificativoRanking(str, enum.Enum):
-    """Estado de un justificativo de inasistencia al ranking mensual
-    (E03-RF006a/b). Objeto propio, no reutiliza EstadoSolicitudExtra: son
-    procesos de negocio distintos aunque el shape se parezca."""
-    PENDIENTE = "PENDIENTE"
-    APROBADO = "APROBADO"
-    RECHAZADO = "RECHAZADO"
-
-
 class TipoNotificacion(str, enum.Enum):
-    """Notificación in-app (no email/push). Cubre los avisos que exige E03:
-    resultado de evaluación de un justificativo (RF006b) y reingreso
-    aprobado (RF008). Los tipos de aviso previo a eliminación (RF007) y de
-    sugerencias de ascenso/descenso (RF009) fueron removidos junto con
-    `cerrar_mes()`/`_sugerir_movimientos()` (único emisor de ambos) — ver
-    apply-progress de `limpieza-asistencia-y-nivel-entrenador` slice E."""
-    RANKING_REINGRESO_APROBADO = "RANKING_REINGRESO_APROBADO"
-    JUSTIFICATIVO_APROBADO = "JUSTIFICATIVO_APROBADO"
-    JUSTIFICATIVO_RECHAZADO = "JUSTIFICATIVO_RECHAZADO"
+    """Notificación in-app (no email/push)."""
     MIEMBRESIA_VENCIMIENTO_PROXIMO = "MIEMBRESIA_VENCIMIENTO_PROXIMO"

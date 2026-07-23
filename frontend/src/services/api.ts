@@ -20,28 +20,21 @@
 import type {
   UserRole,
   EstadoAsistencia,
-  SolicitudClaseExtra,
-  SolicitudClaseExtraCreate,
-  SolicitudClaseExtraResolver,
   RolesResponse,
   BackendTipoRol,
   FichaMedicaEditable,
   FichaMedicaUpdatePayload,
   TipoSangre,
-  ResultadoMensual,
-  SeleccionOficial,
   PersonaReporte,
   PersonaResponse,
   PersonaBusqueda,
   Notificacion,
-  Justificativo,
   PerfilPropio,
   ActualizarPerfilPropioPayload,
 } from "@/types/domain";
 import type { EnrollmentRequest, EnrollmentResponse } from "@/types/enrollment";
 import type { AttendanceRecord, TrainingSchedule } from "@/app/attendance/attendance-utils";
 import type { MemberAccount } from "@/app/members/members-utils";
-import { MOCK_JUSTIFICATIVOS_PENDIENTES } from "@/mocks/justificativos";
 
 // ---------------------------------------------------------------------------
 // Types — Membership Payment Validation (CU012)
@@ -731,85 +724,6 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
 }
 
 // ---------------------------------------------------------------------------
-// Ranking (Track Ranking) API Methods
-//
-// Unlike the mock-store-backed /payments routes above, these BFF routes
-// (src/app/api/ranking/**) always proxy to the real backend via the
-// access-token cookie — mirroring the auth routes' pattern, not the mock
-// pattern. See src/app/api/ranking/* route handlers for the proxy logic.
-// ---------------------------------------------------------------------------
-
-/** DTO for POST /ranking/resultados-mensuales — register a monthly result. */
-export interface RegistrarResultadoMensualDTO {
-  personaId: number;
-  anio: number;
-  mes: number;
-  posicion?: number;
-  participo: boolean;
-}
-
-/** DTO for POST /ranking/seleccion-oficial — register/update the official-selection roster. */
-export interface SeleccionOficialDTO {
-  estudianteId: string;
-}
-
-/** Register a monthly ranking result for a student (CU — Resultados Mensuales). */
-export async function registrarResultadoMensual(
-  data: RegistrarResultadoMensualDTO,
-): Promise<ResultadoMensual> {
-  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<ResultadoMensual>(apiEndpoint("/ranking/resultados-mensuales"), {
-    method: "POST",
-    body: JSON.stringify(data),
-    headers: mockHeaders,
-  });
-}
-
-/** Re-admit ("reingresar") a previously dropped/inactive student into the ranking. */
-export async function reingresar(estudianteId: string): Promise<{ success: boolean }> {
-  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<{ success: boolean }>(apiEndpoint(`/ranking/${estudianteId}/reingresar`), {
-    method: "POST",
-    headers: mockHeaders,
-  });
-}
-
-/** Register/update an entry in the admin-managed official-selection roster. */
-export async function seleccionOficial(
-  data: SeleccionOficialDTO,
-): Promise<SeleccionOficial> {
-  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<SeleccionOficial>(apiEndpoint("/ranking/seleccion-oficial"), {
-    method: "POST",
-    body: JSON.stringify(data),
-    headers: mockHeaders,
-  });
-}
-
-/** Fetch the persisted official-selection roster. */
-export async function fetchSeleccionOficial(): Promise<SeleccionOficialRosterItem[]> {
-  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<SeleccionOficialRosterItem[]>(apiEndpoint("/ranking/seleccion-oficial"), {
-    headers: mockHeaders,
-  });
-}
-
-/** Remove a student from the official-selection roster. */
-export async function quitarDeSeleccionOficial(personaId: number): Promise<void> {
-  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  await request<unknown>(apiEndpoint(`/ranking/seleccion-oficial/${personaId}`), {
-    method: "DELETE",
-    headers: mockHeaders,
-  });
-}
-
-export interface SeleccionOficialRosterItem {
-  persona_id: number;
-  persona_nombre_completo: string;
-  anio_seleccion: number | null;
-}
-
-// ---------------------------------------------------------------------------
 // Ranking Data Fetching (GET endpoints — replace mock data)
 // ---------------------------------------------------------------------------
 
@@ -822,33 +736,8 @@ export interface AsignacionRanking {
   esta_en_ranking: boolean;
 }
 
-export interface ResultadoMensualRanking {
-  id: number;
-  persona_id: number;
-  persona_nombre_completo: string;
-  nivel_ranking_id: number;
-  nivel_ranking_nombre: string | null;
-  anio: number;
-  mes: number;
-  posicion: number | null;
-  puntos_obtenidos: number;
-  participo: boolean;
-  ausencia_justificada: boolean;
-}
-
 export async function fetchAsignacionesRanking(): Promise<AsignacionRanking[]> {
   return request<AsignacionRanking[]>(apiEndpoint("/ranking/asignaciones"));
-}
-
-export async function fetchResultadosMensualesRanking(
-  filtros?: { nivel_id?: number; anio?: number; mes?: number },
-): Promise<ResultadoMensualRanking[]> {
-  const qs = new URLSearchParams();
-  if (filtros?.nivel_id !== undefined) qs.set("nivel_id", String(filtros.nivel_id));
-  if (filtros?.anio !== undefined) qs.set("anio", String(filtros.anio));
-  if (filtros?.mes !== undefined) qs.set("mes", String(filtros.mes));
-  const query = qs.toString();
-  return request<ResultadoMensualRanking[]>(apiEndpoint(`/ranking/resultados-mensuales${query ? `?${query}` : ""}`));
 }
 
 // ---------------------------------------------------------------------------
@@ -916,12 +805,11 @@ export async function restablecerContrasenia(
 }
 
 // ---------------------------------------------------------------------------
-// Types & API Methods — Extra Classes, Roles & Medical Record (Grupo B)
+// Types & API Methods — Memberships, Roles & Medical Record (Grupo B)
 // ---------------------------------------------------------------------------
 
 /**
- * Memberships owned by a persona. Needed to discover `membresia_id` for
- * `POST /clases-extra/` and for the admin create-membership flow.
+ * Memberships owned by a persona — used by the admin create-membership flow.
  */
 export interface MembresiaPorPersona {
   id: number;
@@ -980,9 +868,9 @@ export interface PagoPersona {
 }
 
 /**
- * A persona's own payment history, any status (mirrors `fetchJustificativosDePersona`'s
- * "always real, not mock-gated" pattern — mock mode only adds the `x-mock-role`
- * header) — `GET /membresias/pagos/persona/:personaId`.
+ * A persona's own payment history, any status — always real, not mock-gated
+ * (mock mode only adds the `x-mock-role` header) — `GET
+ * /membresias/pagos/persona/:personaId`.
  */
 export async function fetchPagosDePersona(personaId: string): Promise<PagoPersona[]> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
@@ -1018,49 +906,6 @@ export async function crearMembresia(data: {
       tipo_membresia_id: data.tipoMembresiaId,
       monto_aplicado: data.montoAplicado,
     }),
-  });
-}
-
-/** Create an extra-class request. Valid only for PERSONALIZED memberships. */
-export async function solicitarClaseExtra(
-  data: SolicitudClaseExtraCreate,
-): Promise<SolicitudClaseExtra> {
-  const body = {
-    fecha_clase_solicitada: data.fechaClaseSolicitada,
-    persona_id: data.personaId,
-    membresia_id: data.membresiaId,
-    horario_id: data.horarioId,
-    ...(data.observaciones ? { observaciones: data.observaciones } : {}),
-  };
-  return request<SolicitudClaseExtra>(apiEndpoint("/clases-extra"), {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-}
-
-/** List extra-class requests for a given persona. */
-export async function listarClasesExtra(personaId: number): Promise<SolicitudClaseExtra[]> {
-  return request<SolicitudClaseExtra[]>(apiEndpoint(`/clases-extra/persona/${personaId}`));
-}
-
-/** Admin-only: list all pending extra-class requests. */
-export async function fetchClasesExtraPendientes(): Promise<SolicitudClaseExtra[]> {
-  return request<SolicitudClaseExtra[]>(apiEndpoint("/clases-extra/pendientes"));
-}
-
-/** Admin-only: approve or reject an extra-class request. */
-export async function resolverClaseExtra(
-  id: number,
-  data: SolicitudClaseExtraResolver,
-): Promise<SolicitudClaseExtra> {
-  const body = {
-    estado: data.estado,
-    ...(data.costoAdicional !== undefined ? { costo_adicional: data.costoAdicional } : {}),
-    ...(data.observaciones ? { observaciones: data.observaciones } : {}),
-  };
-  return request<SolicitudClaseExtra>(apiEndpoint(`/clases-extra/${id}/resolver`), {
-    method: "PATCH",
-    body: JSON.stringify(body),
   });
 }
 
@@ -1234,18 +1079,12 @@ export async function subirFotoPerfil(archivo: File): Promise<PerfilPropio> {
 }
 
 // ---------------------------------------------------------------------------
-// Ranking — Notificaciones & Justificativos
-//
-// Notificaciones and the justificativo submit/evaluate actions proxy a real,
-// confirmed backend contract (see ranking_router.py: GET/PATCH
-// notificaciones/*, POST/PATCH justificativos/*) — same "always real"
-// pattern as the other ranking BFF routes above, not mock-gated.
-// `fetchJustificativosPendientes` is the one exception: no backend endpoint
-// lists pending justificativos at all (see src/mocks/justificativos.ts),
-// so it stays mock-only until the backend team exposes one.
+// Notificaciones — in-app notifications (currently membership-expiration
+// notices only; the ranking-mensual/justificativo notification types were
+// removed along with those features).
 // ---------------------------------------------------------------------------
 
-/** List the logged-in persona's own in-app ranking notifications — `GET /ranking/notificaciones/mias`. */
+/** List the logged-in persona's own in-app notifications — `GET /ranking/notificaciones/mias`. */
 export async function fetchNotificaciones(): Promise<Notificacion[]> {
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
   return request<Notificacion[]>(apiEndpoint("/ranking/notificaciones/mias"), {
@@ -1258,99 +1097,6 @@ export async function marcarNotificacionLeida(id: number): Promise<Notificacion>
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
   return request<Notificacion>(apiEndpoint(`/ranking/notificaciones/${id}/leer`), {
     method: "PATCH",
-    headers: mockHeaders,
-  });
-}
-
-/** DTO for submitting a justificativo — `personaId` becomes a URL segment server-side, not a body field (see the BFF route's doc comment). */
-export interface SubmitJustificativoDTO {
-  personaId: number;
-  anio: number;
-  mes: number;
-  motivo: string;
-  archivoUrl?: string;
-  observaciones?: string;
-}
-
-/** Submit a justificativo for a missed ranking month (E03-RF006a) — `POST /ranking/:personaId/justificativos`. */
-export async function submitJustificativo(data: SubmitJustificativoDTO): Promise<Justificativo> {
-  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<Justificativo>(apiEndpoint("/ranking/justificativos"), {
-    method: "POST",
-    body: JSON.stringify(data),
-    headers: mockHeaders,
-  });
-}
-
-/** DTO for evaluating (approving/rejecting) a pending justificativo. */
-export interface EvaluarJustificativoDTO {
-  estado: "APROBADO" | "RECHAZADO";
-  motivoRechazo?: string;
-}
-
-/**
- * Mutable in-memory copy of the pending-justificativos mock list. Mock mode
- * has no real backend to PATCH against (see `fetchJustificativosPendientes`
- * below), so `evaluarJustificativo`'s mock path simulates the decision
- * against this array instead — removing the evaluated entry so a
- * subsequent `fetchJustificativosPendientes()` call reflects the change,
- * same as a real backend would after approve/reject.
- */
-let mockJustificativosPendientes: Justificativo[] = [...MOCK_JUSTIFICATIVOS_PENDIENTES];
-
-/** Admin-only: approve or reject a pending justificativo (E03-RF006b) — `PATCH /ranking/justificativos/:id/evaluar`. */
-export async function evaluarJustificativo(
-  id: number,
-  data: EvaluarJustificativoDTO,
-): Promise<Justificativo> {
-  if (isMockMode()) {
-    const target = mockJustificativosPendientes.find((j) => j.id === id);
-    const evaluado: Justificativo = {
-      id,
-      personaId: target?.personaId ?? 0,
-      anio: target?.anio ?? new Date().getFullYear(),
-      mes: target?.mes ?? new Date().getMonth() + 1,
-      motivo: target?.motivo ?? "",
-      archivoUrl: target?.archivoUrl ?? null,
-      observaciones: target?.observaciones ?? null,
-      estado: data.estado,
-      motivoRechazo: data.motivoRechazo ?? null,
-      fechaSolicitud: target?.fechaSolicitud ?? new Date().toISOString(),
-      fechaEvaluacion: new Date().toISOString(),
-      evaluadoPorId: -1,
-    };
-    mockJustificativosPendientes = mockJustificativosPendientes.filter((j) => j.id !== id);
-    return evaluado;
-  }
-  return request<Justificativo>(apiEndpoint(`/ranking/justificativos/${id}/evaluar`), {
-    method: "PATCH",
-    body: JSON.stringify(data),
-  });
-}
-
-/**
- * List pending justificativos for admin review (E03-RF006b) — `GET
- * /ranking/justificativos/pendientes`. Mock mode returns the (mutable)
- * curated sample data from src/mocks/justificativos.ts — evaluated entries
- * are removed by `evaluarJustificativo` above so a subsequent call reflects
- * the change, same as the real backend would after approve/reject.
- */
-export async function fetchJustificativosPendientes(): Promise<Justificativo[]> {
-  if (isMockMode()) return mockJustificativosPendientes;
-  return request<Justificativo[]>(apiEndpoint("/ranking/justificativos/pendientes"));
-}
-
-/**
- * A persona's own justificativo history, any status (E04-RF012 ampliado) —
- * `GET /ranking/:personaId/justificativos`. Confirmed real backend contract
- * (`listar_justificativos_de_persona` in ranking_router.py — dueño-or-
- * representante authorization enforced server-side), same "always real"
- * pattern as `submitJustificativo`/`fetchNotificaciones` above — not
- * mock-gated like `fetchJustificativosPendientes`.
- */
-export async function fetchJustificativosDePersona(personaId: string): Promise<Justificativo[]> {
-  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<Justificativo[]>(apiEndpoint(`/ranking/${personaId}/justificativos`), {
     headers: mockHeaders,
   });
 }
@@ -1419,5 +1165,32 @@ export async function fetchHorariosPorAlumno(personaId: number): Promise<AlumnoH
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
   return request<AlumnoHorario[]>(apiEndpoint(`/asistencias/alumnos/${personaId}/horarios`), {
     headers: mockHeaders,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Chatbot (FAQ helper widget)
+// ---------------------------------------------------------------------------
+
+/** One prior turn of the chatbot conversation, kept client-side (no server-side persistence). */
+export interface ChatbotTurno {
+  rol: "usuario" | "asistente";
+  texto: string;
+}
+
+export interface ChatbotRespuesta {
+  reply: string;
+}
+
+/**
+ * Ask the FAQ chatbot a question. `historial` is the last few turns of the
+ * conversation (the caller is responsible for capping it — see
+ * ChatWidget.tsx) so the backend can keep the multi-turn context without
+ * this client needing to know its cap.
+ */
+export async function consultarChatbot(mensaje: string, historial?: ChatbotTurno[]): Promise<ChatbotRespuesta> {
+  return request<ChatbotRespuesta>(apiEndpoint("/chatbot"), {
+    method: "POST",
+    body: JSON.stringify({ mensaje, historial }),
   });
 }

@@ -14,8 +14,8 @@ import type { Notificacion } from "@/types/domain";
 function makeNotificacion(overrides: Partial<Notificacion> = {}): Notificacion {
   return {
     id: 1,
-    tipo: "JUSTIFICATIVO_APROBADO",
-    mensaje: "Tu justificativo de 7/2026 fue aprobado.",
+    tipo: "MIEMBRESIA_VENCIMIENTO_PROXIMO",
+    mensaje: "Tu membresía vence pronto.",
     leida: false,
     fechaCreacion: "2026-07-19T10:00:00Z",
     entidadRelacionadaId: 5,
@@ -49,8 +49,8 @@ describe("NotificationBell", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /notificaciones/i }));
 
-    expect(screen.getByText("Tu justificativo de 7/2026 fue aprobado.")).toBeInTheDocument();
-    expect(screen.getByText("Justificativo aprobado")).toBeInTheDocument();
+    expect(screen.getByText("Tu membresía vence pronto.")).toBeInTheDocument();
+    expect(screen.getByText("Membresía próxima a vencer")).toBeInTheDocument();
   });
 
   it("calls onMarkRead when an unread notification is clicked", () => {
@@ -64,7 +64,7 @@ describe("NotificationBell", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /notificaciones/i }));
-    fireEvent.click(screen.getByText("Tu justificativo de 7/2026 fue aprobado."));
+    fireEvent.click(screen.getByText("Tu membresía vence pronto."));
 
     expect(onMarkRead).toHaveBeenCalledWith(7);
   });
@@ -80,7 +80,7 @@ describe("NotificationBell", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /notificaciones/i }));
-    fireEvent.click(screen.getByText("Tu justificativo de 7/2026 fue aprobado."));
+    fireEvent.click(screen.getByText("Tu membresía vence pronto."));
 
     expect(onMarkRead).not.toHaveBeenCalled();
   });

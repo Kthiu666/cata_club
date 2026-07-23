@@ -1,5 +1,5 @@
 /**
- * NotificationBell — presentational dropdown for ranking notifications.
+ * NotificationBell — presentational dropdown for in-app notifications.
  *
  * Owns only its own open/closed UI state; data (list, load error, mark-read)
  * comes from `useNotificaciones()`, called once in Header and passed down —
@@ -15,9 +15,7 @@ import type { Notificacion, TipoNotificacion } from "@/types/domain";
 import { formatDateTime } from "@/lib/format-utils";
 
 const TIPO_LABELS: Record<TipoNotificacion, string> = {
-  RANKING_REINGRESO_APROBADO: "Reingreso aprobado",
-  JUSTIFICATIVO_APROBADO: "Justificativo aprobado",
-  JUSTIFICATIVO_RECHAZADO: "Justificativo rechazado",
+  MIEMBRESIA_VENCIMIENTO_PROXIMO: "Membresía próxima a vencer",
 };
 
 export interface NotificationBellProps {

@@ -9,12 +9,23 @@ interface StudentSearchProps {
   onSelect: (alumno: PersonaBusqueda) => void;
   placeholder?: string;
   disabled?: boolean;
+  /**
+   * Token opaco que, al cambiar su valor, resetea el estado interno del
+   * componente (input + resultados + dropdown). Patrón "reset signal":
+   * el padre lo incrementa para pedir un clear externo (por ejemplo al
+   * clickear "Limpiar selección") sin necesidad de `forwardRef` ni de
+   * exponer métodos imperativos. Identidad por valor, no por referencia:
+   * el padre debe pasar un valor *nuevo* (primitivo) cada vez que quiera
+   * resetear — idealmente un contador entero o un timestamp.
+   */
+  resetSignal?: number;
 }
 
 export default function StudentSearch({
   onSelect,
   placeholder = "Buscar alumno por nombre...",
   disabled = false,
+  resetSignal,
 }: StudentSearchProps): React.ReactElement {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PersonaBusqueda[]>([]);
@@ -24,6 +35,20 @@ export default function StudentSearch({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const close = useCallback(() => setOpen(false), []);
+
+  // Reset externo: cuando el padre cambia `resetSignal`, limpiamos el
+  // input y los resultados. Miramos el valor anterior contra el nuevo
+  // para ignorar el mount inicial (donde prev === undefined y curr es el
+  // valor inicial — no hay nada que resetear).
+  const prevResetSignal = useRef<number | undefined>(resetSignal);
+  useEffect(() => {
+    if (prevResetSignal.current !== resetSignal) {
+      prevResetSignal.current = resetSignal;
+      setQuery("");
+      setResults([]);
+      setOpen(false);
+    }
+  }, [resetSignal]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent): void {

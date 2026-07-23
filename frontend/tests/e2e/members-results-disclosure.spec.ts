@@ -52,8 +52,15 @@ test("members disclose visible results and essential membership information at 3
   await expect(accountIdentity.getByText("María González")).toBeVisible();
   await expect(accountIdentity.getByText("Activo", { exact: true })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "Contacto" })).toBeHidden();
-  await expect(page.getByText("Membresía", { exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: /paginación/i })).toHaveCount(0);
+
+  // Membership info now lives in the account's Editar modal (the row no
+  // longer expands) — one card per student under "Estudiantes a cargo".
+  // Two "Editar" triggers exist per row (desktop + a mobile-visible
+  // duplicate, since the desktop one's whole column is CSS-hidden below
+  // `sm`); at this viewport only the mobile one is actually visible.
+  await page.locator('button[aria-label="Editar"]:visible').click();
+  await expect(page.getByRole("dialog").getByText("Membresía", { exact: true })).toBeVisible();
 });
 
 test("members show an incomplete-coverage notice when 200 personas collapse into one account", async ({ page }) => {

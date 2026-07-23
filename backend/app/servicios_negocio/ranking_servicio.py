@@ -5,57 +5,40 @@ Decisiones de diseño registradas aquí porque son las que se acordaron
 explícitamente con el equipo durante la integración (para que quien lea el
 código no tenga que reconstruir el razonamiento desde cero):
 
-1. Fórmula de puntos (RF004, formalmente derogado como cierre mensual pero
-   la fórmula se reutiliza en RF003 al registrar el resultado del mes):
-   puntos(p) = max(91 - p, 1). Es la única función lineal que conecta los
-   tres anclajes del requisito original (puesto 1 = 90, puesto 90+ = 1 fijo,
-   descenso "proporcional" entre medio) sin inventar parámetros libres.
-
-2. "Nivel de Ranking" = grupo de entrenamiento (confirmado con el equipo):
+1. "Nivel de Ranking" = grupo de entrenamiento (confirmado con el equipo):
    no existen como conceptos separados. NivelRanking es a la vez el
    agrupador de horarios de entrenamiento y el nivel competitivo.
 
-3. Notificaciones in-app únicamente (no email/push).
+2. Notificaciones in-app únicamente (no email/push).
 
-Nota (limpieza cierre mensual + limpieza por inactividad): el cierre mensual
-manual (RF004/RF005/RF007/RF009 -- cálculo de puntos y posiciones,
-sugerencias de ascenso/descenso, eliminación automática por 2 meses
-consecutivos sin justificar) fue derogado por decisión de producto y removido
-de este servicio. La tarea Celery Beat `limpiar_ranking_por_inactividad`, que
-dependía del mismo dato huérfano (`Ranking.ultimo_combate_o_asistencia`, ya
-no escrito por nadie tras el cierre mensual), fue removida por la misma
-razón (falso positivo masivo: sin escritor, todos quedaban "inactivos"). Hoy
-no existe ningún mecanismo automático que ponga `esta_en_ranking = False`;
-la baja es administrativa/manual.
+Nota (limpieza cierre mensual + limpieza por inactividad + remoción del
+ranking competitivo): el cierre mensual manual (RF004/RF005/RF007/RF009 --
+cálculo de puntos y posiciones, sugerencias de ascenso/descenso, eliminación
+automática por 2 meses consecutivos sin justificar) fue derogado por decisión
+de producto y removido de este servicio. La tarea Celery Beat
+`limpiar_ranking_por_inactividad`, que dependía del mismo dato huérfano
+(`Ranking.ultimo_combate_o_asistencia`, ya no escrito por nadie tras el
+cierre mensual), fue removida por la misma razón (falso positivo masivo: sin
+escritor, todos quedaban "inactivos"). Hoy no existe ningún mecanismo
+automático que ponga `esta_en_ranking = False`; la baja es
+administrativa/manual. Los resultados mensuales, justificativos, reingreso y
+selección oficial (funcionalidad competitiva) fueron removidos por completo;
+lo que queda de este módulo es exclusivamente la asignación de alumnos a
+niveles/grupos de entrenamiento.
 """
-from datetime import datetime, timezone
-
 from sqlalchemy.orm import Session
 
-from app.dominio.modelos import (
-    NivelRanking, Ranking, ResultadoRankingMensual, JustificativoRanking,
-    Notificacion, Persona, Usuario, Rol, usuario_rol,
-)
-from app.dominio.enums import EstadoJustificativoRanking, TipoNotificacion, TipoRol
+from app.dominio.modelos import NivelRanking, Ranking, Notificacion
 from app.dominio.excepciones import EntidadNoEncontrada, OperacionInvalida, PermisosInsuficientes, EntidadDuplicada
 from app.infraestructura.repositorios.persona_repositorio import PersonaRepositorio
 from app.infraestructura.repositorios.ranking_repositorio import (
-    NivelRankingRepositorio, RankingRepositorio, ResultadoRankingMensualRepositorio,
-    JustificativoRankingRepositorio, NotificacionRepositorio,
+    NivelRankingRepositorio, RankingRepositorio, NotificacionRepositorio,
 )
 from app.presentacion.schemas.ranking_schemas import (
-    NivelRankingCreateDTO, AsignarNivelInicialDTO, ResultadoMensualRegistrarDTO,
-    JustificativoCreateDTO, JustificativoEvaluarDTO, SeleccionOficialDTO,
+    NivelRankingCreateDTO, AsignarNivelInicialDTO,
     NivelRankingConOcupacionDTO, TablaRankingItemDTO, PerfilRankingAlumnoDTO,
-    AsignacionRankingResponseDTO, ResultadoMensualRankingResponseDTO,
+    AsignacionRankingResponseDTO,
 )
-
-
-def calcular_puntos_por_posicion(posicion: int) -> int:
-    """E03-RF004. puntos(1)=90, puntos(89)=2, puntos(90+)=1."""
-    if posicion < 1:
-        raise OperacionInvalida("La posición debe ser un entero positivo")
-    return max(91 - posicion, 1)
 
 
 class NivelRankingServicio:
@@ -111,10 +94,6 @@ class RankingServicio:
     def __init__(self, db: Session):
         self.db = db
         self.repo = RankingRepositorio(db)
-        self.repo_nivel = NivelRankingRepositorio(db)
-        self.repo_resultado = ResultadoRankingMensualRepositorio(db)
-        self.repo_justificativo = JustificativoRankingRepositorio(db)
-        self.repo_notificacion = NotificacionRepositorio(db)
         self.repo_persona = PersonaRepositorio(db)
 
     # --- Listados para frontend -----------------------------------------------
@@ -131,39 +110,6 @@ class RankingServicio:
                     nivel_ranking_nombre=nivel.nombre if nivel else None,
                     nivel_ranking_numero=nivel.numero_nivel if nivel else 0,
                     esta_en_ranking=r.esta_en_ranking,
-                )
-            )
-        return resultado
-
-    def listar_resultados_mensuales(
-        self, nivel_id: int | None = None, anio: int | None = None, mes: int | None = None
-    ) -> list[ResultadoMensualRankingResponseDTO]:
-        if nivel_id:
-            resultados = self.repo_resultado.listar_por_nivel(nivel_id)
-        else:
-            resultados = self.repo_resultado.listar_todos()
-
-        resultado = []
-        for r in resultados:
-            if anio and r.anio != anio:
-                continue
-            if mes and r.mes != mes:
-                continue
-            persona = r.persona
-            nivel = r.nivel_ranking
-            resultado.append(
-                ResultadoMensualRankingResponseDTO(
-                    id=r.id,
-                    persona_id=r.persona_id,
-                    persona_nombre_completo=f"{persona.nombres} {persona.apellidos}" if persona else "",
-                    nivel_ranking_id=r.nivel_ranking_id,
-                    nivel_ranking_nombre=nivel.nombre if nivel else None,
-                    anio=r.anio,
-                    mes=r.mes,
-                    posicion=r.posicion,
-                    puntos_obtenidos=r.puntos_obtenidos,
-                    participo=r.participo,
-                    ausencia_justificada=r.ausencia_justificada,
                 )
             )
         return resultado
@@ -226,218 +172,6 @@ class RankingServicio:
             for r in rankings
         ]
 
-    # --- E03-RF003: registrar resultado mensual de una persona -------------
-    def registrar_resultado_mensual(self, datos: ResultadoMensualRegistrarDTO) -> ResultadoRankingMensual:
-        ranking = self.repo.obtener_por_persona(datos.persona_id)
-        if not ranking or ranking.nivel_ranking_id is None:
-            raise OperacionInvalida(
-                "La persona no tiene un nivel de ranking asignado; "
-                "asígnele uno primero (RF002)"
-            )
-        if datos.participo and datos.posicion is None:
-            raise OperacionInvalida("Si participó, debe indicarse la posición obtenida")
-
-        existente = self.repo_resultado.obtener(datos.persona_id, datos.anio, datos.mes)
-        if existente:
-            raise EntidadDuplicada(
-                f"Ya existe un resultado registrado para esta persona en {datos.mes}/{datos.anio}"
-            )
-
-        justificativo = self.repo_justificativo.obtener_por_persona_y_periodo(
-            datos.persona_id, datos.anio, datos.mes
-        )
-        ausencia_justificada = bool(
-            justificativo and justificativo.estado == EstadoJustificativoRanking.APROBADO
-        )
-
-        puntos = calcular_puntos_por_posicion(datos.posicion) if datos.participo else 0
-
-        resultado = ResultadoRankingMensual(
-            persona_id=datos.persona_id,
-            nivel_ranking_id=ranking.nivel_ranking_id,
-            anio=datos.anio,
-            mes=datos.mes,
-            posicion=datos.posicion,
-            puntos_obtenidos=puntos,
-            participo=datos.participo,
-            ausencia_justificada=ausencia_justificada,
-        )
-        return self.repo_resultado.crear(resultado)
-
-    # --- E03-RF006a: alumno/representante registra justificativo -----------
-    def crear_justificativo(
-        self, persona_id_solicitante: int, datos: JustificativoCreateDTO, persona_objetivo_id: int
-    ) -> JustificativoRanking:
-        persona_objetivo = self._obtener_persona_verificando_dueno_o_representante(
-            persona_id_solicitante, persona_objetivo_id,
-            mensaje_error="Solo el propio alumno o su representante pueden registrar este justificativo",
-        )
-
-        if self.repo_justificativo.obtener_por_persona_y_periodo(
-            persona_objetivo_id, datos.anio, datos.mes
-        ):
-            raise EntidadDuplicada("Ya existe un justificativo para esta persona en ese período")
-
-        justificativo = JustificativoRanking(
-            persona_id=persona_objetivo_id,
-            anio=datos.anio,
-            mes=datos.mes,
-            motivo=datos.motivo,
-            archivo_url=datos.archivo_url,
-            observaciones=datos.observaciones,
-        )
-        return self.repo_justificativo.crear(justificativo)
-
-    # --- E03-RF006b: administrador lista pendientes de evaluación ----------
-    def listar_justificativos_pendientes(self) -> list[JustificativoRanking]:
-        """Listado de justificativos con estado PENDIENTE, para revisión del
-        administrador (E03-RF006b)."""
-        return self.repo_justificativo.listar_pendientes()
-
-    # --- E04-RF012 ampliado: alumno/representante ve su propio historial ---
-    def listar_justificativos_de_persona(
-        self, persona_id_solicitante: int, persona_id_objetivo: int
-    ) -> list[JustificativoRanking]:
-        """Historial completo (cualquier estado, incluyendo RECHAZADO con su
-        motivo) de los justificativos de una persona. Mismo criterio de
-        autorización que `crear_justificativo`: el propio alumno o su
-        representante."""
-        self._obtener_persona_verificando_dueno_o_representante(
-            persona_id_solicitante, persona_id_objetivo,
-            mensaje_error="Solo el propio alumno o su representante pueden ver este historial",
-        )
-        return self.repo_justificativo.listar_por_persona(persona_id_objetivo)
-
-    def _obtener_persona_verificando_dueno_o_representante(
-        self, persona_id_solicitante: int, persona_objetivo_id: int, mensaje_error: str
-    ):
-        """Helper compartido: 404 si la persona objetivo no existe, 403 si
-        quien solicita no es ni la propia persona ni su representante."""
-        persona_objetivo = self.repo_persona.obtener_por_id(persona_objetivo_id)
-        if not persona_objetivo:
-            raise EntidadNoEncontrada(f"Persona con id {persona_objetivo_id} no encontrada")
-
-        es_el_propio = persona_id_solicitante == persona_objetivo_id
-        es_su_representante = persona_objetivo.representante_id == persona_id_solicitante
-        if not (es_el_propio or es_su_representante):
-            raise PermisosInsuficientes(mensaje_error)
-        return persona_objetivo
-
-    # --- E03-RF006b: administrador evalúa ------------------------------------
-    def evaluar_justificativo(
-        self, justificativo_id: int, datos: JustificativoEvaluarDTO
-    ) -> JustificativoRanking:
-        justificativo = self.repo_justificativo.obtener_por_id(justificativo_id)
-        if not justificativo:
-            raise EntidadNoEncontrada(f"Justificativo con id {justificativo_id} no encontrado")
-        if justificativo.estado != EstadoJustificativoRanking.PENDIENTE:
-            raise OperacionInvalida("Este justificativo ya fue evaluado")
-
-        justificativo.estado = datos.estado
-        justificativo.motivo_rechazo = datos.motivo_rechazo
-        justificativo.fecha_evaluacion = datetime.now(timezone.utc)
-
-        if datos.estado == EstadoJustificativoRanking.APROBADO:
-            # Si el resultado del mes ya se había registrado como "no
-            # participó" ANTES de aprobarse el justificativo, se corrige
-            # retroactivamente para que la excepción de RF005 realmente
-            # cuente y no penalice al alumno.
-            resultado = self.repo_resultado.obtener(
-                justificativo.persona_id, justificativo.anio, justificativo.mes
-            )
-            if resultado and not resultado.participo:
-                resultado.ausencia_justificada = True
-                self.repo_resultado.guardar_cambios(resultado)
-            ranking = self.repo.obtener_por_persona(justificativo.persona_id)
-            if ranking:
-                ranking.meses_consecutivos_ausente = 0
-                self.repo.guardar_cambios(ranking)
-            self._notificar_persona(
-                justificativo.persona_id, TipoNotificacion.JUSTIFICATIVO_APROBADO,
-                f"Tu justificativo de {justificativo.mes}/{justificativo.anio} fue aprobado.",
-                justificativo.id,
-            )
-        else:
-            self._notificar_persona(
-                justificativo.persona_id, TipoNotificacion.JUSTIFICATIVO_RECHAZADO,
-                f"Tu justificativo de {justificativo.mes}/{justificativo.anio} fue rechazado.",
-                justificativo.id,
-            )
-
-        return self.repo_justificativo.guardar_cambios(justificativo)
-
-    # --- E03-RF008: reingreso -------------------------------------------------
-    def reingresar(self, persona_id: int) -> Ranking:
-        ranking = self.repo.obtener_por_persona(persona_id)
-        if not ranking:
-            raise EntidadNoEncontrada(f"No existe ranking para la persona {persona_id}")
-        if ranking.esta_en_ranking:
-            raise OperacionInvalida("Esta persona ya está activa en el ranking")
-
-        tiene_justificativo_aprobado = any(
-            j.estado == EstadoJustificativoRanking.APROBADO
-            for j in self.db.query(JustificativoRanking)
-            .filter(JustificativoRanking.persona_id == persona_id)
-            .all()
-        )
-        if not tiene_justificativo_aprobado:
-            raise OperacionInvalida(
-                "El reingreso solo procede si la falta que causó la eliminación "
-                "tiene un justificativo aprobado"
-            )
-
-        # "Último nivel registrado" = el nivel más bajo (numero_nivel más alto).
-        niveles = self.repo_nivel.listar()
-        if not niveles:
-            raise OperacionInvalida("No hay niveles de ranking configurados todavía")
-        nivel_mas_bajo = max(niveles, key=lambda n: n.numero_nivel)
-
-        ranking.esta_en_ranking = True
-        ranking.nivel_ranking_id = nivel_mas_bajo.id
-        ranking.meses_consecutivos_ausente = 0
-        self._notificar_persona(
-            persona_id, TipoNotificacion.RANKING_REINGRESO_APROBADO,
-            f"Reingresaste al ranking en el nivel {nivel_mas_bajo.numero_nivel}.",
-            ranking.id,
-        )
-        return self.repo.guardar_cambios(ranking)
-
-    # --- E03-RF011: selección oficial ------------------------------------------
-    def marcar_seleccion_oficial(self, datos: SeleccionOficialDTO) -> list[Ranking]:
-        actualizados = []
-        for persona_id in datos.persona_ids:
-            ranking = self.repo.obtener_por_persona(persona_id)
-            if not ranking:
-                raise EntidadNoEncontrada(f"No existe ranking para la persona {persona_id}")
-            ranking.seleccion_oficial = True
-            ranking.anio_seleccion = datos.anio
-            actualizados.append(self.repo.guardar_cambios(ranking))
-        return actualizados
-
-    def listar_seleccion_oficial(self, anio: int | None = None) -> list["SeleccionOficialItemDTO"]:
-        from app.presentacion.schemas.ranking_schemas import SeleccionOficialItemDTO
-        rankings = self.repo.listar_seleccion_oficial(anio)
-        resultado = []
-        for r in rankings:
-            resultado.append(
-                SeleccionOficialItemDTO(
-                    persona_id=r.persona_id,
-                    persona_nombre_completo=f"{r.persona.nombres} {r.persona.apellidos}",
-                    anio_seleccion=r.anio_seleccion,
-                )
-            )
-        return resultado
-
-    def quitar_seleccion_oficial(self, persona_id: int) -> None:
-        ranking = self.repo.obtener_por_persona(persona_id)
-        if not ranking:
-            raise EntidadNoEncontrada(f"No existe ranking para la persona {persona_id}")
-        if not ranking.seleccion_oficial:
-            raise OperacionInvalida(f"La persona {persona_id} no está en la selección oficial")
-        ranking.seleccion_oficial = False
-        ranking.anio_seleccion = None
-        self.repo.guardar_cambios(ranking)
-
     # --- E04-RF012: perfil privado del alumno -----------------------------
     def obtener_perfil_alumno(self, persona_id: int) -> PerfilRankingAlumnoDTO:
         ranking = self.repo.obtener_por_persona(persona_id)
@@ -450,51 +184,6 @@ class RankingServicio:
             nivel_ranking_nombre=(nivel.nombre if nivel else None),
             esta_en_ranking=ranking.esta_en_ranking,
         )
-
-    # --- Notificaciones internas --------------------------------------------
-    def _notificar_persona(
-        self, persona_id: int, tipo: TipoNotificacion, mensaje: str, entidad_relacionada_id: int | None
-    ) -> None:
-        self.repo_notificacion.crear(
-            Notificacion(
-                persona_id=persona_id, tipo=tipo, mensaje=mensaje,
-                entidad_relacionada_id=entidad_relacionada_id,
-            )
-        )
-
-    def _notificar_entrenadores_y_admins(
-        self, nivel_id: int, tipo: TipoNotificacion, mensaje: str, entidad_relacionada_id: int | None
-    ) -> None:
-        """RF007 exige notificar a Entrenador y Administrador antes de
-        ejecutar la eliminación. Como horario y nivel de ranking son
-        independientes, no existe un mapping nivel->entrenadores, así que
-        se notifica a TODOS los entrenadores (igual que a todos los
-        administradores). Administradores: todos los que tengan el rol
-        ADMINISTRADOR."""
-        destinatarios_ids: set[int] = set()
-
-        entrenadores = (
-            self.db.query(Persona.id)
-            .join(Usuario, Usuario.persona_id == Persona.id)
-            .join(usuario_rol, usuario_rol.c.usuario_id == Usuario.id)
-            .join(Rol, Rol.id == usuario_rol.c.rol_id)
-            .filter(Rol.tipo_rol == TipoRol.ENTRENADOR)
-            .all()
-        )
-        destinatarios_ids.update(e[0] for e in entrenadores)
-
-        admins = (
-            self.db.query(Persona.id)
-            .join(Usuario, Usuario.persona_id == Persona.id)
-            .join(usuario_rol, usuario_rol.c.usuario_id == Usuario.id)
-            .join(Rol, Rol.id == usuario_rol.c.rol_id)
-            .filter(Rol.tipo_rol == TipoRol.ADMINISTRADOR)
-            .all()
-        )
-        destinatarios_ids.update(a[0] for a in admins)
-
-        for persona_id in destinatarios_ids:
-            self._notificar_persona(persona_id, tipo, mensaje, entidad_relacionada_id)
 
 
 class NotificacionServicio:

@@ -28,10 +28,6 @@ Creates (idempotent -- safe to run multiple times, following the same
     to pending ones, so /payments has a real validation queue.
   - Asistencia across the trainer's first 3 horarios, for the last 4 sessions
     of each, mixing PRESENTE / AUSENTE / ATRASADO / JUSTIFICADO.
-  - ResultadoRankingMensual entries across the last 2 months for several
-    niveles, so /trainer/ranking "Resultados Mensuales" has real history.
-  - 2-3 pending JustificativoRanking entries for the admin to evaluate.
-  - 2-3 "Selección Oficial" entries (seleccion_oficial=True on Ranking).
 
 Login with (shared password for every bulk account):
   password: alumno123
@@ -54,8 +50,6 @@ from app.dominio.modelos import (
     HorarioEntrenamiento,
     NivelRanking,
     Ranking,
-    ResultadoRankingMensual,
-    JustificativoRanking,
     Asistencia,
 )
 from app.dominio.enums import (
@@ -67,7 +61,6 @@ from app.dominio.enums import (
     DiaSemana,
 )
 from app.seguridad.gestor_auth import GestorAutenticacion
-from app.servicios_negocio.ranking_servicio import calcular_puntos_por_posicion
 
 CONTRASENIA_COMPARTIDA = "alumno123"
 DEFAULT_SEED_VOUCHER_BASE_URL = "https://placehold.co/600x400.png?text=Cata+Club+Voucher"
@@ -171,13 +164,6 @@ def _fechas_recientes(dia_semana: DiaSemana, cantidad: int) -> list[date]:
             fechas.append(cursor)
         cursor -= timedelta(days=1)
     return fechas
-
-
-def _mes_atras(n: int) -> tuple[int, int]:
-    """(anio, mes) de hace `n` meses calendario respecto al mes actual."""
-    hoy = date.today()
-    total = hoy.year * 12 + (hoy.month - 1) - n
-    return total // 12, total % 12 + 1
 
 
 def _fecha_nacimiento_hace(edad_anios: int) -> date:
@@ -496,11 +482,8 @@ def main() -> None:
         # ------------------------------------------------------------------
         # 3. Ranking (asignación de nivel, unos pocos sin grupo)
         # ------------------------------------------------------------------
-        rankings_por_persona: dict[int, Ranking] = {}
         for i, (persona, _) in enumerate(estudiantes):
-            ranking = _asignar_ranking(db, persona, i, niveles)
-            if ranking:
-                rankings_por_persona[persona.id] = ranking
+            _asignar_ranking(db, persona, i, niveles)
         db.flush()
 
         # ------------------------------------------------------------------
@@ -508,7 +491,6 @@ def main() -> None:
         #    horarios del entrenador), para un subconjunto de alumnos.
         # ------------------------------------------------------------------
         asistencias_creadas = 0
-        ausentes_para_justificativo: list[Persona] = []
         if entrenador_usuario and horarios_entrenador:
             estudiantes_con_asistencia = [p for p, _ in estudiantes[:24]]
             estados_ciclo = [
@@ -544,100 +526,6 @@ def main() -> None:
                         )
                         db.add(asistencia)
                         asistencias_creadas += 1
-                        if estado == EstadoAsistencia.AUSENTE and len(ausentes_para_justificativo) < 3:
-                            ausentes_para_justificativo.append(persona)
-        db.flush()
-
-        # ------------------------------------------------------------------
-        # 5. ResultadoRankingMensual (últimos 2 meses, alumnos con nivel)
-        # ------------------------------------------------------------------
-        resultados_creados = 0
-        con_nivel = [
-            (p, r) for p, r in ((p, rankings_por_persona.get(p.id)) for p, _ in estudiantes)
-            if r and r.nivel_ranking_id
-        ]
-        for meses_atras in (1, 2):
-            anio, mes = _mes_atras(meses_atras)
-            # Agrupar por nivel para asignar posiciones 1..N realistas.
-            por_nivel: dict[int, list[Persona]] = {}
-            for persona, ranking in con_nivel:
-                por_nivel.setdefault(ranking.nivel_ranking_id, []).append(persona)
-
-            for nivel_id, personas_del_nivel in por_nivel.items():
-                for posicion, persona in enumerate(personas_del_nivel, start=1):
-                    ya_existe = (
-                        db.query(ResultadoRankingMensual)
-                        .filter(
-                            (ResultadoRankingMensual.persona_id == persona.id)
-                            & (ResultadoRankingMensual.anio == anio)
-                            & (ResultadoRankingMensual.mes == mes)
-                        )
-                        .first()
-                    )
-                    if ya_existe:
-                        continue
-                    participo = (persona.id + meses_atras) % 5 != 0
-                    resultado = ResultadoRankingMensual(
-                        anio=anio,
-                        mes=mes,
-                        posicion=posicion if participo else None,
-                        puntos_obtenidos=calcular_puntos_por_posicion(posicion) if participo else 0,
-                        participo=participo,
-                        ausencia_justificada=False,
-                        persona_id=persona.id,
-                        nivel_ranking_id=nivel_id,
-                    )
-                    db.add(resultado)
-                    resultados_creados += 1
-        db.flush()
-
-        # ------------------------------------------------------------------
-        # 6. Justificativos pendientes (2-3, mes actual)
-        # ------------------------------------------------------------------
-        justificativos_creados = 0
-        hoy = date.today()
-        motivos = [
-            "Cirugía menor programada, reposo indicado por el médico",
-            "Viaje familiar imprevisto fuera de la ciudad",
-            "Enfermedad respiratoria con reposo de una semana",
-        ]
-        for i, persona in enumerate(ausentes_para_justificativo[:3]):
-            ya_existe = (
-                db.query(JustificativoRanking)
-                .filter(
-                    (JustificativoRanking.persona_id == persona.id)
-                    & (JustificativoRanking.anio == hoy.year)
-                    & (JustificativoRanking.mes == hoy.month)
-                )
-                .first()
-            )
-            if ya_existe:
-                continue
-            db.add(JustificativoRanking(
-                anio=hoy.year,
-                mes=hoy.month,
-                motivo=motivos[i % len(motivos)],
-                persona_id=persona.id,
-            ))
-            justificativos_creados += 1
-        db.flush()
-
-        # ------------------------------------------------------------------
-        # 7. Selección Oficial (3 alumnos destacados en niveles altos).
-        # Siempre los mismos 3 (los primeros, en orden determinístico, con
-        # nivel asignado) para que reejecutar el script no siga agregando
-        # más seleccionados cada vez.
-        # ------------------------------------------------------------------
-        seleccionados = 0
-        candidatos = [
-            (p, r) for p, r in ((p, rankings_por_persona.get(p.id)) for p, _ in estudiantes)
-            if r and r.nivel_ranking_id
-        ][:3]
-        for _, ranking in candidatos:
-            if not ranking.seleccion_oficial:
-                seleccionados += 1
-            ranking.seleccion_oficial = True
-            ranking.anio_seleccion = hoy.year
         db.flush()
 
         db.commit()
@@ -658,10 +546,7 @@ def main() -> None:
         print(f"[seed] Hijos gestionados creados en esta corrida: {hijos_creados}")
         print(f"[seed] Alumnos auto-gestionados creados en esta corrida: {autogestionados_creados}")
         print(f"[seed] Total de estudiantes conocidos (nuevos + ya existentes): {total_estudiantes}")
-        print(f"[seed] Resultados mensuales de ranking creados: {resultados_creados}")
         print(f"[seed] Registros de asistencia creados: {asistencias_creadas}")
-        print(f"[seed] Justificativos pendientes creados: {justificativos_creados}")
-        print(f"[seed] Selección oficial marcada en: {seleccionados} rankings")
         print(f"[seed] Contraseña compartida para TODAS las cuentas de este seed: {CONTRASENIA_COMPARTIDA}")
         if muestras_correo:
             print(f"[seed] Correos de ejemplo para probar login: {', '.join(muestras_correo)}")
