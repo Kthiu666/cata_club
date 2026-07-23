@@ -795,18 +795,6 @@ export async function downloadBlob(endpoint: string, fallbackFilename: string): 
   URL.revokeObjectURL(url);
 }
 
-/** Export the "por etiquetas" persona report as a PDF and trigger its download. */
-export async function exportPersonasPorEtiquetasPdf(filtros: {
-  prioridadMunicipal?: boolean;
-  becado?: boolean;
-}): Promise<void> {
-  const qs = new URLSearchParams();
-  if (filtros.prioridadMunicipal !== undefined) qs.set("prioridad_municipal", String(filtros.prioridadMunicipal));
-  if (filtros.becado !== undefined) qs.set("becado", String(filtros.becado));
-  const query = qs.toString();
-  await downloadBlob(apiEndpoint(`/personas/reportes/pdf${query ? `?${query}` : ""}`), "reporte-etiquetas.pdf");
-}
-
 /** Export the "nuevos por período" persona report as a PDF and trigger its download. */
 export async function exportNuevosPorPeriodoPdf(fechaInicio: string, fechaFin: string): Promise<void> {
   const qs = new URLSearchParams({ fecha_inicio: fechaInicio, fecha_fin: fechaFin });

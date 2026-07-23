@@ -27,7 +27,6 @@ import {
   fetchNuevosPorPeriodo,
   fetchAttendanceRecords,
   fetchTrainingSchedules,
-  exportPersonasPorEtiquetasPdf,
   exportNuevosPorPeriodoPdf,
   exportAsistenciaReportePdf,
 } from "@/services/api";
@@ -181,21 +180,12 @@ function ReportsContent(): React.ReactElement {
     }
   }
 
-  /** Export the currently-displayed persona report (etiquetas or periodo tab) as a PDF. */
+  /** Export the currently-displayed persona report (periodo tab) as a PDF. */
   async function handleExportPersonasPdf(): Promise<void> {
     setExportingPdf(true);
     setError(null);
     try {
-      if (tab === "etiquetas") {
-        const filtros: { prioridadMunicipal?: boolean; becado?: boolean } = {};
-        if (useFilters) {
-          if (prioridadMunicipal) filtros.prioridadMunicipal = true;
-          if (becado) filtros.becado = true;
-        }
-        await exportPersonasPorEtiquetasPdf(filtros);
-      } else {
-        await exportNuevosPorPeriodoPdf(fechaInicio, fechaFin);
-      }
+      await exportNuevosPorPeriodoPdf(fechaInicio, fechaFin);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "No se pudo generar el PDF del reporte.";
       setError(message);

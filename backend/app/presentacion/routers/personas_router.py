@@ -24,8 +24,7 @@ from pydantic import BaseModel
 from app.presentacion.schemas.base import ResponseBase
 
 _COLUMNAS_PERSONAS_PDF = [
-    "Nombres", "Apellidos", "Cédula", "Teléfono",
-    "Prioridad Municipal", "Beca (%)", "Fecha de Registro",
+    "Nombres", "Apellidos", "Cédula", "Teléfono", "Fecha de Registro",
 ]
 
 
@@ -39,8 +38,6 @@ def _personas_a_filas(personas) -> list[list[str]]:
             p.apellidos,
             p.cedula,
             p.telefono,
-            "Sí" if p.prioridad_municipal else "No",
-            str(p.porcentaje_beca) if p.porcentaje_beca else "-",
             p.fecha_registro.strftime("%d/%m/%Y") if p.fecha_registro else "-",
         ])
     return filas
@@ -94,42 +91,14 @@ async def reporte_nuevos_por_periodo(
     return PersonaServicio(db).reporte_nuevos_por_periodo(inicio, fin)
 
 
-# --- Exportación a PDF de los reportes de arriba ----------------------------
-# Reejecutan exactamente la misma llamada de servicio que su hermano JSON
-# (nunca confían en filas enviadas por el cliente) y devuelven bytes de PDF
+# --- Exportación a PDF del reporte de arriba --------------------------------
+# Reejecuta exactamente la misma llamada de servicio que su hermano JSON
+# (nunca confía en filas enviadas por el cliente) y devuelve bytes de PDF
 # generados en memoria vía `generar_reporte_pdf`.
 # IMPORTANTE: `generar_reporte_pdf` es CPU-bound (renderizado ReportLab
 # síncrono). Se ejecuta vía `run_in_threadpool` para no bloquear el event loop
 # de asyncio (un solo worker uvicorn) — mismo motivo por el que
 # `generar_comprobante_pago_pdf` corre en una tarea de Celery, no inline.
-@router.get(
-    "/reportes/pdf",
-    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
-)
-async def reporte_por_etiquetas_pdf(
-    prioridad_municipal: Optional[bool] = Query(default=None),
-    becado: Optional[bool] = Query(default=None),
-    db: Session = Depends(obtener_sesion),
-):
-    personas = PersonaServicio(db).reporte_por_etiquetas(
-        prioridad_municipal=prioridad_municipal, becado=becado
-    )
-    pdf_bytes = await run_in_threadpool(
-        generar_reporte_pdf,
-        titulo="Reporte de Personas por Etiquetas",
-        columnas=_COLUMNAS_PERSONAS_PDF,
-        filas=_personas_a_filas(personas),
-    )
-    fecha_iso = date.today().isoformat()
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="reporte-etiquetas_{fecha_iso}.pdf"'
-        },
-    )
-
-
 @router.get(
     "/reportes/nuevos-por-periodo/pdf",
     dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],

@@ -58,20 +58,16 @@ vi.mock("@/contexts/AuthContext", () => ({
   }),
 }));
 
-const mockFetchPersonasPorEtiquetas = vi.fn();
 const mockFetchNuevosPorPeriodo = vi.fn();
 const mockFetchAttendanceRecords = vi.fn();
 const mockFetchTrainingSchedules = vi.fn();
-const mockExportPersonasPorEtiquetasPdf = vi.fn();
 const mockExportNuevosPorPeriodoPdf = vi.fn();
 const mockExportAsistenciaReportePdf = vi.fn();
 
 vi.mock("@/services/api", () => ({
-  fetchPersonasPorEtiquetas: (...args: unknown[]) => mockFetchPersonasPorEtiquetas(...args),
   fetchNuevosPorPeriodo: (...args: unknown[]) => mockFetchNuevosPorPeriodo(...args),
   fetchAttendanceRecords: (...args: unknown[]) => mockFetchAttendanceRecords(...args),
   fetchTrainingSchedules: (...args: unknown[]) => mockFetchTrainingSchedules(...args),
-  exportPersonasPorEtiquetasPdf: (...args: unknown[]) => mockExportPersonasPorEtiquetasPdf(...args),
   exportNuevosPorPeriodoPdf: (...args: unknown[]) => mockExportNuevosPorPeriodoPdf(...args),
   exportAsistenciaReportePdf: (...args: unknown[]) => mockExportAsistenciaReportePdf(...args),
 }));
@@ -83,15 +79,19 @@ const PERSONA: PersonaReporte = {
   cedula: "1710034065",
   fechaNacimiento: "2010-05-14",
   telefono: "0991234567",
-  prioridadMunicipal: false,
-  porcentajeBeca: 0,
 };
 
 function exportButton(): HTMLElement | null {
   return screen.queryByRole("button", { name: /exportar pdf/i });
 }
 
-describe("ReportsPage — Exportar PDF button (etiquetas/periodo tab)", () => {
+/** Fill the periodo tab's required date-range fields (fechaInicio/fechaFin). */
+function fillPeriodoFechas(): void {
+  fireEvent.change(screen.getByLabelText(/fecha inicio/i), { target: { value: "2026-01-01" } });
+  fireEvent.change(screen.getByLabelText(/fecha fin/i), { target: { value: "2026-12-31" } });
+}
+
+describe("ReportsPage — Exportar PDF button (periodo tab)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetchTrainingSchedules.mockResolvedValue([]);
@@ -106,13 +106,14 @@ describe("ReportsPage — Exportar PDF button (etiquetas/periodo tab)", () => {
 
   it("is hidden while a search is loading", async () => {
     let resolveFetch: (value: PersonaReporte[]) => void = () => {};
-    mockFetchPersonasPorEtiquetas.mockReturnValue(
+    mockFetchNuevosPorPeriodo.mockReturnValue(
       new Promise((resolve) => {
         resolveFetch = resolve;
       }),
     );
 
     render(<ReportsPage />);
+    fillPeriodoFechas();
     fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
 
     expect(screen.getByRole("button", { name: /buscando/i })).toBeInTheDocument();
@@ -123,21 +124,23 @@ describe("ReportsPage — Exportar PDF button (etiquetas/periodo tab)", () => {
   });
 
   it("is hidden when the search returns no results", async () => {
-    mockFetchPersonasPorEtiquetas.mockResolvedValue([]);
+    mockFetchNuevosPorPeriodo.mockResolvedValue([]);
 
     render(<ReportsPage />);
+    fillPeriodoFechas();
     fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
 
     await waitFor(() => {
-      expect(mockFetchPersonasPorEtiquetas).toHaveBeenCalled();
+      expect(mockFetchNuevosPorPeriodo).toHaveBeenCalled();
     });
     expect(exportButton()).not.toBeInTheDocument();
   });
 
   it("is visible and enabled once the search returns results", async () => {
-    mockFetchPersonasPorEtiquetas.mockResolvedValue([PERSONA]);
+    mockFetchNuevosPorPeriodo.mockResolvedValue([PERSONA]);
 
     render(<ReportsPage />);
+    fillPeriodoFechas();
     fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
 
     await waitFor(() => {
@@ -147,15 +150,16 @@ describe("ReportsPage — Exportar PDF button (etiquetas/periodo tab)", () => {
   });
 
   it("shows a busy state and disables itself while the PDF download is in flight", async () => {
-    mockFetchPersonasPorEtiquetas.mockResolvedValue([PERSONA]);
+    mockFetchNuevosPorPeriodo.mockResolvedValue([PERSONA]);
     let resolveExport: () => void = () => {};
-    mockExportPersonasPorEtiquetasPdf.mockReturnValue(
+    mockExportNuevosPorPeriodoPdf.mockReturnValue(
       new Promise<void>((resolve) => {
         resolveExport = resolve;
       }),
     );
 
     render(<ReportsPage />);
+    fillPeriodoFechas();
     fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
     await waitFor(() => expect(exportButton()).toBeInTheDocument());
 
@@ -164,7 +168,7 @@ describe("ReportsPage — Exportar PDF button (etiquetas/periodo tab)", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /generando/i })).toBeDisabled();
     });
-    expect(mockExportPersonasPorEtiquetasPdf).toHaveBeenCalledTimes(1);
+    expect(mockExportNuevosPorPeriodoPdf).toHaveBeenCalledTimes(1);
 
     resolveExport();
     await waitFor(() => {

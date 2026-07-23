@@ -34,7 +34,6 @@ import {
   fetchEntrenadores,
   subirFotoPerfil,
   downloadBlob,
-  exportPersonasPorEtiquetasPdf,
   exportNuevosPorPeriodoPdf,
   exportAsistenciaReportePdf,
 } from "../api";
@@ -738,14 +737,14 @@ describe("downloadBlob / report PDF exports", () => {
   });
 
   it("downloadBlob triggers createObjectURL + anchor click with the Content-Disposition filename", async () => {
-    vi.mocked(global.fetch).mockResolvedValue(pdfResponse("reporte-etiquetas_2026-07-23.pdf"));
+    vi.mocked(global.fetch).mockResolvedValue(pdfResponse("reporte-periodo_2026-07-23.pdf"));
 
-    await downloadBlob("/api/personas/reportes/pdf", "fallback.pdf");
+    await downloadBlob("/api/personas/reportes/nuevos-por-periodo/pdf", "fallback.pdf");
 
-    expect(global.fetch).toHaveBeenCalledWith("/api/personas/reportes/pdf");
+    expect(global.fetch).toHaveBeenCalledWith("/api/personas/reportes/nuevos-por-periodo/pdf");
     expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
     expect(createdAnchors).toHaveLength(1);
-    expect(createdAnchors[0].download).toBe("reporte-etiquetas_2026-07-23.pdf");
+    expect(createdAnchors[0].download).toBe("reporte-periodo_2026-07-23.pdf");
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(appendChildSpy).toHaveBeenCalledWith(createdAnchors[0]);
     expect(removeSpy).toHaveBeenCalledTimes(1);
@@ -757,7 +756,7 @@ describe("downloadBlob / report PDF exports", () => {
       new Response(new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46])]), { status: 200 }),
     );
 
-    await downloadBlob("/api/personas/reportes/pdf", "fallback.pdf");
+    await downloadBlob("/api/personas/reportes/nuevos-por-periodo/pdf", "fallback.pdf");
 
     expect(createdAnchors[0].download).toBe("fallback.pdf");
   });
@@ -770,20 +769,10 @@ describe("downloadBlob / report PDF exports", () => {
       }),
     );
 
-    await expect(downloadBlob("/api/personas/reportes/pdf", "fallback.pdf")).rejects.toThrow(
+    await expect(downloadBlob("/api/personas/reportes/nuevos-por-periodo/pdf", "fallback.pdf")).rejects.toThrow(
       "Permisos insuficientes",
     );
     expect(createObjectURLSpy).not.toHaveBeenCalled();
-  });
-
-  it("exportPersonasPorEtiquetasPdf calls the etiquetas PDF BFF route with filters", async () => {
-    vi.mocked(global.fetch).mockResolvedValue(pdfResponse("reporte-etiquetas_2026-07-23.pdf"));
-
-    await exportPersonasPorEtiquetasPdf({ prioridadMunicipal: true, becado: false });
-
-    expect(global.fetch).toHaveBeenCalledWith(
-      "/api/personas/reportes/pdf?prioridad_municipal=true&becado=false",
-    );
   });
 
   it("exportNuevosPorPeriodoPdf calls the periodo PDF BFF route with the date range", async () => {

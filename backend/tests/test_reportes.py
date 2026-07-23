@@ -1,6 +1,9 @@
 """Tests de los reportes agregados: asistencia por horario/periodo/alumno
-(E02-RF005), alumnos nuevos por periodo (E04-RF014), y exportación a PDF
-de los 3 reportes (report-pdf-export)."""
+(E02-RF005), alumnos nuevos por periodo (E04-RF014), y exportación a PDF de
+los reportes de periodo y asistencia (report-pdf-export). El reporte de
+personas por etiquetas fue removido upstream (#131) junto con
+`prioridad_municipal`/`porcentaje_beca`, así que su export PDF nunca llegó
+a existir en `main`."""
 
 from app.infraestructura.generador_pdf import generar_reporte_pdf
 
@@ -122,10 +125,6 @@ def test_generar_reporte_pdf_filas_vacias_no_lanza():
 
 # --- Phase 2: endpoints PDF (integración) ------------------------------------
 
-def test_reporte_etiquetas_pdf_sin_token_da_401(client_sin_token):
-    assert client_sin_token.get("/api/v1/personas/reportes/pdf").status_code == 401
-
-
 def test_reporte_periodo_pdf_sin_token_da_401(client_sin_token):
     resp = client_sin_token.get(
         "/api/v1/personas/reportes/nuevos-por-periodo/pdf",
@@ -136,11 +135,6 @@ def test_reporte_periodo_pdf_sin_token_da_401(client_sin_token):
 
 def test_reporte_asistencia_pdf_sin_token_da_401(client_sin_token):
     assert client_sin_token.get("/api/v1/asistencias/reportes/pdf").status_code == 401
-
-
-def test_reporte_etiquetas_pdf_requiere_admin(client_sin_permisos):
-    resp = client_sin_permisos.get("/api/v1/personas/reportes/pdf")
-    assert resp.status_code == 403
 
 
 def test_reporte_periodo_pdf_requiere_admin(client_sin_permisos):
@@ -168,18 +162,6 @@ def test_reporte_asistencia_json_permite_entrenador_como_control(client_entrenad
     ENTRENADOR -- contraste directo con el 403 del PDF de arriba."""
     resp = client_entrenador.get("/api/v1/asistencias/reportes")
     assert resp.status_code == 200
-
-
-def test_reporte_etiquetas_pdf_admin_200(client):
-    _crear_persona(client, "1771717171")
-    resp = client.get("/api/v1/personas/reportes/pdf")
-    assert resp.status_code == 200
-    assert resp.headers["content-type"] == "application/pdf"
-    assert len(resp.content) > 0
-    assert resp.content[:4] == b"%PDF"
-    disposition = resp.headers["content-disposition"]
-    assert "reporte-etiquetas_" in disposition
-    assert disposition.endswith('.pdf"')
 
 
 def test_reporte_periodo_pdf_admin_200(client):
@@ -237,23 +219,6 @@ def test_reporte_asistencia_pdf_admin_200(client):
 # `generar_comprobante_pago_pdf`, que por la misma razón se ejecuta en una
 # tarea Celery, nunca inline en un handler). Estas pruebas confirman que cada
 # endpoint delega la llamada al threadpool en vez de invocarla directamente.
-def test_reporte_etiquetas_pdf_usa_threadpool(client, monkeypatch):
-    import app.presentacion.routers.personas_router as router_mod
-
-    llamadas = []
-    original = router_mod.run_in_threadpool
-
-    async def _run_in_threadpool_espia(func, *args, **kwargs):
-        llamadas.append(func)
-        return await original(func, *args, **kwargs)
-
-    monkeypatch.setattr(router_mod, "run_in_threadpool", _run_in_threadpool_espia)
-
-    resp = client.get("/api/v1/personas/reportes/pdf")
-    assert resp.status_code == 200
-    assert llamadas == [generar_reporte_pdf]
-
-
 def test_reporte_periodo_pdf_usa_threadpool(client, monkeypatch):
     import app.presentacion.routers.personas_router as router_mod
 
