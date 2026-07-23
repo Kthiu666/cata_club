@@ -232,6 +232,7 @@ describe("ProfilePage — student/representante summary view", () => {
           estaEnRanking: true,
         },
         recentSessions: [],
+        membership: { id: 1, estado: "ACTIVA", personaId: 1, montoAplicado: null, categoria: null, modalidad: null, franjaHoraria: null, fechaFin: null },
       },
       representados: [],
       membershipPlans: [],
@@ -328,6 +329,7 @@ describe("ProfilePage — student/representante summary view", () => {
         fechaNacimiento: "1985-03-01",
         ranking: { status: "unavailable", reason: "forbidden" },
         recentSessions: [],
+        membership: { id: 9, estado: "ACTIVA", personaId: 1, montoAplicado: null, categoria: null, modalidad: null, franjaHoraria: null, fechaFin: null },
       },
       representados: [
         {
@@ -337,6 +339,7 @@ describe("ProfilePage — student/representante summary view", () => {
           fechaNacimiento: "2014-02-01",
           ranking: { status: "unavailable", reason: "forbidden" },
           recentSessions: [],
+          membership: null,
         },
       ],
       membershipPlans: [],

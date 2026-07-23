@@ -187,6 +187,9 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [paymentVoucherFile, setPaymentVoucherFile] = useState<File | null>(null);
+
+  /** Monthly price from the current membership — used to auto-calc fechaFin. */
+  const paymentMonthlyPrice = student.membresia?.monto ?? 0;
   const paymentFileInputRef = useRef<HTMLInputElement>(null);
 
   const membershipLabel = student.membresia
@@ -268,29 +271,48 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
   /**
    * Open the inline "register payment" form. Pre-fills sensible defaults:
    * monto from current membership, fechaInicio = today (or the day after
-   * the previous period's fechaFin for renewals), fechaFin = today + 1
-   * month. The admin can edit before submitting.
+   * the previous period's fechaFin for renewals), fechaFin auto-calculated
+   * from monto / monthlyPrice. The admin can override dates before submitting.
    */
   function handleOpenCreatePayment(): void {
     setShowCreatePayment(true);
     setPaymentError(null);
     setPaymentSuccess(false);
     setPaymentVoucherFile(null);
+    setPaymentTipo("TRANSFERENCIA");
     const monto = student.membresia?.monto ?? 0;
     setPaymentMonto(monto > 0 ? String(monto) : "");
-    setPaymentTipo("TRANSFERENCIA");
 
     const hoy = new Date();
     const inicio = student.membresia?.fechaFin
       ? new Date(student.membresia.fechaFin + "T12:00:00")
       : hoy;
-    // Si la fecha_fin del pago anterior ya pasó, partir de hoy; si aún
-    // vigente, continuar desde el día siguiente al vencimiento.
     const base = inicio.getTime() > hoy.getTime() ? inicio : hoy;
-    const fin = new Date(base);
-    fin.setMonth(fin.getMonth() + 1);
     setPaymentFechaInicio(base.toISOString().slice(0, 10));
-    setPaymentFechaFin(fin.toISOString().slice(0, 10));
+
+    if (monto > 0 && paymentMonthlyPrice > 0) {
+      const months = Math.ceil(monto / paymentMonthlyPrice);
+      const fin = new Date(base);
+      fin.setMonth(fin.getMonth() + months);
+      setPaymentFechaFin(fin.toISOString().slice(0, 10));
+    } else {
+      const fin = new Date(base);
+      fin.setMonth(fin.getMonth() + 1);
+      setPaymentFechaFin(fin.toISOString().slice(0, 10));
+    }
+  }
+
+  /** Recalculate paymentFechaFin when paymentMonto changes. */
+  function handlePaymentMontoChange(value: string): void {
+    setPaymentMonto(value);
+    if (!paymentFechaInicio || paymentMonthlyPrice <= 0) return;
+    const amount = parseFloat(value.replace(/[^0-9.]/g, "")) || 0;
+    if (amount > 0) {
+      const months = Math.ceil(amount / paymentMonthlyPrice);
+      const fin = new Date(paymentFechaInicio + "T12:00:00");
+      fin.setMonth(fin.getMonth() + months);
+      setPaymentFechaFin(fin.toISOString().slice(0, 10));
+    }
   }
 
   async function handleCreatePayment(): Promise<void> {
@@ -504,7 +526,7 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
                   step="0.01"
                   min="0"
                   value={paymentMonto}
-                  onChange={(e) => setPaymentMonto(e.target.value)}
+                  onChange={(e) => handlePaymentMontoChange(e.target.value)}
                   className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
                   placeholder="0.00"
                 />
@@ -543,6 +565,14 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
                 />
               </label>
             </div>
+            {paymentMonthlyPrice > 0 && Number(paymentMonto) > 0 && (
+              <p className="text-[10px] text-cata-text/45">
+                {(() => {
+                  const months = Math.ceil(Number(paymentMonto) / paymentMonthlyPrice);
+                  return `${months === 1 ? "1 mes" : `${months} meses`} de vigencia (precio mensual: $${paymentMonthlyPrice})`;
+                })()}
+              </p>
+            )}
             {paymentTipo === "TRANSFERENCIA" && (
               <label className="block text-[11px] font-medium text-cata-text/65">
                 Comprobante de pago

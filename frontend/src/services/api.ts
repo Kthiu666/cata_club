@@ -955,7 +955,7 @@ export async function asignarRol(personaId: number, tipoRol: BackendTipoRol): Pr
 
 /** Admin-only: remove a backend role from a persona. */
 export async function quitarRol(personaId: number, tipoRol: BackendTipoRol): Promise<RolesResponse> {
-  return request<RolesResponse>(apiEndpoint(`/personas/${personaId}/roles/${tipoRol}`), {
+  return request<RolesResponse>(apiEndpoint(`/personas/${personaId}/roles?tipoRol=${encodeURIComponent(tipoRol)}`), {
     method: "DELETE",
   });
 }
