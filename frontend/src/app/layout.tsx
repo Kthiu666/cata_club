@@ -1,16 +1,13 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/500.css";
+import "@fontsource/inter/600.css";
+import "@fontsource/inter/700.css";
 import Header from "@/components/Header";
 import AuthProviderWrapper from "@/components/AuthProviderWrapper";
 import { ToastProvider } from "@/contexts/ToastContext";
 import ToastContainer from "@/components/ToastContainer";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-inter",
-});
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Cata Club Admin";
 
@@ -34,7 +31,7 @@ export default function RootLayout({
   children,
 }: RootLayoutProps): React.ReactElement {
   return (
-    <html lang="es" className={inter.variable}>
+    <html lang="es">
       <body className="min-h-screen bg-cata-bg font-sans text-cata-text antialiased">
         <ToastProvider>
           <ToastContainer />
