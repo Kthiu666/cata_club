@@ -65,6 +65,14 @@ class PersonaResponseDTO(ResponseBase, BaseModel):
     fecha_registro: Optional[datetime] = Field(default=None, examples=["2024-01-15T10:30:00Z"])
 
 
+class PersonaBusquedaDTO(ResponseBase, BaseModel):
+    """Resultado ligero para el autocomplete de búsqueda de personas."""
+    id: int
+    nombres: str
+    apellidos: str
+    foto_url: Optional[str] = None
+
+
 # --- AntecedentesClub ---
 class AntecedentesClubCreateDTO(BaseModel):
     nivel_tecnico_alumno: NivelTecnicoAlumno

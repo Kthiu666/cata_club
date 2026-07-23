@@ -507,6 +507,14 @@ export interface PersonaResponse {
   motivoBeca?: string | null;
 }
 
+/** Lightweight persona shape for autocomplete / search results. */
+export interface PersonaBusqueda {
+  id: number;
+  nombres: string;
+  apellidos: string;
+  fotoUrl?: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Ranking — Notificaciones & Justificativos (E03-RF006a/b + in-app
 // notifications). Mirrors backend/app/dominio/enums.py's

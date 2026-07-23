@@ -32,6 +32,7 @@ import type {
   SeleccionOficial,
   PersonaReporte,
   PersonaResponse,
+  PersonaBusqueda,
   Notificacion,
   Justificativo,
   PerfilPropio,
@@ -888,6 +889,17 @@ export async function fetchNuevosPorPeriodo(
     fecha_fin: fechaFin,
   });
   return request<PersonaReporte[]>(apiEndpoint(`/personas/reportes/nuevos-por-periodo?${qs.toString()}`));
+}
+
+/** Search persons by name (autocomplete). */
+export async function searchStudents(
+  query: string,
+  opts?: { rol?: string; limit?: number },
+): Promise<PersonaBusqueda[]> {
+  const params = new URLSearchParams({ q: query });
+  if (opts?.rol) params.set("rol", opts.rol);
+  if (opts?.limit) params.set("limit", String(opts.limit));
+  return request<PersonaBusqueda[]>(apiEndpoint(`/personas/buscar?${params}`));
 }
 
 

@@ -6,6 +6,7 @@ from datetime import date, datetime, time, timezone
 from app.infraestructura.db import obtener_sesion
 from app.presentacion.schemas.persona_schemas import (
     PersonaCreateDTO, PersonaResponseDTO, PersonaUpdateDTO,
+    PersonaBusquedaDTO,
     AntecedentesClubCreateDTO, AntecedentesClubUpdateDTO, AntecedentesClubResponseDTO,
 )
 from app.presentacion.schemas.base import PaginatedResponse
@@ -80,6 +81,22 @@ async def reporte_nuevos_por_periodo(
     inicio = datetime.combine(fecha_inicio, time.min, tzinfo=timezone.utc)
     fin = datetime.combine(fecha_fin, time.max, tzinfo=timezone.utc)
     return PersonaServicio(db).reporte_nuevos_por_periodo(inicio, fin)
+
+
+# --- Búsqueda (autocomplete) ------------------------------------------------
+@router.get(
+    "/buscar",
+    response_model=List[PersonaBusquedaDTO],
+    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
+)
+async def buscar_personas(
+    q: str = Query(..., min_length=2, max_length=100),
+    rol: Optional[str] = Query(default=None),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=50),
+    db: Session = Depends(obtener_sesion),
+):
+    return PersonaServicio(db).buscar_por_nombre(q=q, rol=rol, skip=skip, limit=limit)
 
 
 @router.get(
