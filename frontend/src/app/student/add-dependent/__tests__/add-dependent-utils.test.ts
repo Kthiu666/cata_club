@@ -224,16 +224,32 @@ describe("buildRepresentadoPayload", () => {
 // ---------------------------------------------------------------------------
 
 describe("getAddDependentErrorMessage", () => {
-  it("maps known API status categories without returning external messages", () => {
-    // 400 and 422 share one generic message: the backend returns 400 for both
-    // duplicate-cédula AND unrelated validation failures (e.g. age out of
-    // range), so we must not attribute a specific cause the client can't verify.
-    expect(getAddDependentErrorMessage({ status: 400, message: "internal detail" }))
+  it("surfaces the backend's own message for a 400 business-rule violation (e.g. duplicate cédula)", () => {
+    // 400 = EntidadDuplicada/OperacionInvalida in the backend — always a
+    // single, hand-authored, user-facing Spanish string (see backend's
+    // main.py _respuesta_error), safe to show as-is instead of a generic
+    // message that hides which field was actually wrong.
+    expect(
+      getAddDependentErrorMessage({ status: 400, message: "Ya existe una persona con la cédula 1712345678" }),
+    ).toBe("Ya existe una persona con la cédula 1712345678");
+  });
+
+  it("falls back to a generic message for a 400 with no usable message", () => {
+    expect(getAddDependentErrorMessage({ status: 400 }))
       .toBe("No se pudo agregar el dependiente. Revise los datos ingresados e intente nuevamente.");
+  });
+
+  it("uses a generic message for 422 — raw pydantic validation errors aren't a single safe string", () => {
+    expect(getAddDependentErrorMessage({ status: 422, message: "[{...raw pydantic errors...}]" }))
+      .toBe("No se pudo agregar el dependiente. Revise los datos ingresados e intente nuevamente.");
+  });
+
+  it("maps 403 to a permissions message", () => {
     expect(getAddDependentErrorMessage({ status: 403 }))
       .toBe("No tiene permisos para agregar un dependiente.");
-    expect(getAddDependentErrorMessage({ status: 422 }))
-      .toBe("No se pudo agregar el dependiente. Revise los datos ingresados e intente nuevamente.");
+  });
+
+  it("falls back to a generic message for a non-status error", () => {
     expect(getAddDependentErrorMessage(new Error("database secret")))
       .toBe("No se pudo agregar el dependiente. Intente nuevamente más tarde.");
   });

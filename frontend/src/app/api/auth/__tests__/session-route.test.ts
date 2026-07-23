@@ -47,10 +47,12 @@ afterEach(() => {
 });
 
 describe("GET /api/auth/session", () => {
-  it("returns 401 immediately when neither cookie is present", async () => {
+  it("returns 200 unauthenticated immediately when neither cookie is present (anonymous visitor, not an error)", async () => {
     const response = await GET(sessionRequest(""));
+    const json = await response.json();
 
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(200);
+    expect(json).toEqual({ authenticated: false });
     expect(global.fetch).not.toHaveBeenCalled();
   });
 

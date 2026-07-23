@@ -28,6 +28,18 @@ import {
   ArrowRight,
 } from "lucide-react";
 
+/** Every field name backing a required text/date input in the form below. */
+const REQUIRED_FIELDS: { name: string; message: string }[] = [
+  { name: "email", message: "Ingrese su correo electrónico." },
+  { name: "password", message: "Cree una contraseña." },
+  { name: "confirmPassword", message: "Confirme la contraseña." },
+  { name: "firstName", message: "Ingrese sus nombres." },
+  { name: "lastName", message: "Ingrese sus apellidos." },
+  { name: "nationalId", message: "Ingrese su cédula de identidad." },
+  { name: "birthDate", message: "Ingrese su fecha de nacimiento." },
+  { name: "phone", message: "Ingrese su teléfono celular." },
+];
+
 export default function RegisterPage(): React.ReactElement {
   const router = useRouter();
   const { isAuthenticated, isLoading, session } = useAuth();
@@ -44,19 +56,31 @@ export default function RegisterPage(): React.ReactElement {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [demoSuccess, setDemoSuccess] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   function handleSubmit(e: FormEvent<HTMLFormElement>): void {
     e.preventDefault();
 
     const form = e.currentTarget;
     const formData = new FormData(form);
-    const passwordEntry = formData.get("password");
-    const confirmPasswordEntry = formData.get("confirmPassword");
-    // Both fields are plain <input type="password">, never <input type="file">,
-    // so FormData.get() always returns a string here — narrow defensively
-    // instead of asserting, since FormDataEntryValue is `string | File | null`.
-    const password = typeof passwordEntry === "string" ? passwordEntry : "";
-    const confirmPassword = typeof confirmPasswordEntry === "string" ? confirmPasswordEntry : "";
+    // Every field here is a plain text/password/date/tel <input>, never
+    // <input type="file">, so FormData.get() always returns a string —
+    // narrow defensively instead of asserting, since FormDataEntryValue is
+    // `string | File | null`.
+    const getValue = (name: string): string => {
+      const entry = formData.get(name);
+      return typeof entry === "string" ? entry.trim() : "";
+    };
+
+    const nextFieldErrors: Record<string, string> = {};
+    for (const field of REQUIRED_FIELDS) {
+      if (!getValue(field.name)) nextFieldErrors[field.name] = field.message;
+    }
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length > 0) return;
+
+    const password = getValue("password");
+    const confirmPassword = getValue("confirmPassword");
 
     if (password !== confirmPassword) {
       toast.showError("Las contraseñas no coinciden.");
@@ -151,7 +175,7 @@ export default function RegisterPage(): React.ReactElement {
             <span className="text-cata-red" aria-hidden="true">*</span> Campos obligatorios
           </p>
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
+          <form className="space-y-5" onSubmit={handleSubmit} noValidate>
             {/* -- Account -- */}
             <fieldset>
               <legend className="mb-3 text-[11px] font-bold uppercase tracking-widest text-cata-text/45">
@@ -179,9 +203,14 @@ export default function RegisterPage(): React.ReactElement {
                     placeholder="correo@ejemplo.com"
                     required
                     disabled={submitting}
+                    aria-invalid={Boolean(fieldErrors.email)}
+                    aria-describedby={fieldErrors.email ? "email-error" : undefined}
                     className="input-field pl-10"
                   />
                 </div>
+                {fieldErrors.email && (
+                  <p id="email-error" role="alert" className="mt-1.5 text-xs text-cata-red">{fieldErrors.email}</p>
+                )}
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -207,6 +236,8 @@ export default function RegisterPage(): React.ReactElement {
                       required
                       minLength={8}
                       disabled={submitting}
+                      aria-invalid={Boolean(fieldErrors.password)}
+                      aria-describedby={fieldErrors.password ? "password-error" : undefined}
                       className="input-field pl-10 pr-10"
                     />
                     <button
@@ -222,6 +253,9 @@ export default function RegisterPage(): React.ReactElement {
                       )}
                     </button>
                   </div>
+                  {fieldErrors.password && (
+                    <p id="password-error" role="alert" className="mt-1.5 text-xs text-cata-red">{fieldErrors.password}</p>
+                  )}
                 </div>
 
                 <div>
@@ -245,6 +279,8 @@ export default function RegisterPage(): React.ReactElement {
                       placeholder="Repita la contraseña"
                       required
                       disabled={submitting}
+                      aria-invalid={Boolean(fieldErrors.confirmPassword)}
+                      aria-describedby={fieldErrors.confirmPassword ? "confirmPassword-error" : undefined}
                       className="input-field pl-10 pr-10"
                     />
                     <button
@@ -260,6 +296,9 @@ export default function RegisterPage(): React.ReactElement {
                       )}
                     </button>
                   </div>
+                  {fieldErrors.confirmPassword && (
+                    <p id="confirmPassword-error" role="alert" className="mt-1.5 text-xs text-cata-red">{fieldErrors.confirmPassword}</p>
+                  )}
                 </div>
               </div>
             </fieldset>
@@ -294,9 +333,14 @@ export default function RegisterPage(): React.ReactElement {
                       placeholder="p. ej. Juan Carlos"
                       required
                       disabled={submitting}
+                      aria-invalid={Boolean(fieldErrors.firstName)}
+                      aria-describedby={fieldErrors.firstName ? "firstName-error" : undefined}
                       className="input-field pl-10"
                     />
                   </div>
+                  {fieldErrors.firstName && (
+                    <p id="firstName-error" role="alert" className="mt-1.5 text-xs text-cata-red">{fieldErrors.firstName}</p>
+                  )}
                 </div>
 
                 <div>
@@ -320,9 +364,14 @@ export default function RegisterPage(): React.ReactElement {
                       placeholder="p. ej. Rodríguez López"
                       required
                       disabled={submitting}
+                      aria-invalid={Boolean(fieldErrors.lastName)}
+                      aria-describedby={fieldErrors.lastName ? "lastName-error" : undefined}
                       className="input-field pl-10"
                     />
                   </div>
+                  {fieldErrors.lastName && (
+                    <p id="lastName-error" role="alert" className="mt-1.5 text-xs text-cata-red">{fieldErrors.lastName}</p>
+                  )}
                 </div>
               </div>
 
@@ -352,9 +401,14 @@ export default function RegisterPage(): React.ReactElement {
                       maxLength={10}
                       inputMode="numeric"
                       title="Cédula ecuatoriana: 10 dígitos (p. ej. 1712345678)"
+                      aria-invalid={Boolean(fieldErrors.nationalId)}
+                      aria-describedby={fieldErrors.nationalId ? "nationalId-error" : undefined}
                       className="input-field pl-10"
                     />
                   </div>
+                  {fieldErrors.nationalId && (
+                    <p id="nationalId-error" role="alert" className="mt-1.5 text-xs text-cata-red">{fieldErrors.nationalId}</p>
+                  )}
                 </div>
 
                 <div>
@@ -377,9 +431,14 @@ export default function RegisterPage(): React.ReactElement {
                       name="birthDate"
                       required
                       disabled={submitting}
+                      aria-invalid={Boolean(fieldErrors.birthDate)}
+                      aria-describedby={fieldErrors.birthDate ? "birthDate-error" : undefined}
                       className="input-field pl-10"
                     />
                   </div>
+                  {fieldErrors.birthDate && (
+                    <p id="birthDate-error" role="alert" className="mt-1.5 text-xs text-cata-red">{fieldErrors.birthDate}</p>
+                  )}
                 </div>
               </div>
 
@@ -405,9 +464,14 @@ export default function RegisterPage(): React.ReactElement {
                       placeholder="p. ej. 0991234567"
                       required
                       disabled={submitting}
+                      aria-invalid={Boolean(fieldErrors.phone)}
+                      aria-describedby={fieldErrors.phone ? "phone-error" : undefined}
                       className="input-field pl-10"
                     />
                   </div>
+                  {fieldErrors.phone && (
+                    <p id="phone-error" role="alert" className="mt-1.5 text-xs text-cata-red">{fieldErrors.phone}</p>
+                  )}
                 </div>
 
                 <div>
