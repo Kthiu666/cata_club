@@ -8,22 +8,15 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { proxyBackendPdfGet } from "@/lib/server/backend-client";
+import { buildPagosReporteQuery } from "@/lib/server/payments-adapter";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(request.url);
-  const qs = new URLSearchParams();
-  const fechaInicio = searchParams.get("fechaInicio");
-  const fechaFin = searchParams.get("fechaFin");
-  const estadoPago = searchParams.get("estadoPago");
-  if (fechaInicio) qs.set("fecha_inicio", fechaInicio);
-  if (fechaFin) qs.set("fecha_fin", fechaFin);
-  if (estadoPago) qs.set("estado_pago", estadoPago);
-  const query = qs.toString();
-  const queryString = query ? `?${query}` : "";
+  const query = buildPagosReporteQuery(searchParams);
 
   return proxyBackendPdfGet(
     request,
-    `/membresias/pagos/reportes/pdf${queryString}`,
+    `/membresias/pagos/reportes/pdf${query}`,
     "No se pudo generar el PDF del reporte.",
   );
 }

@@ -36,10 +36,9 @@ import {
   Users,
   UserPlus,
   UserMinus,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import PaginationControls from "@/components/PaginationControls";
 import {
   fetchHorarios,
   crearHorario,
@@ -927,31 +926,7 @@ export default function GroupsPage(): React.ReactElement {
         ) : null}
 
         {!loading && horarioGroups.length > 0 && totalPages > 1 && (
-          <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
-            <p className="text-sm font-semibold text-cata-text">
-              Página {page} de {totalPages}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="btn-secondary px-4 py-2 text-xs"
-              >
-                <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
-                Anterior
-              </button>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                className="btn-secondary px-4 py-2 text-xs"
-              >
-                Siguiente
-                <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
-              </button>
-            </div>
-          </div>
+          <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
         )}
 
         {!loading && horarios.length === 0 && (

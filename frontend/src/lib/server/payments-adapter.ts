@@ -12,8 +12,10 @@
  * N+1 to matter.
  */
 
+import type { NextRequest } from "next/server";
 import type { PaymentValidationRequest, ProofFileType, ValidationStatus } from "@/services/api";
 import { MEMBERSHIP_STATUS_BY_ESTADO, type BackendEstadoMembresia } from "@/lib/membership-status";
+import { backendFetchAuthed } from "@/lib/server/backend-client";
 
 export type BackendEstadoPago = "APROBADO" | "PENDIENTE_VALIDACION" | "RECHAZADO";
 export type BackendTipoPago = "EFECTIVO" | "TRANSFERENCIA";
@@ -141,4 +143,80 @@ export function buildPaymentValidationRequest(
     validationStatus: VALIDATION_STATUS_BY_ESTADO_PAGO[pago.estadoPago],
     validatedAt: pago.fechaValidacion ?? undefined,
   };
+}
+
+interface PaginatedPersonas {
+  items: BackendPersonaWithRepresentante[];
+}
+
+interface PaginatedMembresias {
+  items: BackendMembresia[];
+}
+
+/**
+ * Enrich a raw `BackendPagoListItem[]` (from either the paginated queue or
+ * the full reports endpoint) into `PaymentValidationRequest[]`: resolves
+ * "responsable de pago" names, tipos de membresía, and membresías in bulk
+ * (same avoid-N+1 tradeoff as `buildRepresentanteNameMap`). Shared by
+ * `/api/payments` and `/api/payments/reportes` — both need the exact same
+ * three-way batch resolution over a different upstream pago list.
+ */
+export async function enrichBackendPagos(
+  request: NextRequest,
+  pagos: BackendPagoListItem[],
+): Promise<PaymentValidationRequest[]> {
+  const personasResult = await backendFetchAuthed(request, "/personas/?limit=200");
+  const personas: BackendPersonaWithRepresentante[] =
+    (personasResult.ok && personasResult.response.ok
+      ? ((await personasResult.response.json()) as PaginatedPersonas).items
+      : undefined) ?? [];
+  const responsablePagoNameById = buildRepresentanteNameMap(personas);
+
+  const tiposResult = await backendFetchAuthed(request, "/membresias/tipos");
+  const tipos: BackendTipoMembresia[] =
+    tiposResult.ok && tiposResult.response.ok ? await tiposResult.response.json() : [];
+  const tiposById = new Map(tipos.map((tipo) => [tipo.id, tipo]));
+
+  const uniqueMembresiaIds = [...new Set(pagos.map((pago) => pago.membresiaId))];
+  const membresiasResult = await backendFetchAuthed(request, "/membresias/?limit=200");
+  const allMembresias: BackendMembresia[] =
+    membresiasResult.ok && membresiasResult.response.ok
+      ? ((await membresiasResult.response.json()) as PaginatedMembresias).items
+      : [];
+  const membresiaById = new Map<number, BackendMembresia>();
+  for (const m of allMembresias) {
+    if (uniqueMembresiaIds.includes(m.id)) {
+      membresiaById.set(m.id, m);
+    }
+  }
+
+  return pagos.map((pago) => {
+    const membresia: BackendMembresia =
+      membresiaById.get(pago.membresiaId) ?? { id: pago.membresiaId, estado: "INACTIVA", tipoMembresiaId: 0 };
+    return buildPaymentValidationRequest(
+      pago,
+      pago.personaNombreCompleto,
+      membresia,
+      tiposById.get(membresia.tipoMembresiaId),
+      responsablePagoNameById.get(pago.personaId),
+    );
+  });
+}
+
+/**
+ * Build the backend query string (snake_case) for the Pagos report/PDF
+ * endpoints from the incoming request's camelCase params. Shared by
+ * `/api/payments/reportes` and its `/pdf` sibling — both take the exact
+ * same three optional filters.
+ */
+export function buildPagosReporteQuery(searchParams: URLSearchParams): string {
+  const qs = new URLSearchParams();
+  const fechaInicio = searchParams.get("fechaInicio");
+  const fechaFin = searchParams.get("fechaFin");
+  const estadoPago = searchParams.get("estadoPago");
+  if (fechaInicio) qs.set("fecha_inicio", fechaInicio);
+  if (fechaFin) qs.set("fecha_fin", fechaFin);
+  if (estadoPago) qs.set("estado_pago", estadoPago);
+  const query = qs.toString();
+  return query ? `?${query}` : "";
 }

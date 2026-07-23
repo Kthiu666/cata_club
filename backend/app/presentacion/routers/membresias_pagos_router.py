@@ -149,6 +149,28 @@ def listar_pagos(
     return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
+def _reporte_pagos_items(
+    db: Session,
+    estado_pago: Optional[EstadoPago],
+    fecha_inicio: Optional[date],
+    fecha_fin: Optional[date],
+) -> List[PagoListItemDTO]:
+    """Valida el rango de fechas y trae TODOS los pagos que matchean el
+    filtro -- compartido por el endpoint JSON y el de PDF de abajo, que
+    necesitan exactamente la misma validación + fetch (única diferencia:
+    qué hacen con `items` después)."""
+    if fecha_inicio is not None and fecha_fin is not None and fecha_inicio >= fecha_fin:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="La fecha de inicio debe ser anterior a la fecha de fin.",
+        )
+    items, _ = PagoServicio(db).listar_pagos(
+        estado_pago=estado_pago, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+        skip=0, limit=10000,
+    )
+    return items
+
+
 # --- Reporte de pagos (E04-RF014-style): a diferencia de la cola paginada de
 # arriba, devuelve TODOS los pagos que matchean el filtro -- el frontend
 # pagina client-side (mismo convenio ya usado por `reporte_nuevos_por_periodo`
@@ -164,16 +186,7 @@ def reporte_pagos(
     fecha_fin: Optional[date] = Query(default=None),
     db: Session = Depends(obtener_sesion),
 ):
-    if fecha_inicio is not None and fecha_fin is not None and fecha_inicio >= fecha_fin:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="La fecha de inicio debe ser anterior a la fecha de fin.",
-        )
-    items, _ = PagoServicio(db).listar_pagos(
-        estado_pago=estado_pago, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
-        skip=0, limit=10000,
-    )
-    return items
+    return _reporte_pagos_items(db, estado_pago, fecha_inicio, fecha_fin)
 
 
 # --- Exportación a PDF del reporte de pagos ---------------------------------
@@ -191,15 +204,7 @@ async def reporte_pagos_pdf(
     fecha_fin: Optional[date] = Query(default=None),
     db: Session = Depends(obtener_sesion),
 ):
-    if fecha_inicio is not None and fecha_fin is not None and fecha_inicio >= fecha_fin:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="La fecha de inicio debe ser anterior a la fecha de fin.",
-        )
-    items, _ = PagoServicio(db).listar_pagos(
-        estado_pago=estado_pago, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
-        skip=0, limit=10000,
-    )
+    items = _reporte_pagos_items(db, estado_pago, fecha_inicio, fecha_fin)
     pdf_bytes = await run_in_threadpool(
         generar_reporte_pdf,
         titulo="Reporte de Pagos",
