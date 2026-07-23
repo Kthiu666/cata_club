@@ -18,7 +18,8 @@ uv run uvicorn main:app --reload
 ```
 app/
  ├── presentacion/         # Routers y Schemas (DTOs) — CERO SQL, cero lógica de negocio
- │    ├── routers/         # auth, personas, membresias_pagos, asistencias, ficha_medica, clases_extra
+ │    ├── routers/         # auth, personas, membresias_pagos, asistencias, ficha_medica,
+ │    │                    # geografia, ranking, enrollment, dashboard, chatbot
  │    └── schemas/         # DTOs Pydantic por dominio
  ├── servicios_negocio/    # Reglas de negocio. Usa repositorios, NO conoce FastAPI/SQLAlchemy.
  │                         # Lanza excepciones de dominio (app/dominio/excepciones.py)
@@ -36,12 +37,12 @@ el Servicio aplica reglas de negocio y llama al Repositorio → el Repositorio e
 → si algo falla, el Servicio lanza una excepción de dominio → un manejador global en `main.py`
 la traduce al código HTTP correspondiente. El router nunca ve `HTTPException` ni `db.query`.
 
-## Modelo de Dominio (19 entidades)
+## Modelo de Dominio (21 entidades)
 Pais → Provincia → Canton → Direccion · Institucion · Rol · Usuario · **Persona** (relación
 reflexiva Representante/Representados) · AntecedentesClub · TipoMembresia · Membresia · Pago ·
-ComprobantePago · **HorarioEntrenamiento** (con entrenador titular) · **Asistencia** (con
-entrenador de la sesión, puede ser un sustituto) · FichaMedica · Enfermedades ·
-**SolicitudClaseExtra** (nueva).
+ComprobantePago · NivelRanking · **HorarioEntrenamiento** (con entrenador titular) ·
+**Asistencia** (con entrenador de la sesión, puede ser un sustituto) · AlumnoHorario ·
+FichaMedica · Enfermedades · Ranking · Notificacion.
 
 ### Correcciones aplicadas sobre el diagrama original
 | Relación | Diagrama original | Corregido a | Motivo |
@@ -57,35 +58,38 @@ entrenador de la sesión, puede ser un sustituto) · FichaMedica · Enfermedades
 ### Reglas de negocio confirmadas e implementadas
 | Requisito | Implementación |
 |---|---|
-| Membresías `PERSONALIZADA` permiten pedir clases extra | Nueva entidad `SolicitudClaseExtra` (persona, membresía, horario, estado `PENDIENTE\|APROBADA\|RECHAZADA`, costo adicional). `ClaseExtraServicio` valida que la membresía sea `PERSONALIZADA`; `MENSUAL` se rechaza porque ya incluye todo el horario. |
 | Entrenador fijo por horario, pero puede cambiar (sustitución) | `HorarioEntrenamiento.entrenador_id` = titular fijo. `Asistencia.entrenador_id` = quien dictó *esa* sesión puntual (puede diferir del titular). Ambos se validan contra personas con rol `ENTRENADOR` real vía `AsistenciaServicio._validar_entrenador`. |
 
 **Descartado deliberadamente** (no son huecos, son alternativas de diseño sin necesidad de negocio confirmada): tipar `formatoArchivo` como enum, entidad `Grupo`.
 
 ## Pruebas
-Suite de **39 pruebas automatizadas** con `pytest` + `TestClient`, usando SQLite
+Suite de **218 pruebas automatizadas** con `pytest` + `TestClient`, usando SQLite
 en memoria (no requiere PostgreSQL para correr). Cubre: CRUD de Persona y
 relación reflexiva de representante, permisos por rol (403), la corrección de
 estados Membresía↔Pago, validación de rol ENTRENADOR real, sustitución de
-entrenador en Asistencia, flujo completo de clases extra (incluida la regla de
-que solo aplica a modalidad PERSONALIZADA), subida de voucher de transferencia
-(JPG/PDF), registro de usuario para persona ya existente, refresh de tokens
-(incluido el rechazo al mandar access en vez de refresh), y CRUD de geografía
-(País/Provincia/Cantón con filtros y permisos admin).
+entrenador en Asistencia, subida de voucher de transferencia (JPG/PDF),
+registro de usuario para persona ya existente, refresh de tokens (incluido el
+rechazo al mandar access en vez de refresh), CRUD de geografía
+(País/Provincia/Cantón con filtros y permisos admin), ranking (niveles,
+asignaciones, movimientos de nivel, notificaciones), autoinscripción
+(enrollment), dashboard de estadísticas y chatbot de FAQ.
 
 ```
-uv run pytest tests/ -v
+uv run pytest tests/ -v --cov=app --cov-report=term-missing
 ```
-Resultado: **39 passed**, 0 errores, solo advertencias de deprecación internas de
-librerías de terceros (FastAPI/Passlib), no del código propio.
+Resultado: **218 passed**, 0 errores, solo advertencias de deprecación internas de
+librerías de terceros (FastAPI/Starlette), no del código propio.
 
 ## Estado Actual
-Implementado: Modelo de dominio completo (19 entidades), DTOs por dominio,
-Routers CRUD, Autenticación JWT + login + registro + me + refresh + logout,
-Gestor de permisos por rol, patrón Repository + Service Layer, manejo global de
-excepciones de dominio, suite de pruebas automatizadas, voucher de cliente
-(imagen/PDF en Cloudinary con carpeta separada), CRUD de geografía
-(País/Provincia/Cantón), base Alembic inicializada con primera migración del
+Implementado: Modelo de dominio completo (21 entidades), DTOs por dominio,
+Routers CRUD, Autenticación JWT + login + registro + me + refresh + logout +
+recuperación/restablecimiento de contraseña, Gestor de permisos por rol,
+patrón Repository + Service Layer, manejo global de excepciones de dominio,
+suite de pruebas automatizadas, voucher de cliente (imagen/PDF en Cloudinary
+con carpeta separada), CRUD de geografía (País/Provincia/Cantón), ranking de
+alumnos (niveles, asignaciones, movimientos, notificaciones), autoinscripción
+(enrollment), dashboard de estadísticas, chatbot de FAQ (DeepSeek vía gateway
+OpenAI-compatible), base Alembic inicializada con historial de migraciones del
 esquema completo.
 
 ### Implementado en esta iteración
@@ -103,13 +107,15 @@ esquema completo.
 Endpoints CRUD de Direccion e Institucion (mismo patrón que geografía), rotación/blacklist
 de refresh tokens (ver `AuthServicio.refrescar_sesion`).
 
-## Endpoints disponibles (33)
-Ejecutar el servidor y visitar `/docs` para el Swagger interactivo. Resumen:
-- `POST /api/v1/auth/login` · `POST /api/v1/auth/registro` · `GET /api/v1/auth/me` · `POST /api/v1/auth/refresh` · `POST /api/v1/auth/logout`
-- `POST|GET /api/v1/personas/`, `GET|PUT|DELETE /api/v1/personas/{id}`, `GET /api/v1/personas/{id}/representados`
-- `POST|GET /api/v1/membresias/tipos`, `POST /api/v1/membresias/`, `GET /api/v1/membresias/{id}`
-- `POST /api/v1/membresias/pagos`, `PATCH /api/v1/membresias/pagos/{id}/validar`, `POST .../comprobante`, `POST .../voucher`
-- `POST|GET /api/v1/asistencias/horarios`, `POST /api/v1/asistencias/`, `GET /api/v1/asistencias/persona/{id}`
-- `POST /api/v1/fichas-medicas/`, `GET /api/v1/fichas-medicas/persona/{id}`
-- `POST /api/v1/clases-extra/`, `PATCH /api/v1/clases-extra/{id}/resolver`, `GET /api/v1/clases-extra/persona/{id}`
-- `POST|GET /api/v1/geografia/paises`, `GET /api/v1/geografia/paises/{id}`, `POST|GET /api/v1/geografia/provincias`, `GET /api/v1/geografia/provincias/{id}`, `POST|GET /api/v1/geografia/cantones`, `GET /api/v1/geografia/cantones/{id}`
+## Endpoints disponibles (79)
+Ejecutar el servidor y visitar `/docs` para el Swagger interactivo. Resumen por router (todos montados bajo `/api/v1`):
+- **Auth** (9): `POST /auth/login`, `POST /auth/registro`, `GET|PATCH /auth/me`, `POST /auth/me/foto`, `POST /auth/refresh`, `POST /auth/logout`, `POST /auth/recuperar-contrasenia`, `POST /auth/restablecer-contrasenia`
+- **Personas** (18): `POST|GET /personas/`, `GET /personas/reportes/nuevos-por-periodo`(+`/pdf`), `GET /personas/entrenadores`, `GET /personas/buscar`, `GET|PATCH|DELETE /personas/{id}`, `GET|POST /personas/{id}/representados`, `GET|POST|PATCH /personas/{id}/antecedentes-club`, `GET|POST /personas/{id}/roles`, `DELETE /personas/{id}/roles/{tipo_rol}`, `PATCH /personas/{id}/cuenta/estado`
+- **Membresías y Pagos** (17): `GET|POST /membresias/tipos`, `GET|POST /membresias/`, `GET /membresias/mias`, `GET /membresias/persona/{id}`, `GET /membresias/estadisticas`, `GET /membresias/{id}`, `GET|POST /membresias/pagos`, `GET /membresias/pagos/reportes`(+`/pdf`), `GET|PATCH /membresias/pagos/{id}`(`/validar`), `GET /membresias/pagos/persona/{id}`, `POST /membresias/pagos/{id}/comprobante`, `POST /membresias/pagos/{id}/voucher`
+- **Asistencias** (12): `POST|PUT|DELETE /asistencias/horarios`(`/{id}`), `GET|POST /asistencias/`, `GET /asistencias/persona/{id}`, `GET /asistencias/reportes`(+`/pdf`), `POST|DELETE /asistencias/asignar-alumno`(`/desasignar-alumno`), `GET /asistencias/horarios/{id}/alumnos`, `GET /asistencias/alumnos/{persona_id}/horarios`
+- **Ranking** (9): `GET|POST /ranking/niveles`, `GET /ranking/asignaciones`, `GET /ranking/niveles/{id}/tabla`, `POST /ranking/asignar-nivel-inicial`, `PATCH /ranking/{persona_id}/mover-de-nivel`, `GET /ranking/{persona_id}/perfil`, `GET /ranking/notificaciones/mias`, `PATCH /ranking/notificaciones/{id}/leer`
+- **Geografía** (8): `GET|POST /geografia/paises`(`/{id}`), `GET|POST /geografia/provincias`(`/{id}`), `GET|POST /geografia/cantones`(`/{id}`)
+- **Ficha Médica** (3): `POST|GET|PATCH /fichas-medicas/`(`/persona/{id}`)
+- **Enrollment** (1): `POST /enrollment/`
+- **Dashboard** (1): `GET /dashboard/stats`
+- **Chatbot** (1): `POST /chatbot/consultar`
