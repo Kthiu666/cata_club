@@ -53,15 +53,17 @@ vi.mock("@/services/api", () => ({
   marcarNotificacionLeida: vi.fn().mockResolvedValue(undefined),
 }));
 
+// camelCase — mirrors the real backend contract (`AlumnoHorarioDetalleDTO`
+// inherits `ResponseBase`, serialized camelCase server-side).
 const ANA_ALUMNO_HORARIO = {
   id: 1,
-  persona_id: 9,
-  persona_nombre_completo: "Ana López",
-  horario_id: 12,
-  horario_dia: "lun",
-  horario_hora_inicio: "18:00",
-  horario_hora_fin: "19:00",
-  fecha_asignacion: "2026-01-01",
+  personaId: 9,
+  personaNombreCompleto: "Ana López",
+  horarioId: 12,
+  horarioDia: "lun",
+  horarioHoraInicio: "18:00",
+  horarioHoraFin: "19:00",
+  fechaAsignacion: "2026-01-01",
 };
 
 describe("TrainerAttendancePage — role gate (PR8)", () => {

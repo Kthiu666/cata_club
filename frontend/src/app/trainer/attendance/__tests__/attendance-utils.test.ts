@@ -103,26 +103,30 @@ describe("buildAttendanceSummary", () => {
 });
 
 describe("buildRosterFromAlumnoHorarios", () => {
+  // camelCase fixture — matches the real backend contract: `AlumnoHorarioDetalleDTO`
+  // inherits `ResponseBase`, so responses are serialized camelCase
+  // (`persona_nombre_completo` never exists on the wire). A snake_case mock
+  // here would silently hide the exact bug this test guards against.
   const alumnoHorarios: AlumnoHorario[] = [
     {
       id: 1,
-      persona_id: 3,
-      persona_nombre_completo: "Sofia Alumna",
-      horario_id: 12,
-      horario_dia: "lun",
-      horario_hora_inicio: "18:00",
-      horario_hora_fin: "19:00",
-      fecha_asignacion: "2026-01-01",
+      personaId: 3,
+      personaNombreCompleto: "Sofia Alumna",
+      horarioId: 12,
+      horarioDia: "lun",
+      horarioHoraInicio: "18:00",
+      horarioHoraFin: "19:00",
+      fechaAsignacion: "2026-01-01",
     },
     {
       id: 2,
-      persona_id: 7,
-      persona_nombre_completo: "Mateo Rodríguez",
-      horario_id: 12,
-      horario_dia: "lun",
-      horario_hora_inicio: "18:00",
-      horario_hora_fin: "19:00",
-      fecha_asignacion: "2026-01-01",
+      personaId: 7,
+      personaNombreCompleto: "Mateo Rodríguez",
+      horarioId: 12,
+      horarioDia: "lun",
+      horarioHoraInicio: "18:00",
+      horarioHoraFin: "19:00",
+      fechaAsignacion: "2026-01-01",
     },
   ];
 
@@ -138,7 +142,7 @@ describe("buildRosterFromAlumnoHorarios", () => {
     expect(buildRosterFromAlumnoHorarios([])).toEqual([]);
   });
 
-  it("stringifies persona_id for use as a stable React key / POST payload id", () => {
+  it("stringifies personaId for use as a stable React key / POST payload id", () => {
     const roster = buildRosterFromAlumnoHorarios(alumnoHorarios);
     expect(roster.every((s) => typeof s.id === "string")).toBe(true);
   });

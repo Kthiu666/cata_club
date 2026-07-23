@@ -557,6 +557,21 @@ export async function eliminarHorario(id: number): Promise<void> {
   });
 }
 
+/** A persona with rol ENTRENADOR — feeds the entrenador dropdown when
+ *  creating/editing a `Horario` (real name, not a raw ID). */
+export interface Entrenador {
+  id: number;
+  nombreCompleto: string;
+}
+
+/** Fetch all personas with rol ENTRENADOR. */
+export async function fetchEntrenadores(): Promise<Entrenador[]> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<Entrenador[]>(apiEndpoint("/personas/entrenadores"), {
+    headers: mockHeaders,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Members & Groups API Methods (Fase 4)
 // ---------------------------------------------------------------------------
@@ -1266,15 +1281,26 @@ export async function fetchJustificativosDePersona(personaId: string): Promise<J
 // Asignación directa Alumno ↔ Horario
 // ---------------------------------------------------------------------------
 
+/**
+ * `AlumnoHorarioDetalleDTO` on the backend
+ * (`backend/app/presentacion/schemas/asistencia_schemas.py`) inherits
+ * `ResponseBase`, so the real JSON response is serialized camelCase via
+ * `alias_generator=_to_camel` (`backend/app/presentacion/schemas/base.py`) —
+ * same convention documented at `frontend/src/lib/server/auth.ts` for
+ * `BackendMeResponse`. This was previously mistyped snake_case, which
+ * compiled fine but made every `persona_nombre_completo` access `undefined`
+ * at runtime (roster count worked via `.length`, but each row rendered
+ * blank).
+ */
 export interface AlumnoHorario {
   id: number;
-  persona_id: number;
-  persona_nombre_completo: string;
-  horario_id: number;
-  horario_dia: string;
-  horario_hora_inicio: string;
-  horario_hora_fin: string;
-  fecha_asignacion: string;
+  personaId: number;
+  personaNombreCompleto: string;
+  horarioId: number;
+  horarioDia: string;
+  horarioHoraInicio: string;
+  horarioHoraFin: string;
+  fechaAsignacion: string;
 }
 
 export interface AsignarAlumnoHorarioDTO {

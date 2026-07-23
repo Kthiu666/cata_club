@@ -34,8 +34,9 @@ import {
   fetchAlumnosPorHorario,
   asignarAlumnoAHorario,
   desasignarAlumnoDeHorario,
+  fetchEntrenadores,
 } from "../api";
-import type { PaymentValidationRequest, Horario, AlumnoHorario } from "../api";
+import type { PaymentValidationRequest, Horario, AlumnoHorario, Entrenador } from "../api";
 import type { Notificacion, Justificativo, PerfilPropio } from "@/types/domain";
 
 // ---------------------------------------------------------------------------
@@ -640,16 +641,18 @@ describe("actualizarMiPerfil", () => {
   });
 });
 
+// camelCase — mirrors the real backend contract (`AlumnoHorarioDetalleDTO`
+// inherits `ResponseBase`, serialized camelCase server-side).
 function makeAlumnoHorario(overrides: Partial<AlumnoHorario> = {}): AlumnoHorario {
   return {
     id: 10,
-    persona_id: 3,
-    persona_nombre_completo: "Sofia Martinez",
-    horario_id: 1,
-    horario_dia: "LUNES",
-    horario_hora_inicio: "18:00",
-    horario_hora_fin: "20:00",
-    fecha_asignacion: "2026-07-01T00:00:00Z",
+    personaId: 3,
+    personaNombreCompleto: "Sofia Martinez",
+    horarioId: 1,
+    horarioDia: "LUNES",
+    horarioHoraInicio: "18:00",
+    horarioHoraFin: "20:00",
+    fechaAsignacion: "2026-07-01T00:00:00Z",
     ...overrides,
   };
 }
@@ -711,9 +714,25 @@ describe("eliminarHorario", () => {
   });
 });
 
+function makeEntrenador(overrides: Partial<Entrenador> = {}): Entrenador {
+  return { id: 5, nombreCompleto: "Carlos Ruiz", ...overrides };
+}
+
+describe("fetchEntrenadores", () => {
+  it("GETs /api/personas/entrenadores", async () => {
+    const items = [makeEntrenador(), makeEntrenador({ id: 9, nombreCompleto: "Diana Soto" })];
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(items));
+
+    const result = await fetchEntrenadores();
+
+    expect(global.fetch).toHaveBeenCalledWith("/api/personas/entrenadores", expect.anything());
+    expect(result).toEqual(items);
+  });
+});
+
 describe("fetchAlumnosPorHorario", () => {
   it("GETs /api/groups/horarios/:id/alumnos", async () => {
-    const items = [makeAlumnoHorario(), makeAlumnoHorario({ id: 11, persona_id: 4 })];
+    const items = [makeAlumnoHorario(), makeAlumnoHorario({ id: 11, personaId: 4 })];
     vi.mocked(global.fetch).mockResolvedValue(okResponse(items));
 
     const result = await fetchAlumnosPorHorario(1);
@@ -723,7 +742,7 @@ describe("fetchAlumnosPorHorario", () => {
   });
 
   it("targets a different horario id (triangulation)", async () => {
-    const items = [makeAlumnoHorario({ id: 20, horario_id: 7 })];
+    const items = [makeAlumnoHorario({ id: 20, horarioId: 7 })];
     vi.mocked(global.fetch).mockResolvedValue(okResponse(items));
 
     const result = await fetchAlumnosPorHorario(7);

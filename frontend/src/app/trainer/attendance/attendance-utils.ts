@@ -98,8 +98,8 @@ export function buildAttendanceSummary(students: SessionStudent[]): string {
  */
 export function buildRosterFromAlumnoHorarios(items: AlumnoHorario[]): SessionStudent[] {
   return items.map((item) => ({
-    id: String(item.persona_id),
-    name: item.persona_nombre_completo,
+    id: String(item.personaId),
+    name: item.personaNombreCompleto,
     attendance: "absent" as EstadoAsistencia,
   }));
 }
