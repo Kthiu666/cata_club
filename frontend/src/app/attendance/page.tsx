@@ -215,6 +215,40 @@ export default function AttendancePage(): React.ReactElement {
               </div>
             </div>
 
+    
+            {/* Schedule management section */}
+            <div className="card mb-8 overflow-hidden">
+              <div className="flex items-center justify-between border-b border-cata-border px-5 py-4">
+                <h2 className="text-sm font-semibold text-cata-text">Gestionar Horarios</h2>
+                <span className="text-xs text-cata-text/50">{schedules.length} horarios</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
+                      <th className="px-4 py-3">Día</th>
+                      <th className="px-4 py-3">Horario</th>
+                      <th className="px-4 py-3">Entrenador</th>
+                      <th className="px-4 py-3">Grupo</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-cata-border">
+                    {schedules.map((s) => (
+                      <tr key={s.id} className="hover:bg-cata-bg/50">
+                        <td className="px-4 py-3 text-xs font-medium text-cata-text capitalize">{s.diaSemana}</td>
+                        <td className="px-4 py-3 text-xs text-cata-text/65">{s.horaInicio} — {s.horaFin}</td>
+                        <td className="px-4 py-3 text-xs text-cata-text/65">{s.entrenadorNombre}</td>
+                        <td className="px-4 py-3 text-xs text-cata-text/65">{s.nivelRankingId ? `Nivel ${s.nivelRankingId}` : "Sin grupo"}</td>
+                      </tr>
+                    ))}
+                    {schedules.length === 0 && (
+                      <tr><td colSpan={4} className="px-4 py-8 text-center text-xs text-cata-text/40">No hay horarios registrados.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             {/* Quick action: take attendance — replaces the removed
                 "Horarios de Entrenamiento" table (PR3), which added no
                 real value; admins can now register attendance too. */}

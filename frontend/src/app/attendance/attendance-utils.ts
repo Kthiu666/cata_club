@@ -50,6 +50,7 @@ export interface TrainingSchedule {
   entrenadorId: number;
   /** Titular trainer's display name — resolved server-side from `/personas`. */
   entrenadorNombre: string;
+  nivelRankingId: number | null;
 }
 
 /** A recent attendance record, enriched with student/trainer names. */

@@ -34,8 +34,8 @@ vi.mock("next/link", () => ({
 }));
 
 const SCHEDULES: TrainingSchedule[] = [
-  { id: 1, diaSemana: "lun", horaInicio: "15:00", horaFin: "16:30", entrenadorId: 42, entrenadorNombre: "Coach Martinez" },
-  { id: 2, diaSemana: "mar", horaInicio: "17:00", horaFin: "18:00", entrenadorId: 42, entrenadorNombre: "Coach Martinez" },
+  { id: 1, diaSemana: "lun", horaInicio: "15:00", horaFin: "16:30", entrenadorId: 42, entrenadorNombre: "Coach Martinez", nivelRankingId: null },
+  { id: 2, diaSemana: "mar", horaInicio: "17:00", horaFin: "18:00", entrenadorId: 42, entrenadorNombre: "Coach Martinez", nivelRankingId: null },
 ];
 
 const RECENT_RECORDS: AttendanceRecord[] = [

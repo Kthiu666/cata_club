@@ -66,7 +66,7 @@ describe("horarioLabel", () => {
 });
 
 describe("buildTrainingSchedule", () => {
-  const horario: BackendHorario = { id: 1, diaSemana: "LUNES", horaInicio: "15:00:00", horaFin: "16:30:00", entrenadorId: 2 };
+  const horario: BackendHorario = { id: 1, diaSemana: "LUNES", horaInicio: "15:00:00", horaFin: "16:30:00", entrenadorId: 2, nivelRankingId: null };
 
   it("maps a backend Horario into a TrainingSchedule with the resolved trainer name", () => {
     const personas = new Map([[2, { id: 2, nombres: "Carla", apellidos: "Trainer" }]]);
@@ -77,6 +77,7 @@ describe("buildTrainingSchedule", () => {
       horaFin: "16:30",
       entrenadorId: 2,
       entrenadorNombre: "Carla Trainer",
+      nivelRankingId: null,
     });
   });
 
@@ -98,7 +99,7 @@ describe("buildAttendanceRecord", () => {
     entrenadorId: 2,
     horarioId: 1,
   };
-  const horario: BackendHorario = { id: 1, diaSemana: "LUNES", horaInicio: "15:00:00", horaFin: "16:30:00", entrenadorId: 2 };
+  const horario: BackendHorario = { id: 1, diaSemana: "LUNES", horaInicio: "15:00:00", horaFin: "16:30:00", entrenadorId: 2, nivelRankingId: null };
   const personas = new Map([
     [3, { id: 3, nombres: "Sofia", apellidos: "Alumna" }],
     [2, { id: 2, nombres: "Carla", apellidos: "Trainer" }],

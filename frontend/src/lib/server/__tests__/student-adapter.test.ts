@@ -17,7 +17,7 @@ import type { BackendAsistencia, BackendHorario } from "../attendance-adapter";
 import type { BackendPersonaFull } from "../members-adapter";
 
 describe("buildRecentSessions", () => {
-  const horario: BackendHorario = { id: 1, diaSemana: "LUNES", horaInicio: "15:00:00", horaFin: "16:30:00", entrenadorId: 2 };
+  const horario: BackendHorario = { id: 1, diaSemana: "LUNES", horaInicio: "15:00:00", horaFin: "16:30:00", entrenadorId: 2, nivelRankingId: null };
   const horariosById = new Map([[1, horario]]);
 
   function asistencia(overrides: Partial<BackendAsistencia>): BackendAsistencia {

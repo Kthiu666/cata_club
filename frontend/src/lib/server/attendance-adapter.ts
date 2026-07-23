@@ -36,6 +36,7 @@ export interface BackendHorario {
   horaInicio: string; // "HH:MM:SS"
   horaFin: string;
   entrenadorId: number;
+  nivelRankingId: number | null;
 }
 
 export interface BackendAsistencia {
@@ -140,6 +141,7 @@ export function buildTrainingSchedule(
     horaFin: trimSeconds(horario.horaFin),
     entrenadorId: horario.entrenadorId,
     entrenadorNombre: personaFullName(personas.get(horario.entrenadorId), `Entrenador ${horario.entrenadorId}`),
+    nivelRankingId: horario.nivelRankingId ?? null,
   };
 }
 
