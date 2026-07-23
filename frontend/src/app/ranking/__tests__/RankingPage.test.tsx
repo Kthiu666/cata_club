@@ -1,30 +1,24 @@
 /**
- * Component tests for RankingPage — dropdown assign + justificativo
- * confirmation gating.
- * Covers: the unassigned-students section renders one dropdown/button per
- * student (not one button per student×nivel pair) and fires the same
- * `handleAssignStudent` mutation; Aprobar/Rechazar open `ConfirmDialog`
- * before `handleEvaluarJustificativo` fires, and canceling makes no call.
+ * Component tests for RankingPage (admin) — literal copy of the trainer's
+ * Nivel screen (see NivelPage.test.tsx), single "Asignar Nivel" table with
+ * its search/nivel filter, reused for the admin actor.
  *
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, within, act } from "@testing-library/react";
 import RankingPage from "@/app/ranking/page";
 import type { NivelConOcupacion } from "@/services/api";
-import type { Justificativo } from "@/types/domain";
 import type { MemberAccount } from "@/app/members/members-utils";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-// AppShell renders NotificationBell + needs next/navigation, next/link,
-// next/image, AuthContext — same minimal mock pattern as PaymentsPage.test.tsx.
 vi.mock("next/navigation", () => ({
   usePathname: () => "/ranking",
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
 vi.mock("next/link", () => ({
@@ -38,14 +32,8 @@ vi.mock("next/link", () => ({
 
 vi.mock("next/image", () => ({
   __esModule: true,
-  default: (props: React.ImgHTMLAttributes<HTMLImageElement> & { fill?: boolean; priority?: boolean }) => {
-    const { fill, priority, sizes, ...rest } = props;
-    void fill;
-    void priority;
-    void sizes;
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img alt="" {...rest} />;
-  },
+  // eslint-disable-next-line @next/next/no-img-element
+  default: (props: Record<string, unknown>) => <img alt="" {...props} />,
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -62,13 +50,19 @@ vi.mock("@/contexts/AuthContext", () => ({
   }),
 }));
 
+const mockShowError = vi.fn();
+const mockShowSuccess = vi.fn();
+vi.mock("@/contexts/ToastContext", () => ({
+  useToast: () => ({
+    showToast: vi.fn(),
+    showError: mockShowError,
+    showSuccess: mockShowSuccess,
+  }),
+}));
+
 const mockFetchMembers = vi.fn();
 const mockAssignStudentToNivel = vi.fn();
 const mockMoveStudentToNivel = vi.fn();
-const mockFetchJustificativosPendientes = vi.fn();
-const mockEvaluarJustificativo = vi.fn();
-const mockFetchNotificaciones = vi.fn().mockResolvedValue([]);
-const mockMarcarNotificacionLeida = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@/services/api", () => {
   class MockApiClientError extends Error {
@@ -83,11 +77,8 @@ vi.mock("@/services/api", () => {
     fetchMembers: () => mockFetchMembers(),
     assignStudentToNivel: (personaId: number, nivelId: number) => mockAssignStudentToNivel(personaId, nivelId),
     moveStudentToNivel: (personaId: number, nivelId: number) => mockMoveStudentToNivel(personaId, nivelId),
-    reingresar: vi.fn(),
-    fetchJustificativosPendientes: () => mockFetchJustificativosPendientes(),
-    evaluarJustificativo: (id: number, dto: unknown) => mockEvaluarJustificativo(id, dto),
-    fetchNotificaciones: () => mockFetchNotificaciones(),
-    marcarNotificacionLeida: (id: number) => mockMarcarNotificacionLeida(id),
+    fetchNotificaciones: vi.fn().mockResolvedValue([]),
+    marcarNotificacionLeida: vi.fn().mockResolvedValue(undefined),
     ApiClientError: MockApiClientError,
   };
 });
@@ -117,7 +108,7 @@ const NIVELES: NivelConOcupacion[] = [
   },
 ];
 
-const UNASSIGNED_ACCOUNT: MemberAccount = {
+const ACCOUNT: MemberAccount = {
   id: "acc-1",
   role: "representante",
   nombres: "María",
@@ -133,183 +124,146 @@ const UNASSIGNED_ACCOUNT: MemberAccount = {
       membresia: null,
       ultimoPago: null,
     },
+    {
+      id: "11",
+      nombres: "Pedro",
+      apellidos: "Ramírez",
+      grupoId: "1",
+      activo: true,
+      membresia: null,
+      ultimoPago: null,
+    },
   ],
 };
 
-const PENDING_JUSTIFICATIVO: Justificativo = {
-  id: 5,
-  personaId: 10,
-  anio: 2026,
-  mes: 7,
-  motivo: "Viaje familiar",
-  archivoUrl: null,
-  observaciones: null,
-  estado: "PENDIENTE",
-  motivoRechazo: null,
-  fechaSolicitud: "2026-07-01T00:00:00.000Z",
-  fechaEvaluacion: null,
-  evaluadoPorId: null,
-};
-
-async function findUnassignedRow(): Promise<HTMLElement> {
-  const heading = await screen.findByText(/^estudiantes sin nivel/i);
-  const section = heading.closest("div.card") as HTMLElement;
-  return within(section).getByText("Sofía González").closest("div.card-hover") as HTMLElement;
-}
-
-describe("RankingPage — unassigned dropdown assign", () => {
+describe("RankingPage — admin Niveles screen (copy of trainer's Nivel)", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();
     mockAssignStudentToNivel.mockReset();
     mockMoveStudentToNivel.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
-    mockEvaluarJustificativo.mockReset();
-    mockFetchMembers.mockResolvedValue({ accounts: [UNASSIGNED_ACCOUNT], niveles: NIVELES });
-    mockAssignStudentToNivel.mockResolvedValue(undefined);
-    mockFetchJustificativosPendientes.mockResolvedValue([]);
+    mockFetchMembers.mockResolvedValue({ accounts: [ACCOUNT], niveles: NIVELES });
+    mockShowError.mockClear();
+    mockShowSuccess.mockClear();
   });
 
-  it("renders one dropdown + Asignar button per unassigned student, not one button per nivel", async () => {
-    render(<RankingPage />);
-    const row = await findUnassignedRow();
-
-    const select = within(row).getByRole("combobox");
-    const buttons = within(row).getAllByRole("button");
-
-    // Exactly one select (not N buttons — one per nivel) and one Asignar button.
-    expect(select).toBeInTheDocument();
-    expect(buttons).toHaveLength(1);
-    expect(buttons[0]).toHaveTextContent(/asignar/i);
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  it("fires handleAssignStudent's mutation with the nivel picked from the dropdown", async () => {
+  it("renders every student by default with the total count", async () => {
     render(<RankingPage />);
-    const row = await findUnassignedRow();
+    await screen.findByText("Sofía González");
 
-    const select = within(row).getByRole("combobox");
-    fireEvent.change(select, { target: { value: "2" } });
-    fireEvent.click(within(row).getByRole("button", { name: /asignar/i }));
+    expect(screen.getByText("Pedro Ramírez")).toBeInTheDocument();
+    expect(screen.getByText("Estudiantes (2)")).toBeInTheDocument();
+  });
+
+  it("filters students by name (case-insensitive)", async () => {
+    render(<RankingPage />);
+    await screen.findByText("Sofía González");
+
+    fireEvent.change(screen.getByLabelText(/buscar estudiante/i), { target: { value: "sofía" } });
 
     await waitFor(() => {
-      expect(mockAssignStudentToNivel).toHaveBeenCalledWith(10, 2);
+      expect(screen.getByText("Estudiantes (1)")).toBeInTheDocument();
     });
+    expect(screen.getByText("Sofía González")).toBeInTheDocument();
+    expect(screen.queryByText("Pedro Ramírez")).not.toBeInTheDocument();
   });
 
-  it("disables the Asignar button until a nivel is picked", async () => {
+  it("filters students by current nivel", async () => {
     render(<RankingPage />);
-    const row = await findUnassignedRow();
+    await screen.findByText("Sofía González");
 
-    const assignButton = within(row).getByRole("button", { name: /asignar/i });
-    expect(assignButton).toBeDisabled();
-
-    const select = within(row).getByRole("combobox");
-    fireEvent.change(select, { target: { value: "1" } });
-    expect(assignButton).toBeEnabled();
-  });
-});
-
-describe("RankingPage — justificativo Aprobar/Rechazar confirmation gating", () => {
-  beforeEach(() => {
-    mockFetchMembers.mockReset();
-    mockAssignStudentToNivel.mockReset();
-    mockMoveStudentToNivel.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
-    mockEvaluarJustificativo.mockReset();
-    mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
-    mockFetchJustificativosPendientes.mockResolvedValue([PENDING_JUSTIFICATIVO]);
-    mockEvaluarJustificativo.mockResolvedValue({ ...PENDING_JUSTIFICATIVO, estado: "APROBADO" });
-  });
-
-  it("opens a confirmation dialog on Aprobar without mutating yet", async () => {
-    render(<RankingPage />);
-    await screen.findByText(/persona #10/i);
-
-    fireEvent.click(screen.getByRole("button", { name: /^aprobar$/i }));
-
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(mockEvaluarJustificativo).not.toHaveBeenCalled();
-  });
-
-  it("evaluates as APROBADO only after the confirm control is activated", async () => {
-    render(<RankingPage />);
-    await screen.findByText(/persona #10/i);
-
-    fireEvent.click(screen.getByRole("button", { name: /^aprobar$/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
+    fireEvent.change(screen.getByLabelText(/filtrar por nivel actual/i), { target: { value: "1" } });
 
     await waitFor(() => {
-      expect(mockEvaluarJustificativo).toHaveBeenCalledWith(5, { estado: "APROBADO" });
+      expect(screen.getByText("Estudiantes (1)")).toBeInTheDocument();
     });
+    expect(screen.getByText("Pedro Ramírez")).toBeInTheDocument();
+    expect(screen.queryByText("Sofía González")).not.toBeInTheDocument();
   });
 
-  it("reveals an inline reason input on Rechazar instead of a plain confirm dialog", async () => {
+  it("shows an empty-filter state distinct from the no-students state", async () => {
     render(<RankingPage />);
-    await screen.findByText(/persona #10/i);
+    await screen.findByText("Sofía González");
 
-    fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/motivo de rechazo/i)).toBeInTheDocument();
-    expect(mockEvaluarJustificativo).not.toHaveBeenCalled();
-  });
-
-  it("cancels the reject form without mutating", async () => {
-    render(<RankingPage />);
-    await screen.findByText(/persona #10/i);
-
-    fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^cancelar$/i }));
-
-    expect(screen.queryByLabelText(/motivo de rechazo/i)).not.toBeInTheDocument();
-    expect(mockEvaluarJustificativo).not.toHaveBeenCalled();
-  });
-
-  it("shows a client-side error and does not call evaluarJustificativo when submitting an empty reason", async () => {
-    render(<RankingPage />);
-    await screen.findByText(/persona #10/i);
-
-    fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
-
-    expect(await screen.findByText(/el motivo de rechazo es obligatorio/i)).toBeInTheDocument();
-    expect(mockEvaluarJustificativo).not.toHaveBeenCalled();
-  });
-
-  it("calls evaluarJustificativo with the trimmed motivoRechazo when a reason is typed and submitted", async () => {
-    render(<RankingPage />);
-    await screen.findByText(/persona #10/i);
-
-    fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
-    fireEvent.change(screen.getByLabelText(/motivo de rechazo/i), {
-      target: { value: "  No corresponde al mes declarado  " },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
+    fireEvent.change(screen.getByLabelText(/buscar estudiante/i), { target: { value: "nadie-existe" } });
 
     await waitFor(() => {
-      expect(mockEvaluarJustificativo).toHaveBeenCalledWith(5, {
-        estado: "RECHAZADO",
-        motivoRechazo: "No corresponde al mes declarado",
+      expect(screen.getByText("No se encontraron estudiantes con ese criterio.")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("No hay estudiantes registrados.")).not.toBeInTheDocument();
+  });
+
+  describe("assignment feedback", () => {
+    // `onAssigned` (loadData) briefly flips `loading` true/false around the
+    // refetch, which unmounts and remounts the `<table>`/`<tr>` — so every
+    // assertion below re-queries the row from `screen` instead of reusing a
+    // captured DOM node reference (it would go stale mid-flow).
+    function getSofiaRow(): HTMLElement {
+      const row = screen.getByLabelText("Nuevo nivel para Sofía González").closest("tr");
+      if (!row) throw new Error("Sofía row not found");
+      return row;
+    }
+
+    it("shows a success toast and reverts the 'Asignado' label to 'Asignar' after the timeout", async () => {
+      mockAssignStudentToNivel.mockResolvedValue(undefined);
+      render(<RankingPage />);
+      await screen.findByText("Sofía González");
+
+      fireEvent.change(screen.getByLabelText("Nuevo nivel para Sofía González"), { target: { value: "1" } });
+      fireEvent.click(within(getSofiaRow()).getByRole("button", { name: /Asignar/i }));
+
+      await waitFor(() => {
+        expect(within(getSofiaRow()).getByRole("button", { name: /Asignado/i })).toBeInTheDocument();
       });
+      expect(mockShowSuccess).toHaveBeenCalledTimes(1);
+
+      await waitFor(
+        () => {
+          expect(within(getSofiaRow()).getByRole("button", { name: /^Asignar$/i })).toBeInTheDocument();
+        },
+        { timeout: 3000 },
+      );
     });
-  });
-});
 
-describe("RankingPage — Selección Oficial extracted to its own route (PR9)", () => {
-  beforeEach(() => {
-    mockFetchMembers.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
-    mockFetchMembers.mockResolvedValue({ accounts: [UNASSIGNED_ACCOUNT], niveles: NIVELES });
-    mockFetchJustificativosPendientes.mockResolvedValue([]);
-  });
+    it("fires assignStudentToNivel for an unassigned student and moveStudentToNivel for an already-assigned one", async () => {
+      mockAssignStudentToNivel.mockResolvedValue(undefined);
+      mockMoveStudentToNivel.mockResolvedValue(undefined);
+      render(<RankingPage />);
+      await screen.findByText("Sofía González");
 
-  it("no longer renders the Selección Oficial section inline", async () => {
-    render(<RankingPage />);
-    await screen.findByText(/^estudiantes sin nivel/i);
+      fireEvent.change(screen.getByLabelText("Nuevo nivel para Sofía González"), { target: { value: "1" } });
+      fireEvent.click(within(getSofiaRow()).getByRole("button", { name: /Asignar/i }));
 
-    // Scoped to <main> — the sidebar nav link text ("Selección Oficial",
-    // now pointing at the dedicated route) legitimately still renders there.
-    const main = screen.getByRole("main");
-    expect(within(main).queryByText(/selección oficial/i)).not.toBeInTheDocument();
-    expect(document.getElementById("seleccion-oficial")).not.toBeInTheDocument();
+      await waitFor(() => {
+        expect(mockAssignStudentToNivel).toHaveBeenCalledWith(10, 1);
+      });
+      expect(mockMoveStudentToNivel).not.toHaveBeenCalled();
+    });
+
+    it("clears the pending reset timer on unmount so no state update fires afterward", async () => {
+      mockAssignStudentToNivel.mockResolvedValue(undefined);
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { unmount } = render(<RankingPage />);
+      await screen.findByText("Sofía González");
+
+      fireEvent.change(screen.getByLabelText("Nuevo nivel para Sofía González"), { target: { value: "1" } });
+      fireEvent.click(within(getSofiaRow()).getByRole("button", { name: /Asignar/i }));
+
+      await waitFor(() => {
+        expect(within(getSofiaRow()).getByRole("button", { name: /Asignado/i })).toBeInTheDocument();
+      });
+
+      const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+      unmount();
+      expect(clearTimeoutSpy).toHaveBeenCalled();
+      clearTimeoutSpy.mockRestore();
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
+    });
   });
 });

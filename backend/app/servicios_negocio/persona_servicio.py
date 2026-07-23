@@ -32,6 +32,7 @@ class PersonaServicio:
     comunica errores mediante excepciones de dominio."""
 
     def __init__(self, db: Session):
+        self.db = db
         self.repo = PersonaRepositorio(db)
 
     def registrar_persona(self, datos: PersonaCreateDTO) -> Persona:

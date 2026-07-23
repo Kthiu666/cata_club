@@ -7,6 +7,7 @@ import Header from "@/components/Header";
 import AuthProviderWrapper from "@/components/AuthProviderWrapper";
 import { ToastProvider } from "@/contexts/ToastContext";
 import ToastContainer from "@/components/ToastContainer";
+import ChatWidget from "@/components/chatbot/ChatWidget";
 import "./globals.css";
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Cata Club Admin";
@@ -40,6 +41,7 @@ export default function RootLayout({
             <main className="app-main mx-auto max-w-8xl px-4 py-10 sm:px-8 lg:px-12">
               {children}
             </main>
+            <ChatWidget />
           </AuthProviderWrapper>
         </ToastProvider>
       </body>

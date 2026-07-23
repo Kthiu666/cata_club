@@ -1033,20 +1033,6 @@ export default function MembersPage(): React.ReactElement {
             )}
           </div>
         )}
-
-        {/* Domain info card */}
-        <div className="card mt-8 p-6">
-          <div className="mb-3 flex items-center gap-2">
-            <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            <h3 className="text-sm font-bold text-cata-text">Modelo de dominio</h3>
-          </div>
-          <p className="text-sm leading-relaxed text-cata-text/65">
-            Cada <strong className="text-cata-text">responsable de pago</strong> (titular de cuenta) gestiona
-            uno o más estudiantes. Un representante (ej. padre/madre) puede gestionar
-            varios estudiantes. Un estudiante puede ser su propio responsable de pago.
-            El <strong className="text-cata-text">nivel técnico</strong> lo lleva el grupo asignado, no el estudiante.
-          </p>
-        </div>
       </AppShell>
     </ProtectedRoute>
   );

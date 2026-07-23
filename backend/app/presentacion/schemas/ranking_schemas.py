@@ -4,11 +4,11 @@ frontend. El "nivel de ranking" reemplaza al concepto de "Grupo" que se
 había explorado del lado frontend: aquí un nivel ES el grupo de
 entrenamiento (confirmado con el equipo), no dos cosas separadas.
 """
-from pydantic import BaseModel, Field, computed_field, model_validator
+from pydantic import BaseModel, Field, computed_field
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 
-from app.dominio.enums import EstadoJustificativoRanking, TipoNotificacion
+from app.dominio.enums import TipoNotificacion
 from app.presentacion.schemas.base import ResponseBase
 
 
@@ -54,14 +54,14 @@ class AsignarNivelInicialDTO(BaseModel):
 
 # --- Ranking (fila por persona) ---------------------------------------------
 class RankingResponseDTO(ResponseBase, BaseModel):
-    """Response de asignar-nivel-inicial/mover-de-nivel/seleccion-oficial.
+    """Response de asignar-nivel-inicial/mover-de-nivel.
 
-    `puntaje_acumulado`, `posicion_actual` y `meses_consecutivos_ausente`
-    quedan congelados (el cierre mensual RF007 era su único escritor,
-    removido en slice B2 de `limpieza-asistencia-y-nivel-entrenador`). Se
-    mantienen acá solo por compatibilidad de shape con estos tres endpoints;
-    ningún consumidor del frontend los lee. Los DTOs de solo-lectura del
-    ranking (`TablaRankingItemDTO`, `PerfilRankingAlumnoDTO`,
+    `puntaje_acumulado` y `posicion_actual` quedan congelados (el cierre
+    mensual RF007 era su único escritor, removido en slice B2 de
+    `limpieza-asistencia-y-nivel-entrenador`). Se mantienen acá solo por
+    compatibilidad de shape con estos dos endpoints; ningún consumidor del
+    frontend los lee. Los DTOs de solo-lectura del ranking
+    (`TablaRankingItemDTO`, `PerfilRankingAlumnoDTO`,
     `AsignacionRankingResponseDTO`) ya no los exponen.
     """
 
@@ -72,9 +72,6 @@ class RankingResponseDTO(ResponseBase, BaseModel):
     participo: bool = Field(..., examples=[True])
     esta_en_ranking: bool = Field(..., examples=[True])
     nivel_ranking_id: Optional[int] = Field(default=None, examples=[2])
-    meses_consecutivos_ausente: int = Field(..., examples=[0])
-    seleccion_oficial: bool = Field(..., examples=[False])
-    anio_seleccion: Optional[int] = Field(default=None, examples=[None])
 
 
 class TablaRankingItemDTO(ResponseBase, BaseModel):
@@ -89,83 +86,6 @@ class TablaRankingItemDTO(ResponseBase, BaseModel):
     persona_id: int
     persona_nombre_completo: str
     esta_en_ranking: bool
-
-
-# --- Resultado mensual (E03-RF003) ------------------------------------------
-class ResultadoMensualRegistrarDTO(BaseModel):
-    persona_id: int
-    anio: int = Field(..., ge=2020)
-    mes: int = Field(..., ge=1, le=12)
-    posicion: Optional[int] = Field(default=None, ge=1)
-    participo: bool
-
-
-class ResultadoMensualResponseDTO(ResponseBase, BaseModel):
-    id: int
-    persona_id: int
-    nivel_ranking_id: int
-    anio: int
-    mes: int
-    posicion: Optional[int] = None
-    puntos_obtenidos: int
-    participo: bool
-    ausencia_justificada: bool
-
-
-# --- Justificativos (E03-RF006a/RF006b) -------------------------------------
-class JustificativoCreateDTO(BaseModel):
-    anio: int = Field(..., ge=2020)
-    mes: int = Field(..., ge=1, le=12)
-    motivo: str = Field(..., max_length=255)
-    archivo_url: Optional[str] = None
-    observaciones: Optional[str] = Field(default=None, max_length=500)
-
-
-class JustificativoEvaluarDTO(BaseModel):
-    estado: EstadoJustificativoRanking
-    motivo_rechazo: Optional[str] = Field(default=None, max_length=255)
-
-    @model_validator(mode="after")
-    def _motivo_rechazo_requerido_si_rechazado(self) -> "JustificativoEvaluarDTO":
-        if self.estado == EstadoJustificativoRanking.RECHAZADO:
-            if self.motivo_rechazo is None or not self.motivo_rechazo.strip():
-                raise ValueError("motivo_rechazo es obligatorio al rechazar un justificativo")
-        return self
-
-
-class JustificativoResponseDTO(ResponseBase, BaseModel):
-    id: int
-    persona_id: int
-    anio: int
-    mes: int
-    motivo: str
-    archivo_url: Optional[str] = None
-    observaciones: Optional[str] = None
-    estado: EstadoJustificativoRanking
-    motivo_rechazo: Optional[str] = None
-    fecha_solicitud: datetime
-    fecha_evaluacion: Optional[datetime] = None
-    evaluado_por_id: Optional[int] = None
-
-
-# --- Reingreso (E03-RF008) ---------------------------------------------------
-class ReingresoResponseDTO(ResponseBase, BaseModel):
-    persona_id: int
-    nivel_ranking_id: int
-    mensaje: str
-
-
-# --- Selección oficial (E03-RF011) ------------------------------------------
-class SeleccionOficialDTO(BaseModel):
-    persona_ids: List[int]
-    anio: int = Field(..., ge=2020)
-
-
-class SeleccionOficialItemDTO(ResponseBase, BaseModel):
-    """Item del roster de selección oficial para listado."""
-    persona_id: int
-    persona_nombre_completo: str
-    anio_seleccion: Optional[int] = None
 
 
 # --- Perfil del alumno (E04-RF012) ------------------------------------------
@@ -199,18 +119,3 @@ class AsignacionRankingResponseDTO(ResponseBase, BaseModel):
     nivel_ranking_nombre: Optional[str] = None
     nivel_ranking_numero: int
     esta_en_ranking: bool
-
-
-class ResultadoMensualRankingResponseDTO(ResponseBase, BaseModel):
-    """Resultado mensual con info de persona y nivel (para listado)."""
-    id: int
-    persona_id: int
-    persona_nombre_completo: str
-    nivel_ranking_id: int
-    nivel_ranking_nombre: Optional[str] = None
-    anio: int
-    mes: int
-    posicion: Optional[int] = None
-    puntos_obtenidos: int
-    participo: bool
-    ausencia_justificada: bool

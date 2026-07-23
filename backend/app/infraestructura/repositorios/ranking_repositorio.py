@@ -2,10 +2,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.dominio.modelos import (
-    NivelRanking, Ranking, ResultadoRankingMensual,
-    JustificativoRanking, Notificacion,
-)
+from app.dominio.modelos import NivelRanking, Ranking, Notificacion
 
 
 class NivelRankingRepositorio:
@@ -81,134 +78,6 @@ class RankingRepositorio:
         self.db.commit()
         self.db.refresh(ranking)
         return ranking
-
-    def listar_seleccion_oficial(self, anio: int | None = None) -> list[Ranking]:
-        stmt = (
-            select(Ranking)
-            .options(joinedload(Ranking.persona))
-            .where(Ranking.seleccion_oficial.is_(True))
-        )
-        if anio is not None:
-            stmt = stmt.where(Ranking.anio_seleccion == anio)
-        stmt = stmt.order_by(Ranking.persona_id)
-        return list(self.db.execute(stmt).scalars().unique().all())
-
-
-class ResultadoRankingMensualRepositorio:
-    def __init__(self, db: Session):
-        self.db = db
-
-    def obtener(self, persona_id: int, anio: int, mes: int) -> Optional[ResultadoRankingMensual]:
-        return (
-            self.db.query(ResultadoRankingMensual)
-            .filter(
-                ResultadoRankingMensual.persona_id == persona_id,
-                ResultadoRankingMensual.anio == anio,
-                ResultadoRankingMensual.mes == mes,
-            )
-            .first()
-        )
-
-    def listar_por_nivel_y_periodo(
-        self, nivel_id: int, anio: int, mes: int
-    ) -> list[ResultadoRankingMensual]:
-        return (
-            self.db.query(ResultadoRankingMensual)
-            .options(
-                joinedload(ResultadoRankingMensual.persona),
-                joinedload(ResultadoRankingMensual.nivel_ranking),
-            )
-            .filter(
-                ResultadoRankingMensual.nivel_ranking_id == nivel_id,
-                ResultadoRankingMensual.anio == anio,
-                ResultadoRankingMensual.mes == mes,
-            )
-            .all()
-        )
-
-    def listar_por_nivel(self, nivel_id: int) -> list[ResultadoRankingMensual]:
-        return (
-            self.db.query(ResultadoRankingMensual)
-            .options(joinedload(ResultadoRankingMensual.persona))
-            .filter(ResultadoRankingMensual.nivel_ranking_id == nivel_id)
-            .order_by(ResultadoRankingMensual.anio.desc(), ResultadoRankingMensual.mes.desc())
-            .all()
-        )
-
-    def listar_todos(self) -> list[ResultadoRankingMensual]:
-        return (
-            self.db.query(ResultadoRankingMensual)
-            .options(
-                joinedload(ResultadoRankingMensual.persona),
-                joinedload(ResultadoRankingMensual.nivel_ranking),
-            )
-            .order_by(
-                ResultadoRankingMensual.anio.desc(),
-                ResultadoRankingMensual.mes.desc(),
-            )
-            .all()
-        )
-
-    def crear(self, resultado: ResultadoRankingMensual) -> ResultadoRankingMensual:
-        self.db.add(resultado)
-        self.db.commit()
-        self.db.refresh(resultado)
-        return resultado
-
-    def guardar_cambios(self, resultado: ResultadoRankingMensual) -> ResultadoRankingMensual:
-        self.db.commit()
-        self.db.refresh(resultado)
-        return resultado
-
-
-class JustificativoRankingRepositorio:
-    def __init__(self, db: Session):
-        self.db = db
-
-    def obtener_por_id(self, justificativo_id: int) -> Optional[JustificativoRanking]:
-        return self.db.get(JustificativoRanking, justificativo_id)
-
-    def obtener_por_persona_y_periodo(
-        self, persona_id: int, anio: int, mes: int
-    ) -> Optional[JustificativoRanking]:
-        return (
-            self.db.query(JustificativoRanking)
-            .filter(
-                JustificativoRanking.persona_id == persona_id,
-                JustificativoRanking.anio == anio,
-                JustificativoRanking.mes == mes,
-            )
-            .first()
-        )
-
-    def listar_pendientes(self) -> list[JustificativoRanking]:
-        from app.dominio.enums import EstadoJustificativoRanking
-        return (
-            self.db.query(JustificativoRanking)
-            .filter(JustificativoRanking.estado == EstadoJustificativoRanking.PENDIENTE)
-            .all()
-        )
-
-    def listar_por_persona(self, persona_id: int) -> list[JustificativoRanking]:
-        """Historial completo (cualquier estado) de una persona, para que el
-        propio alumno o su representante puedan ver también los rechazados
-        con su motivo."""
-        return (
-            self.db.query(JustificativoRanking)
-            .filter(JustificativoRanking.persona_id == persona_id)
-            .all()
-        )
-
-    def crear(self, justificativo: JustificativoRanking) -> JustificativoRanking:
-        self.db.add(justificativo)
-        self.db.commit()
-        self.db.refresh(justificativo)
-        return justificativo
-
-    def guardar_cambios(self, justificativo: JustificativoRanking) -> JustificativoRanking:
-        self.db.commit()
-        self.db.refresh(justificativo)
-        return justificativo
 
 
 class NotificacionRepositorio:

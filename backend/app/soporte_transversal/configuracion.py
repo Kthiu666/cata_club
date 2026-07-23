@@ -88,6 +88,9 @@ class Settings(BaseSettings):
     smtp_starttls: bool = True
     frontend_url: str = "http://localhost:3000"  # base para enlaces de recuperación
 
+    # --- Chatbot de FAQ (gateway OpenCode Zen, OpenAI-compatible) ---
+    opencode_api_key: str = ""
+
     @property
     def broker_url_efectivo(self) -> str:
         return self.celery_broker_url or self.redis_url
@@ -123,6 +126,12 @@ class Settings(BaseSettings):
         # Permite que el env var CORS_ORIGENES alimente el campo
         # `cors_origenes_raw` vía su alias "CORS_ORIGENES".
         populate_by_name=True,
+        # Algunos scripts (ej. seed_dev_bulk.py) leen sus propias env vars
+        # (SEED_VOUCHER_BASE_URL) directo de os.environ sin pasar por acá.
+        # Sin "ignore", cualquier var así presente en .env tira extra_forbidden
+        # y tumba el arranque de toda la app por una var que ni siquiera usa
+        # este modelo.
+        extra="ignore",
     )
 
 

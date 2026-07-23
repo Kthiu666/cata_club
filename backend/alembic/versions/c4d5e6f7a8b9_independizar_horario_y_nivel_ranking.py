@@ -29,8 +29,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # FK nombrada `fk_horario_entrenamiento_nivel_ranking` en la migración
-    # original (a1f3c9d02b7e) sobre `horario_entrenamiento`.
-    # ( La FK `fk_ranking_nivel_ranking` vive en `ranking`, NO aquí. )
+    # original (a1f3c9d02b7e) sobre `horario_entrenamiento` -- distinta de
+    # `fk_ranking_nivel_ranking`, que es la FK de la tabla `ranking` (mismo
+    # nivel de ranking, tabla distinta). Nombre corregido: contra una DB
+    # nueva (alembic upgrade head desde cero) la constraint no existe con
+    # el nombre viejo y esta migración fallaba.
     op.drop_constraint(
         "fk_horario_entrenamiento_nivel_ranking",
         "horario_entrenamiento",

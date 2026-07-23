@@ -1,10 +1,9 @@
 /**
- * Component tests for GroupsPage — dropdown assign + justificativo
- * confirmation gating.
- * Covers: the unassigned-students section renders one dropdown/button per
- * student (not one button per student×nivel pair) and fires the same
- * `handleAssignStudent` mutation; Aprobar/Rechazar open `ConfirmDialog`
- * before `handleEvaluarJustificativo` fires, and canceling makes no call.
+ * Component tests for GroupsPage — schedule/group management (horarios,
+ * accordion, categoria-driven form, roster assignment). The dropdown-assign
+ * and justificativo-review coverage that used to live here moved to
+ * RankingPage (issue #43) — the justificativo-review flow itself was later
+ * removed entirely along with the ranking-mensual feature.
  *
  * @vitest-environment jsdom
  */
@@ -14,7 +13,6 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 import GroupsPage from "@/app/groups/page";
 import { ApiClientError } from "@/services/api";
 import type { NivelConOcupacion } from "@/services/api";
-import type { Justificativo } from "@/types/domain";
 import type { MemberAccount } from "@/app/members/members-utils";
 import { ToastProvider } from "@/contexts/ToastContext";
 
@@ -67,8 +65,6 @@ vi.mock("@/contexts/AuthContext", () => ({
 const mockFetchMembers = vi.fn();
 const mockAssignStudentToNivel = vi.fn();
 const mockMoveStudentToNivel = vi.fn();
-const mockFetchJustificativosPendientes = vi.fn();
-const mockEvaluarJustificativo = vi.fn();
 const mockFetchNotificaciones = vi.fn().mockResolvedValue([]);
 const mockMarcarNotificacionLeida = vi.fn().mockResolvedValue(undefined);
 const mockFetchHorarios = vi.fn().mockResolvedValue([]);
@@ -94,9 +90,6 @@ vi.mock("@/services/api", () => {
     fetchMembers: () => mockFetchMembers(),
     assignStudentToNivel: (personaId: number, nivelId: number) => mockAssignStudentToNivel(personaId, nivelId),
     moveStudentToNivel: (personaId: number, nivelId: number) => mockMoveStudentToNivel(personaId, nivelId),
-    reingresar: vi.fn(),
-    fetchJustificativosPendientes: () => mockFetchJustificativosPendientes(),
-    evaluarJustificativo: (id: number, dto: unknown) => mockEvaluarJustificativo(id, dto),
     fetchNotificaciones: () => mockFetchNotificaciones(),
     marcarNotificacionLeida: (id: number) => mockMarcarNotificacionLeida(id),
     fetchHorarios: () => mockFetchHorarios(),
@@ -173,21 +166,6 @@ const UNASSIGNED_ACCOUNT: MemberAccount = {
   ],
 };
 
-const PENDING_JUSTIFICATIVO: Justificativo = {
-  id: 5,
-  personaId: 10,
-  anio: 2026,
-  mes: 7,
-  motivo: "Viaje familiar",
-  archivoUrl: null,
-  observaciones: null,
-  estado: "PENDIENTE",
-  motivoRechazo: null,
-  fechaSolicitud: "2026-07-01T00:00:00.000Z",
-  fechaEvaluacion: null,
-  evaluadoPorId: null,
-};
-
 async function findUnassignedRow(): Promise<HTMLElement> {
   const heading = await screen.findByText(/^estudiantes sin grupo/i);
   const section = heading.closest("div.card") as HTMLElement;
@@ -199,11 +177,8 @@ describe.skip("GroupsPage — unassigned dropdown assign (MOVED to RankingPage �
     mockFetchMembers.mockReset();
     mockAssignStudentToNivel.mockReset();
     mockMoveStudentToNivel.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
-    mockEvaluarJustificativo.mockReset();
     mockFetchMembers.mockResolvedValue({ accounts: [UNASSIGNED_ACCOUNT], niveles: NIVELES });
     mockAssignStudentToNivel.mockResolvedValue(undefined);
-    mockFetchJustificativosPendientes.mockResolvedValue([]);
   });
 
   it("renders one dropdown + Asignar button per unassigned student, not one button per nivel", async () => {
@@ -245,124 +220,12 @@ describe.skip("GroupsPage — unassigned dropdown assign (MOVED to RankingPage �
   });
 });
 
-describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating (MOVED to RankingPage — issue #44)", () => {
-  beforeEach(() => {
-    mockFetchMembers.mockReset();
-    mockAssignStudentToNivel.mockReset();
-    mockMoveStudentToNivel.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
-    mockEvaluarJustificativo.mockReset();
-    mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
-    mockFetchJustificativosPendientes.mockResolvedValue([PENDING_JUSTIFICATIVO]);
-    mockEvaluarJustificativo.mockResolvedValue({ ...PENDING_JUSTIFICATIVO, estado: "APROBADO" });
-  });
-
-  it("opens a confirmation dialog on Aprobar without mutating yet", async () => {
-    render(<ToastProvider><GroupsPage /></ToastProvider>);
-    await screen.findByText(/persona #10/i);
-
-    fireEvent.click(screen.getByRole("button", { name: /^aprobar$/i }));
-
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(mockEvaluarJustificativo).not.toHaveBeenCalled();
-  });
-
-  it("evaluates as APROBADO only after the confirm control is activated", async () => {
-    render(<ToastProvider><GroupsPage /></ToastProvider>);
-    await screen.findByText(/persona #10/i);
-
-    fireEvent.click(screen.getByRole("button", { name: /^aprobar$/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
-
-    await waitFor(() => {
-      expect(mockEvaluarJustificativo).toHaveBeenCalledWith(5, { estado: "APROBADO" });
-    });
-  });
-
-  it("reveals an inline reason input on Rechazar instead of a plain confirm dialog", async () => {
-    render(<ToastProvider><GroupsPage /></ToastProvider>);
-    await screen.findByText(/persona #10/i);
-
-    fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/motivo de rechazo/i)).toBeInTheDocument();
-    expect(mockEvaluarJustificativo).not.toHaveBeenCalled();
-  });
-
-  it("cancels the reject form without mutating", async () => {
-    render(<ToastProvider><GroupsPage /></ToastProvider>);
-    await screen.findByText(/persona #10/i);
-
-    fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^cancelar$/i }));
-
-    expect(screen.queryByLabelText(/motivo de rechazo/i)).not.toBeInTheDocument();
-    expect(mockEvaluarJustificativo).not.toHaveBeenCalled();
-  });
-
-  it("shows a client-side error and does not call evaluarJustificativo when submitting an empty reason", async () => {
-    render(<ToastProvider><GroupsPage /></ToastProvider>);
-    await screen.findByText(/persona #10/i);
-
-    fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
-
-    expect(await screen.findByText(/el motivo de rechazo es obligatorio/i)).toBeInTheDocument();
-    expect(mockEvaluarJustificativo).not.toHaveBeenCalled();
-  });
-
-  it("calls evaluarJustificativo with the trimmed motivoRechazo when a reason is typed and submitted", async () => {
-    render(<ToastProvider><GroupsPage /></ToastProvider>);
-    await screen.findByText(/persona #10/i);
-
-    fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
-    fireEvent.change(screen.getByLabelText(/motivo de rechazo/i), {
-      target: { value: "  No corresponde al mes declarado  " },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
-
-    await waitFor(() => {
-      expect(mockEvaluarJustificativo).toHaveBeenCalledWith(5, {
-        estado: "RECHAZADO",
-        motivoRechazo: "No corresponde al mes declarado",
-      });
-    });
-  });
-});
-
-describe("GroupsPage — Selección Oficial extracted to its own route (PR9)", () => {
-  beforeEach(() => {
-    mockFetchMembers.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
-    mockFetchHorarios.mockReset();
-    mockFetchNivelesConOcupacion.mockReset();
-    mockFetchMembers.mockResolvedValue({ accounts: [UNASSIGNED_ACCOUNT], niveles: NIVELES });
-    mockFetchJustificativosPendientes.mockResolvedValue([]);
-    mockFetchHorarios.mockResolvedValue([]);
-    mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
-  });
-
-  it("no longer renders the Selección Oficial section inline", async () => {
-    render(<ToastProvider><GroupsPage /></ToastProvider>);
-    await screen.findByText(/horarios de entrenamiento/i);
-
-    // Scoped to <main> — the sidebar nav link text ("Selección Oficial",
-    // now pointing at the dedicated route) legitimately still renders there.
-    const main = screen.getByRole("main");
-    expect(within(main).queryByText(/selección oficial/i)).not.toBeInTheDocument();
-    expect(document.getElementById("seleccion-oficial")).not.toBeInTheDocument();
-  });
-});
-
 describe("GroupsPage — categoria-driven locked schedule form (v2 design)", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
     mockFetchHorarios.mockReset();
     mockFetchNivelesConOcupacion.mockReset();
     mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
-    mockFetchJustificativosPendientes.mockResolvedValue([]);
     mockFetchHorarios.mockResolvedValue([]);
     mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
   });
@@ -409,11 +272,9 @@ describe("GroupsPage — categoria-driven locked schedule form (v2 design)", () 
 describe("GroupsPage — grouped weekly schedule display (PR2a)", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
     mockFetchHorarios.mockReset();
     mockFetchNivelesConOcupacion.mockReset();
     mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
-    mockFetchJustificativosPendientes.mockResolvedValue([]);
     mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
   });
 
@@ -457,11 +318,9 @@ describe("GroupsPage — grouped weekly schedule display (PR2a)", () => {
 describe("GroupsPage — categoria title + labeled Ver alumnos button (PR1 layout/UX fixes)", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
     mockFetchHorarios.mockReset();
     mockFetchNivelesConOcupacion.mockReset();
     mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
-    mockFetchJustificativosPendientes.mockResolvedValue([]);
     mockFetchHorarios.mockResolvedValue([
       { id: 801, diaSemana: "LUNES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 1, nivelRankingId: 2 },
     ]);
@@ -496,11 +355,9 @@ describe("GroupsPage — categoria title + labeled Ver alumnos button (PR1 layou
 describe("GroupsPage — unknown categoria value does not crash the card (bugfix)", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
     mockFetchHorarios.mockReset();
     mockFetchNivelesConOcupacion.mockReset();
     mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
-    mockFetchJustificativosPendientes.mockResolvedValue([]);
     mockFetchHorarios.mockResolvedValue([
       { id: 901, diaSemana: "LUNES", horaInicio: "18:00", horaFin: "20:00", categoria: "NO_EXISTE", entrenadorId: 1, nivelRankingId: 2 },
     ]);
@@ -523,7 +380,6 @@ describe("GroupsPage — day-diffing unified save (PR2b)", () => {
 
   beforeEach(() => {
     mockFetchMembers.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
     mockFetchHorarios.mockReset();
     mockFetchNivelesConOcupacion.mockReset();
     mockCrearHorario.mockReset();
@@ -532,7 +388,6 @@ describe("GroupsPage — day-diffing unified save (PR2b)", () => {
     mockFetchAlumnosPorHorario.mockReset();
     mockDesasignarAlumnoDeHorario.mockReset();
     mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
-    mockFetchJustificativosPendientes.mockResolvedValue([]);
     mockFetchHorarios.mockResolvedValue(GROUP_ROWS);
     mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
     mockCrearHorario.mockResolvedValue({});
@@ -628,12 +483,10 @@ describe("GroupsPage — accordion single-expand mechanics (PR3a)", () => {
 
   beforeEach(() => {
     mockFetchMembers.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
     mockFetchHorarios.mockReset();
     mockFetchNivelesConOcupacion.mockReset();
     mockFetchAlumnosPorHorario.mockReset();
     mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
-    mockFetchJustificativosPendientes.mockResolvedValue([]);
     mockFetchHorarios.mockResolvedValue(GROUPS);
     mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
     mockFetchAlumnosPorHorario.mockResolvedValue([]);
@@ -749,13 +602,11 @@ describe("GroupsPage — grupo-level roster: union across días, assign/unassign
 
   beforeEach(() => {
     mockFetchMembers.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
     mockFetchHorarios.mockReset();
     mockFetchNivelesConOcupacion.mockReset();
     mockFetchAlumnosPorHorario.mockReset();
     mockAsignarAlumnoAHorario.mockReset();
     mockDesasignarAlumnoDeHorario.mockReset();
-    mockFetchJustificativosPendientes.mockResolvedValue([]);
     mockFetchHorarios.mockResolvedValue([...MULTI_DIA_GROUP_ROWS, SINGLE_DIA_ROW]);
     mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
     mockFetchMembers.mockResolvedValue({ accounts: [NIVEL_MATCH_UNENROLLED_ACCOUNT], niveles: NIVELES });
@@ -949,14 +800,12 @@ describe("GroupsPage — trash icon deletes the whole group, not just the first 
 
   beforeEach(() => {
     mockFetchMembers.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
     mockFetchHorarios.mockReset();
     mockFetchNivelesConOcupacion.mockReset();
     mockEliminarHorario.mockReset();
     mockFetchAlumnosPorHorario.mockReset();
     mockDesasignarAlumnoDeHorario.mockReset();
     mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
-    mockFetchJustificativosPendientes.mockResolvedValue([]);
     mockFetchHorarios.mockResolvedValue(GROUP_ROWS);
     mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
     mockEliminarHorario.mockResolvedValue(undefined);
@@ -1059,7 +908,6 @@ describe("GroupsPage — save resyncs local state after a mid-sequence failure (
 
   beforeEach(() => {
     mockFetchMembers.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
     mockFetchHorarios.mockReset();
     mockFetchNivelesConOcupacion.mockReset();
     mockCrearHorario.mockReset();
@@ -1068,7 +916,6 @@ describe("GroupsPage — save resyncs local state after a mid-sequence failure (
     mockFetchAlumnosPorHorario.mockReset();
     mockDesasignarAlumnoDeHorario.mockReset();
     mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
-    mockFetchJustificativosPendientes.mockResolvedValue([]);
     mockFetchHorarios.mockResolvedValueOnce(GROUP_ROWS).mockResolvedValue(RESYNCED_ROWS);
     mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
     mockFetchAlumnosPorHorario.mockResolvedValue([]);
@@ -1117,12 +964,10 @@ describe("GroupsPage — real entrenador dropdown (CRITICAL fix: no arbitrary au
 
   beforeEach(() => {
     mockFetchMembers.mockReset();
-    mockFetchJustificativosPendientes.mockReset();
     mockFetchHorarios.mockReset();
     mockFetchNivelesConOcupacion.mockReset();
     mockCrearHorario.mockReset();
     mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
-    mockFetchJustificativosPendientes.mockResolvedValue([]);
     mockFetchHorarios.mockResolvedValue(GROUP_ROWS);
     mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
     mockCrearHorario.mockResolvedValue({});

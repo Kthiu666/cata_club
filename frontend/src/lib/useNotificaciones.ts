@@ -1,9 +1,9 @@
 /**
- * useNotificaciones — fetch + 60s poll + mark-read for ranking/justificativo
- * notifications, shared between `Header` (public/auth-adjacent routes) and
- * `AppShell` (admin/trainer routes) so each renders its own NotificationBell
- * fed by one data source instead of polling independently and drifting out
- * of sync with each other.
+ * useNotificaciones — fetch + 60s poll + mark-read for in-app notifications,
+ * shared between `Header` (public/auth-adjacent routes) and `AppShell`
+ * (admin/trainer routes) so each renders its own NotificationBell fed by one
+ * data source instead of polling independently and drifting out of sync
+ * with each other.
  */
 
 "use client";

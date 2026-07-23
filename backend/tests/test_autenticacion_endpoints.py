@@ -75,21 +75,6 @@ def test_get_membresia_sin_token_da_401(client_sin_token):
     assert client_sin_token.get("/api/v1/membresias/1").status_code == 401
 
 
-def test_post_clase_extra_sin_token_da_401(client_sin_token):
-    resp = client_sin_token.post(
-        "/api/v1/clases-extra/",
-        json={
-            "fecha_clase_solicitada": "2026-07-14",
-            "persona_id": 1, "membresia_id": 1, "horario_id": 1,
-        },
-    )
-    assert resp.status_code == 401
-
-
-def test_get_clases_extra_persona_sin_token_da_401(client_sin_token):
-    assert client_sin_token.get("/api/v1/clases-extra/persona/1").status_code == 401
-
-
 def test_get_horarios_sin_token_da_401(client_sin_token):
     assert client_sin_token.get("/api/v1/asistencias/horarios").status_code == 401
 

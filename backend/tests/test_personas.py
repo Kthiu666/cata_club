@@ -116,3 +116,4 @@ def test_listar_entrenadores_vacio_cuando_no_hay_ninguno(client):
 def test_listar_entrenadores_requiere_autenticacion(client_sin_token):
     resp = client_sin_token.get("/api/v1/personas/entrenadores")
     assert resp.status_code == 401
+

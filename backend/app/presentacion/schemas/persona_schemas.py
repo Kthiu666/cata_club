@@ -34,6 +34,7 @@ class PersonaCreateDTO(BaseModel):
     motivo_beca: Optional[str] = Field(default=None, max_length=150)
 
 
+
 class PersonaUpdateDTO(BaseModel):
     nombres: Optional[str] = Field(default=None, min_length=1, max_length=100)
     apellidos: Optional[str] = Field(default=None, min_length=1, max_length=100)

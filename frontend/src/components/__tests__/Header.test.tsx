@@ -149,7 +149,6 @@ describe("Header", (): void => {
     "/dashboard",
     "/members",
     "/ranking",
-    "/ranking/seleccion-oficial",
     "/groups",
     "/payments",
     "/attendance",
@@ -157,7 +156,6 @@ describe("Header", (): void => {
     "/trainer/attendance",
     "/trainer/nivel",
     "/reports",
-    "/clases-extra",
     "/student",
   ])("hides the header on the %s app-shell route", (route): void => {
     mockPathname.mockReturnValue(route);
@@ -256,10 +254,7 @@ describe("Header", (): void => {
       screen.getByRole("link", { name: /Membresías/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Horarios y Asistencia/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: /Selección Oficial/i }),
+      screen.getByRole("link", { name: /Asistencias/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Reportes/i }),
@@ -446,8 +441,8 @@ describe("Header", (): void => {
     mockFetchNotificaciones.mockResolvedValue([
       {
         id: 7,
-        tipo: "JUSTIFICATIVO_APROBADO",
-        mensaje: "Tu justificativo de 7/2026 fue aprobado.",
+        tipo: "MIEMBRESIA_VENCIMIENTO_PROXIMO",
+        mensaje: "Tu membresía vence pronto.",
         leida: false,
         fechaCreacion: "2026-07-19T10:00:00Z",
         entidadRelacionadaId: 5,
@@ -460,7 +455,7 @@ describe("Header", (): void => {
     const bellButton = await screen.findByRole("button", { name: /1 sin leer/i });
     fireEvent.click(bellButton);
 
-    const notificationItem = await screen.findByText(/fue aprobado/i);
+    const notificationItem = await screen.findByText(/vence pronto/i);
     fireEvent.click(notificationItem);
 
     // Optimistic update applies immediately: unread badge clears.
