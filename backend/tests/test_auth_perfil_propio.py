@@ -7,9 +7,7 @@ Cubre:
     creación de la cuenta, `Usuario.fecha_creacion`).
   - PATCH /auth/me (nuevo, self-service):
       * Actualiza solo `telefono` -> no reemite tokens.
-      * Actualiza `correo` -> reemite access_token/refresh_token (el `sub`
-        del JWT es el correo; sin reemisión el usuario quedaría deslogueado).
-      * Rechaza correo duplicado (400/EntidadDuplicada) sin persistir nada.
+      * Ignora `correo` en el payload (no editable -- es el `sub` del JWT).
       * Exige autenticación (401 sin token).
   - POST /auth/me/foto (nuevo, self-service): sube/reemplaza la foto de
     perfil propia.
@@ -133,40 +131,30 @@ def test_patch_perfil_actualiza_telefono_sin_reemitir_tokens(client, db_session)
     assert persona.telefono == "0992222222"
 
 
-def test_patch_perfil_actualiza_correo_reemite_tokens(client, db_session):
+def test_patch_perfil_ignora_correo_en_el_payload(client, db_session):
+    """`ActualizarPerfilPropioDTO` no declara `correo` -- Pydantic descarta
+    silenciosamente el campo desconocido (comportamiento default `extra`),
+    así que un intento de cambiarlo no tiene ningún efecto: ni lo persiste
+    ni reemite tokens. Correo es el `sub` del JWT; editarlo self-service fue
+    removido por diseño."""
     persona = _crear_persona(db_session, cedula="1710034234", nombres="Diego", telefono="0993333333")
     rol_admin = Rol(tipo_rol=TipoRol.ADMINISTRADOR, descripcion="Admin")
     usuario = _crear_usuario_para_persona(db_session, persona, correo="diego.viejo@cataclub.com", roles=[rol_admin])
     _restaurar_override_token(correo="diego.viejo@cataclub.com", persona_id=persona.id, roles=["ADMINISTRADOR"])
 
-    resp = client.patch("/api/v1/auth/me", json={"correo": "diego.nuevo@cataclub.com"})
+    resp = client.patch(
+        "/api/v1/auth/me",
+        json={"correo": "diego.nuevo@cataclub.com", "telefono": "0998888888"},
+    )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["correo"] == "diego.nuevo@cataclub.com"
-    assert body.get("accessToken")
-    assert body.get("refreshToken")
+    assert body["correo"] == "diego.viejo@cataclub.com"
+    assert body["telefono"] == "0998888888"
+    assert not body.get("accessToken")
+    assert not body.get("refreshToken")
 
     db_session.refresh(usuario)
-    assert usuario.correo == "diego.nuevo@cataclub.com"
-
-
-def test_patch_perfil_rechaza_correo_duplicado(client, db_session):
-    persona_ocupada = _crear_persona(db_session, cedula="1710034242", nombres="Carla", telefono="0994444444")
-    _crear_usuario_para_persona(db_session, persona_ocupada, correo="ocupado@cataclub.com")
-
-    persona_propia = _crear_persona(db_session, cedula="1710034259", nombres="Elena", telefono="0995555555")
-    rol_admin = Rol(tipo_rol=TipoRol.ADMINISTRADOR, descripcion="Admin")
-    usuario_propio = _crear_usuario_para_persona(
-        db_session, persona_propia, correo="elena@cataclub.com", roles=[rol_admin],
-    )
-    _restaurar_override_token(correo="elena@cataclub.com", persona_id=persona_propia.id, roles=["ADMINISTRADOR"])
-
-    resp = client.patch("/api/v1/auth/me", json={"correo": "ocupado@cataclub.com"})
-    assert resp.status_code == 400
-    assert "correo" in resp.json()["detail"].lower()
-
-    db_session.refresh(usuario_propio)
-    assert usuario_propio.correo == "elena@cataclub.com"
+    assert usuario.correo == "diego.viejo@cataclub.com"
 
 
 def test_patch_perfil_requiere_autenticacion(client_sin_token):

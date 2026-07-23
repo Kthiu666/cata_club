@@ -31,7 +31,23 @@ vi.mock("@/components/ProtectedRoute", () => ({
 
 const mockReplace = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: mockReplace }),
+  usePathname: () => "/profile",
+  useRouter: () => ({ replace: mockReplace, push: vi.fn() }),
+}));
+
+vi.mock("next/image", () => ({
+  __esModule: true,
+  // eslint-disable-next-line @next/next/no-img-element
+  default: (props: Record<string, unknown>) => <img alt="" {...props} />,
+}));
+
+vi.mock("next/link", () => ({
+  __esModule: true,
+  default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { children: React.ReactNode; href: string }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -43,6 +59,8 @@ const mockActualizarMiPerfil = vi.fn();
 const mockSolicitarRecuperacion = vi.fn();
 const mockFetchStudentPortal = vi.fn();
 const mockSubirFotoPerfil = vi.fn();
+const mockFetchNotificaciones = vi.fn().mockResolvedValue([]);
+const mockMarcarNotificacionLeida = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@/services/api", () => ({
   fetchMiPerfil: () => mockFetchMiPerfil(),
@@ -50,6 +68,8 @@ vi.mock("@/services/api", () => ({
   solicitarRecuperacion: (correo: string) => mockSolicitarRecuperacion(correo),
   fetchStudentPortal: (personaId: string) => mockFetchStudentPortal(personaId),
   subirFotoPerfil: (archivo: File) => mockSubirFotoPerfil(archivo),
+  fetchNotificaciones: () => mockFetchNotificaciones(),
+  marcarNotificacionLeida: (id: number) => mockMarcarNotificacionLeida(id),
   ApiClientError: class ApiClientError extends Error {
     status: number;
     constructor(message: string, status: number) {
@@ -143,8 +163,12 @@ describe("ProfilePage — staff view (ADMINISTRADOR/ENTRENADOR)", () => {
     render(<ProfilePage />);
 
     // Full name and correo appear twice by design (hero card + "Información
-    // personal" column) — assert both occurrences exist.
-    expect((await screen.findAllByText("Ana Admin")).length).toBe(2);
+    // personal" column) — assert both occurrences exist. Scoped to <main>
+    // since the session name ("Ana Admin") also appears once more in the
+    // AppShell sidebar footer, which is unrelated shell chrome.
+    await screen.findAllByText("Ana Admin");
+    const main = screen.getByRole("main");
+    expect(within(main).getAllByText("Ana Admin").length).toBe(2);
     expect(screen.getAllByText("ana.admin@cataclub.com").length).toBe(2);
     expect(screen.getByText("099111222")).toBeInTheDocument();
     expect(screen.getByText("ADMINISTRADOR")).toBeInTheDocument();
@@ -389,18 +413,18 @@ describe("ProfilePage — staff view loading/error (structurally distinct from t
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
     fireEvent.click(retryButton);
 
-    expect(await screen.findAllByText("Ana Admin")).toHaveLength(2);
+    await screen.findAllByText("Ana Admin");
+    expect(within(screen.getByRole("main")).getAllByText("Ana Admin")).toHaveLength(2);
     expect(mockFetchMiPerfil).toHaveBeenCalledTimes(2);
   });
 });
 
-describe("ProfilePage — inline correo/teléfono edit", () => {
-  it("saves a new correo/teléfono and displays the updated values", async () => {
+describe("ProfilePage — inline teléfono edit (correo is read-only)", () => {
+  it("saves a new teléfono and displays the updated value", async () => {
     mockUseAuth.mockReturnValue(sessionForRole("admin"));
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
     mockActualizarMiPerfil.mockResolvedValueOnce({
       ...PERFIL_ADMIN,
-      correo: "ana.nueva@cataclub.com",
       telefono: "099999000",
     });
 
@@ -409,42 +433,46 @@ describe("ProfilePage — inline correo/teléfono edit", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /editar información/i }));
 
-    const correoInput = screen.getByLabelText(/correo electrónico/i);
-    fireEvent.change(correoInput, { target: { value: "ana.nueva@cataclub.com" } });
-
     const telefonoInput = screen.getByLabelText(/teléfono/i);
     fireEvent.change(telefonoInput, { target: { value: "099999000" } });
 
     fireEvent.click(screen.getByRole("button", { name: /guardar/i }));
 
     await waitFor(() => {
-      expect(mockActualizarMiPerfil).toHaveBeenCalledWith({
-        correo: "ana.nueva@cataclub.com",
-        telefono: "099999000",
-      });
+      expect(mockActualizarMiPerfil).toHaveBeenCalledWith({ telefono: "099999000" });
     });
-    await waitFor(() => {
-      expect(screen.getAllByText("ana.nueva@cataclub.com").length).toBe(2);
-    });
-    expect(screen.getByText("099999000")).toBeInTheDocument();
+    expect(await screen.findByText("099999000")).toBeInTheDocument();
   });
 
-  it("surfaces an error and keeps the previously saved values displayed when the save fails", async () => {
+  it("never renders an editable correo field, even while editing", async () => {
     mockUseAuth.mockReturnValue(sessionForRole("admin"));
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
-    mockActualizarMiPerfil.mockRejectedValueOnce(new Error("El correo ya está en uso."));
 
     render(<ProfilePage />);
     await screen.findAllByText("Ana Admin");
 
     fireEvent.click(screen.getByRole("button", { name: /editar información/i }));
-    const correoInput = screen.getByLabelText(/correo electrónico/i);
-    fireEvent.change(correoInput, { target: { value: "duplicado@cataclub.com" } });
+
+    expect(screen.queryByLabelText(/correo electrónico/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText("ana.admin@cataclub.com").length).toBe(2);
+  });
+
+  it("surfaces an error and reverts the teléfono when the save fails", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("admin"));
+    mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
+    mockActualizarMiPerfil.mockRejectedValueOnce(new Error("No se pudo guardar los cambios."));
+
+    render(<ProfilePage />);
+    await screen.findAllByText("Ana Admin");
+
+    fireEvent.click(screen.getByRole("button", { name: /editar información/i }));
+    const telefonoInput = screen.getByLabelText(/teléfono/i);
+    fireEvent.change(telefonoInput, { target: { value: "099999000" } });
     fireEvent.click(screen.getByRole("button", { name: /guardar/i }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("El correo ya está en uso.");
-    expect(screen.getAllByText("ana.admin@cataclub.com").length).toBe(2);
-    expect(screen.queryByText("duplicado@cataclub.com")).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo guardar los cambios.");
+    expect(screen.getByText("099111222")).toBeInTheDocument();
+    expect(screen.queryByText("099999000")).not.toBeInTheDocument();
   });
 
   it("does not offer an edit trigger for the student/representante branch", async () => {
@@ -504,41 +532,6 @@ describe("ProfilePage — change password", () => {
     fireEvent.click(screen.getByRole("button", { name: /cambiar contraseña/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo enviar el correo.");
-  });
-
-  it("uses the just-saved correo, not the stale AuthContext session email, after an in-place correo edit", async () => {
-    // Regression test: AuthContext only revalidates on a 5-minute interval or
-    // tab-visibility change, so session.user.email can be stale right after
-    // a successful correo edit. accountEmail must prefer the freshly-saved
-    // perfil.correo over the cached session email.
-    mockUseAuth.mockReturnValue(sessionForRole("admin"));
-    mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
-    mockActualizarMiPerfil.mockResolvedValueOnce({
-      ...PERFIL_ADMIN,
-      correo: "ana.nueva@cataclub.com",
-    });
-    mockSolicitarRecuperacion.mockResolvedValueOnce({
-      mensaje: "Si el correo está registrado, recibirá un enlace de recuperación.",
-    });
-
-    render(<ProfilePage />);
-    await screen.findAllByText("Ana Admin");
-
-    fireEvent.click(screen.getByRole("button", { name: /editar información/i }));
-    fireEvent.change(screen.getByLabelText(/correo electrónico/i), {
-      target: { value: "ana.nueva@cataclub.com" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /guardar/i }));
-    await waitFor(() => {
-      expect(screen.getAllByText("ana.nueva@cataclub.com").length).toBe(2);
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: /cambiar contraseña/i }));
-
-    await waitFor(() => {
-      expect(mockSolicitarRecuperacion).toHaveBeenCalledWith("ana.nueva@cataclub.com");
-    });
-    expect(mockSolicitarRecuperacion).not.toHaveBeenCalledWith("ana.admin@cataclub.com");
   });
 });
 

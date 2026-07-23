@@ -60,11 +60,12 @@ async def actualizar_perfil_propio(
     db: Session = Depends(obtener_sesion),
 ):
     """
-    Self-service: el usuario autenticado edita SU PROPIO correo/teléfono.
-    Se resuelve la identidad vía el `sub` del JWT (no vía un persona_id de
-    path param), de modo que un usuario nunca pueda editar el registro de
-    otro. Distinto del edit-completo de ADMINISTRADOR (`PUT /personas/{id}`),
-    que sigue existiendo sin cambios para cualquier persona.
+    Self-service: el usuario autenticado edita SU PROPIO teléfono (correo no
+    es editable aquí, ver `ActualizarPerfilPropioDTO`). Se resuelve la
+    identidad vía el `sub` del JWT (no vía un persona_id de path param), de
+    modo que un usuario nunca pueda editar el registro de otro. Distinto del
+    edit-completo de ADMINISTRADOR (`PUT /personas/{id}`), que sigue
+    existiendo sin cambios para cualquier persona.
     """
     return AuthServicio(db).actualizar_perfil_propio(token_payload["sub"], cambios)
 
