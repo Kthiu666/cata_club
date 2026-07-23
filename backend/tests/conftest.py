@@ -156,6 +156,27 @@ def client_sin_permisos(db_session):
 
 
 @pytest.fixture()
+def client_entrenador(db_session):
+    """Cliente autenticado con rol ENTRENADOR únicamente (sin ADMINISTRADOR),
+    para probar que el export PDF de asistencia es más estricto que su
+    hermano JSON (que sí permite ENTRENADOR)."""
+
+    def _override_sesion():
+        yield db_session
+
+    def _override_token():
+        return {"sub": "entrenador@cataclub.test", "persona_id": 1, "roles": ["ENTRENADOR"]}
+
+    app.dependency_overrides[obtener_sesion] = _override_sesion
+    app.dependency_overrides[GestorAutenticacion.decodificar_token] = _override_token
+
+    with TestClient(app) as c:
+        yield c
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
 def client_sin_token(db_session):
     """Cliente SIN autenticar: el override del token se elimina, de modo que
     cualquier endpoint que dependa de `GestorAutenticacion.decodificar_token`

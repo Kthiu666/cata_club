@@ -752,6 +752,72 @@ export async function fetchNuevosPorPeriodo(
   return request<PersonaReporte[]>(apiEndpoint(`/personas/reportes/nuevos-por-periodo?${qs.toString()}`));
 }
 
+// ---------------------------------------------------------------------------
+// Report PDF exports
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch a binary PDF from a same-origin BFF route and trigger a browser
+ * download via a temporary `<a download>` click. Bypasses `request<T>`
+ * (which unconditionally calls `.json()`) since a PDF export needs the raw
+ * bytes, not a parsed JSON body. Reads the served filename from the
+ * `Content-Disposition` header when present, falling back to
+ * `fallbackFilename` otherwise.
+ */
+export async function downloadBlob(endpoint: string, fallbackFilename: string): Promise<void> {
+  const response = await fetch(endpoint);
+
+  if (!response.ok) {
+    let message = `No se pudo generar el PDF (status ${response.status}).`;
+    try {
+      const errorBody: unknown = await response.json();
+      if (isApiErrorBody(errorBody)) {
+        message = errorBody.detail ?? errorBody.message ?? message;
+      }
+    } catch {
+      // ignore parse errors — use default message
+    }
+    throw new ApiClientError(message, response.status);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const match = /filename="?([^"]+?)"?(?:;|$)/i.exec(disposition);
+  const filename = match?.[1] ?? fallbackFilename;
+
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Export the "nuevos por período" persona report as a PDF and trigger its download. */
+export async function exportNuevosPorPeriodoPdf(fechaInicio: string, fechaFin: string): Promise<void> {
+  const qs = new URLSearchParams({ fecha_inicio: fechaInicio, fecha_fin: fechaFin });
+  await downloadBlob(apiEndpoint(`/personas/reportes/nuevos-por-periodo/pdf?${qs.toString()}`), "reporte-periodo.pdf");
+}
+
+/** Export the attendance report as a PDF and trigger its download. */
+export async function exportAsistenciaReportePdf(params?: {
+  fechaInicio?: string;
+  fechaFin?: string;
+  horarioId?: number;
+  personaId?: number;
+}): Promise<void> {
+  const qs = new URLSearchParams();
+  if (params?.fechaInicio) qs.set("fechaInicio", params.fechaInicio);
+  if (params?.fechaFin) qs.set("fechaFin", params.fechaFin);
+  if (params?.horarioId !== undefined) qs.set("horarioId", String(params.horarioId));
+  if (params?.personaId !== undefined) qs.set("personaId", String(params.personaId));
+  const query = qs.toString();
+  const queryString = query ? `?${query}` : "";
+  await downloadBlob(apiEndpoint(`/asistencias/reportes/pdf${queryString}`), "reporte-asistencia.pdf");
+}
+
 /** Search persons by name (autocomplete). */
 export async function searchStudents(
   query: string,

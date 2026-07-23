@@ -17,6 +17,8 @@ import {
   Search,
   AlertCircle,
   CheckCircle,
+  Download,
+  Loader2,
 } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
@@ -25,6 +27,8 @@ import {
   fetchNuevosPorPeriodo,
   fetchAttendanceRecords,
   fetchTrainingSchedules,
+  exportNuevosPorPeriodoPdf,
+  exportAsistenciaReportePdf,
 } from "@/services/api";
 import {
   ATTENDANCE_LABELS,
@@ -50,6 +54,7 @@ function ReportsContent(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   // Persona report results
   const [personaResults, setPersonaResults] = useState<PersonaReporte[]>([]);
@@ -172,6 +177,38 @@ function ReportsContent(): React.ReactElement {
       setAttendanceResults([]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  /** Export the currently-displayed persona report (periodo tab) as a PDF. */
+  async function handleExportPersonasPdf(): Promise<void> {
+    setExportingPdf(true);
+    setError(null);
+    try {
+      await exportNuevosPorPeriodoPdf(fechaInicio, fechaFin);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "No se pudo generar el PDF del reporte.";
+      setError(message);
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
+  /** Export the currently-displayed attendance report as a PDF. */
+  async function handleExportAsistenciaPdf(): Promise<void> {
+    setExportingPdf(true);
+    setError(null);
+    try {
+      const params: { fechaInicio?: string; fechaFin?: string; horarioId?: number } = {};
+      if (attFechaInicio) params.fechaInicio = attFechaInicio;
+      if (attFechaFin) params.fechaFin = attFechaFin;
+      if (attHorarioId) params.horarioId = Number(attHorarioId);
+      await exportAsistenciaReportePdf(params);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "No se pudo generar el PDF del reporte.";
+      setError(message);
+    } finally {
+      setExportingPdf(false);
     }
   }
 
@@ -327,122 +364,19 @@ function ReportsContent(): React.ReactElement {
 
       {/* ---- Persona results table (periodo) ---- */}
       {searched && !loading && tab === "periodo" && (
-        <div className="card overflow-hidden">
-          <div className="flex items-center justify-between border-b border-cata-border px-6 py-4">
-            <h3 className="text-sm font-semibold text-cata-text">
-              {filteredPersonaResults.length} persona{filteredPersonaResults.length !== 1 ? "s" : ""} encontrada{filteredPersonaResults.length !== 1 ? "s" : ""}
-            </h3>
-          </div>
-
-          {/* Local filters */}
-          {personaResults.length > 0 && (
-            <div className="flex flex-wrap items-end gap-4 border-b border-cata-border bg-cata-bg/30 px-6 py-3">
-              <div>
-                <label htmlFor="localSearch" className="mb-1 block text-xs font-medium text-cata-text/65">
-                  Buscar
-                </label>
-                <div className="relative">
-                  <Search size={14} strokeWidth={1.5} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cata-text/40" />
-                  <input
-                    id="localSearch"
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Nombre, apellido o cédula..."
-                    className="input-field py-1.5 pl-8 text-xs"
-                  />
-                </div>
-              </div>
-              <div>
-                <label htmlFor="edadMin" className="mb-1 block text-xs font-medium text-cata-text/65">
-                  Edad mín
-                </label>
-                <input
-                  id="edadMin"
-                  type="number"
-                  min={0}
-                  max={120}
-                  value={edadMin}
-                  onChange={(e) => setEdadMin(e.target.value)}
-                  placeholder="0"
-                  className="input-field py-1.5 text-xs"
-                />
-              </div>
-              <div>
-                <label htmlFor="edadMax" className="mb-1 block text-xs font-medium text-cata-text/65">
-                  Edad máx
-                </label>
-                <input
-                  id="edadMax"
-                  type="number"
-                  min={0}
-                  max={120}
-                  value={edadMax}
-                  onChange={(e) => setEdadMax(e.target.value)}
-                  placeholder="120"
-                  className="input-field py-1.5 text-xs"
-                />
-              </div>
-              {(searchTerm || edadMin || edadMax) && (
-                <button
-                  type="button"
-                  onClick={() => { setSearchTerm(""); setEdadMin(""); setEdadMax(""); }}
-                  className="text-xs text-cata-red hover:underline"
-                >
-                  Limpiar filtros
-                </button>
-              )}
-            </div>
-          )}
-
-          {filteredPersonaResults.length === 0 ? (
-            <div className="px-6 py-12 text-center">
-              <Users size={32} className="mx-auto mb-3 text-cata-text/25" strokeWidth={1.5} />
-              <p className="text-sm text-cata-text/55">
-                {personaResults.length > 0
-                  ? "No se encontraron personas con los filtros locales aplicados."
-                  : "No se encontraron personas con los filtros seleccionados."}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-cata-border bg-cata-bg/50">
-                    <th className="px-6 py-3 font-medium text-cata-text/65">Nombre</th>
-                    <th className="px-6 py-3 font-medium text-cata-text/65">Cédula</th>
-                    <th className="px-6 py-3 font-medium text-cata-text/65">Fecha Nac.</th>
-                    <th className="px-6 py-3 font-medium text-cata-text/65">Edad</th>
-                    <th className="px-6 py-3 font-medium text-cata-text/65">Teléfono</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-cata-border">
-                  {filteredPersonaResults.map((persona) => (
-                    <tr key={persona.id} className="transition-colors hover:bg-cata-bg/30">
-                      <td className="px-6 py-3">
-                        <span className="font-medium text-cata-text">
-                          {persona.nombres} {persona.apellidos}
-                        </span>
-                      </td>
-                      <td className="px-6 py-3 text-cata-text/65">
-                        {persona.cedula}
-                      </td>
-                      <td className="px-6 py-3 text-cata-text/65">
-                        {persona.fechaNacimiento}
-                      </td>
-                      <td className="px-6 py-3 text-cata-text/65">
-                        {calcAge(persona.fechaNacimiento)} años
-                      </td>
-                      <td className="px-6 py-3 text-cata-text/65">
-                        {persona.telefono}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <PersonaReportTable
+          personaResults={personaResults}
+          filteredPersonaResults={filteredPersonaResults}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          edadMin={edadMin}
+          setEdadMin={setEdadMin}
+          edadMax={edadMax}
+          setEdadMax={setEdadMax}
+          exportingPdf={exportingPdf}
+          onExportPdf={() => void handleExportPersonasPdf()}
+          calcAge={calcAge}
+        />
       )}
 
       {/* ---- Attendance results table ---- */}
@@ -452,6 +386,21 @@ function ReportsContent(): React.ReactElement {
             <h3 className="text-sm font-semibold text-cata-text">
               {attendanceResults.length} registro{attendanceResults.length !== 1 ? "s" : ""} encontrado{attendanceResults.length !== 1 ? "s" : ""}
             </h3>
+            {attendanceResults.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void handleExportAsistenciaPdf()}
+                disabled={exportingPdf}
+                className="btn-secondary flex items-center gap-2 text-xs"
+              >
+                {exportingPdf ? (
+                  <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
+                ) : (
+                  <Download size={14} strokeWidth={1.5} />
+                )}
+                {exportingPdf ? "Generando..." : "Exportar PDF"}
+              </button>
+            )}
           </div>
 
           {attendanceResults.length === 0 ? (
@@ -502,5 +451,174 @@ function ReportsContent(): React.ReactElement {
         </div>
       )}
     </AppShell>
+  );
+}
+
+/**
+ * "Por Período" results panel: header + export button, local filters
+ * (search/age range), and the results table itself.
+ *
+ * Extracted from `ReportsContent` to keep that component's cognitive
+ * complexity within the project's threshold — this panel bundles several
+ * independent conditionals (export button, filters, empty state, row map)
+ * that don't need to live inline in the parent.
+ */
+function PersonaReportTable({
+  personaResults,
+  filteredPersonaResults,
+  searchTerm,
+  setSearchTerm,
+  edadMin,
+  setEdadMin,
+  edadMax,
+  setEdadMax,
+  exportingPdf,
+  onExportPdf,
+  calcAge,
+}: {
+  personaResults: PersonaReporte[];
+  filteredPersonaResults: PersonaReporte[];
+  searchTerm: string;
+  setSearchTerm: (value: string) => void;
+  edadMin: string;
+  setEdadMin: (value: string) => void;
+  edadMax: string;
+  setEdadMax: (value: string) => void;
+  exportingPdf: boolean;
+  onExportPdf: () => void;
+  calcAge: (fechaNacimiento: string) => number;
+}): React.ReactElement {
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex items-center justify-between border-b border-cata-border px-6 py-4">
+        <h3 className="text-sm font-semibold text-cata-text">
+          {filteredPersonaResults.length} persona{filteredPersonaResults.length !== 1 ? "s" : ""} encontrada{filteredPersonaResults.length !== 1 ? "s" : ""}
+        </h3>
+        {personaResults.length > 0 && (
+          <button
+            type="button"
+            onClick={onExportPdf}
+            disabled={exportingPdf}
+            className="btn-secondary flex items-center gap-2 text-xs"
+          >
+            {exportingPdf ? (
+              <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
+            ) : (
+              <Download size={14} strokeWidth={1.5} />
+            )}
+            {exportingPdf ? "Generando..." : "Exportar PDF"}
+          </button>
+        )}
+      </div>
+
+      {/* Local filters */}
+      {personaResults.length > 0 && (
+        <div className="flex flex-wrap items-end gap-4 border-b border-cata-border bg-cata-bg/30 px-6 py-3">
+          <div>
+            <label htmlFor="localSearch" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Buscar
+            </label>
+            <div className="relative">
+              <Search size={14} strokeWidth={1.5} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cata-text/40" />
+              <input
+                id="localSearch"
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Nombre, apellido o cédula..."
+                className="input-field py-1.5 pl-8 text-xs"
+              />
+            </div>
+          </div>
+          <div>
+            <label htmlFor="edadMin" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Edad mín
+            </label>
+            <input
+              id="edadMin"
+              type="number"
+              min={0}
+              max={120}
+              value={edadMin}
+              onChange={(e) => setEdadMin(e.target.value)}
+              placeholder="0"
+              className="input-field py-1.5 text-xs"
+            />
+          </div>
+          <div>
+            <label htmlFor="edadMax" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Edad máx
+            </label>
+            <input
+              id="edadMax"
+              type="number"
+              min={0}
+              max={120}
+              value={edadMax}
+              onChange={(e) => setEdadMax(e.target.value)}
+              placeholder="120"
+              className="input-field py-1.5 text-xs"
+            />
+          </div>
+          {(searchTerm || edadMin || edadMax) && (
+            <button
+              type="button"
+              onClick={() => { setSearchTerm(""); setEdadMin(""); setEdadMax(""); }}
+              className="text-xs text-cata-red hover:underline"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+      )}
+
+      {filteredPersonaResults.length === 0 ? (
+        <div className="px-6 py-12 text-center">
+          <Users size={32} className="mx-auto mb-3 text-cata-text/25" strokeWidth={1.5} />
+          <p className="text-sm text-cata-text/55">
+            {personaResults.length > 0
+              ? "No se encontraron personas con los filtros locales aplicados."
+              : "No se encontraron personas con los filtros seleccionados."}
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-cata-border bg-cata-bg/50">
+                <th className="px-6 py-3 font-medium text-cata-text/65">Nombre</th>
+                <th className="px-6 py-3 font-medium text-cata-text/65">Cédula</th>
+                <th className="px-6 py-3 font-medium text-cata-text/65">Fecha Nac.</th>
+                <th className="px-6 py-3 font-medium text-cata-text/65">Edad</th>
+                <th className="px-6 py-3 font-medium text-cata-text/65">Teléfono</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-cata-border">
+              {filteredPersonaResults.map((persona) => (
+                <tr key={persona.id} className="transition-colors hover:bg-cata-bg/30">
+                  <td className="px-6 py-3">
+                    <span className="font-medium text-cata-text">
+                      {persona.nombres} {persona.apellidos}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3 text-cata-text/65">
+                    {persona.cedula}
+                  </td>
+                  <td className="px-6 py-3 text-cata-text/65">
+                    {persona.fechaNacimiento}
+                  </td>
+                  <td className="px-6 py-3 text-cata-text/65">
+                    {calcAge(persona.fechaNacimiento)} años
+                  </td>
+                  <td className="px-6 py-3 text-cata-text/65">
+                    {persona.telefono}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }

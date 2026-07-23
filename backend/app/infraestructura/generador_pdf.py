@@ -12,15 +12,23 @@ from __future__ import annotations
 import io
 from datetime import datetime, date
 from decimal import Decimal
+from pathlib import Path
 
+from fastapi import Response
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    HRFlowable,
+    HRFlowable, PageBreak,
 )
+
+_LOGO_PATH = Path(__file__).parent / "assets" / "cata-club-logo.jpeg"
+_ROJO_INSTITUCIONAL = "#D92128"
+_NEGRO_INSTITUCIONAL = "#111111"
+_FILAS_POR_PAGINA = 10
+_NOMBRE_CLUB = "Cata Club - Academia de Tenis"
 
 
 def generar_comprobante_pago_pdf(
@@ -62,7 +70,7 @@ def generar_comprobante_pago_pdf(
         topMargin=18 * mm,
         bottomMargin=16 * mm,
         title=f"Comprobante de Pago #{pago_id}",
-        author="Cata Club - Academia de Tenis",
+        author=_NOMBRE_CLUB,
     )
 
     estilos = getSampleStyleSheet()
@@ -84,7 +92,7 @@ def generar_comprobante_pago_pdf(
     )
 
     elementos = [
-        Paragraph("Cata Club - Academia de Tenis", titulo),
+        Paragraph(_NOMBRE_CLUB, titulo),
         Paragraph("Comprobante digital de pago de membresía", subtitulo),
         HRFlowable(width="100%", thickness=1, color=colors.HexColor("#0B3D91")),
         Spacer(1, 8),
@@ -152,19 +160,178 @@ def generar_comprobante_pago_pdf(
     return pdf_bytes
 
 
-def _estilo_tabla() -> TableStyle:
-    """Devuelve los estilos de la tabla de detalle (TableStyle)."""
+def _construir_estilo_tabla(
+    *,
+    color_encabezado: str,
+    tamano_fuente: int,
+    color_filas_alternas: str,
+    relleno: int,
+) -> TableStyle:
+    """Builder compartido de `TableStyle` para las tablas de comprobante y
+    reporte: mismas reglas base (encabezado en negrita, grid gris, filas
+    alternadas), parametrizadas por color/tamaño/relleno para que cada tabla
+    conserve su identidad visual propia sin duplicar la lista de reglas."""
     return TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0B3D91")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(color_encabezado)),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("FONTSIZE", (0, 0), (-1, -1), tamano_fuente),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#BBBBBB")),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#F3F6FF")]),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor(color_filas_alternas)]),
+        ("LEFTPADDING", (0, 0), (-1, -1), relleno),
+        ("RIGHTPADDING", (0, 0), (-1, -1), relleno),
+        ("TOPPADDING", (0, 0), (-1, -1), relleno - 1),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), relleno - 1),
     ])
+
+
+def _estilo_tabla() -> TableStyle:
+    """Devuelve los estilos de la tabla de detalle (TableStyle)."""
+    return _construir_estilo_tabla(
+        color_encabezado="#0B3D91",
+        tamano_fuente=10,
+        color_filas_alternas="#F3F6FF",
+        relleno=6,
+    )
+
+
+def generar_reporte_pdf(
+    *,
+    titulo: str,
+    columnas: list[str],
+    filas: list[list[str]],
+    generado_por: str | None = None,
+) -> bytes:
+    """
+    Construye un PDF de reporte tabular genérico en memoria y devuelve bytes.
+
+    Reglas:
+      - Las filas se paginan de a `_FILAS_POR_PAGINA` (10) por página, con un
+        `Table` (incluyendo fila de encabezado) por cada bloque + `PageBreak`.
+      - El logo institucional y una barra roja `#D92128` se dibujan en cada
+        página vía callback `onFirstPage`/`onLaterPages` de `doc.build`.
+      - Si `filas` está vacío se emite un `Paragraph` centrado indicando que
+        no hay resultados, en vez de una tabla vacía. Siempre devuelve un PDF
+        válido (nunca lanza excepción por falta de datos).
+    """
+    buffer = io.BytesIO()
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=14 * mm,
+        rightMargin=14 * mm,
+        topMargin=30 * mm,
+        bottomMargin=16 * mm,
+        title=titulo,
+        author=_NOMBRE_CLUB,
+    )
+
+    estilos = getSampleStyleSheet()
+    titulo_estilo = ParagraphStyle(
+        "TituloReporte", parent=estilos["Title"],
+        fontSize=16, textColor=colors.HexColor(_NEGRO_INSTITUCIONAL), spaceAfter=4,
+    )
+    subtitulo_estilo = ParagraphStyle(
+        "SubReporte", parent=estilos["Normal"],
+        fontSize=9, textColor=colors.grey, spaceAfter=10,
+    )
+    sin_resultados_estilo = ParagraphStyle(
+        "SinResultados", parent=estilos["Normal"],
+        fontSize=11, alignment=1, textColor=colors.HexColor(_NEGRO_INSTITUCIONAL),
+        spaceBefore=30,
+    )
+
+    elementos: list = [
+        Paragraph(titulo, titulo_estilo),
+        Paragraph(
+            f"Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            + (f" por {generado_por}" if generado_por else ""),
+            subtitulo_estilo,
+        ),
+        Spacer(1, 6),
+    ]
+
+    if not filas:
+        elementos.append(Paragraph(
+            "No hay resultados para los filtros seleccionados.",
+            sin_resultados_estilo,
+        ))
+    else:
+        bloques = [
+            filas[i:i + _FILAS_POR_PAGINA]
+            for i in range(0, len(filas), _FILAS_POR_PAGINA)
+        ]
+        for indice, bloque in enumerate(bloques):
+            datos_tabla = [columnas] + bloque
+            tabla = Table(datos_tabla, hAlign="LEFT", repeatRows=1)
+            tabla.setStyle(_estilo_tabla_reporte())
+            elementos.append(tabla)
+            if indice < len(bloques) - 1:
+                elementos.append(PageBreak())
+
+    doc.build(
+        elementos,
+        onFirstPage=_dibujar_encabezado_pagina,
+        onLaterPages=_dibujar_encabezado_pagina,
+    )
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    return pdf_bytes
+
+
+def _estilo_tabla_reporte() -> TableStyle:
+    """Devuelve los estilos de la tabla de un reporte tabular genérico."""
+    return _construir_estilo_tabla(
+        color_encabezado=_ROJO_INSTITUCIONAL,
+        tamano_fuente=9,
+        color_filas_alternas="#F3F0F0",
+        relleno=5,
+    )
+
+
+def _dibujar_encabezado_pagina(canvas, doc) -> None:
+    """Callback de página: logo institucional + barra roja en cada página."""
+    canvas.saveState()
+    ancho_pagina, alto_pagina = A4
+
+    if _LOGO_PATH.exists():
+        alto_logo = 14 * mm
+        ancho_logo = 14 * mm
+        canvas.drawImage(
+            str(_LOGO_PATH),
+            14 * mm,
+            alto_pagina - 24 * mm,
+            width=ancho_logo,
+            height=alto_logo,
+            preserveAspectRatio=True,
+            mask="auto",
+        )
+
+    canvas.setFillColor(colors.HexColor(_ROJO_INSTITUCIONAL))
+    canvas.rect(0, alto_pagina - 26 * mm, ancho_pagina, 2 * mm, stroke=0, fill=1)
+
+    canvas.setFont("Helvetica", 7)
+    canvas.setFillColor(colors.grey)
+    canvas.drawString(
+        ancho_pagina - 30 * mm, 10 * mm, f"Página {doc.page}",
+    )
+    canvas.restoreState()
+
+
+def construir_respuesta_pdf(pdf_bytes: bytes, nombre_archivo: str) -> Response:
+    """Empaqueta bytes de PDF ya generados en una `Response` HTTP para
+    descarga (`Content-Disposition: attachment`).
+
+    Helper compartido por los routers de exportación a PDF
+    (`personas_router.reporte_nuevos_por_periodo_pdf`,
+    `asistencias_router.reporte_asistencia_pdf`) para no duplicar la misma
+    construcción de `Response` en cada endpoint.
+    """
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
+    )
