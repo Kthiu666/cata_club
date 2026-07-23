@@ -289,16 +289,13 @@ describe("Header", (): void => {
 
     render(<Header />);
 
-    // Trainer gets Inicio + Dashboard + Asistencia + Historial Asistencia + Nivel
+    // Trainer gets Inicio + Dashboard + Asistencia + Nivel
     expect(screen.getByRole("link", { name: /Inicio/i })).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Dashboard/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Asistencia" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: /Historial Asistencia/i }),
     ).toBeInTheDocument();
 
     // Other roles not visible
