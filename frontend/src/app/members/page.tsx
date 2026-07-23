@@ -38,6 +38,7 @@ import {
   Stethoscope,
   Loader2,
   Plus,
+  Save,
   ToggleLeft,
   ToggleRight,
   Pencil,
@@ -45,7 +46,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { fetchMembers, asignarRol, quitarRol, cambiarEstadoCuenta, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia } from "@/services/api";
+import { fetchMembers, obtenerRolesDePersona, asignarRol, quitarRol, cambiarEstadoCuenta, actualizarPersona, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia } from "@/services/api";
 import type { TipoMembresiaCatalogo } from "@/services/api";
 import { nivelToGrupo } from "@/app/groups/groups-page-utils";
 import { getUserInitials } from "@/lib/auth-utils";
@@ -401,14 +402,56 @@ function AccountRow({
   onToggleEditModal,
 }: AccountRowProps): React.ReactElement {
   const { showSuccess, showError } = useToast();
+  // `roles`/`activo` start empty/true only as placeholders — they get
+  // overwritten by `obtenerRolesDePersona` as soon as the edit modal opens
+  // (see the `editModalOpen` effect below). Before that fetch resolves,
+  // `rolesReady` is false and the roles/estado controls stay disabled, so
+  // the checkboxes never render (or can be toggled) against a stale "no
+  // roles yet" placeholder — that mismatch was the original bug.
   const [roles, setRoles] = useState<BackendTipoRol[]>([]);
   const [activo, setActivo] = useState(true);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
   const [roleLoading, setRoleLoading] = useState<BackendTipoRol | null>(null);
   const [stateLoading, setStateLoading] = useState(false);
   const [roleError, setRoleError] = useState<string | null>(null);
   const [stateError, setStateError] = useState<string | null>(null);
+  const rolesReady = rolesLoaded && !rolesLoading;
   const statusBadge = getAccountStatusBadge(account);
   const personaId = Number(account.id);
+
+  // Nombre/Teléfono editing — `PATCH /personas/{id}` already exists in the
+  // backend (via PersonaUpdateDTO) and `actualizarPersona` already wraps it
+  // in the frontend (used by the student etiquetas editor elsewhere), it was
+  // just never wired into this modal even though its trigger is labeled
+  // "Editar". Same save-per-action pattern as roles/estado above, not a big
+  // form. Local edits don't retroactively update the row's `account` prop
+  // (same as `crearMembresia`'s "Recarga para verla." note) — a reload
+  // reflects the change everywhere else.
+  const [nombresInput, setNombresInput] = useState(account.nombres);
+  const [apellidosInput, setApellidosInput] = useState(account.apellidos);
+  const [telefonoInput, setTelefonoInput] = useState(account.telefono);
+  const [infoSaving, setInfoSaving] = useState(false);
+  const [infoError, setInfoError] = useState<string | null>(null);
+  const [infoSuccess, setInfoSuccess] = useState(false);
+
+  async function handleSaveInfo(): Promise<void> {
+    setInfoSaving(true);
+    setInfoError(null);
+    setInfoSuccess(false);
+    try {
+      await actualizarPersona(personaId, {
+        nombres: nombresInput.trim(),
+        apellidos: apellidosInput.trim(),
+        telefono: telefonoInput.trim(),
+      });
+      setInfoSuccess(true);
+    } catch (error: unknown) {
+      setInfoError(error instanceof Error ? error.message : "No se pudieron guardar los cambios.");
+    } finally {
+      setInfoSaving(false);
+    }
+  }
 
   async function toggleRole(role: BackendTipoRol): Promise<void> {
     setRoleLoading(role);
@@ -505,6 +548,48 @@ function AccountRow({
       previouslyFocused?.focus();
     };
   }, [editModalOpen, onToggleEditModal]);
+
+  // Seed `roles`/`activo` from the persona's real current state every time
+  // the modal opens — this is the actual bug fix. Before this fetch, both
+  // stayed at their `[]`/`true` placeholders forever (no code seeded them),
+  // so the role checkboxes always rendered as "nothing assigned" regardless
+  // of reality: toggling a role the person already had looked like turning
+  // it ON, then the backend correctly rejected it with 400 "ya tiene el rol
+  // ...". `rolesReady` gates the roles/estado controls so nothing can be
+  // toggled against that stale placeholder while the fetch is in flight or
+  // failed — reusing `roleError`/`stateError` (rather than a new error
+  // state) keeps the failure visible in the same spots those sections
+  // already render errors in.
+  useEffect(() => {
+    if (!editModalOpen) return;
+    let cancelled = false;
+
+    setRolesLoading(true);
+    setRolesLoaded(false);
+    void obtenerRolesDePersona(personaId)
+      .then((current) => {
+        if (cancelled) return;
+        setRoles(current.roles);
+        setActivo(current.activo);
+        setRolesLoaded(true);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const message =
+          error instanceof Error
+            ? error.message
+            : "No se pudieron cargar los roles y el estado actuales de esta cuenta.";
+        setRoleError(message);
+        setStateError(message);
+      })
+      .finally(() => {
+        if (!cancelled) setRolesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editModalOpen, personaId]);
 
   return (
     <>
@@ -630,20 +715,44 @@ function AccountRow({
                   <h3 className="mb-3 text-sm font-bold text-cata-text">Información general</h3>
                   <dl className="space-y-2 text-sm">
                     <div className="flex items-center justify-between gap-3">
-                      <dt className="text-cata-text/55">Nombre</dt>
-                      <dd className="truncate text-right font-medium text-cata-text">
-                        {account.nombres} {account.apellidos}
+                      <dt className="shrink-0 text-cata-text/55" id={`nombres-label-${account.id}`}>Nombres</dt>
+                      <dd className="min-w-0 flex-1">
+                        <input
+                          type="text"
+                          value={nombresInput}
+                          onChange={(e) => setNombresInput(e.target.value)}
+                          aria-labelledby={`nombres-label-${account.id}`}
+                          className="input-field w-full py-1 text-right text-sm"
+                        />
                       </dd>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <dt className="text-cata-text/55">Teléfono</dt>
-                      <dd className="flex items-center gap-1.5 font-medium text-cata-text">
-                        <Phone size={11} strokeWidth={1.5} aria-hidden="true" />
-                        {account.telefono}
+                      <dt className="shrink-0 text-cata-text/55" id={`apellidos-label-${account.id}`}>Apellidos</dt>
+                      <dd className="min-w-0 flex-1">
+                        <input
+                          type="text"
+                          value={apellidosInput}
+                          onChange={(e) => setApellidosInput(e.target.value)}
+                          aria-labelledby={`apellidos-label-${account.id}`}
+                          className="input-field w-full py-1 text-right text-sm"
+                        />
                       </dd>
                     </div>
-                    {/* Email deliberately read-only, no editable input: see the
-                        gap noted below the dl — no admin endpoint mutates it. */}
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="shrink-0 text-cata-text/55" id={`telefono-label-${account.id}`}>Teléfono</dt>
+                      <dd className="min-w-0 flex-1">
+                        <input
+                          type="text"
+                          value={telefonoInput}
+                          onChange={(e) => setTelefonoInput(e.target.value)}
+                          aria-labelledby={`telefono-label-${account.id}`}
+                          className="input-field w-full py-1 text-right text-sm"
+                        />
+                      </dd>
+                    </div>
+                    {/* Email deliberately read-only, no editable input: no
+                        admin endpoint mutates it (email lives on Usuario,
+                        not on the Persona that PATCH /personas/{id} edits). */}
                     {account.email && (
                       <div className="flex items-center justify-between gap-3">
                         <dt className="text-cata-text/55">Correo</dt>
@@ -659,22 +768,48 @@ function AccountRow({
                         <button
                           type="button"
                           onClick={() => void toggleEstado()}
-                          disabled={stateLoading}
+                          disabled={stateLoading || !rolesReady}
                           className={`${activo ? "badge-success" : "badge-error"} cursor-pointer disabled:opacity-50`}
                           aria-pressed={activo}
                         >
-                          {stateLoading ? (
+                          {stateLoading || rolesLoading ? (
                             <Loader2 size={11} className="animate-spin" aria-hidden="true" />
                           ) : activo ? (
                             <ToggleRight size={12} aria-hidden="true" />
                           ) : (
                             <ToggleLeft size={12} aria-hidden="true" />
                           )}
-                          {stateLoading ? "Actualizando..." : activo ? "Activa" : "Inactiva"}
+                          {stateLoading ? "Actualizando..." : rolesLoading ? "Cargando..." : activo ? "Activa" : "Inactiva"}
                         </button>
                       </dd>
                     </div>
                   </dl>
+                  <div className="mt-3 flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveInfo()}
+                      disabled={infoSaving}
+                      className="btn-primary inline-flex items-center gap-1.5 py-1.5 text-xs disabled:opacity-50"
+                    >
+                      {infoSaving ? (
+                        <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Save size={12} strokeWidth={1.5} aria-hidden="true" />
+                      )}
+                      {infoSaving ? "Guardando..." : "Guardar datos"}
+                    </button>
+                    {infoSuccess && (
+                      <p className="flex items-center gap-1 text-xs text-cata-state-ok" role="status">
+                        <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
+                        Guardado.
+                      </p>
+                    )}
+                  </div>
+                  {infoError && (
+                    <p className="mt-2 text-xs text-cata-red" role="alert">
+                      {infoError}
+                    </p>
+                  )}
                   {stateError && (
                     <p className="mt-2 text-xs text-cata-red" role="alert">
                       {stateError}
@@ -688,6 +823,12 @@ function AccountRow({
                     <ShieldCheck size={14} strokeWidth={1.5} className="text-cata-text/50" aria-hidden="true" />
                     Roles
                   </h3>
+                  {rolesLoading && (
+                    <p className="mb-2 flex items-center gap-1.5 text-xs text-cata-text/50" role="status">
+                      <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+                      Cargando roles actuales…
+                    </p>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     {ALL_BACKEND_ROLES.map((role) => {
                       const selected = roles.includes(role);
@@ -711,7 +852,7 @@ function AccountRow({
                             type="checkbox"
                             checked={selected}
                             onChange={() => void toggleRole(role)}
-                            disabled={roleLoading !== null}
+                            disabled={roleLoading !== null || !rolesReady}
                             className="sr-only"
                           />
                           <span

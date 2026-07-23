@@ -72,11 +72,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ message: "personaId inválido." }, { status: 400 });
   }
 
-  const [representadosResult, horariosResult, tiposResult, membresiasResult] = await Promise.all([
+  const [representadosResult, horariosResult, tiposResult] = await Promise.all([
     backendFetchAuthed(request, `/personas/${personaId}/representados`),
     backendFetchAuthed(request, "/asistencias/horarios"),
     backendFetchAuthed(request, "/membresias/tipos"),
-    backendFetchAuthed(request, "/membresias/mias"),
   ]);
 
   if (!representadosResult.ok) {
@@ -93,8 +92,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const tipos: BackendTipoMembresiaCatalogo[] =
     tiposResult.ok && tiposResult.response.ok ? await tiposResult.response.json() : [];
-  const memberships: BackendMembresiaPropia[] =
-    membresiasResult.ok && membresiasResult.response.ok ? await membresiasResult.response.json() : [];
+
+  // `/membresias/mias` defaults to the caller's OWN persona_id — it never
+  // returns a dependent's memberships unless explicitly asked via
+  // `?persona_id=`. Fetch it once per persona (self + every representado) so
+  // `MembershipCard` has real data for whichever profile is selected, not
+  // just the representante's own.
+  const membershipTargets = [personaId, ...representadosPersonas.map((persona) => persona.id)];
+  const membresiasResults = await Promise.all(
+    membershipTargets.map((id) => backendFetchAuthed(request, `/membresias/mias?persona_id=${id}`)),
+  );
+  const membershipsByTarget = await Promise.all(
+    membresiasResults.map((result) =>
+      result.ok && result.response.ok
+        ? (result.response.json() as Promise<BackendMembresiaPropia[]>)
+        : Promise.resolve<BackendMembresiaPropia[]>([]),
+    ),
+  );
+  const memberships: BackendMembresiaPropia[] = membershipsByTarget.flat();
 
   const [self, ...representados] = await Promise.all([
     fetchProfile(request, personaId, horariosById),

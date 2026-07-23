@@ -109,7 +109,8 @@ describe("GET /api/student", () => {
       .mockResolvedValueOnce(jsonResponse([child])) // /personas/5/representados
       .mockResolvedValueOnce(jsonResponse([])) // /asistencias/horarios
       .mockResolvedValueOnce(jsonResponse([])) // /membresias/tipos
-      .mockResolvedValueOnce(jsonResponse([])) // /membresias/mias
+      .mockResolvedValueOnce(jsonResponse([])) // /membresias/mias?persona_id=5
+      .mockResolvedValueOnce(jsonResponse([])) // /membresias/mias?persona_id=6
       .mockResolvedValueOnce(jsonResponse(self)) // /personas/5
       .mockResolvedValueOnce(jsonResponse(perfilDisponible)) // /ranking/5/perfil
       .mockResolvedValueOnce(jsonResponse([])) // /asistencias/persona/5
@@ -127,6 +128,35 @@ describe("GET /api/student", () => {
       personaId: "6",
       ranking: { status: "unavailable", reason: "forbidden" },
     });
+  });
+
+  it("fetches memberships per persona (self + each representado), not just self's", async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(jsonResponse([child])) // /personas/5/representados
+      .mockResolvedValueOnce(jsonResponse([])) // /asistencias/horarios
+      .mockResolvedValueOnce(jsonResponse([])) // /membresias/tipos
+      .mockResolvedValueOnce(jsonResponse([{ id: 4, estado: "ACTIVA", personaId: 5 }])) // /membresias/mias?persona_id=5
+      .mockResolvedValueOnce(jsonResponse([{ id: 7, estado: "ACTIVA", personaId: 6 }])) // /membresias/mias?persona_id=6
+      .mockResolvedValueOnce(jsonResponse(self)) // /personas/5
+      .mockResolvedValueOnce(jsonResponse(perfilDisponible)) // /ranking/5/perfil
+      .mockResolvedValueOnce(jsonResponse([])) // /asistencias/persona/5
+      .mockResolvedValueOnce(jsonResponse(child)) // /personas/6
+      .mockResolvedValueOnce(jsonResponse({ ...perfilDisponible, personaId: 6 })) // /ranking/6/perfil
+      .mockResolvedValueOnce(jsonResponse([])); // /asistencias/persona/6
+
+    const access = makeJwt(3600);
+    const response = await GET(getRequest("http://localhost/api/student?personaId=5", `${ACCESS_TOKEN_COOKIE}=${access}`));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.memberships).toEqual([
+      { id: 4, estado: "ACTIVA", personaId: 5 },
+      { id: 7, estado: "ACTIVA", personaId: 6 },
+    ]);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/membresias/mias?persona_id=6"),
+      expect.anything(),
+    );
   });
 
   it("propagates the backend's status and message when /personas/{id}/representados fails", async () => {

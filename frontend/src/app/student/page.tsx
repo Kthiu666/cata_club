@@ -449,7 +449,9 @@ function ActivePortalView({
         <>
           <div className="mb-8 grid gap-4 sm:grid-cols-2">
             <RankingCard profile={selectedProfile} />
-            <MembershipCard memberships={selectedProfile.personaId === data.self?.personaId ? data.memberships : []} />
+            <MembershipCard
+              memberships={data.memberships.filter((m) => String(m.personaId) === selectedProfile.personaId)}
+            />
           </div>
 
           <RecentSessionsSection profile={selectedProfile} />

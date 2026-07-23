@@ -225,6 +225,20 @@ class EstadoCuentaDTO(BaseModel):
     activo: bool
 
 
+@router.get(
+    "/{persona_id}/roles", response_model=RolesResponseDTO,
+    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
+)
+async def obtener_roles(persona_id: int, db: Session = Depends(obtener_sesion)):
+    """Lectura pura (no muta nada) del estado actual de roles/activo de una
+    persona. Existe para que el frontend pueda pre-cargar el estado real
+    antes de abrir el modal de edición de roles, en vez de asumir "sin
+    roles" / "activo" por defecto (bug: los checkboxes de rol arrancaban
+    todos destildados sin importar el estado real)."""
+    usuario = RolServicio(db).obtener_roles(persona_id)
+    return RolesResponseDTO(persona_id=persona_id, roles=[r.tipo_rol.value for r in usuario.roles], activo=usuario.activo)
+
+
 @router.post(
     "/{persona_id}/roles", response_model=RolesResponseDTO, status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
