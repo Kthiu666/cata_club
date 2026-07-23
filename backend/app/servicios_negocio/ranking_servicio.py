@@ -176,7 +176,12 @@ class RankingServicio:
     def obtener_perfil_alumno(self, persona_id: int) -> PerfilRankingAlumnoDTO:
         ranking = self.repo.obtener_por_persona(persona_id)
         if not ranking:
-            raise EntidadNoEncontrada("Esta persona no tiene ranking registrado todavía")
+            return PerfilRankingAlumnoDTO(
+                persona_id=persona_id,
+                nivel_ranking_id=None,
+                nivel_ranking_nombre=None,
+                esta_en_ranking=False,
+            )
         nivel = ranking.nivel_ranking
         return PerfilRankingAlumnoDTO(
             persona_id=persona_id,

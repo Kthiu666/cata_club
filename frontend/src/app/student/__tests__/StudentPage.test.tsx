@@ -74,10 +74,10 @@ const PORTAL: StudentPortalSummary = {
     fechaNacimiento: "2010-05-14",
     ranking: { status: "unavailable", reason: "error" },
     recentSessions: [],
+    membership: null,
   },
   representados: [],
   membershipPlans: [],
-  memberships: [],
 };
 
 const PAGO_RECHAZADO: PagoPersona = {
@@ -147,35 +147,38 @@ describe("StudentPage — Pagos section", () => {
   });
 });
 
-describe("StudentPage — unavailable membership recovery", () => {
-  it("renders the JWT-scoped active membership instead of the unavailable recovery", async () => {
+describe("StudentPage — membership display", () => {
+  it("renders active membership with plan details", async () => {
     mockFetchStudentPortal.mockResolvedValueOnce({
       ...PORTAL,
-      memberships: [{ id: 4, estado: "ACTIVA", personaId: 9 }],
+      self: { ...PORTAL.self!, membership: { id: 4, estado: "ACTIVA", personaId: 9, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: "Tarde" } },
     });
 
     render(<StudentPage />);
 
-    expect(await screen.findByRole("region", { name: /membresía activa/i })).toHaveTextContent("disponible desde este portal");
-    expect(screen.queryByRole("link", { name: /consultar con administración/i })).not.toBeInTheDocument();
+    const region = await screen.findByRole("region", { name: /membresía activa/i });
+    expect(region).toHaveTextContent("Activa");
+    expect(region).toHaveTextContent("Mensual");
   });
 
-  it("labels the unavailable membership state and offers the honest next action", async () => {
+  it("shows sin membresía when membership is null", async () => {
     render(<StudentPage />);
 
-    const recovery = await screen.findByRole("region", { name: /membresía no disponible/i });
-    expect(recovery).toHaveTextContent("No disponible desde este portal por el momento.");
-    expect(screen.getByRole("link", { name: /consultar con administración/i })).toHaveAttribute("href", "mailto:administracion@cataclub.local");
+    const region = await screen.findByRole("region", { name: /sin membresía/i });
+    expect(region).toHaveTextContent("Sin membresía");
+    expect(region).toHaveTextContent("Aún no tenés una membresía");
   });
 
-  it("opens named help that explains the unavailable membership limitation without promising access", async () => {
+  it("shows pendiente de activación for INACTIVA state", async () => {
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      ...PORTAL,
+      self: { ...PORTAL.self!, membership: { id: 5, estado: "INACTIVA", personaId: 9, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: null } },
+    });
+
     render(<StudentPage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Ayuda sobre membresía no disponible" }));
-
-    const help = screen.getByRole("region", { name: "Ayuda sobre membresía no disponible" });
-    expect(help).toHaveTextContent("no está disponible desde este portal");
-    expect(help).toHaveTextContent("Consulte con administración");
-    expect(screen.getByRole("link", { name: /consultar con administración/i })).toHaveAttribute("href", "mailto:administracion@cataclub.local");
+    const region = await screen.findByRole("region", { name: /pendiente de activación/i });
+    expect(region).toHaveTextContent("Pendiente de activación");
+    expect(region).toHaveTextContent("validación del primer pago");
   });
 });

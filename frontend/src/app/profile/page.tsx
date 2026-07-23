@@ -55,7 +55,7 @@ import {
   subirFotoPerfil,
   ApiClientError,
 } from "@/services/api";
-import type { StudentPortalSummary, StudentProfileSummary, StudentMembershipSummary } from "@/services/api";
+import type { StudentPortalSummary, StudentProfileSummary, MembershipSummary } from "@/services/api";
 import type { PerfilPropio, UserRole } from "@/types/domain";
 import { describeRanking } from "@/app/student/student-utils";
 import { MEMBERSHIP_STATUS_LABELS, MEMBERSHIP_STATUS_BADGE } from "@/app/members/members-utils";
@@ -103,14 +103,9 @@ function firstNameOf(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] || fullName;
 }
 
-/** Membership display for a persona, looked up by id in the caller-scoped `memberships` list — reuses the same mapping/labels as members-utils.ts / membership-status.ts (no invented labels). Returns `null` when no membership row exists for that persona — the normal case for a representado (the backend never exposes a dependent's membership), rendered as an honest "no disponible" fallback, not a false "sin membresía" claim. */
-function describeMembership(
-  memberships: StudentMembershipSummary[],
-  personaId: string,
-): { label: string; badgeClass: string } | null {
-  const match = memberships.find((membership) => String(membership.personaId) === personaId);
-  if (!match) return null;
-  const estado = MEMBERSHIP_STATUS_BY_ESTADO[match.estado as keyof typeof MEMBERSHIP_STATUS_BY_ESTADO];
+function describeMembership(membership: MembershipSummary | null): { label: string; badgeClass: string } | null {
+  if (!membership) return null;
+  const estado = MEMBERSHIP_STATUS_BY_ESTADO[membership.estado as keyof typeof MEMBERSHIP_STATUS_BY_ESTADO];
   return { label: MEMBERSHIP_STATUS_LABELS[estado], badgeClass: MEMBERSHIP_STATUS_BADGE[estado] };
 }
 
@@ -176,12 +171,11 @@ function ErrorBlock({
 
 interface StudentSummaryCardProps {
   profile: StudentProfileSummary;
-  memberships: StudentMembershipSummary[];
 }
 
-function StudentSummaryCard({ profile, memberships }: StudentSummaryCardProps): React.ReactElement {
+function StudentSummaryCard({ profile }: StudentSummaryCardProps): React.ReactElement {
   const ranking = describeRanking(profile.ranking);
-  const membership = describeMembership(memberships, profile.personaId);
+  const membership = describeMembership(profile.membership);
   const fullName = `${profile.nombres} ${profile.apellidos}`.trim();
 
   return (
@@ -373,7 +367,7 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
   // null` account (a representante with no own alumno profile) has no
   // personal status to report, so the hero deliberately shows nothing for
   // it instead of a misleading "no disponible" claim.
-  const membership = props.kind === "student" && self ? describeMembership(props.data.memberships, self.personaId) : null;
+  const membership = props.kind === "student" && self ? describeMembership(self.membership) : null;
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
@@ -741,7 +735,7 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
               // owner's own persona — never a represented dependent's, so
               // this always passes [] to force the honest "no disponible"
               // fallback rather than falsely reporting "sin membresía".
-              <StudentSummaryCard key={profile.personaId} profile={profile} memberships={[]} />
+              <StudentSummaryCard key={profile.personaId} profile={profile} />
             ))}
           </div>
         </div>

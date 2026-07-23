@@ -84,10 +84,10 @@ describe("GET /api/student", () => {
       .mockResolvedValueOnce(jsonResponse([])) // /personas/5/representados
       .mockResolvedValueOnce(jsonResponse([])) // /asistencias/horarios
       .mockResolvedValueOnce(jsonResponse([{ id: 1, categoria: "Mensual", franjaHoraria: "Tarde", precio: "85.00", modalidad: "MENSUAL" }])) // /membresias/tipos
-      .mockResolvedValueOnce(jsonResponse([{ id: 4, estado: "ACTIVA", personaId: 5 }])) // /membresias/mias
       .mockResolvedValueOnce(jsonResponse(self)) // /personas/5
       .mockResolvedValueOnce(jsonResponse(perfilDisponible)) // /ranking/5/perfil
-      .mockResolvedValueOnce(jsonResponse([])); // /asistencias/persona/5
+      .mockResolvedValueOnce(jsonResponse([])) // /asistencias/persona/5
+      .mockResolvedValueOnce(jsonResponse([{ id: 4, estado: "ACTIVA", personaId: 5, montoAplicado: "85.00", tipoMembresiaId: 1 }])); // /membresias/mias?persona_id=5
 
     const access = makeJwt(3600);
     const response = await GET(getRequest("http://localhost/api/student?personaId=5", `${ACCESS_TOKEN_COOKIE}=${access}`));
@@ -100,8 +100,8 @@ describe("GET /api/student", () => {
       nombres: "Sofia",
       ranking: { status: "available", nivelNombre: "Intermedios" },
     });
+    expect(body.self.membership).toMatchObject({ estado: "ACTIVA", categoria: "Mensual", modalidad: "MENSUAL" });
     expect(body.membershipPlans).toEqual([{ id: "1", nombre: "Mensual", precio: 85, franjaHoraria: "Tarde", modalidad: "MENSUAL" }]);
-    expect(body.memberships).toEqual([{ id: 4, estado: "ACTIVA", personaId: 5 }]);
   });
 
   it("marks a representado's ranking as unavailable/forbidden when the backend returns 403", async () => {
@@ -109,13 +109,14 @@ describe("GET /api/student", () => {
       .mockResolvedValueOnce(jsonResponse([child])) // /personas/5/representados
       .mockResolvedValueOnce(jsonResponse([])) // /asistencias/horarios
       .mockResolvedValueOnce(jsonResponse([])) // /membresias/tipos
-      .mockResolvedValueOnce(jsonResponse([])) // /membresias/mias
       .mockResolvedValueOnce(jsonResponse(self)) // /personas/5
       .mockResolvedValueOnce(jsonResponse(perfilDisponible)) // /ranking/5/perfil
       .mockResolvedValueOnce(jsonResponse([])) // /asistencias/persona/5
+      .mockResolvedValueOnce(jsonResponse([])) // /membresias/mias?persona_id=5
       .mockResolvedValueOnce(jsonResponse(child)) // /personas/6
       .mockResolvedValueOnce(jsonResponse({ detail: "No puede consultar el perfil de ranking de otra persona" }, 403)) // /ranking/6/perfil
-      .mockResolvedValueOnce(jsonResponse([])); // /asistencias/persona/6
+      .mockResolvedValueOnce(jsonResponse([])) // /asistencias/persona/6
+      .mockResolvedValueOnce(jsonResponse([])); // /membresias/mias?persona_id=6
 
     const access = makeJwt(3600);
     const response = await GET(getRequest("http://localhost/api/student?personaId=5", `${ACCESS_TOKEN_COOKIE}=${access}`));
@@ -145,10 +146,10 @@ describe("GET /api/student", () => {
       .mockResolvedValueOnce(jsonResponse([])) // /personas/5/representados
       .mockResolvedValueOnce(jsonResponse([])) // /asistencias/horarios
       .mockResolvedValueOnce(jsonResponse([])) // /membresias/tipos
-      .mockResolvedValueOnce(jsonResponse([])) // /membresias/mias
       .mockResolvedValueOnce(jsonResponse({ detail: "No encontrado" }, 404)) // /personas/5
       .mockResolvedValueOnce(jsonResponse(perfilDisponible)) // /ranking/5/perfil
-      .mockResolvedValueOnce(jsonResponse([])); // /asistencias/persona/5
+      .mockResolvedValueOnce(jsonResponse([])) // /asistencias/persona/5
+      .mockResolvedValueOnce(jsonResponse([])); // /membresias/mias?persona_id=5 (called but persona fetch failed first)
 
     const access = makeJwt(3600);
     const response = await GET(getRequest("http://localhost/api/student?personaId=5", `${ACCESS_TOKEN_COOKIE}=${access}`));
