@@ -1,7 +1,8 @@
 from typing import Optional, List
 from sqlalchemy.orm import Session
 
-from app.dominio.modelos import Persona
+from app.dominio.modelos import Persona, Usuario, Rol
+from app.dominio.enums import TipoRol
 
 
 class PersonaRepositorio:
@@ -23,6 +24,18 @@ class PersonaRepositorio:
 
     def contar(self) -> int:
         return self.db.query(Persona).count()
+
+    def listar_por_rol(self, tipo_rol: TipoRol) -> List[Persona]:
+        """Personas con un Usuario que tenga el `tipo_rol` dado (ej. listar
+        entrenadores para un selector). Mismo criterio de "rol asignado" que
+        `AsistenciaServicio._validar_entrenador` usa para validar."""
+        return (
+            self.db.query(Persona)
+            .join(Usuario, Usuario.persona_id == Persona.id)
+            .join(Usuario.roles)
+            .filter(Rol.tipo_rol == tipo_rol)
+            .all()
+        )
 
     def crear(self, persona: Persona) -> Persona:
         self.db.add(persona)

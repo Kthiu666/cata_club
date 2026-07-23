@@ -66,6 +66,7 @@ export const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
   "/payments": ShieldCheck,
   "/attendance": Calendar,
   "/trainer": GraduationCap,
+  "/trainer/attendance": Calendar,
   "/trainer/nivel": Trophy,
   "/reports": FileText,
   "/clases-extra": BookOpen,

@@ -294,10 +294,13 @@ describe("Header", (): void => {
 
     render(<Header />);
 
-    // Trainer gets Inicio + Entrenador
+    // Trainer gets Inicio + Dashboard + Asistencia + Nivel
     expect(screen.getByRole("link", { name: /Inicio/i })).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Entrenador/i }),
+      screen.getByRole("link", { name: /Dashboard/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Asistencia/i }),
     ).toBeInTheDocument();
 
     // Other roles not visible
@@ -328,7 +331,7 @@ describe("Header", (): void => {
     expect(
       screen.queryByText("Administración"),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText("Entrenador")).not.toBeInTheDocument();
+    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
 
     expect(screen.getByText("Carlos Martinez")).toBeInTheDocument();
   });

@@ -7,6 +7,7 @@ from app.infraestructura.db import obtener_sesion
 from app.presentacion.schemas.persona_schemas import (
     PersonaCreateDTO, PersonaResponseDTO, PersonaUpdateDTO,
     AntecedentesClubCreateDTO, AntecedentesClubUpdateDTO, AntecedentesClubResponseDTO,
+    EntrenadorResponseDTO,
 )
 from app.presentacion.schemas.base import PaginatedResponse
 from app.seguridad.gestor_auth import GestorAutenticacion
@@ -80,6 +81,25 @@ async def reporte_nuevos_por_periodo(
     inicio = datetime.combine(fecha_inicio, time.min, tzinfo=timezone.utc)
     fin = datetime.combine(fecha_fin, time.max, tzinfo=timezone.utc)
     return PersonaServicio(db).reporte_nuevos_por_periodo(inicio, fin)
+
+
+# --- Selector de entrenador (dropdown al crear/editar un Horario) -----------
+# IMPORTANTE: debe declararse ANTES de `GET /{persona_id}` por la misma razón
+# que `/reportes` arriba — de lo contrario "entrenadores" se interpretaría
+# como un persona_id. Lectura para cualquier autenticado (mismo criterio que
+# `listar_horarios` en asistencias_router.py): no es un dato sensible ni
+# mutación, solo permite elegir un entrenador real por nombre.
+@router.get(
+    "/entrenadores",
+    response_model=List[EntrenadorResponseDTO],
+    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
+)
+async def listar_entrenadores(db: Session = Depends(obtener_sesion)):
+    entrenadores = PersonaServicio(db).listar_entrenadores()
+    return [
+        EntrenadorResponseDTO(id=p.id, nombre_completo=f"{p.nombres} {p.apellidos}")
+        for p in entrenadores
+    ]
 
 
 @router.get(

@@ -154,12 +154,13 @@ describe("getNavLinksForRole", () => {
     expect(links[9]).toEqual({ href: "/reports", label: "Reportes" });
   });
 
-  it("returns trainer links including Nivel", () => {
+  it("returns trainer links including Dashboard, Asistencia and Nivel", () => {
     const links = getNavLinksForRole("trainer");
-    expect(links).toHaveLength(3);
+    expect(links).toHaveLength(4);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
-    expect(links[1]).toEqual({ href: "/trainer", label: "Entrenador" });
-    expect(links[2]).toEqual({ href: "/trainer/nivel", label: "Nivel" });
+    expect(links[1]).toEqual({ href: "/trainer", label: "Dashboard" });
+    expect(links[2]).toEqual({ href: "/trainer/attendance", label: "Asistencia" });
+    expect(links[3]).toEqual({ href: "/trainer/nivel", label: "Nivel" });
   });
 
   it("returns tesorero link to Membresías y Pagos", () => {

@@ -77,6 +77,7 @@ const mockEliminarHorario = vi.fn();
 const mockFetchAlumnosPorHorario = vi.fn().mockResolvedValue([]);
 const mockAsignarAlumnoAHorario = vi.fn();
 const mockDesasignarAlumnoDeHorario = vi.fn();
+const mockFetchEntrenadores = vi.fn();
 
 vi.mock("@/services/api", () => {
   class MockApiClientError extends Error {
@@ -104,8 +105,26 @@ vi.mock("@/services/api", () => {
     fetchAlumnosPorHorario: (horarioId: number) => mockFetchAlumnosPorHorario(horarioId),
     asignarAlumnoAHorario: (dto: unknown) => mockAsignarAlumnoAHorario(dto),
     desasignarAlumnoDeHorario: (personaId: number, horarioId: number) => mockDesasignarAlumnoDeHorario(personaId, horarioId),
+    fetchEntrenadores: () => mockFetchEntrenadores(),
     ApiClientError: MockApiClientError,
   };
+});
+
+// Default entrenador list covers every `entrenadorId` used by fixtures across
+// this file's describe blocks (1, 2, 5, 7, 9). Individual tests override this
+// via `mockFetchEntrenadores.mockResolvedValue(...)`/`mockReset()` when they
+// need to assert on the empty/loading dropdown states specifically.
+const DEFAULT_ENTRENADORES = [
+  { id: 1, nombreCompleto: "Entrenador Uno" },
+  { id: 2, nombreCompleto: "Entrenador Dos" },
+  { id: 5, nombreCompleto: "Entrenador Cinco" },
+  { id: 7, nombreCompleto: "Entrenador Siete" },
+  { id: 9, nombreCompleto: "Entrenador Nueve" },
+];
+
+beforeEach(() => {
+  mockFetchEntrenadores.mockReset();
+  mockFetchEntrenadores.mockResolvedValue(DEFAULT_ENTRENADORES);
 });
 
 const NIVELES: NivelConOcupacion[] = [
@@ -558,8 +577,8 @@ describe("GroupsPage — day-diffing unified save (PR2b)", () => {
 
   it("unticking a día with enrolled students shows a confirmation naming the count and día before deleting", async () => {
     mockFetchAlumnosPorHorario.mockResolvedValue([
-      { id: 1, persona_id: 10, persona_nombre_completo: "Ana Pérez", horario_id: 303, horario_dia: "MIERCOLES", horario_hora_inicio: "18:00", horario_hora_fin: "20:00", fecha_asignacion: "2026-01-01" },
-      { id: 2, persona_id: 11, persona_nombre_completo: "Bruno Díaz", horario_id: 303, horario_dia: "MIERCOLES", horario_hora_inicio: "18:00", horario_hora_fin: "20:00", fecha_asignacion: "2026-01-01" },
+      { id: 1, personaId: 10, personaNombreCompleto: "Ana Pérez", horarioId: 303, horarioDia: "MIERCOLES", horarioHoraInicio: "18:00", horarioHoraFin: "20:00", fechaAsignacion: "2026-01-01" },
+      { id: 2, personaId: 11, personaNombreCompleto: "Bruno Díaz", horarioId: 303, horarioDia: "MIERCOLES", horarioHoraInicio: "18:00", horarioHoraFin: "20:00", fechaAsignacion: "2026-01-01" },
     ]);
     await openEditAndSubmit();
 
@@ -579,7 +598,7 @@ describe("GroupsPage — day-diffing unified save (PR2b)", () => {
 
   it("confirming the pending deletion desasigna every enrolled student before eliminarHorario", async () => {
     mockFetchAlumnosPorHorario.mockResolvedValue([
-      { id: 1, persona_id: 10, persona_nombre_completo: "Ana Pérez", horario_id: 303, horario_dia: "MIERCOLES", horario_hora_inicio: "18:00", horario_hora_fin: "20:00", fecha_asignacion: "2026-01-01" },
+      { id: 1, personaId: 10, personaNombreCompleto: "Ana Pérez", horarioId: 303, horarioDia: "MIERCOLES", horarioHoraInicio: "18:00", horarioHoraFin: "20:00", fechaAsignacion: "2026-01-01" },
     ]);
     await openEditAndSubmit();
 
@@ -740,12 +759,12 @@ describe("GroupsPage — real roster via fetchAlumnosPorHorario + día-pill sele
     mockFetchAlumnosPorHorario.mockImplementation((horarioId: number) => {
       if (horarioId === 601) {
         return Promise.resolve([
-          { id: 1, persona_id: 20, persona_nombre_completo: "Ana Pérez", horario_id: 601, horario_dia: "LUNES", horario_hora_inicio: "15:00", horario_hora_fin: "16:00", fecha_asignacion: "2026-01-01" },
+          { id: 1, personaId: 20, personaNombreCompleto: "Ana Pérez", horarioId: 601, horarioDia: "LUNES", horarioHoraInicio: "15:00", horarioHoraFin: "16:00", fechaAsignacion: "2026-01-01" },
         ]);
       }
       if (horarioId === 602) {
         return Promise.resolve([
-          { id: 2, persona_id: 21, persona_nombre_completo: "Bruno Díaz", horario_id: 602, horario_dia: "MIERCOLES", horario_hora_inicio: "15:00", horario_hora_fin: "16:00", fecha_asignacion: "2026-01-01" },
+          { id: 2, personaId: 21, personaNombreCompleto: "Bruno Díaz", horarioId: 602, horarioDia: "MIERCOLES", horarioHoraInicio: "15:00", horarioHoraFin: "16:00", fechaAsignacion: "2026-01-01" },
         ]);
       }
       return Promise.resolve([]);
@@ -843,12 +862,12 @@ describe("GroupsPage — trash icon deletes the whole group, not just the first 
     mockFetchAlumnosPorHorario.mockImplementation((horarioId: number) => {
       if (horarioId === 701) {
         return Promise.resolve([
-          { id: 1, persona_id: 10, persona_nombre_completo: "Ana Pérez", horario_id: 701, horario_dia: "LUNES", horario_hora_inicio: "18:00", horario_hora_fin: "20:00", fecha_asignacion: "2026-01-01" },
+          { id: 1, personaId: 10, personaNombreCompleto: "Ana Pérez", horarioId: 701, horarioDia: "LUNES", horarioHoraInicio: "18:00", horarioHoraFin: "20:00", fechaAsignacion: "2026-01-01" },
         ]);
       }
       if (horarioId === 703) {
         return Promise.resolve([
-          { id: 2, persona_id: 11, persona_nombre_completo: "Bruno Díaz", horario_id: 703, horario_dia: "VIERNES", horario_hora_inicio: "18:00", horario_hora_fin: "20:00", fecha_asignacion: "2026-01-01" },
+          { id: 2, personaId: 11, personaNombreCompleto: "Bruno Díaz", horarioId: 703, horarioDia: "VIERNES", horarioHoraInicio: "18:00", horarioHoraFin: "20:00", fechaAsignacion: "2026-01-01" },
         ]);
       }
       return Promise.resolve([]);
@@ -878,7 +897,7 @@ describe("GroupsPage — trash icon deletes the whole group, not just the first 
     mockFetchAlumnosPorHorario.mockImplementation((horarioId: number) => {
       if (horarioId === 701) {
         return Promise.resolve([
-          { id: 1, persona_id: 10, persona_nombre_completo: "Ana Pérez", horario_id: 701, horario_dia: "LUNES", horario_hora_inicio: "18:00", horario_hora_fin: "20:00", fecha_asignacion: "2026-01-01" },
+          { id: 1, personaId: 10, personaNombreCompleto: "Ana Pérez", horarioId: 701, horarioDia: "LUNES", horarioHoraInicio: "18:00", horarioHoraFin: "20:00", fechaAsignacion: "2026-01-01" },
         ]);
       }
       return Promise.resolve([]);
@@ -983,5 +1002,128 @@ describe("GroupsPage — save resyncs local state after a mid-sequence failure (
     fireEvent.click(screen.getByRole("button", { name: /editar horario/i }));
     await screen.findByRole("heading", { name: "Editar Horario" });
     expect(screen.getByLabelText("Viernes")).toBeChecked();
+  });
+});
+
+describe("GroupsPage — real entrenador dropdown (CRITICAL fix: no arbitrary auto-fill)", () => {
+  const GROUP_ROWS = [
+    { id: 301, diaSemana: "LUNES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 7, nivelRankingId: 2 },
+  ];
+
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchJustificativosPendientes.mockReset();
+    mockFetchHorarios.mockReset();
+    mockFetchNivelesConOcupacion.mockReset();
+    mockCrearHorario.mockReset();
+    mockFetchMembers.mockResolvedValue({ accounts: [], niveles: NIVELES });
+    mockFetchJustificativosPendientes.mockResolvedValue([]);
+    mockFetchHorarios.mockResolvedValue(GROUP_ROWS);
+    mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
+    mockCrearHorario.mockResolvedValue({});
+  });
+
+  it("populates the dropdown with real entrenador names, not raw ids", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+    fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
+
+    const select = await screen.findByLabelText("Entrenador");
+    expect(within(select).getByText("Entrenador Uno")).toBeInTheDocument();
+    expect(within(select).getByText("Entrenador Cinco")).toBeInTheDocument();
+    expect(within(select).queryByText(/^\d+$/)).not.toBeInTheDocument();
+  });
+
+  it("creating a new horario sends the entrenador_id chosen from the dropdown, not an auto-filled value", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+    fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
+
+    fireEvent.click(screen.getByLabelText("Lunes"));
+    fireEvent.change(await screen.findByLabelText("Entrenador"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: /crear horario/i }));
+
+    await waitFor(() => {
+      expect(mockCrearHorario).toHaveBeenCalledWith(expect.objectContaining({ entrenador_id: 5 }));
+    });
+  });
+
+  it("blocks submit and shows a validation message when no entrenador is selected", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+    fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
+
+    fireEvent.click(screen.getByLabelText("Lunes"));
+    fireEvent.click(screen.getByRole("button", { name: /crear horario/i }));
+
+    expect(await screen.findByText(/seleccion[aá] un entrenador/i)).toBeInTheDocument();
+    expect(mockCrearHorario).not.toHaveBeenCalled();
+  });
+
+  it("editing an existing horario preselects the group's real entrenador by name, not a raw id input", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+    fireEvent.click(screen.getByRole("button", { name: /editar horario/i }));
+
+    const select = (await screen.findByLabelText("Entrenador")) as HTMLSelectElement;
+    expect(select.value).toBe("7");
+    expect(within(select).getByRole("option", { name: "Entrenador Siete", selected: true })).toBeInTheDocument();
+  });
+
+  it("reflects the loading state (disabled + 'Cargando...') instead of a silently empty dropdown while entrenadores are still being fetched", async () => {
+    let resolveEntrenadores: (value: typeof DEFAULT_ENTRENADORES) => void = () => {};
+    mockFetchEntrenadores.mockReset();
+    mockFetchEntrenadores.mockReturnValue(
+      new Promise((resolve) => {
+        resolveEntrenadores = resolve;
+      }),
+    );
+
+    render(<GroupsPage />);
+    fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
+
+    const select = (await screen.findByLabelText("Entrenador")) as HTMLSelectElement;
+    expect(select).toBeDisabled();
+    expect(within(select).getByText("Cargando...")).toBeInTheDocument();
+
+    resolveEntrenadores(DEFAULT_ENTRENADORES);
+    await waitFor(() => expect(select).toBeEnabled());
+  });
+
+  it("shows a clear message instead of failing silently when no entrenador is registered at all", async () => {
+    mockFetchEntrenadores.mockReset();
+    mockFetchEntrenadores.mockResolvedValue([]);
+
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+    fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
+
+    const select = (await screen.findByLabelText("Entrenador")) as HTMLSelectElement;
+    expect(select).toBeDisabled();
+    expect(within(select).getByText("No hay entrenadores registrados")).toBeInTheDocument();
+  });
+
+  it("CRITICAL: a fetchEntrenadores failure does not block the horarios list — only degrades the dropdown", async () => {
+    mockFetchEntrenadores.mockReset();
+    mockFetchEntrenadores.mockRejectedValue(new Error("network down"));
+
+    render(<GroupsPage />);
+
+    // The horarios list (backed by fetchHorarios/fetchNivelesConOcupacion/
+    // fetchMembers) must still render normally — a rejected fetchEntrenadores
+    // must never trip the page-wide loadError, since it is no longer part of
+    // the same Promise.all. A distinct, non-blocking notification about the
+    // entrenadores fetch failure is acceptable; the page-wide loadError
+    // banner (with its "Reintentar" retry-everything button) is not.
+    await screen.findByText(/horarios de entrenamiento/i);
+    expect(screen.queryByText(/no se pudieron cargar los horarios\. intente nuevamente/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /reintentar/i })).not.toBeInTheDocument();
+    expect(await screen.findByText(/no se pudieron cargar los entrenadores/i)).toBeInTheDocument();
+
+    // The dropdown itself degrades gracefully instead of crashing the page.
+    fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
+    const select = (await screen.findByLabelText("Entrenador")) as HTMLSelectElement;
+    await waitFor(() => expect(select).toBeDisabled());
+    expect(within(select).getByText("No hay entrenadores registrados")).toBeInTheDocument();
   });
 });

@@ -65,6 +65,15 @@ class PersonaResponseDTO(ResponseBase, BaseModel):
     fecha_registro: Optional[datetime] = Field(default=None, examples=["2024-01-15T10:30:00Z"])
 
 
+class EntrenadorResponseDTO(ResponseBase, BaseModel):
+    """Shape mínima para el selector de entrenador (dropdown) al crear/editar
+    un `HorarioEntrenamiento` — GET /personas/entrenadores. No expone datos
+    sensibles (cédula, teléfono, fecha de nacimiento) como `PersonaResponseDTO`,
+    solo lo necesario para elegir un entrenador por nombre."""
+    id: int = Field(..., examples=[1])
+    nombre_completo: str = Field(..., examples=["Carlos Ruiz"])
+
+
 # --- AntecedentesClub ---
 class AntecedentesClubCreateDTO(BaseModel):
     nivel_tecnico_alumno: NivelTecnicoAlumno

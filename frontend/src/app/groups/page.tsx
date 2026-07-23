@@ -46,9 +46,10 @@ import {
   fetchAlumnosPorHorario,
   asignarAlumnoAHorario,
   desasignarAlumnoDeHorario,
+  fetchEntrenadores,
   ApiClientError,
 } from "@/services/api";
-import type { Horario, CrearHorarioDTO, ActualizarHorarioDTO, NivelConOcupacion, AlumnoHorario } from "@/services/api";
+import type { Horario, CrearHorarioDTO, ActualizarHorarioDTO, NivelConOcupacion, AlumnoHorario, Entrenador } from "@/services/api";
 import { groupHorarios, diffGroupSave, type StudentRef, type HorarioGroup } from "@/lib/groups-utils";
 import { CATEGORIA_METADATA, CATEGORIA_OPTIONS, diasPermitidos, horarioDe, type Categoria } from "@/services/categorias";
 
@@ -157,6 +158,17 @@ export default function GroupsPage(): React.ReactElement {
   const [asignandoAlumno, setAsignandoAlumno] = useState(false);
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState<number | null>(null);
 
+  // Real entrenadores (rol ENTRENADOR) — feeds the "Entrenador" dropdown in
+  // the create/edit form. `entrenador_id` is a real, explicitly chosen
+  // person (notified downstream on level changes, attributed on Asistencia
+  // records) so it must never be auto-filled or left as a raw ID input.
+  // Fetched independently from `loadData()` (see `cargarEntrenadores` below):
+  // entrenadores only feed the create/edit form's dropdown, not the horarios
+  // list itself, so a failure here must never block viewing/editing existing
+  // horarios.
+  const [entrenadores, setEntrenadores] = useState<Entrenador[]>([]);
+  const [entrenadoresLoading, setEntrenadoresLoading] = useState(true);
+
   const showNotification = useCallback((type: "success" | "error", message: string): void => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 4000);
@@ -228,9 +240,31 @@ export default function GroupsPage(): React.ReactElement {
     }
   }, []);
 
+  /**
+   * Entrenadores are used ONLY by the create/edit form's dropdown, not by the
+   * horarios list itself — so this is fetched independently from `loadData()`
+   * (not folded into its `Promise.all`). A failure here must never surface
+   * the page-wide `loadError` and must never block viewing/editing horarios
+   * that already loaded successfully; it only degrades the dropdown to an
+   * empty/error state via `entrenadores.length === 0`.
+   */
+  const cargarEntrenadores = useCallback(async (): Promise<void> => {
+    setEntrenadoresLoading(true);
+    try {
+      const entrenadoresData = await fetchEntrenadores();
+      setEntrenadores(entrenadoresData);
+    } catch {
+      setEntrenadores([]);
+      showNotification("error", "No se pudieron cargar los entrenadores. Intente nuevamente.");
+    } finally {
+      setEntrenadoresLoading(false);
+    }
+  }, [showNotification]);
+
   useEffect(() => {
     void loadData();
-  }, [loadData]);
+    void cargarEntrenadores();
+  }, [loadData, cargarEntrenadores]);
 
   function openCreateForm(): void {
     setEditingGroup(null);
@@ -299,19 +333,20 @@ export default function GroupsPage(): React.ReactElement {
    */
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
-    if (!formData.entrenador_id) {
-      setFormError("Seleccioná un entrenador.");
-      return;
-    }
     if (selectedDias.size === 0) {
       setFormError("Seleccioná al menos un día.");
+      return;
+    }
+    const entrenadorId = formData.entrenador_id;
+    if (entrenadorId === null) {
+      setFormError("Seleccioná un entrenador.");
       return;
     }
     setFormSubmitting(true);
     setFormError(null);
     const shared = {
       categoria: formData.categoria,
-      entrenador_id: formData.entrenador_id,
+      entrenador_id: entrenadorId,
       nivel_ranking_id: formData.nivel_ranking_id,
     };
     try {
@@ -377,7 +412,7 @@ export default function GroupsPage(): React.ReactElement {
     try {
       for (const pending of pendingDeletions) {
         for (const alumno of pending.alumnos) {
-          await desasignarAlumnoDeHorario(alumno.persona_id, pending.id);
+          await desasignarAlumnoDeHorario(alumno.personaId, pending.id);
         }
         await eliminarHorario(pending.id);
       }
@@ -469,23 +504,6 @@ export default function GroupsPage(): React.ReactElement {
             </select>
           </div>
           <div>
-            <label htmlFor="horario-entrenador" className="mb-1 block text-xs font-medium text-cata-text/65">
-              Entrenador (ID)
-            </label>
-            <input
-              id="horario-entrenador"
-              type="number"
-              min={1}
-              className="input-field w-full"
-              value={formData.entrenador_id ?? ""}
-              onChange={(e) => setFormData((prev) => ({
-                ...prev,
-                entrenador_id: e.target.value ? Number(e.target.value) : null,
-              }))}
-              required
-            />
-          </div>
-          <div>
             <span className="mb-1 block text-xs font-medium text-cata-text/65">
               Horario (fijo según categoría)
             </span>
@@ -495,6 +513,34 @@ export default function GroupsPage(): React.ReactElement {
             >
               {horarioDe(formData.categoria).horaInicio} – {horarioDe(formData.categoria).horaFin}
             </p>
+          </div>
+          <div>
+            <label htmlFor="horario-entrenador" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Entrenador
+            </label>
+            <select
+              id="horario-entrenador"
+              className="input-field w-full"
+              value={formData.entrenador_id ?? ""}
+              onChange={(e) => setFormData((prev) => ({
+                ...prev,
+                entrenador_id: e.target.value ? Number(e.target.value) : null,
+              }))}
+              disabled={entrenadoresLoading || entrenadores.length === 0}
+            >
+              <option value="">
+                {entrenadoresLoading
+                  ? "Cargando..."
+                  : entrenadores.length === 0
+                    ? "No hay entrenadores registrados"
+                    : "Seleccionar entrenador..."}
+              </option>
+              {entrenadores.map((entrenador) => (
+                <option key={entrenador.id} value={entrenador.id}>
+                  {entrenador.nombreCompleto}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label htmlFor="horario-nivel" className="mb-1 block text-xs font-medium text-cata-text/65">
@@ -601,10 +647,10 @@ export default function GroupsPage(): React.ReactElement {
                 <div className="space-y-2">
                   {alumnosPorHorario.map((a) => (
                     <div key={a.id} className="flex items-center justify-between rounded-lg bg-cata-bg px-3 py-2">
-                      <span className="text-sm text-cata-text">{a.persona_nombre_completo}</span>
+                      <span className="text-sm text-cata-text">{a.personaNombreCompleto}</span>
                       <button
                         type="button"
-                        onClick={() => void handleDesasignarAlumno(a.persona_id)}
+                        onClick={() => void handleDesasignarAlumno(a.personaId)}
                         className="rounded-lg border border-cata-border p-1 text-cata-text/50 transition-colors hover:bg-red-50 hover:text-cata-red"
                         title="Desasignar alumno"
                       >
@@ -629,7 +675,7 @@ export default function GroupsPage(): React.ReactElement {
                 >
                   <option value="">Seleccionar alumno...</option>
                   {allStudents
-                    .filter((s) => s.activo && !alumnosPorHorario.some((a) => a.persona_id === Number(s.id)))
+                    .filter((s) => s.activo && !alumnosPorHorario.some((a) => a.personaId === Number(s.id)))
                     .map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.nombres} {s.apellidos}
