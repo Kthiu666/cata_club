@@ -63,7 +63,7 @@ import { MEMBERSHIP_STATUS_LABELS, MEMBERSHIP_STATUS_BADGE } from "@/app/members
 // backend-estado -> frontend-estado mapping `members-adapter.ts` reuses;
 // it's a pure value object with no server-only APIs, safe in a client bundle.
 import { MEMBERSHIP_STATUS_BY_ESTADO } from "@/lib/membership-status";
-import { getRoleLabel, getNavLinksForRole } from "@/lib/auth-utils";
+import { getRoleLabel } from "@/lib/auth-utils";
 import {
   User,
   Loader2,
@@ -79,8 +79,6 @@ import {
   Trophy,
   ShieldCheck,
   ArrowRight,
-  ChevronRight,
-  Zap,
   AlertTriangle,
   Camera,
 } from "lucide-react";
@@ -505,8 +503,10 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
         </div>
       </div>
 
-      {/* Three-column grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Two-column grid — Accesos rápidos (formerly a third column) was
+          dropped: redundant with AppShell's own sidebar nav, already visible
+          on this page. */}
+      <div className="grid gap-4 sm:grid-cols-2">
         {/* Column 1 — Información personal */}
         <div data-testid="profile-column-info" className="card p-5 sm:p-6">
           <div className="mb-4 flex items-center gap-2">
@@ -704,30 +704,6 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
               </>
             )}
           </div>
-        </div>
-
-        {/* Column 3 — Accesos rápidos */}
-        <div data-testid="profile-column-links" className="card p-5 sm:p-6 sm:col-span-2 lg:col-span-1">
-          <div className="mb-4 flex items-center gap-2">
-            <Zap size={16} className="text-cata-text/65" strokeWidth={1.5} aria-hidden="true" />
-            <h3 className="text-sm font-bold tracking-tight text-cata-text">Accesos rápidos</h3>
-          </div>
-          <nav className="space-y-1">
-            {/* "Inicio" (href "/") excluded — same convention as AppShell's
-                own sidebar nav, which is already visible on this page. */}
-            {getNavLinksForRole(props.role)
-              .filter((link) => link.href !== "/")
-              .map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="flex items-center justify-between rounded-lg px-2 py-2 text-sm text-cata-text transition-colors duration-200 hover:bg-cata-bg"
-              >
-                {link.label}
-                <ChevronRight size={14} strokeWidth={1.5} className="text-cata-text/40" aria-hidden="true" />
-              </Link>
-            ))}
-          </nav>
         </div>
       </div>
 

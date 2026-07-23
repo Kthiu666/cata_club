@@ -536,7 +536,7 @@ describe("ProfilePage — change password", () => {
 });
 
 describe("ProfilePage — unified layout structure", () => {
-  it("renders the header, hero card, and all three grid columns for a staff session", async () => {
+  it("renders the header, hero card, and both grid columns for a staff session", async () => {
     mockUseAuth.mockReturnValue(sessionForRole("admin"));
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
 
@@ -550,22 +550,17 @@ describe("ProfilePage — unified layout structure", () => {
     expect(screen.getByTestId("profile-hero")).toBeInTheDocument();
     expect(screen.getByTestId("profile-column-info")).toBeInTheDocument();
     expect(screen.getByTestId("profile-column-status")).toBeInTheDocument();
-    expect(screen.getByTestId("profile-column-links")).toBeInTheDocument();
   });
 
-  it("filters quick-access links by role using the app's real routes", async () => {
+  it("does not render a quick-access links column — redundant with AppShell's own sidebar nav", async () => {
     mockUseAuth.mockReturnValue(sessionForRole("admin"));
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
 
     render(<ProfilePage />);
 
     await screen.findAllByText("Ana Admin");
-    const linksColumn = screen.getByTestId("profile-column-links");
-    expect(within(linksColumn).getByRole("link", { name: "Administración" })).toHaveAttribute(
-      "href",
-      "/dashboard",
-    );
-    expect(within(linksColumn).getByRole("link", { name: "Miembros" })).toHaveAttribute("href", "/members");
+    expect(screen.queryByTestId("profile-column-links")).not.toBeInTheDocument();
+    expect(screen.queryByText("Accesos rápidos")).not.toBeInTheDocument();
   });
 });
 
