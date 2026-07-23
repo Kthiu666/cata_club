@@ -1,9 +1,20 @@
+from datetime import date, datetime, time, timezone
 from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.dominio.modelos import Pago, ComprobantePago
 from app.dominio.enums import EstadoPago
+
+
+def _rango_fecha_registro(fecha_inicio: Optional[date], fecha_fin: Optional[date]):
+    """Convierte fechas (inclusive, sin hora) a límites datetime tz-aware para
+    filtrar `Pago.fecha_registro`. Mismo criterio que
+    `personas_router.reporte_nuevos_por_periodo` (00:00:00 / 23:59:59.999999
+    UTC), para que el comportamiento sea consistente entre reportes."""
+    inicio = datetime.combine(fecha_inicio, time.min, tzinfo=timezone.utc) if fecha_inicio else None
+    fin = datetime.combine(fecha_fin, time.max, tzinfo=timezone.utc) if fecha_fin else None
+    return inicio, fin
 
 
 class PagoRepositorio:
@@ -18,6 +29,8 @@ class PagoRepositorio:
         estado_pago: Optional[EstadoPago] = None,
         skip: int = 0,
         limit: int = 50,
+        fecha_inicio: Optional[date] = None,
+        fecha_fin: Optional[date] = None,
     ) -> list[Pago]:
         """Lista pagos para la cola de validación del Administrador.
         `joinedload(Pago.persona)` evita el problema N+1: el servicio necesita
@@ -26,6 +39,11 @@ class PagoRepositorio:
         stmt = select(Pago).options(joinedload(Pago.persona))
         if estado_pago is not None:
             stmt = stmt.where(Pago.estado_pago == estado_pago)
+        inicio, fin = _rango_fecha_registro(fecha_inicio, fecha_fin)
+        if inicio is not None:
+            stmt = stmt.where(Pago.fecha_registro >= inicio)
+        if fin is not None:
+            stmt = stmt.where(Pago.fecha_registro <= fin)
         stmt = stmt.order_by(Pago.fecha_registro.desc()).offset(skip).limit(limit)
         return list(self.db.execute(stmt).scalars().all())
 
@@ -42,12 +60,22 @@ class PagoRepositorio:
         )
         return list(self.db.execute(stmt).scalars().all())
 
-    def contar(self, estado_pago: Optional[EstadoPago] = None) -> int:
-        """Cuenta el total de pagos (opcionalmente filtrados por estado)."""
+    def contar(
+        self,
+        estado_pago: Optional[EstadoPago] = None,
+        fecha_inicio: Optional[date] = None,
+        fecha_fin: Optional[date] = None,
+    ) -> int:
+        """Cuenta el total de pagos (opcionalmente filtrados por estado y/o rango de fecha_registro)."""
         from sqlalchemy import func
         stmt = select(func.count()).select_from(Pago)
         if estado_pago is not None:
             stmt = stmt.where(Pago.estado_pago == estado_pago)
+        inicio, fin = _rango_fecha_registro(fecha_inicio, fecha_fin)
+        if inicio is not None:
+            stmt = stmt.where(Pago.fecha_registro >= inicio)
+        if fin is not None:
+            stmt = stmt.where(Pago.fecha_registro <= fin)
         return self.db.execute(stmt).scalar_one()
 
     def crear(self, pago: Pago) -> Pago:

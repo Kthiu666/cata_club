@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ReportsPage from "@/app/reports/page";
 import type { PersonaReporte } from "@/types/domain";
+import type { PaymentValidationRequest } from "@/services/api";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -61,15 +62,19 @@ vi.mock("@/contexts/AuthContext", () => ({
 const mockFetchNuevosPorPeriodo = vi.fn();
 const mockFetchAttendanceRecords = vi.fn();
 const mockFetchTrainingSchedules = vi.fn();
+const mockFetchPagosReporte = vi.fn();
 const mockExportNuevosPorPeriodoPdf = vi.fn();
 const mockExportAsistenciaReportePdf = vi.fn();
+const mockExportPagosReportePdf = vi.fn();
 
 vi.mock("@/services/api", () => ({
   fetchNuevosPorPeriodo: (...args: unknown[]) => mockFetchNuevosPorPeriodo(...args),
   fetchAttendanceRecords: (...args: unknown[]) => mockFetchAttendanceRecords(...args),
   fetchTrainingSchedules: (...args: unknown[]) => mockFetchTrainingSchedules(...args),
+  fetchPagosReporte: (...args: unknown[]) => mockFetchPagosReporte(...args),
   exportNuevosPorPeriodoPdf: (...args: unknown[]) => mockExportNuevosPorPeriodoPdf(...args),
   exportAsistenciaReportePdf: (...args: unknown[]) => mockExportAsistenciaReportePdf(...args),
+  exportPagosReportePdf: (...args: unknown[]) => mockExportPagosReportePdf(...args),
 }));
 
 const PERSONA: PersonaReporte = {
@@ -79,6 +84,21 @@ const PERSONA: PersonaReporte = {
   cedula: "1710034065",
   fechaNacimiento: "2010-05-14",
   telefono: "0991234567",
+};
+
+const PAGO: PaymentValidationRequest = {
+  id: "1",
+  studentName: "Juan Pérez",
+  responsablePagoName: "Juan Pérez",
+  membershipPeriod: "2026-07-01 – 2026-07-31",
+  membershipType: "Adultos (18:00-19:00)",
+  expectedAmount: 35,
+  paymentMethod: "Transferencia",
+  uploadedAt: "2026-07-01T09:00:00Z",
+  currentMembershipStatus: "activa",
+  proofFileName: "voucher.jpg",
+  proofFileType: "image",
+  validationStatus: "validado",
 };
 
 function exportButton(): HTMLElement | null {
@@ -235,6 +255,134 @@ describe("ReportsPage — Exportar PDF button (asistencia tab)", () => {
     await waitFor(() => {
       expect(mockExportAsistenciaReportePdf).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+describe("ReportsPage — Pagos tab", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchTrainingSchedules.mockResolvedValue([]);
+  });
+
+  async function switchToPagosTab(): Promise<void> {
+    fireEvent.click(screen.getByRole("button", { name: /^pagos$/i }));
+  }
+
+  it("calls fetchPagosReporte when the tab is switched to and searched", async () => {
+    mockFetchPagosReporte.mockResolvedValue([PAGO]);
+
+    render(<ReportsPage />);
+    await switchToPagosTab();
+    fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
+
+    await waitFor(() => {
+      expect(mockFetchPagosReporte).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("is hidden before a search and appears once results are returned", async () => {
+    mockFetchPagosReporte.mockResolvedValue([PAGO]);
+
+    render(<ReportsPage />);
+    await switchToPagosTab();
+    expect(exportButton()).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
+
+    await waitFor(() => {
+      expect(exportButton()).toBeInTheDocument();
+    });
+  });
+
+  it("calls exportPagosReportePdf when clicked", async () => {
+    mockFetchPagosReporte.mockResolvedValue([PAGO]);
+    mockExportPagosReportePdf.mockResolvedValue(undefined);
+
+    render(<ReportsPage />);
+    await switchToPagosTab();
+    fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
+    await waitFor(() => expect(exportButton()).toBeInTheDocument());
+
+    fireEvent.click(exportButton()!);
+
+    await waitFor(() => {
+      expect(mockExportPagosReportePdf).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("shows a busy state and disables itself while the PDF download is in flight", async () => {
+    mockFetchPagosReporte.mockResolvedValue([PAGO]);
+    let resolveExport: () => void = () => {};
+    mockExportPagosReportePdf.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveExport = resolve;
+      }),
+    );
+
+    render(<ReportsPage />);
+    await switchToPagosTab();
+    fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
+    await waitFor(() => expect(exportButton()).toBeInTheDocument());
+
+    fireEvent.click(exportButton()!);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /generando/i })).toBeDisabled();
+    });
+
+    resolveExport();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /exportar pdf/i })).toBeEnabled();
+    });
+  });
+
+  it("rejects an end date before the start date without calling the API", async () => {
+    render(<ReportsPage />);
+    await switchToPagosTab();
+
+    fireEvent.change(screen.getByLabelText(/fecha inicio/i), { target: { value: "2026-06-15" } });
+    fireEvent.change(screen.getByLabelText(/fecha fin/i), { target: { value: "2026-06-01" } });
+    fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
+
+    expect(await screen.findByText(/la fecha de inicio debe ser anterior a la fecha de fin/i)).toBeInTheDocument();
+    expect(mockFetchPagosReporte).not.toHaveBeenCalled();
+  });
+
+  it("allows an end date equal to the start date (single-day report)", async () => {
+    mockFetchPagosReporte.mockResolvedValue([]);
+
+    render(<ReportsPage />);
+    await switchToPagosTab();
+
+    fireEvent.change(screen.getByLabelText(/fecha inicio/i), { target: { value: "2026-06-01" } });
+    fireEvent.change(screen.getByLabelText(/fecha fin/i), { target: { value: "2026-06-01" } });
+    fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
+
+    await waitFor(() => expect(mockFetchPagosReporte).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/la fecha de inicio debe ser anterior a la fecha de fin/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the PDF-scope note once results span more than one page", async () => {
+    mockFetchPagosReporte.mockResolvedValue(
+      Array.from({ length: 11 }, (_, i) => ({ ...PAGO, id: String(i + 1) })),
+    );
+
+    render(<ReportsPage />);
+    await switchToPagosTab();
+    fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
+
+    expect(await screen.findByText(/el pdf incluye los 11 registros/i)).toBeInTheDocument();
+  });
+
+  it("hides the PDF-scope note when a single page of results is shown", async () => {
+    mockFetchPagosReporte.mockResolvedValue([PAGO]);
+
+    render(<ReportsPage />);
+    await switchToPagosTab();
+    fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
+
+    await waitFor(() => expect(exportButton()).toBeInTheDocument());
+    expect(screen.queryByText(/el pdf incluye los/i)).not.toBeInTheDocument();
   });
 });
 

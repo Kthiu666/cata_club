@@ -9,6 +9,7 @@
 
 import type { PersonaReporte } from "@/types/domain";
 import type { AttendanceRecord } from "@/app/attendance/attendance-utils";
+import type { PaymentValidationRequest } from "@/services/api";
 
 // ---------------------------------------------------------------------------
 // "Nuevos miembros por período" pagination
@@ -76,6 +77,41 @@ export function paginateAsistenciaResults(
 export function getAsistenciaReportTotalPages(
   totalResults: number,
   pageSize: number = ASISTENCIA_REPORT_PAGE_SIZE,
+): number {
+  return Math.max(1, Math.ceil(totalResults / pageSize));
+}
+
+// ---------------------------------------------------------------------------
+// "Pagos" report pagination
+// ---------------------------------------------------------------------------
+
+/** Results per page for the payments report table. */
+export const PAGOS_REPORT_PAGE_SIZE = 10;
+
+/**
+ * Slice a (possibly already filtered) payments report list to a single page.
+ *
+ * `page` is 1-indexed. Returns an empty array when `page` is beyond the
+ * available data — never throws or wraps around.
+ */
+export function paginatePagosResults(
+  results: PaymentValidationRequest[],
+  page: number,
+  pageSize: number = PAGOS_REPORT_PAGE_SIZE,
+): PaymentValidationRequest[] {
+  const start = (page - 1) * pageSize;
+  return results.slice(start, start + pageSize);
+}
+
+/**
+ * Total number of pages for a given payments report result count.
+ *
+ * Always returns at least 1 (never 0 pages, even for an empty list) so
+ * "Página 1 de 1" is a valid state to render.
+ */
+export function getPagosReportTotalPages(
+  totalResults: number,
+  pageSize: number = PAGOS_REPORT_PAGE_SIZE,
 ): number {
   return Math.max(1, Math.ceil(totalResults / pageSize));
 }
