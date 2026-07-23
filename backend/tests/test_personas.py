@@ -44,7 +44,7 @@ def test_representante_reflexivo(client):
 def test_actualizar_y_eliminar_persona(client):
     persona = client.post("/api/v1/personas/", json=_payload_persona()).json()
 
-    resp = client.put(f"/api/v1/personas/{persona['id']}", json={"telefono": "0987654321"})
+    resp = client.patch(f"/api/v1/personas/{persona['id']}", json={"telefono": "0987654321"})
     assert resp.status_code == 200
     assert resp.json()["telefono"] == "0987654321"
 

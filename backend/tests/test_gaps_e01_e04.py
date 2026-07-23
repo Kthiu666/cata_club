@@ -173,7 +173,7 @@ def test_restablecer_contrasenia_token_no_se_puede_reusar(client):
 # --- Beca / Descuento (E01-RF011) --------------------------------------------
 def test_beca_reduce_automaticamente_el_monto_al_aprobar_pago(client):
     persona = _crear_persona(client, "1777777777")
-    client.put(f"/api/v1/personas/{persona['id']}", json={"porcentaje_beca": 50, "motivo_beca": "Deportista"})
+    client.patch(f"/api/v1/personas/{persona['id']}", json={"porcentaje_beca": 50, "motivo_beca": "Deportista"})
 
     tipo = client.post(
         "/api/v1/membresias/tipos",
@@ -202,7 +202,7 @@ def test_beca_reduce_automaticamente_el_monto_al_aprobar_pago(client):
 def test_prioridad_municipal_y_reporte_por_etiquetas(client):
     p1 = _crear_persona(client, "1788888881")
     p2 = _crear_persona(client, "1788888882")
-    client.put(f"/api/v1/personas/{p1['id']}", json={"prioridad_municipal": True})
+    client.patch(f"/api/v1/personas/{p1['id']}", json={"prioridad_municipal": True})
 
     resp = client.get("/api/v1/personas/reportes", params={"prioridad_municipal": True})
     assert resp.status_code == 200

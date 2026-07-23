@@ -48,6 +48,12 @@ class MembresiaServicio:
             raise EntidadNoEncontrada(f"Persona con id {datos.persona_id} no encontrada")
         if not self.repo_tipo.obtener_por_id(datos.tipo_membresia_id):
             raise EntidadNoEncontrada(f"Tipo de membresía con id {datos.tipo_membresia_id} no encontrado")
+        existentes = self.repo.listar_por_persona(datos.persona_id)
+        if any(m.estado == EstadoMembresia.ACTIVA for m in existentes):
+            raise OperacionInvalida(
+                "La persona ya tiene una membresía activa. "
+                "Cancele o deje vencer la actual antes de crear una nueva."
+            )
         # Estado y fecha_activacion NO vienen del payload (B-12): una membresía
         # nace INACTIVA y se ACTIVA al aprobarse su primer pago. La
         # fecha_activacion intermedia es necesaria porque la columna es NOT
