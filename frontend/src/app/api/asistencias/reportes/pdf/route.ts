@@ -9,8 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { setAuthCookies } from "@/lib/server/auth";
-import { backendFetchAuthed, passthroughBackendError } from "@/lib/server/backend-client";
+import { proxyBackendPdfGet } from "@/lib/server/backend-client";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(request.url);
@@ -26,24 +25,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const query = qs.toString();
   const queryString = query ? `?${query}` : "";
 
-  const result = await backendFetchAuthed(request, `/asistencias/reportes/pdf${queryString}`);
-  if (!result.ok) {
-    return NextResponse.json({ message: "No se pudo generar el PDF del reporte." }, { status: result.status });
-  }
-  if (!result.response.ok) {
-    return passthroughBackendError(result.response, "No se pudo generar el PDF del reporte.");
-  }
-
-  const bytes = await result.response.arrayBuffer();
-  const response = new NextResponse(bytes, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": result.response.headers.get("Content-Disposition") ?? "attachment",
-    },
-  });
-  if (result.refreshedAccessToken) {
-    setAuthCookies(response, { accessToken: result.refreshedAccessToken });
-  }
-  return response;
+  return proxyBackendPdfGet(
+    request,
+    `/asistencias/reportes/pdf${queryString}`,
+    "No se pudo generar el PDF del reporte.",
+  );
 }
