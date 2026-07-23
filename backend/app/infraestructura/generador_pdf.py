@@ -168,3 +168,99 @@ def _estilo_tabla() -> TableStyle:
         ("TOPPADDING", (0, 0), (-1, -1), 5),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
     ])
+
+
+def generar_reporte_personas_pdf(
+    personas: list[dict],
+    titulo_reporte: str = "Reporte de Personas",
+) -> bytes:
+    """Genera un PDF con el listado de personas en formato tabla.
+
+    Recibe una lista de dicts con los campos de PersonaResponseDTO
+    (id, nombres, apellidos, cedula, telefono, fecha_nacimiento,
+    prioridad_municipal, porcentaje_beca, motivo_beca).
+    """
+    import io as io_mod
+    from reportlab.lib import colors as clr
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable,
+    )
+
+    buffer = io_mod.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        leftMargin=12 * mm,
+        rightMargin=12 * mm,
+        topMargin=12 * mm,
+        bottomMargin=12 * mm,
+        title=titulo_reporte,
+        author="Cata Club - Academia de Tenis",
+    )
+
+    estilos = getSampleStyleSheet()
+    titulo_style = ParagraphStyle(
+        "TituloReporte", parent=estilos["Title"],
+        fontSize=16, textColor=clr.HexColor("#0B3D91"), spaceAfter=6,
+    )
+    fecha_style = ParagraphStyle(
+        "FechaReporte", parent=estilos["Normal"],
+        fontSize=9, textColor=clr.grey, spaceAfter=10,
+    )
+
+    elementos = [
+        Paragraph("Cata Club - Academia de Tenis", titulo_style),
+        Paragraph(titulo_reporte, estilos["Heading2"]),
+        Paragraph(
+            f"Emitido: {__import__('datetime').datetime.now().strftime('%d/%m/%Y %H:%M')}  |  "
+            f"Registros: {len(personas)}",
+            fecha_style,
+        ),
+        HRFlowable(width="100%", thickness=1, color=clr.HexColor("#0B3D91")),
+        Spacer(1, 8),
+    ]
+
+    if not personas:
+        elementos.append(Paragraph("No se encontraron registros.", estilos["Normal"]))
+    else:
+        headers = ["Nº", "Nombres", "Apellidos", "Cédula", "Teléfono",
+                   "F. Nacimiento", "Prioridad", "Beca %", "Motivo Beca"]
+        data = [headers]
+        for i, p in enumerate(personas, 1):
+            data.append([
+                str(i),
+                str(p.get("nombres", "")),
+                str(p.get("apellidos", "")),
+                str(p.get("cedula", "")),
+                str(p.get("telefono", "")),
+                str(p.get("fechaNacimiento", "")),
+                "Sí" if p.get("prioridadMunicipal") else "No",
+                str(p.get("porcentajeBeca", 0)),
+                str(p.get("motivoBeca") or ""),
+            ])
+
+        col_widths = [25, 80, 80, 70, 65, 70, 48, 40, 120]
+        table = Table(data, colWidths=col_widths, repeatRows=1)
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), clr.HexColor("#0B3D91")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), clr.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("GRID", (0, 0), (-1, -1), 0.25, clr.HexColor("#BBBBBB")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [clr.whitesmoke, clr.HexColor("#F3F6FF")]),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ]))
+        elementos.append(table)
+
+    doc.build(elementos)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    return pdf_bytes

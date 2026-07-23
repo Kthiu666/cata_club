@@ -83,6 +83,43 @@ async def reporte_nuevos_por_periodo(
     return PersonaServicio(db).reporte_nuevos_por_periodo(inicio, fin)
 
 
+@router.get(
+    "/reportes/pdf",
+    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
+)
+async def reporte_pdf(
+    prioridad_municipal: Optional[bool] = Query(default=None),
+    becado: Optional[bool] = Query(default=None),
+    db: Session = Depends(obtener_sesion),
+):
+    """Genera y descarga un PDF con el reporte de personas filtrado por etiquetas."""
+    from fastapi.responses import Response
+    from app.infraestructura.generador_pdf import generar_reporte_personas_pdf
+
+    personas = PersonaServicio(db).reporte_por_etiquetas(
+        prioridad_municipal=prioridad_municipal, becado=becado
+    )
+    data = [
+        {
+            "nombres": p.nombres,
+            "apellidos": p.apellidos,
+            "cedula": p.cedula,
+            "telefono": p.telefono,
+            "fechaNacimiento": p.fecha_nacimiento.isoformat() if p.fecha_nacimiento else "",
+            "prioridadMunicipal": p.prioridad_municipal,
+            "porcentajeBeca": p.porcentaje_beca,
+            "motivoBeca": p.motivo_beca,
+        }
+        for p in personas
+    ]
+    pdf_bytes = generar_reporte_personas_pdf(data, titulo_reporte="Reporte de Personas por Etiquetas")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "inline; filename=reporte_personas.pdf"},
+    )
+
+
 # --- Búsqueda (autocomplete) ------------------------------------------------
 @router.get(
     "/buscar",

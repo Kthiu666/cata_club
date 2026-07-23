@@ -21,6 +21,7 @@ import {
   Building2,
   GraduationCap,
   CheckCircle,
+  FileDown,
 } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
@@ -419,11 +420,22 @@ function ReportsContent(): React.ReactElement {
       {/* ---- Persona results table (etiquetas / periodo) ---- */}
       {searched && !loading && (tab === "etiquetas" || tab === "periodo") && (
         <div className="card overflow-hidden">
-          <div className="flex items-center justify-between border-b border-cata-border px-6 py-4">
-            <h3 className="text-sm font-semibold text-cata-text">
-              {filteredPersonaResults.length} persona{filteredPersonaResults.length !== 1 ? "s" : ""} encontrada{filteredPersonaResults.length !== 1 ? "s" : ""}
-            </h3>
-          </div>
+            <div className="flex items-center justify-between border-b border-cata-border px-6 py-4">
+              <h3 className="text-sm font-semibold text-cata-text">
+                {filteredPersonaResults.length} persona{filteredPersonaResults.length !== 1 ? "s" : ""} encontrada{filteredPersonaResults.length !== 1 ? "s" : ""}
+              </h3>
+              {filteredPersonaResults.length > 0 && (
+                <a
+                  href={`/api/personas/reportes/pdf?prioridad_municipal=${prioridadMunicipal}&becado=${becado}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-cata-border bg-cata-surface px-3 py-1.5 text-xs font-medium text-cata-text transition-colors hover:bg-cata-red/5 hover:text-cata-red"
+                >
+                  <FileDown size={14} strokeWidth={1.5} />
+                  Exportar PDF
+                </a>
+              )}
+            </div>
 
           {/* Local filters */}
           {personaResults.length > 0 && (
