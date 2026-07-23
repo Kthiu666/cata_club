@@ -112,8 +112,8 @@ test.describe("Admin smoke", () => {
     await expect(page.getByRole("heading", { name: /miembros del club/i })).toBeVisible();
 
     // ── Step 5: Navigate to attendance page ──
-    await page.getByRole("link", { name: "Horarios y Asistencia", exact: true }).click();
+    await page.getByRole("link", { name: "Asistencias", exact: true }).click();
     await expect(page).toHaveURL(/\/attendance/);
-    await expect(page.getByRole("heading", { name: /horarios y asistencia/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /asistencias/i })).toBeVisible();
   });
 });
