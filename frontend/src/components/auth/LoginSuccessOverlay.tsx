@@ -22,7 +22,7 @@ export default function LoginSuccessOverlay({
     <div
       role="status"
       aria-live="polite"
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-cata-black/50 px-4"
+      className="fixed inset-0 z-[70] flex items-center justify-center px-4"
     >
       <div className="flex flex-col items-center gap-2 rounded-xl bg-cata-state-ok px-10 py-8 text-center shadow-elevated">
         <CheckCircle2 className="h-10 w-10 text-white" aria-hidden="true" />
