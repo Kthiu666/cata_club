@@ -87,12 +87,29 @@ class AsistenciaServicio:
         """entrenador_id se recibe explícito en cada registro (no se copia
         automáticamente del horario) para permitir sustituciones: por defecto
         el frontend puede pre-llenarlo con el titular del horario, pero el
-        usuario que registra puede cambiarlo si ese día dictó otro entrenador."""
+        usuario que registra puede cambiarlo si ese día dictó otro entrenador.
+
+        Upsert por (persona_id, horario_id, fecha_entrenamiento): re-tomar
+        asistencia para una sesión ya registrada (ej. reabrir el wizard
+        "Tomar asistencia") actualiza el registro existente en vez de crear
+        uno duplicado -- no hay constraint único en BD, así que la
+        deduplicación se hace explícitamente aquí."""
         if not self.repo_persona.obtener_por_id(datos.persona_id):
             raise EntidadNoEncontrada(f"Persona con id {datos.persona_id} no encontrada")
         if not self.repo_horario.obtener_por_id(datos.horario_id):
             raise EntidadNoEncontrada(f"Horario con id {datos.horario_id} no encontrado")
         self._validar_entrenador(datos.entrenador_id)
+
+        existente = self.repo.buscar_por_persona_horario_fecha(
+            datos.persona_id, datos.horario_id, datos.fecha_entrenamiento
+        )
+        if existente:
+            existente.estado = datos.estado
+            existente.entrenador_id = datos.entrenador_id
+            existente.justificativo = datos.justificativo
+            existente.estado_justificativo = datos.estado_justificativo
+            return self.repo.actualizar(existente)
+
         return self.repo.crear(Asistencia(**datos.model_dump()))
 
     def historial_por_persona(self, persona_id: int) -> list[Asistencia]:

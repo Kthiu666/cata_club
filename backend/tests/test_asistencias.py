@@ -91,6 +91,49 @@ def test_asistencia_permite_entrenador_sustituto_distinto_al_titular(client, db_
     assert resp.json()["entrenadorId"] != horario["entrenadorId"]
 
 
+def test_registrar_asistencia_dos_veces_actualiza_en_vez_de_duplicar(client, db_session):
+    """Bug confirmado: reabrir el wizard "Tomar asistencia" para una sesión
+    ya registrada y volver a enviar creaba filas duplicadas en vez de
+    actualizar las existentes. `registrar_asistencia` debe hacer upsert por
+    (persona_id, horario_id, fecha_entrenamiento): exactamente una fila por
+    esa combinación, con el último `estado` enviado."""
+    entrenador = _crear_persona_api(client, "1710034065", "Carlos")
+    _convertir_en_entrenador(db_session, entrenador["id"])
+    alumno = _crear_persona_api(client, "1710034073", "Ana")
+
+    horario = client.post(
+        "/api/v1/asistencias/horarios",
+        json={
+            "categoria": "JUVENIL", "dia_semana": "LUNES",
+            "entrenador_id": entrenador["id"],
+        },
+    ).json()
+
+    payload = {
+        "fecha_entrenamiento": str(date(2026, 7, 20)), "estado": "PRESENTE",
+        "persona_id": alumno["id"], "entrenador_id": entrenador["id"],
+        "horario_id": horario["id"],
+    }
+    primera = client.post("/api/v1/asistencias/", json=payload)
+    assert primera.status_code == 201
+
+    segunda = client.post(
+        "/api/v1/asistencias/",
+        json={**payload, "estado": "AUSENTE"},
+    )
+    assert segunda.status_code == 201
+    assert segunda.json()["id"] == primera.json()["id"]
+    assert segunda.json()["estado"] == "AUSENTE"
+
+    historial = client.get(f"/api/v1/asistencias/persona/{alumno['id']}")
+    registros = [
+        r for r in historial.json()
+        if r["horarioId"] == horario["id"] and r["fechaEntrenamiento"] == str(date(2026, 7, 20))
+    ]
+    assert len(registros) == 1
+    assert registros[0]["estado"] == "AUSENTE"
+
+
 def test_listar_alumnos_por_horario_incluye_edad_calculada(client, db_session):
     """`AlumnoHorarioDetalleDTO.edad` debe salir calculada a partir de
     `Persona.fecha_nacimiento` vía `_calcular_edad`, no hardcodeada ni
