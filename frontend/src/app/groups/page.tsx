@@ -13,6 +13,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useToast } from "@/contexts/ToastContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import {
@@ -87,6 +88,8 @@ export default function GroupsPage(): React.ReactElement {
   const [niveles, setNiveles] = useState<NivelConOcupacion[]>([]);
   const [allStudents, setAllStudents] = useState<StudentRef[]>([]);
   const [loading, setLoading] = useState(true);
+  const { showError } = useToast();
+
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [showForm, setShowForm] = useState(false);
@@ -265,6 +268,10 @@ export default function GroupsPage(): React.ReactElement {
     }
   }
 
+  useEffect(() => {
+    if (formError) showError(formError);
+  }, [formError, showError]);
+
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
       <AppShell
@@ -324,9 +331,6 @@ export default function GroupsPage(): React.ReactElement {
             <h3 className="mb-4 text-sm font-bold text-cata-text">
               {editingId !== null ? "Editar Horario" : "Nuevo Horario"}
             </h3>
-            {formError && (
-              <div className="alert-error mb-4" role="alert">{formError}</div>
-            )}
             <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <label htmlFor="horario-dia" className="mb-1 block text-xs font-medium text-cata-text/65">

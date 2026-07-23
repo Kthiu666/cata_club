@@ -26,6 +26,7 @@ import { useState, useEffect, useCallback } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastContext";
 import {
   Trophy,
   ListChecks,
@@ -235,11 +236,16 @@ interface AsignarNivelTabProps {
 }
 
 function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNivelTabProps): React.ReactElement {
+  const { showError } = useToast();
   const [drafts, setDrafts] = useState<Record<string, number>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successId, setSuccessId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (error) showError(error);
+  }, [error, showError]);
 
   const filteredStudents = filterStudentsByQuery(students, query);
 
@@ -398,12 +404,6 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
         </div>
       </div>
 
-      {error && (
-        <div className="alert-error mx-5 mt-4" role="alert">
-          {error}
-        </div>
-      )}
-
       {tableSection}
     </div>
   );
@@ -426,6 +426,7 @@ function ResultadosMensualesTab({
   resultados,
   onRegistered,
 }: ResultadosMensualesTabProps): React.ReactElement {
+  const { showError } = useToast();
   const [estudianteId, setEstudianteId] = useState("");
   const [periodo, setPeriodo] = useState(currentPeriodo());
   const [posicion, setPosicion] = useState("");
@@ -434,6 +435,10 @@ function ResultadosMensualesTab({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (submitError) showError(submitError);
+  }, [submitError, showError]);
 
   async function handleSubmit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -496,11 +501,6 @@ function ResultadosMensualesTab({
           <p className="text-xs text-cata-red" role="alert">
             {validationError}
           </p>
-        )}
-        {submitError && (
-          <div className="alert-error" role="alert">
-            {submitError}
-          </div>
         )}
         {successMessage && (
           <div className="flex items-center gap-2 rounded-xl border border-cata-state-ok/30 bg-cata-state-ok/10 px-4 py-2.5 text-sm text-cata-state-ok">
@@ -633,6 +633,7 @@ interface CierreMesTabProps {
 }
 
 function CierreMesTab({ niveles, cierres, cerradoPorNombre, onClosed }: CierreMesTabProps): React.ReactElement {
+  const { showError } = useToast();
   const [nivelId, setNivelId] = useState("");
   const [periodo, setPeriodo] = useState(currentPeriodo());
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -640,6 +641,10 @@ function CierreMesTab({ niveles, cierres, cerradoPorNombre, onClosed }: CierreMe
   const [closing, setClosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (error) showError(error);
+  }, [error, showError]);
 
   function handleRequestClose(): void {
     setSuccessMessage(null);
@@ -695,11 +700,6 @@ function CierreMesTab({ niveles, cierres, cerradoPorNombre, onClosed }: CierreMe
           <p className="text-xs text-cata-red" role="alert">
             {validationError}
           </p>
-        )}
-        {error && (
-          <div className="alert-error" role="alert">
-            {error}
-          </div>
         )}
         {successMessage && (
           <div className="flex items-center gap-2 rounded-xl border border-cata-state-ok/30 bg-cata-state-ok/10 px-4 py-2.5 text-sm text-cata-state-ok">
