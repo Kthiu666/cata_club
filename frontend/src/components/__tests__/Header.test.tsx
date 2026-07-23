@@ -254,7 +254,7 @@ describe("Header", (): void => {
       screen.getByRole("link", { name: /Membresías/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Horarios y Asistencia/i }),
+      screen.getByRole("link", { name: /Asistencias/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Reportes/i }),

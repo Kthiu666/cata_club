@@ -26,7 +26,6 @@ import {
   Calendar,
   Clock,
   UserCheck,
-  GraduationCap,
   ClipboardCheck,
   CheckCircle2,
   XCircle,
@@ -137,8 +136,8 @@ export default function AttendancePage(): React.ReactElement {
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
       <AppShell
-        eyebrow="Asistencia y horarios"
-        title="Horarios y Asistencia"
+        eyebrow="Asistencias"
+        title="Asistencias"
       >
         {/* Loading state */}
         {loading && (
@@ -212,40 +211,6 @@ export default function AttendancePage(): React.ReactElement {
                 <p className="shrink-0 text-2xl font-bold tracking-tight text-cata-text">
                   {stats.totalAbsent + stats.totalLate}
                 </p>
-              </div>
-            </div>
-
-    
-            {/* Schedule management section */}
-            <div className="card mb-8 overflow-hidden">
-              <div className="flex items-center justify-between border-b border-cata-border px-5 py-4">
-                <h2 className="text-sm font-semibold text-cata-text">Gestionar Horarios</h2>
-                <span className="text-xs text-cata-text/50">{schedules.length} horarios</span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
-                      <th className="px-4 py-3">Día</th>
-                      <th className="px-4 py-3">Horario</th>
-                      <th className="px-4 py-3">Entrenador</th>
-                      <th className="px-4 py-3">Grupo</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-cata-border">
-                    {schedules.map((s) => (
-                      <tr key={s.id} className="hover:bg-cata-bg/50">
-                        <td className="px-4 py-3 text-xs font-medium text-cata-text capitalize">{s.diaSemana}</td>
-                        <td className="px-4 py-3 text-xs text-cata-text/65">{s.horaInicio} — {s.horaFin}</td>
-                        <td className="px-4 py-3 text-xs text-cata-text/65">{s.entrenadorNombre}</td>
-                        <td className="px-4 py-3 text-xs text-cata-text/65">{s.nivelRankingId ? `Nivel ${s.nivelRankingId}` : "Sin grupo"}</td>
-                      </tr>
-                    ))}
-                    {schedules.length === 0 && (
-                      <tr><td colSpan={4} className="px-4 py-8 text-center text-xs text-cata-text/40">No hay horarios registrados.</td></tr>
-                    )}
-                  </tbody>
-                </table>
               </div>
             </div>
 
@@ -357,20 +322,6 @@ export default function AttendancePage(): React.ReactElement {
                   </p>
                 </div>
               )}
-            </div>
-
-            {/* Domain info card */}
-            <div className="rounded-2xl border border-cata-border bg-cata-bg p-6">
-              <div className="mb-3 flex items-center gap-2">
-                <GraduationCap size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                <h3 className="text-sm font-bold text-cata-text">Modelo de dominio</h3>
-              </div>
-              <p className="text-sm leading-relaxed text-cata-text/65">
-                Los <strong className="text-cata-text">horarios</strong> tienen un entrenador titular
-                asignado por defecto, pero no está fijo: el registro de{" "}
-                <strong className="text-cata-text">asistencia</strong> almacena qué entrenador dictó
-                realmente cada sesión, que puede diferir del titular en caso de sustitución.
-              </p>
             </div>
           </>
         )}

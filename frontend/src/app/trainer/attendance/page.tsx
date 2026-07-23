@@ -747,7 +747,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
                   href={backHref}
                   className="font-medium text-cata-red transition-colors hover:text-cata-red-light"
                 >
-                  &larr; {session?.user?.role === "admin" ? "Volver a Horarios y Asistencia" : "Volver al Panel del Entrenador"}
+                  &larr; {session?.user?.role === "admin" ? "Volver a Asistencias" : "Volver al Panel del Entrenador"}
                 </Link>
               </p>
             </>

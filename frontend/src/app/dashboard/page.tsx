@@ -48,13 +48,13 @@ const quickActions = [
   },
   {
     icon: UserPlus,
-    label: "Ranking",
+    label: "Niveles",
     href: "/ranking",
     description: "Niveles de entrenamiento y asignación de estudiantes",
   },
   {
     icon: Calendar,
-    label: "Horarios y Asistencia",
+    label: "Asistencias",
     href: "/attendance",
     description: "Horarios de entrenamiento y registros de asistencia",
   },

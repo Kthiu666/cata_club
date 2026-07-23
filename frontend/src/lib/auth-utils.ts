@@ -44,10 +44,10 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
       links.push(
         { href: "/dashboard", label: "Administración" },
         { href: "/members", label: "Miembros" },
-        { href: "/ranking", label: "Ranking" },
+        { href: "/ranking", label: "Niveles" },
         { href: "/groups", label: "Gestión de Horarios" },
         { href: "/payments", label: "Membresías y Pagos" },
-        { href: "/attendance", label: "Horarios y Asistencia" },
+        { href: "/attendance", label: "Asistencias" },
         { href: "/reports", label: "Reportes" },
       );
       break;
