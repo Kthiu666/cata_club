@@ -99,14 +99,14 @@ export default function LoginPage(): React.ReactElement {
     });
   }
 
-  if (welcome) {
-    return <LoginSuccessOverlay name={welcome.name} />;
-  }
-
   // Show loading during session hydration, and keep showing it while an
   // already-authenticated user is mid-redirect — otherwise the form paints
   // for one frame between hydration resolving and the effect above firing.
-  if (isLoading || (isAuthenticated && session)) {
+  // Skipped while the welcome overlay is up: `isAuthenticated`/`session`
+  // flip true around the same time as a successful login, and without this
+  // guard that would replace the page (and the overlay's backdrop) with
+  // this plain "Cargando sesión..." div instead.
+  if (!welcome && (isLoading || (isAuthenticated && session))) {
     return (
       <div className="auth-shell flex min-h-screen items-center justify-center">
         <p className="text-sm text-cata-text/65">Cargando sesión...</p>
@@ -115,6 +115,8 @@ export default function LoginPage(): React.ReactElement {
   }
 
   return (
+    <>
+    {welcome && <LoginSuccessOverlay name={welcome.name} />}
     <AuthShell
       eyebrow="Panel de gestión"
       title="Bienvenido de nuevo"
@@ -230,5 +232,6 @@ export default function LoginPage(): React.ReactElement {
         ni su token de acceso.
       </p>
     </AuthShell>
+    </>
   );
 }
