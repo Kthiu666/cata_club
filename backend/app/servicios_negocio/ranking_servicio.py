@@ -466,12 +466,22 @@ class RankingServicio:
         self, nivel_id: int, tipo: TipoNotificacion, mensaje: str, entidad_relacionada_id: int | None
     ) -> None:
         """RF007 exige notificar a Entrenador y Administrador antes de
-        ejecutar la eliminación. Entrenadores: los de los horarios de este
-        nivel. Administradores: todos los que tengan el rol ADMINISTRADOR."""
-        nivel = self.repo_nivel.obtener_por_id(nivel_id)
+        ejecutar la eliminación. Como horario y nivel de ranking son
+        independientes, no existe un mapping nivel->entrenadores, así que
+        se notifica a TODOS los entrenadores (igual que a todos los
+        administradores). Administradores: todos los que tengan el rol
+        ADMINISTRADOR."""
         destinatarios_ids: set[int] = set()
-        if nivel:
-            destinatarios_ids.update(h.entrenador_id for h in nivel.horarios)
+
+        entrenadores = (
+            self.db.query(Persona.id)
+            .join(Usuario, Usuario.persona_id == Persona.id)
+            .join(usuario_rol, usuario_rol.c.usuario_id == Usuario.id)
+            .join(Rol, Rol.id == usuario_rol.c.rol_id)
+            .filter(Rol.tipo_rol == TipoRol.ENTRENADOR)
+            .all()
+        )
+        destinatarios_ids.update(e[0] for e in entrenadores)
 
         admins = (
             self.db.query(Persona.id)

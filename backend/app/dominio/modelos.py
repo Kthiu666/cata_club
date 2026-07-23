@@ -315,11 +315,10 @@ class ComprobantePago(Base):
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 # Nivel de Ranking (E03) — unifica "grupo de entrenamiento" y "nivel
-# competitivo": según confirmó el equipo, los alumnos entrenan agrupados por
-# su nivel de ranking (no existen como conceptos separados). Reemplaza la idea
-# de "Grupo" que se había explorado en el frontend: en vez de una entidad
-# nueva de agrupación de horarios, el nivel de ranking ES el agrupador, y ya
-# trae el límite de capacidad que pedía E03-RF001 (6 a 10 deportistas).
+# competitivo": el nivel de ranking es una asignación independiente de los
+# horarios — un alumno puede estar en cualquier horario con cualquier nivel
+# (incluido sin nivel). El nivel trae el límite de capacidad que pedía
+# E03-RF001 (6 a 10 deportistas) y se asigna vía `Ranking.nivel_ranking_id`.
 #
 # Nota de diseño: el máximo (10) SÍ se valida de forma dura al asignar una
 # persona a un nivel (servicios_negocio lanza OperacionInvalida si ya está
@@ -339,7 +338,6 @@ class NivelRanking(Base):
     capacidad_minima: Mapped[int] = mapped_column(default=6)
     capacidad_maxima: Mapped[int] = mapped_column(default=10)
 
-    horarios: Mapped[List["HorarioEntrenamiento"]] = relationship(back_populates="nivel_ranking")
     rankings: Mapped[List["Ranking"]] = relationship(back_populates="nivel_ranking")
     resultados_mensuales: Mapped[List["ResultadoRankingMensual"]] = relationship(
         back_populates="nivel_ranking"
@@ -368,13 +366,9 @@ class HorarioEntrenamiento(Base):
         back_populates="horarios_a_cargo", foreign_keys=[entrenador_id]
     )
 
-    # Nullable: horarios creados antes de este cambio, o de administración
-    # general, pueden no estar ligados a un nivel de ranking todavía.
-    nivel_ranking_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("nivel_ranking.id"), nullable=True
-    )
-    nivel_ranking: Mapped[Optional["NivelRanking"]] = relationship(back_populates="horarios")
-
+    # Horario y nivel de ranking son INDEPENDIENTES: un alumno puede estar en
+    # cualquier horario sin que medie su nivel de ranking, y viceversa. El
+    # nivel de cada alumno vive exclusivamente en `Ranking.nivel_ranking_id`.
     asistencias: Mapped[List["Asistencia"]] = relationship(back_populates="horario")
     alumno_horarios: Mapped[List["AlumnoHorario"]] = relationship(back_populates="horario")
     solicitudes_clase_extra: Mapped[List["SolicitudClaseExtra"]] = relationship(back_populates="horario")
