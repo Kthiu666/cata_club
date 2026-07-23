@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
-import ContextualHelp from "@/components/ContextualHelp";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchStudentPortal, fetchPagosDePersona } from "@/services/api";
-import type { StudentPortalSummary, StudentProfileSummary, PagoPersona } from "@/services/api";
+import { fetchStudentPortal, registrarPago, subirVoucherPago } from "@/services/api";
+import type { StudentPortalSummary, StudentProfileSummary, MembershipSummary, RegistrarPagoInput } from "@/services/api";
 import { ATTENDANCE_LABELS, ATTENDANCE_BADGE_TOKENS } from "@/app/attendance/attendance-utils";
 import { derivePortalMode, isRepresentative, describeRanking } from "./student-utils";
 import {
@@ -23,8 +22,9 @@ import {
   Trophy,
   RefreshCw,
   Clock,
-  CheckCircle2,
-  XCircle,
+  Plus,
+  Loader2,
+  Upload,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -61,49 +61,314 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void 
   );
 }
 
-/** Shows the JWT-scoped membership state without fabricating payment data. */
-function MembershipCard({ memberships }: { memberships: StudentPortalSummary["memberships"] }): React.ReactElement {
-  const activeMembership = memberships.find((membership) => membership.estado === "ACTIVA" || membership.estado === "VENCIDA");
-  if (activeMembership) {
+/**
+ * Inline "register payment" / "renew membership" form rendered inside
+ * MembershipCard when the membership is INACTIVA (first payment) or has
+ * expired (VENCIDA / fecha_fin < today). Calls `registrarPago` (POST
+ * /api/membresias/pagos), which the backend authorizes for the owner,
+ * their representative, or ADMIN — so the student themselves can trigger
+ * the renewal cycle without admin intervention. On success, `onRenewed`
+ * refreshes the portal so the new PENDIENTE_VALIDACION row appears in
+ * PagosSection and the MembershipCard shows the new state.
+ */
+function RenewPaymentForm({
+  membership,
+  personaId,
+  onRenewed,
+  label,
+}: {
+  membership: MembershipSummary;
+  personaId: string;
+  onRenewed: () => void;
+  label: string;
+}): React.ReactElement {
+  const [showForm, setShowForm] = useState(false);
+  const [monto, setMonto] = useState<string>(membership.montoAplicado ?? "");
+  const [tipoPago, setTipoPago] = useState<"EFECTIVO" | "TRANSFERENCIA">("TRANSFERENCIA");
+  const [fechaInicio, setFechaInicio] = useState<string>("");
+  const [fechaFin, setFechaFin] = useState<string>("");
+  const [voucherFile, setVoucherFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleOpen(): void {
+    setShowForm(true);
+    setError(null);
+    setVoucherFile(null);
+    const hoy = new Date();
+    const prevFin = membership.fechaFin ? new Date(membership.fechaFin + "T12:00:00") : null;
+    const base = prevFin && prevFin.getTime() > hoy.getTime() ? prevFin : hoy;
+    const fin = new Date(base);
+    fin.setMonth(fin.getMonth() + 1);
+    setFechaInicio(base.toISOString().slice(0, 10));
+    setFechaFin(fin.toISOString().slice(0, 10));
+  }
+
+  async function handleSubmit(): Promise<void> {
+    const montoNum = Number(monto);
+    if (!montoNum || montoNum <= 0) {
+      setError("El monto debe ser mayor a 0.");
+      return;
+    }
+    if (!fechaInicio || !fechaFin) {
+      setError("Las fechas son obligatorias.");
+      return;
+    }
+    if (fechaInicio >= fechaFin) {
+      setError("La fecha de inicio debe ser anterior a la fecha de fin.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const nuevoPago = await registrarPago({
+        monto: montoNum,
+        tipoPago,
+        fechaInicio,
+        fechaFin,
+        personaId: Number(personaId),
+        membresiaId: membership.id,
+      } satisfies RegistrarPagoInput);
+
+      if (voucherFile && nuevoPago?.id) {
+        await subirVoucherPago(nuevoPago.id, voucherFile);
+      }
+
+      setShowForm(false);
+      setVoucherFile(null);
+      onRenewed();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo registrar el pago.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!showForm) {
     return (
-      <section className="card-hover p-4 sm:p-5" aria-labelledby="membership-status-title">
+      <button
+        type="button"
+        onClick={handleOpen}
+        className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-cata-red px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-cata-red/85"
+      >
+        <Plus size={14} strokeWidth={1.5} aria-hidden="true" />
+        {label}
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-2.5 rounded-lg bg-cata-bg/60 p-3">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="text-xs font-medium text-cata-text/65">
+          Monto
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={monto}
+            onChange={(e) => setMonto(e.target.value)}
+            className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+            placeholder="0.00"
+          />
+        </label>
+        <label className="text-xs font-medium text-cata-text/65">
+          Método
+          <select
+            value={tipoPago}
+            onChange={(e) => {
+              const val = e.target.value as "EFECTIVO" | "TRANSFERENCIA";
+              setTipoPago(val);
+              if (val !== "TRANSFERENCIA") setVoucherFile(null);
+            }}
+            className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+          >
+            <option value="TRANSFERENCIA">Transferencia</option>
+            <option value="EFECTIVO">Efectivo</option>
+          </select>
+        </label>
+        <label className="text-xs font-medium text-cata-text/65">
+          Inicio
+          <input
+            type="date"
+            value={fechaInicio}
+            onChange={(e) => setFechaInicio(e.target.value)}
+            className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+          />
+        </label>
+        <label className="text-xs font-medium text-cata-text/65">
+          Fin
+          <input
+            type="date"
+            value={fechaFin}
+            onChange={(e) => setFechaFin(e.target.value)}
+            className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+          />
+        </label>
+      </div>
+
+      {tipoPago === "TRANSFERENCIA" && (
+        <label className="block text-xs font-medium text-cata-text/65">
+          Comprobante de pago
+          <div className="mt-0.5 flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,application/pdf"
+              onChange={(e) => setVoucherFile(e.target.files?.[0] ?? null)}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 rounded-lg border border-dashed border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text/65 transition-colors hover:border-cata-red/30 hover:text-cata-text"
+            >
+              <Upload size={12} strokeWidth={1.5} aria-hidden="true" />
+              {voucherFile ? voucherFile.name : "Seleccionar archivo"}
+            </button>
+            {voucherFile && (
+              <button
+                type="button"
+                onClick={() => setVoucherFile(null)}
+                className="text-[10px] text-cata-text/45 hover:text-cata-red"
+              >
+                Quitar
+              </button>
+            )}
+          </div>
+          <span className="mt-0.5 block text-[10px] text-cata-text/40">PDF, JPG o PNG</span>
+        </label>
+      )}
+
+      {error && <p className="text-xs text-cata-red">{error}</p>}
+      <div className="flex gap-1.5">
+        <button
+          type="button"
+          onClick={() => void handleSubmit()}
+          disabled={loading || !monto || !fechaInicio || !fechaFin}
+          className="inline-flex items-center gap-1 rounded-lg bg-cata-red px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-cata-red/80 disabled:opacity-50"
+        >
+          {loading ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : (
+            <CreditCard size={12} strokeWidth={1.5} />
+          )}
+          Registrar pago
+        </button>
+        <button
+          type="button"
+          onClick={() => { setShowForm(false); setVoucherFile(null); }}
+          className="rounded-lg border border-cata-border px-2.5 py-1.5 text-xs text-cata-text/65 transition-colors hover:bg-cata-surface"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MembershipCard({
+  membership,
+  personaId,
+  onRenewed,
+}: {
+  membership: MembershipSummary | null;
+  personaId: string;
+  onRenewed: () => void;
+}): React.ReactElement {
+  if (!membership) {
+    return (
+      <section className="card-hover p-4 sm:p-5" aria-labelledby="membership-unavailable-title">
         <div className="mb-2 flex items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
             <ShieldCheck size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-cata-text/65">Membresía</p>
-            <h2 id="membership-status-title" className="text-lg font-bold tracking-tight text-cata-text">Membresía {activeMembership.estado.toLowerCase()}</h2>
+            <h2 id="membership-unavailable-title" className="text-lg font-bold tracking-tight text-cata-text">Sin membresía</h2>
           </div>
         </div>
-        <p className="text-xs leading-relaxed text-cata-text/55">Tu membresía está disponible desde este portal.</p>
+        <p className="text-xs leading-relaxed text-cata-text/55">
+          Aún no tenés una membresía registrada. Consulte con administración.
+        </p>
       </section>
     );
   }
+
+  if (membership.estado === "INACTIVA") {
+    return (
+      <section className="card-hover p-4 sm:p-5" aria-labelledby="membership-inactive-title">
+        <div className="mb-2 flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100">
+            <Clock size={18} strokeWidth={1.5} className="text-amber-600" aria-hidden="true" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-cata-text/65">Membresía</p>
+            <h2 id="membership-inactive-title" className="text-lg font-bold tracking-tight text-cata-text">Pendiente de activación</h2>
+          </div>
+        </div>
+        <p className="text-xs leading-relaxed text-cata-text/55">
+          Tu membresía fue creada pero espera la validación del primer pago.
+        </p>
+        {membership.categoria && (
+          <p className="mt-1 text-xs text-cata-text/65">
+            Plan: {membership.categoria} {membership.franjaHoraria ? `(${membership.franjaHoraria})` : ""}
+            {membership.montoAplicado ? ` — $${membership.montoAplicado}` : ""}
+          </p>
+        )}
+        <RenewPaymentForm
+          membership={membership}
+          personaId={personaId}
+          onRenewed={onRenewed}
+          label="Registrar primer pago"
+        />
+      </section>
+    );
+  }
+
+  const hoyIso = new Date().toISOString().slice(0, 10);
+  const isExpired = membership.estado === "VENCIDA"
+    || (membership.fechaFin !== null && membership.fechaFin < hoyIso);
+
   return (
-    <section className="card-hover p-4 sm:p-5" aria-labelledby="membership-unavailable-title">
+    <section className="card-hover p-4 sm:p-5" aria-labelledby="membership-status-title">
       <div className="mb-2 flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
           <ShieldCheck size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-cata-text/65">Membresía</p>
-          <h2 id="membership-unavailable-title" className="text-lg font-bold tracking-tight text-cata-text">Membresía no disponible</h2>
+          <h2 id="membership-status-title" className="text-lg font-bold tracking-tight text-cata-text">
+            {isExpired ? "Vencida" : "Activa"}
+          </h2>
         </div>
+        <span className={isExpired ? "badge-error" : "badge-success"}>
+          {isExpired ? "Vencida" : "Activa"}
+        </span>
       </div>
-      <p className="text-xs leading-relaxed text-cata-text/55">
-        No disponible desde este portal por el momento. Consulte con administración del club.
-      </p>
-      <ContextualHelp title="Ayuda sobre membresía no disponible">
-        <p>La membresía no está disponible desde este portal por el momento. Consulte con administración para conocer las opciones disponibles.</p>
-      </ContextualHelp>
-      <a href="mailto:administracion@cataclub.local" className="mt-3 inline-flex text-xs font-medium text-cata-red hover:text-cata-red-light">
-        Consultar con administración
-      </a>
+      {membership.categoria && (
+        <div className="space-y-0.5 text-xs text-cata-text/65">
+          <p>Plan: {membership.categoria} {membership.franjaHoraria ? `(${membership.franjaHoraria})` : ""}</p>
+          <p>Modalidad: {membership.modalidad === "PERSONALIZADA" ? "Personalizada" : "Mensual"}</p>
+          {membership.montoAplicado && <p>Monto: ${membership.montoAplicado}</p>}
+          {membership.fechaFin && <p>Vigencia hasta: {membership.fechaFin}</p>}
+        </div>
+      )}
+      {isExpired && (
+        <RenewPaymentForm
+          membership={membership}
+          personaId={personaId}
+          onRenewed={onRenewed}
+          label="Renovar membresía"
+        />
+      )}
     </section>
   );
 }
 
+/** Real `TipoMembresia` catalog cards for the pending-enrollment view — replaces the old hardcoded `membershipPlans` array. */
 function RankingCard({ profile }: { profile: StudentProfileSummary }): React.ReactElement {
   const display = describeRanking(profile.ranking);
   return (
@@ -121,6 +386,11 @@ function RankingCard({ profile }: { profile: StudentProfileSummary }): React.Rea
       <p className="text-sm text-cata-text/65">{display.detail}</p>
     </div>
   );
+}
+
+function formatSessionDate(iso: string): string {
+  const d = new Date(iso + "T12:00:00");
+  return d.toLocaleDateString("es-EC", { weekday: "long", day: "numeric", month: "short" });
 }
 
 function RecentSessionsSection({ profile }: { profile: StudentProfileSummary }): React.ReactElement {
@@ -145,7 +415,7 @@ function RecentSessionsSection({ profile }: { profile: StudentProfileSummary }):
                     <Calendar size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-cata-text">{session.fecha}</p>
+                    <p className="text-sm font-semibold text-cata-text">{formatSessionDate(session.fecha)}</p>
                     <p className="mt-0.5 text-xs text-cata-text/55">{session.horario}</p>
                     <span className={`mt-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${tokens.badgeClass}`}>
                       {ATTENDANCE_LABELS[session.estado]}
@@ -171,122 +441,6 @@ function RecentSessionsSection({ profile }: { profile: StudentProfileSummary }):
 // UI yet).
 // ---------------------------------------------------------------------------
 
-const TIPO_PAGO_LABEL: Record<PagoPersona["tipoPago"], string> = {
-  EFECTIVO: "Efectivo",
-  TRANSFERENCIA: "Transferencia",
-};
-
-function PagoEstadoBadge({ estado }: { estado: PagoPersona["estadoPago"] }): React.ReactElement {
-  if (estado === "APROBADO") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-        <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" /> Aprobado
-      </span>
-    );
-  }
-  if (estado === "RECHAZADO") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-cata-red">
-        <XCircle size={10} strokeWidth={2} aria-hidden="true" /> Rechazado
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 text-xs font-medium text-amber-400">
-      <Clock size={10} strokeWidth={2} aria-hidden="true" /> Pendiente
-    </span>
-  );
-}
-
-type PagosState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; pagos: PagoPersona[] };
-
-function PagosSection({ personaId }: { personaId: string }): React.ReactElement {
-  const [state, setState] = useState<PagosState>({ status: "loading" });
-  const [reloadToken, setReloadToken] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    setState({ status: "loading" });
-    fetchPagosDePersona(personaId)
-      .then((pagos) => {
-        if (!cancelled) setState({ status: "ready", pagos });
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        setState({
-          status: "error",
-          message: error instanceof Error ? error.message : "No se pudo cargar el historial de pagos.",
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [personaId, reloadToken]);
-
-  return (
-    <section className="mb-8">
-      <div className="mb-4 flex items-center gap-2">
-        <CreditCard size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-        <h2 className="text-lg font-bold text-cata-text">Pagos</h2>
-      </div>
-      <p className="mb-4 text-xs text-cata-text/65">
-        Historial de pagos registrados en su cuenta. La carga de comprobantes y el registro de nuevos
-        pagos no están disponibles desde este portal por el momento — consulte con administración del
-        club.
-      </p>
-
-      {state.status === "loading" && (
-        <div className="card p-6 text-center">
-          <p className="text-sm text-cata-text/50">Cargando historial de pagos...</p>
-        </div>
-      )}
-
-      {state.status === "error" && (
-        <ErrorCard message={state.message} onRetry={() => setReloadToken((n) => n + 1)} />
-      )}
-
-      {state.status === "ready" &&
-        (state.pagos.length === 0 ? (
-          <div className="card p-6 text-center">
-            <p className="text-sm text-cata-text/50">Todavía no hay pagos registrados.</p>
-          </div>
-        ) : (
-          <div className="grid gap-3">
-            {state.pagos.map((pago) => (
-              <div
-                key={pago.id}
-                className="card-hover flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
-                    <CreditCard size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-cata-text">
-                      ${pago.monto} · {pago.fechaInicio} – {pago.fechaFin}
-                    </p>
-                    <p className="text-xs text-cata-text/65">{TIPO_PAGO_LABEL[pago.tipoPago]}</p>
-                    {pago.estadoPago === "RECHAZADO" && pago.motivoRechazo && (
-                      <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
-                        <p className="text-xs font-semibold text-cata-red">Motivo de rechazo</p>
-                        <p className="text-xs text-cata-red/80">{pago.motivoRechazo}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <PagoEstadoBadge estado={pago.estadoPago} />
-              </div>
-            ))}
-          </div>
-        ))}
-    </section>
-  );
-}
-
-/** Real `TipoMembresia` catalog cards for the pending-enrollment view — replaces the old hardcoded `membershipPlans` array. */
 function MembershipPlansGrid({ data }: { data: StudentPortalSummary }): React.ReactElement {
   if (data.membershipPlans.length === 0) {
     return (
@@ -363,14 +517,20 @@ function PendingEnrollmentView({ data }: { data: StudentPortalSummary }): React.
 function ActivePortalView({
   data,
   hasAlumnoRole,
+  onRenewed,
 }: {
   data: StudentPortalSummary;
   hasAlumnoRole: boolean;
+  onRenewed: () => void;
 }): React.ReactElement {
   const managedProfiles: StudentProfileSummary[] =
     hasAlumnoRole && data.self ? [data.self, ...data.representados] : data.representados;
 
   const [selectedId, setSelectedId] = useState<string>(managedProfiles[0]?.personaId ?? "");
+
+  function handleRenewed(): void {
+    onRenewed();
+  }
 
   useEffect(() => {
     if (!managedProfiles.some((p) => p.personaId === selectedId)) {
@@ -449,11 +609,25 @@ function ActivePortalView({
         <>
           <div className="mb-8 grid gap-4 sm:grid-cols-2">
             <RankingCard profile={selectedProfile} />
-            <MembershipCard memberships={selectedProfile.personaId === data.self?.personaId ? data.memberships : []} />
+            <MembershipCard
+              membership={selectedProfile.membership}
+              personaId={selectedProfile.personaId}
+              onRenewed={handleRenewed}
+            />
           </div>
 
           <RecentSessionsSection profile={selectedProfile} />
-          <PagosSection personaId={selectedProfile.personaId} />
+
+          <div className="mt-6">
+            <Link
+              href="/student/payments"
+              className="inline-flex items-center gap-2 rounded-xl border border-cata-border bg-cata-surface px-4 py-3 text-sm font-medium text-cata-text transition-colors hover:border-cata-red/30 hover:text-cata-red"
+            >
+              <CreditCard size={16} strokeWidth={1.5} aria-hidden="true" />
+              Ver historial de pagos
+              <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+            </Link>
+          </div>
         </>
       )}
     </>
@@ -500,7 +674,7 @@ function StudentPortalContent(): React.ReactElement {
         (derivePortalMode(hasAlumnoRole, state.data.representados.length) === "pending" ? (
           <PendingEnrollmentView data={state.data} />
         ) : (
-          <ActivePortalView data={state.data} hasAlumnoRole={hasAlumnoRole} />
+          <ActivePortalView data={state.data} hasAlumnoRole={hasAlumnoRole} onRenewed={() => setReloadToken((n) => n + 1)} />
         ))}
     </AppShell>
   );

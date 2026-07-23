@@ -106,6 +106,7 @@ function buildMemberStudentSummary(
     membresia:
       membresia && pago
         ? {
+            id: membresia.id,
             tipo: buildMembershipTypeLabel(tipo),
             estado: MEMBERSHIP_STATUS_BY_ESTADO[membresia.estado] as EstadoMembresia,
             fechaInicio: pago.fechaInicio,

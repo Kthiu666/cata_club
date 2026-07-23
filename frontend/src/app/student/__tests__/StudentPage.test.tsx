@@ -1,18 +1,17 @@
 /**
- * Component tests for StudentPage's Pagos section and unavailable-membership
- * recovery state.
+ * Component tests for StudentPage: dependiente CTA, pagos link, and
+ * membership display (including unavailable-membership recovery state).
  *
- * Mirrors the mocking pattern established by PaymentsPage.test.tsx /
- * GroupsPage.test.tsx (ProtectedRoute, next/navigation, next/link,
- * next/image, AuthContext all stubbed; @/services/api mocked).
+ * PagosSection tests are in payments-utils.test.ts and
+ * PaymentsPage.test.tsx (the payments view lives at /student/payments).
  *
  * @vitest-environment jsdom
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import StudentPage from "@/app/student/page";
-import type { StudentPortalSummary, PagoPersona } from "@/services/api";
+import type { StudentPortalSummary } from "@/services/api";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -59,11 +58,13 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 
 const mockFetchStudentPortal = vi.fn();
-const mockFetchPagosDePersona = vi.fn();
+const mockRegistrarPago = vi.fn();
 
 vi.mock("@/services/api", () => ({
   fetchStudentPortal: () => mockFetchStudentPortal(),
-  fetchPagosDePersona: (personaId: string) => mockFetchPagosDePersona(personaId),
+  registrarPago: (...args: unknown[]) => mockRegistrarPago(...(args as never[])),
+  subirVoucherPago: vi.fn(),
+  fetchPagosDePersona: vi.fn().mockResolvedValue([]),
 }));
 
 const PORTAL: StudentPortalSummary = {
@@ -74,47 +75,14 @@ const PORTAL: StudentPortalSummary = {
     fechaNacimiento: "2010-05-14",
     ranking: { status: "unavailable", reason: "error" },
     recentSessions: [],
+    membership: null,
   },
   representados: [],
   membershipPlans: [],
-  memberships: [],
-};
-
-const PAGO_RECHAZADO: PagoPersona = {
-  id: 1,
-  monto: "35.00",
-  motivoRechazo: "Comprobante ilegible",
-  estadoPago: "RECHAZADO",
-  tipoPago: "TRANSFERENCIA",
-  fechaRegistro: "2026-06-01T09:00:00Z",
-  fechaValidacion: "2026-06-02T14:30:00Z",
-  fechaInicio: "2026-06-01",
-  fechaFin: "2026-06-30",
-  personaId: 9,
-  membresiaId: 3,
-  voucherUrl: null,
-  voucherFormato: null,
-};
-
-const PAGO_APROBADO: PagoPersona = {
-  id: 2,
-  monto: "35.00",
-  motivoRechazo: null,
-  estadoPago: "APROBADO",
-  tipoPago: "EFECTIVO",
-  fechaRegistro: "2026-07-01T09:00:00Z",
-  fechaValidacion: "2026-07-01T10:00:00Z",
-  fechaInicio: "2026-07-01",
-  fechaFin: "2026-07-31",
-  personaId: 9,
-  membresiaId: 3,
-  voucherUrl: null,
-  voucherFormato: null,
 };
 
 beforeEach(() => {
   mockFetchStudentPortal.mockReset().mockResolvedValue(PORTAL);
-  mockFetchPagosDePersona.mockReset().mockResolvedValue([]);
 });
 
 describe("StudentPage — Agregar/Inscribir dependiente CTA", () => {
@@ -137,65 +105,113 @@ describe("StudentPage — Agregar/Inscribir dependiente CTA", () => {
   });
 });
 
-describe("StudentPage — Pagos section", () => {
-  it("fetches and renders the persona's payment history from the service", async () => {
-    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_APROBADO]);
-
+describe("StudentPage — Pagos link", () => {
+  it("does not render inline payment history (payments moved to /student/payments)", async () => {
     render(<StudentPage />);
 
     await waitFor(() => {
-      expect(mockFetchPagosDePersona).toHaveBeenCalledWith("9");
+      expect(mockFetchStudentPortal).toHaveBeenCalled();
     });
-    expect(await screen.findByText("Efectivo")).toBeInTheDocument();
+    expect(screen.queryByText("Efectivo")).not.toBeInTheDocument();
+    expect(screen.queryByText("RECHAZADO")).not.toBeInTheDocument();
   });
 
-  it("shows the rejection reason for a RECHAZADO payment", async () => {
-    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_RECHAZADO]);
-
+  it("links to the dedicated payments page", async () => {
     render(<StudentPage />);
 
-    expect(await screen.findByText("Comprobante ilegible")).toBeInTheDocument();
-  });
-
-  it("does not show a rejection-reason block for an APROBADO payment", async () => {
-    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_APROBADO]);
-
-    render(<StudentPage />);
-
-    await screen.findByText("Efectivo");
-    expect(screen.queryByText(/motivo de rechazo/i)).not.toBeInTheDocument();
+    const link = await screen.findByText("Ver historial de pagos");
+    expect(link.closest("a")).toHaveAttribute("href", "/student/payments");
   });
 });
 
-describe("StudentPage — unavailable membership recovery", () => {
-  it("renders the JWT-scoped active membership instead of the unavailable recovery", async () => {
+describe("StudentPage — membership display", () => {
+  it("renders active membership with plan details", async () => {
     mockFetchStudentPortal.mockResolvedValueOnce({
       ...PORTAL,
-      memberships: [{ id: 4, estado: "ACTIVA", personaId: 9 }],
+      self: { ...PORTAL.self!, membership: { id: 4, estado: "ACTIVA", personaId: 9, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: "Tarde", fechaFin: null } },
     });
 
     render(<StudentPage />);
 
-    expect(await screen.findByRole("region", { name: /membresía activa/i })).toHaveTextContent("disponible desde este portal");
-    expect(screen.queryByRole("link", { name: /consultar con administración/i })).not.toBeInTheDocument();
+    const heading = await screen.findByRole("heading", { name: /activa/i });
+    expect(heading).toBeInTheDocument();
+    const card = heading.closest("section")!;
+    expect(card).toHaveTextContent("Mensual");
   });
 
-  it("labels the unavailable membership state and offers the honest next action", async () => {
+  it("shows sin membresía when membership is null", async () => {
     render(<StudentPage />);
 
-    const recovery = await screen.findByRole("region", { name: /membresía no disponible/i });
-    expect(recovery).toHaveTextContent("No disponible desde este portal por el momento.");
-    expect(screen.getByRole("link", { name: /consultar con administración/i })).toHaveAttribute("href", "mailto:administracion@cataclub.local");
+    const heading = await screen.findByRole("heading", { name: /sin membresía/i });
+    expect(heading).toBeInTheDocument();
+    const card = heading.closest("section")!;
+    expect(card).toHaveTextContent("Aún no tenés una membresía");
   });
 
-  it("opens named help that explains the unavailable membership limitation without promising access", async () => {
+  it("shows pendiente de activación for INACTIVA state", async () => {
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      ...PORTAL,
+      self: { ...PORTAL.self!, membership: { id: 5, estado: "INACTIVA", personaId: 9, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: null, fechaFin: null } },
+    });
+
     render(<StudentPage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Ayuda sobre membresía no disponible" }));
+    const heading = await screen.findByRole("heading", { name: /pendiente de activación/i });
+    expect(heading).toBeInTheDocument();
+    const card = heading.closest("section")!;
+    expect(card).toHaveTextContent("validación del primer pago");
+  });
 
-    const help = screen.getByRole("region", { name: "Ayuda sobre membresía no disponible" });
-    expect(help).toHaveTextContent("no está disponible desde este portal");
-    expect(help).toHaveTextContent("Consulte con administración");
-    expect(screen.getByRole("link", { name: /consultar con administración/i })).toHaveAttribute("href", "mailto:administracion@cataclub.local");
+  it("renders a 'Registrar primer pago' button for an INACTIVA membership", async () => {
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      ...PORTAL,
+      self: { ...PORTAL.self!, membership: { id: 5, estado: "INACTIVA", personaId: 9, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: null, fechaFin: null } },
+    });
+
+    render(<StudentPage />);
+
+    const button = await screen.findByRole("button", { name: /registrar primer pago/i });
+    expect(button).toBeInTheDocument();
+  });
+
+  it("renders a 'Renovar membresía' button when the membership is VENCIDA", async () => {
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      ...PORTAL,
+      self: { ...PORTAL.self!, membership: { id: 6, estado: "VENCIDA", personaId: 9, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: "Tarde", fechaFin: "2026-06-30" } },
+    });
+
+    render(<StudentPage />);
+
+    const heading = await screen.findByRole("heading", { name: /vencida/i });
+    expect(heading).toBeInTheDocument();
+    const button = await screen.findByRole("button", { name: /renovar membresía/i });
+    expect(button).toBeInTheDocument();
+  });
+
+  it("renders a 'Renovar membresía' button when ACTIVA but fechaFin already passed", async () => {
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      ...PORTAL,
+      self: { ...PORTAL.self!, membership: { id: 7, estado: "ACTIVA", personaId: 9, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: "Tarde", fechaFin: "2025-12-31" } },
+    });
+
+    render(<StudentPage />);
+
+    const heading = await screen.findByRole("heading", { name: /vencida/i });
+    expect(heading).toBeInTheDocument();
+    const button = await screen.findByRole("button", { name: /renovar membresía/i });
+    expect(button).toBeInTheDocument();
+  });
+
+  it("does NOT render a renovar button when ACTIVA and fechaFin is in the future", async () => {
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      ...PORTAL,
+      self: { ...PORTAL.self!, membership: { id: 8, estado: "ACTIVA", personaId: 9, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: "Tarde", fechaFin: "2999-12-31" } },
+    });
+
+    render(<StudentPage />);
+
+    await screen.findByRole("heading", { name: /activa/i });
+    expect(screen.queryByRole("button", { name: /renovar membresía/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /registrar primer pago/i })).not.toBeInTheDocument();
   });
 });

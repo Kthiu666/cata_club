@@ -157,18 +157,20 @@ describe("getNavLinksForRole", () => {
     expect(links).toEqual([{ href: "/", label: "Inicio" }]);
   });
 
-  it("returns representante link to Mi Cuenta", () => {
+  it("returns representante links to Mi Cuenta and Pagos", () => {
     const links = getNavLinksForRole("representante");
-    expect(links).toHaveLength(2);
+    expect(links).toHaveLength(3);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
     expect(links[1]).toEqual({ href: "/student", label: "Mi Cuenta" });
+    expect(links[2]).toEqual({ href: "/student/payments", label: "Pagos" });
   });
 
-  it("returns estudiante link to Mi Cuenta", () => {
+  it("returns estudiante links to Mi Cuenta and Pagos", () => {
     const links = getNavLinksForRole("estudiante");
-    expect(links).toHaveLength(2);
+    expect(links).toHaveLength(3);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
     expect(links[1]).toEqual({ href: "/student", label: "Mi Cuenta" });
+    expect(links[2]).toEqual({ href: "/student/payments", label: "Pagos" });
   });
 
   it("every recognized role gets Inicio as first link and at least one role-specific link", () => {

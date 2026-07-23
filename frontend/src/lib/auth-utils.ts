@@ -60,7 +60,10 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
       break;
     case "representante":
     case "estudiante":
-      links.push({ href: "/student", label: "Mi Cuenta" });
+      links.push(
+        { href: "/student", label: "Mi Cuenta" },
+        { href: "/student/payments", label: "Pagos" },
+      );
       break;
     case "unsupported":
       // No role-specific links — this account has no recognized backend

@@ -292,47 +292,50 @@ export default function AppShell({
       {/* Main content */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/*
-         * Slim utility strip — navigation is handled entirely by the
-         * sidebar now, so no visible page title/subtitle here. `eyebrow`/
-         * `title`/`subtitle` are still accepted (every AppShell caller
-         * passes them) and rendered as an sr-only heading for page
-         * semantics/accessibility, just not shown visually. The mobile menu
-         * toggle stays — it's the only way to open the sidebar drawer on
-         * small screens where it's hidden by default.
+         * Content header — visible page title + utility controls.
+         * Navigation is handled entirely by the sidebar, so this strip
+         * only carries context (page title) and actions (menu toggle on
+         * mobile, notification bell, search/command palette trigger).
          */}
-        <div className="flex items-center justify-end gap-2 border-b border-cata-border bg-cata-surface px-5 py-3 sm:px-8">
-          <p className="sr-only">{eyebrow}</p>
-          <h1 className="sr-only">{title}</h1>
-          {subtitle && <p className="sr-only">{subtitle}</p>}
-          <button
-            type="button"
-            onClick={(): void => setSidebarOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-cata-border px-3 py-2.5 text-sm font-medium text-cata-text/65 hover:bg-cata-bg lg:hidden"
-            aria-label="Abrir menú principal"
-          >
-            <Menu size={18} strokeWidth={1.5} aria-hidden="true" />
-            <span>Menú</span>
-          </button>
-          {session && (
-            <NotificationBell
-              notificaciones={notificaciones}
-              loadError={loadError}
-              onMarkRead={markRead}
-              variant="light"
-            />
-          )}
-          <button
-            type="button"
-            onClick={(): void => setPaletteOpen(true)}
-            aria-label="Buscar secciones"
-            className="flex items-center gap-2 rounded-xl border border-cata-border bg-cata-bg px-3.5 py-2.5 text-sm text-cata-text/50 transition-colors hover:border-cata-text/20"
-          >
-            <Search size={15} strokeWidth={1.5} aria-hidden="true" />
-            <span className="hidden sm:inline">Buscar una sección…</span>
-            <kbd className="ml-1 hidden rounded-md border border-cata-border bg-cata-surface px-1.5 py-0.5 text-[10px] font-semibold text-cata-text/45 sm:inline">
-              Ctrl K
-            </kbd>
-          </button>
+        <div className="flex items-center justify-between gap-4 border-b border-cata-border bg-cata-surface px-5 py-3 sm:px-8">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={(): void => setSidebarOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-cata-border px-3 py-2.5 text-sm font-medium text-cata-text/65 hover:bg-cata-bg lg:hidden"
+              aria-label="Abrir menú principal"
+            >
+              <Menu size={18} strokeWidth={1.5} aria-hidden="true" />
+              <span>Menú</span>
+            </button>
+            <div className="min-w-0">
+              {eyebrow && <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-cata-text/40">{eyebrow}</p>}
+              <h1 className="truncate text-base font-semibold text-cata-text sm:text-lg">{title}</h1>
+              {subtitle && <p className="truncate text-xs text-cata-text/50">{subtitle}</p>}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {session && (
+              <NotificationBell
+                notificaciones={notificaciones}
+                loadError={loadError}
+                onMarkRead={markRead}
+                variant="light"
+              />
+            )}
+            <button
+              type="button"
+              onClick={(): void => setPaletteOpen(true)}
+              aria-label="Buscar secciones"
+              className="flex items-center gap-2 rounded-xl border border-cata-border bg-cata-bg px-3.5 py-2.5 text-sm text-cata-text/50 transition-colors hover:border-cata-text/20"
+            >
+              <Search size={15} strokeWidth={1.5} aria-hidden="true" />
+              <span className="hidden sm:inline">Buscar una sección…</span>
+              <kbd className="ml-1 hidden rounded-md border border-cata-border bg-cata-surface px-1.5 py-0.5 text-[10px] font-semibold text-cata-text/45 sm:inline">
+                Ctrl K
+              </kbd>
+            </button>
+          </div>
         </div>
 
         <main className="flex-1 px-5 py-8 sm:px-8">{children}</main>

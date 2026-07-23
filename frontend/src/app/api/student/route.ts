@@ -1,22 +1,6 @@
 /**
- * GET /api/student?personaId=<id> — aggregates the logged-in persona's own
- * profile and their `representados` (dependents) into a `StudentPortalView`
- * (see src/lib/server/student-adapter.ts for the DTO translation and the two
- * backend gaps found while building this — membership/payment data is never
- * fetched, since no endpoint lets a student/representante read it).
- *
- * `personaId` is supplied by the client from its own session (`useAuth()`
- * already trusts that value everywhere else — e.g. src/app/student/enroll's
- * confirmation screen). Trusting it here introduces no new exposure: every
- * backend call below runs with the CALLER's own bearer token, and the
- * backend endpoints involved are already either ownership-checked
- * server-side (`/ranking/{id}/perfil`) or intentionally open to any
- * authenticated caller (`/personas/{id}`, `/personas/{id}/representados`,
- * `/asistencias/persona/{id}`) — see the router doc comments cited in
- * student-adapter.ts. This route cannot grant access the backend itself
- * wouldn't already allow.
+ * GET /api/student?personaId=<id> — aggregated portal for the logged-in persona.
  */
-
 import { NextRequest, NextResponse } from "next/server";
 import { setAuthCookies } from "@/lib/server/auth";
 import { backendFetchAuthed, passthroughBackendError } from "@/lib/server/backend-client";
@@ -24,12 +8,14 @@ import type { BackendPersonaFull } from "@/lib/server/members-adapter";
 import type { BackendAsistencia, BackendHorario } from "@/lib/server/attendance-adapter";
 import {
   buildMembershipPlans,
+  buildMembershipView,
   buildRankingView,
   buildRecentSessions,
   buildStudentProfileView,
   type BackendMembresiaPropia,
   type BackendPerfilRanking,
   type BackendTipoMembresiaCatalogo,
+  type MembershipView,
   type StudentPortalView,
   type StudentProfileView,
   type StudentRankingView,
@@ -44,15 +30,51 @@ async function fetchRanking(request: NextRequest, personaId: number): Promise<St
   return buildRankingView(body);
 }
 
+async function fetchMemberships(
+  request: NextRequest,
+  personaId: number,
+): Promise<BackendMembresiaPropia[]> {
+  const result = await backendFetchAuthed(request, `/membresias/mias?persona_id=${personaId}`);
+  if (!result.ok || !result.response.ok) return [];
+  return result.response.json() as Promise<BackendMembresiaPropia[]>;
+}
+
+/**
+ * Fetch the persona's own pagos (any status) and find the latest APROBADO
+ * pago's `fechaFin` for the given `membresiaId` — surfaces the real
+ * expiration date to the student so they can proactively renew even
+ * before the daily Celery task flips the Membresia.estado to VENCIDA.
+ */
+async function fetchLatestApprovedFechaFin(
+  request: NextRequest,
+  personaId: number,
+  membresiaId: number,
+): Promise<string | null> {
+  const result = await backendFetchAuthed(request, `/membresias/pagos/persona/${personaId}`);
+  if (!result.ok || !result.response.ok) return null;
+  const pagos = (await result.response.json()) as Array<{
+    estadoPago: string;
+    fechaFin: string;
+    membresiaId: number;
+  }>;
+  const approved = pagos
+    .filter((p) => p.estadoPago === "APROBADO" && p.membresiaId === membresiaId)
+    .map((p) => p.fechaFin)
+    .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+  return approved[0] ?? null;
+}
+
 async function fetchProfile(
   request: NextRequest,
   personaId: number,
   horariosById: Map<number, BackendHorario>,
+  tiposById: Map<number, BackendTipoMembresiaCatalogo>,
 ): Promise<StudentProfileView | null> {
-  const [personaResult, rankingView, historialResult] = await Promise.all([
+  const [personaResult, rankingView, historialResult, memberships] = await Promise.all([
     backendFetchAuthed(request, `/personas/${personaId}`),
     fetchRanking(request, personaId),
     backendFetchAuthed(request, `/asistencias/persona/${personaId}`),
+    fetchMemberships(request, personaId),
   ]);
 
   if (!personaResult.ok || !personaResult.response.ok) return null;
@@ -62,7 +84,16 @@ async function fetchProfile(
     historialResult.ok && historialResult.response.ok ? await historialResult.response.json() : [];
   const recentSessions = buildRecentSessions(historial, horariosById);
 
-  return buildStudentProfileView(persona, rankingView, recentSessions);
+  const activeMembership = memberships.find((m) => m.estado === "ACTIVA" || m.estado === "VENCIDA") ?? memberships[0] ?? null;
+  const membership = activeMembership
+    ? buildMembershipView(
+        activeMembership,
+        tiposById,
+        await fetchLatestApprovedFechaFin(request, personaId, activeMembership.id),
+      )
+    : null;
+
+  return buildStudentProfileView(persona, rankingView, recentSessions, membership);
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -72,15 +103,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ message: "personaId inválido." }, { status: 400 });
   }
 
-  const [representadosResult, horariosResult, tiposResult, membresiasResult] = await Promise.all([
+  const [representadosResult, horariosResult, tiposResult] = await Promise.all([
     backendFetchAuthed(request, `/personas/${personaId}/representados`),
     backendFetchAuthed(request, "/asistencias/horarios"),
     backendFetchAuthed(request, "/membresias/tipos"),
-    backendFetchAuthed(request, "/membresias/mias"),
   ]);
 
   if (!representadosResult.ok) {
-    return NextResponse.json({ message: "No se pudo cargar la cuenta." }, { status: representadosResult.status });
+    return NextResponse.json({ message: "No autorizado" }, { status: representadosResult.status });
   }
   if (!representadosResult.response.ok) {
     return passthroughBackendError(representadosResult.response, "No se pudo cargar la cuenta.");
@@ -93,19 +123,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const tipos: BackendTipoMembresiaCatalogo[] =
     tiposResult.ok && tiposResult.response.ok ? await tiposResult.response.json() : [];
-  const memberships: BackendMembresiaPropia[] =
-    membresiasResult.ok && membresiasResult.response.ok ? await membresiasResult.response.json() : [];
+  const tiposById = new Map(tipos.map((tipo) => [tipo.id, tipo]));
 
   const [self, ...representados] = await Promise.all([
-    fetchProfile(request, personaId, horariosById),
-    ...representadosPersonas.map((persona) => fetchProfile(request, persona.id, horariosById)),
+    fetchProfile(request, personaId, horariosById, tiposById),
+    ...representadosPersonas.map((persona) => fetchProfile(request, persona.id, horariosById, tiposById)),
   ]);
 
   const portal: StudentPortalView = {
     self,
     representados: representados.filter((profile): profile is StudentProfileView => profile !== null),
     membershipPlans: buildMembershipPlans(tipos),
-    memberships,
   };
 
   const response = NextResponse.json(portal);

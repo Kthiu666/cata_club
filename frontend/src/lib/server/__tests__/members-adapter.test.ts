@@ -90,6 +90,7 @@ describe("buildMemberAccounts", () => {
 
     const student = accounts.find((a) => a.id === "2")?.estudiantes[0];
     expect(student?.membresia).toEqual({
+      id: 100,
       tipo: "Mensual Adultos (18:00-20:00)",
       estado: "activa",
       fechaInicio: "2026-07-01",

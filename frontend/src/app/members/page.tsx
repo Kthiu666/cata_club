@@ -14,11 +14,13 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ContextualHelp from "@/components/ContextualHelp";
+import BackLink from "@/components/BackLink";
+import { useToast } from "@/contexts/ToastContext";
 import {
   Users,
   UserCheck,
@@ -34,28 +36,31 @@ import {
   Building2,
   AlertTriangle,
   Stethoscope,
-  Save,
   Loader2,
   Plus,
+  CreditCard,
   ToggleLeft,
   ToggleRight,
-  Tag,
   Pencil,
   X,
+  ChevronLeft,
+  ChevronRight,
+  Upload,
 } from "lucide-react";
-import { fetchMembers, asignarRol, quitarRol, cambiarEstadoCuenta, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia, actualizarPersona } from "@/services/api";
+import { fetchMembers, asignarRol, quitarRol, cambiarEstadoCuenta, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia, registrarPago, subirVoucherPago, actualizarPersona } from "@/services/api";
 import type { TipoMembresiaCatalogo } from "@/services/api";
 import { nivelToGrupo } from "@/app/groups/groups-page-utils";
 import { getUserInitials } from "@/lib/auth-utils";
 import {
   buildMemberStats,
   formatMembershipPeriod,
-  countActiveStudents,
   filterAccounts,
   accountMatchesFlag,
   countAccountsMatchingFlag,
   getAccountStatusBadge,
   getNivelLabelFromGrupo,
+  paginateAccounts,
+  getTotalPages,
   MEMBERS_AGGREGATE_LIMIT,
   MEMBERSHIP_STATUS_LABELS,
   MEMBERSHIP_STATUS_BADGE,
@@ -152,6 +157,7 @@ function calculateAge(fechaNacimiento: string | undefined): number | null {
 }
 
 function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElement {
+  const { showSuccess, showError } = useToast();
   const [showMedical, setShowMedical] = useState(false);
   const [showCreateMembership, setShowCreateMembership] = useState(false);
   const [tiposMembresia, setTiposMembresia] = useState<TipoMembresiaCatalogo[]>([]);
@@ -167,6 +173,21 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
   const [labelsSaving, setLabelsSaving] = useState(false);
   const [labelsError, setLabelsError] = useState<string | null>(null);
   const [labelsSuccess, setLabelsSuccess] = useState(false);
+
+  // --- Payment registration state — shown when the student already has a
+  //     membership (initial payment or renewal). The backend requires a
+  //     valid `membresia_id` so this only renders when `student.membresia`
+  //     is non-null (we surface its `id` now — see members-adapter.ts). ---
+  const [showCreatePayment, setShowCreatePayment] = useState(false);
+  const [paymentMonto, setPaymentMonto] = useState<string>("");
+  const [paymentTipo, setPaymentTipo] = useState<"EFECTIVO" | "TRANSFERENCIA">("TRANSFERENCIA");
+  const [paymentFechaInicio, setPaymentFechaInicio] = useState<string>("");
+  const [paymentFechaFin, setPaymentFechaFin] = useState<string>("");
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [paymentVoucherFile, setPaymentVoucherFile] = useState<File | null>(null);
+  const paymentFileInputRef = useRef<HTMLInputElement>(null);
 
   const membershipLabel = student.membresia
     ? MEMBERSHIP_STATUS_LABELS[student.membresia.estado]
@@ -185,25 +206,6 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
   const nivelDisplay = getNivelLabelFromGrupo(student.grupoId, grupos);
   const personaId = Number(student.id);
   const age = calculateAge(student.fechaNacimiento);
-
-  async function handleSaveLabels(): Promise<void> {
-    setLabelsSaving(true);
-    setLabelsError(null);
-    setLabelsSuccess(false);
-    try {
-      const beca = Number(porcentajeBeca);
-      await actualizarPersona(personaId, {
-        prioridadMunicipal,
-        porcentajeBeca: Number.isFinite(beca) && beca >= 0 && beca <= 100 ? beca : 0,
-        motivoBeca: motivoBeca.trim() || undefined,
-      });
-      setLabelsSuccess(true);
-    } catch (err) {
-      setLabelsError(err instanceof Error ? err.message : "No se pudieron guardar las etiquetas.");
-    } finally {
-      setLabelsSaving(false);
-    }
-  }
 
   async function handleOpenCreateMembership(): Promise<void> {
     setShowCreateMembership(true);
@@ -234,18 +236,111 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
       });
       setMembershipSuccess(true);
       setShowCreateMembership(false);
+      showSuccess("Membresía creada correctamente.");
     } catch (err) {
-      setMembershipError(
-        err instanceof Error ? err.message : "Error al crear la membresía.",
-      );
+      const message = err instanceof Error ? err.message : "Error al crear la membresía.";
+      setMembershipError(message);
+      showError(message);
     } finally {
       setMembershipLoading(false);
     }
   }
 
+  async function handleSaveLabels(): Promise<void> {
+    setLabelsSaving(true);
+    setLabelsError(null);
+    setLabelsSuccess(false);
+    try {
+      const beca = Number(porcentajeBeca);
+      await actualizarPersona(personaId, {
+        prioridadMunicipal,
+        porcentajeBeca: Number.isFinite(beca) && beca >= 0 && beca <= 100 ? beca : 0,
+        motivoBeca: motivoBeca.trim() || undefined,
+      });
+      setLabelsSuccess(true);
+    } catch (err) {
+      setLabelsError(err instanceof Error ? err.message : "No se pudieron guardar las etiquetas.");
+    } finally {
+      setLabelsSaving(false);
+    }
+  }
+
+  /**
+   * Open the inline "register payment" form. Pre-fills sensible defaults:
+   * monto from current membership, fechaInicio = today (or the day after
+   * the previous period's fechaFin for renewals), fechaFin = today + 1
+   * month. The admin can edit before submitting.
+   */
+  function handleOpenCreatePayment(): void {
+    setShowCreatePayment(true);
+    setPaymentError(null);
+    setPaymentSuccess(false);
+    setPaymentVoucherFile(null);
+    const monto = student.membresia?.monto ?? 0;
+    setPaymentMonto(monto > 0 ? String(monto) : "");
+    setPaymentTipo("TRANSFERENCIA");
+
+    const hoy = new Date();
+    const inicio = student.membresia?.fechaFin
+      ? new Date(student.membresia.fechaFin + "T12:00:00")
+      : hoy;
+    // Si la fecha_fin del pago anterior ya pasó, partir de hoy; si aún
+    // vigente, continuar desde el día siguiente al vencimiento.
+    const base = inicio.getTime() > hoy.getTime() ? inicio : hoy;
+    const fin = new Date(base);
+    fin.setMonth(fin.getMonth() + 1);
+    setPaymentFechaInicio(base.toISOString().slice(0, 10));
+    setPaymentFechaFin(fin.toISOString().slice(0, 10));
+  }
+
+  async function handleCreatePayment(): Promise<void> {
+    if (!student.membresia || !personaId) return;
+    const monto = Number(paymentMonto);
+    if (!monto || monto <= 0) {
+      setPaymentError("El monto debe ser mayor a 0.");
+      return;
+    }
+    if (!paymentFechaInicio || !paymentFechaFin) {
+      setPaymentError("Las fechas de inicio y fin son obligatorias.");
+      return;
+    }
+    if (paymentFechaInicio >= paymentFechaFin) {
+      setPaymentError("La fecha de inicio debe ser anterior a la fecha de fin.");
+      return;
+    }
+
+    setPaymentLoading(true);
+    setPaymentError(null);
+    try {
+      const nuevoPago = await registrarPago({
+        monto,
+        tipoPago: paymentTipo,
+        fechaInicio: paymentFechaInicio,
+        fechaFin: paymentFechaFin,
+        personaId,
+        membresiaId: student.membresia.id,
+      });
+
+      if (paymentVoucherFile && nuevoPago?.id) {
+        await subirVoucherPago(nuevoPago.id, paymentVoucherFile);
+      }
+
+      setPaymentSuccess(true);
+      setShowCreatePayment(false);
+      setPaymentVoucherFile(null);
+      showSuccess("Pago registrado. Quedó pendiente de validación.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Error al registrar el pago.";
+      setPaymentError(message);
+      showError(message);
+    } finally {
+      setPaymentLoading(false);
+    }
+  }
+
   return (
     <div className="rounded-xl border border-cata-border bg-white p-4">
-      {/* Identity + tags */}
+      {/* Identity */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cata-bg text-sm font-bold text-cata-text/70">
@@ -258,7 +353,6 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
             {age !== null && <p className="text-xs text-cata-text/55">{age} años</p>}
           </div>
         </div>
-
         {(student.prioridadMunicipal || (student.porcentajeBeca ?? 0) > 0) && (
           <div className="flex flex-wrap items-center gap-1.5">
             {student.prioridadMunicipal && (
@@ -389,14 +483,141 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
           </button>
         ))}
 
+      {/* Register payment (only when the student already has a membership):
+          initial payment (Membresia INACTIVA) or a renewal (VENCIDA, or
+          APROBADO whose fecha_fin already passed). The backend endpoint
+          POST /membresias/pagos creates the Pago in PENDIENTE_VALIDACION,
+          after which the student can upload their transfer voucher. */}
+      {student.membresia &&
+        (paymentSuccess ? (
+          <p className="mt-2 flex items-center gap-1 text-xs text-cata-state-ok">
+            <CheckCircle2 size={11} strokeWidth={2} aria-hidden="true" />
+            Pago registrado. Quedó pendiente de validación.
+          </p>
+        ) : showCreatePayment ? (
+          <div className="mt-2.5 space-y-2 rounded-lg bg-cata-bg/60 p-2.5">
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-[11px] font-medium text-cata-text/65">
+                Monto
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={paymentMonto}
+                  onChange={(e) => setPaymentMonto(e.target.value)}
+                  className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+                  placeholder="0.00"
+                />
+              </label>
+              <label className="text-[11px] font-medium text-cata-text/65">
+                Método
+                <select
+                  value={paymentTipo}
+                  onChange={(e) => {
+                    const val = e.target.value as "EFECTIVO" | "TRANSFERENCIA";
+                    setPaymentTipo(val);
+                    if (val !== "TRANSFERENCIA") setPaymentVoucherFile(null);
+                  }}
+                  className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+                >
+                  <option value="TRANSFERENCIA">Transferencia</option>
+                  <option value="EFECTIVO">Efectivo</option>
+                </select>
+              </label>
+              <label className="text-[11px] font-medium text-cata-text/65">
+                Inicio
+                <input
+                  type="date"
+                  value={paymentFechaInicio}
+                  onChange={(e) => setPaymentFechaInicio(e.target.value)}
+                  className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+                />
+              </label>
+              <label className="text-[11px] font-medium text-cata-text/65">
+                Fin
+                <input
+                  type="date"
+                  value={paymentFechaFin}
+                  onChange={(e) => setPaymentFechaFin(e.target.value)}
+                  className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+                />
+              </label>
+            </div>
+            {paymentTipo === "TRANSFERENCIA" && (
+              <label className="block text-[11px] font-medium text-cata-text/65">
+                Comprobante de pago
+                <div className="mt-0.5 flex items-center gap-2">
+                  <input
+                    ref={paymentFileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,application/pdf"
+                    onChange={(e) => setPaymentVoucherFile(e.target.files?.[0] ?? null)}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => paymentFileInputRef.current?.click()}
+                    className="flex items-center gap-1.5 rounded-lg border border-dashed border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text/65 transition-colors hover:border-cata-red/30 hover:text-cata-text"
+                  >
+                    <Upload size={11} strokeWidth={1.5} aria-hidden="true" />
+                    {paymentVoucherFile ? paymentVoucherFile.name : "Seleccionar archivo"}
+                  </button>
+                  {paymentVoucherFile && (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentVoucherFile(null)}
+                      className="text-[10px] text-cata-text/45 hover:text-cata-red"
+                    >
+                      Quitar
+                    </button>
+                  )}
+                </div>
+                <span className="mt-0.5 block text-[10px] text-cata-text/40">PDF, JPG o PNG</span>
+              </label>
+            )}
+            {paymentError && <p className="text-xs text-cata-red">{paymentError}</p>}
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => void handleCreatePayment()}
+                disabled={paymentLoading || !paymentMonto || !paymentFechaInicio || !paymentFechaFin}
+                className="inline-flex items-center gap-1 rounded-lg bg-cata-red px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-cata-red/80 disabled:opacity-50"
+              >
+                {paymentLoading ? (
+                  <Loader2 size={11} className="animate-spin" />
+                ) : (
+                  <CreditCard size={11} strokeWidth={1.5} />
+                )}
+                Registrar pago
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowCreatePayment(false); setPaymentVoucherFile(null); }}
+                className="rounded-lg border border-cata-border px-2.5 py-1 text-xs text-cata-text/65 transition-colors hover:bg-cata-surface"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleOpenCreatePayment}
+            className="mt-2.5 inline-flex items-center gap-1 rounded-lg bg-cata-red/15 px-2.5 py-1 text-xs font-medium text-cata-red transition-colors hover:bg-cata-red/25"
+          >
+            <CreditCard size={11} strokeWidth={1.5} aria-hidden="true" />
+            Registrar pago
+          </button>
+        ))}
+
       {/* Actions */}
       <div className="mt-3 flex flex-wrap gap-2 border-t border-cata-border pt-3">
         <button
           type="button"
           onClick={() => setShowLabels((v) => !v)}
-          className="inline-flex items-center gap-1 rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1 text-[11px] font-medium text-cata-text transition-colors hover:bg-cata-bg"
+          className="inline-flex items-center gap-1 rounded-lg bg-cata-red/15 px-2.5 py-1 text-[11px] font-medium text-cata-red transition-colors hover:bg-cata-red/25"
         >
-          <Tag size={11} strokeWidth={1.5} aria-hidden="true" />
+          <Pencil size={11} strokeWidth={1.5} aria-hidden="true" />
           Etiquetas
         </button>
         <button
@@ -410,70 +631,58 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
       </div>
 
       {showLabels && (
-        <div className="mt-3 rounded-xl border border-cata-border bg-cata-bg/60 p-3">
-          <h4 className="mb-2.5 flex items-center gap-1.5 text-xs font-bold text-cata-text">
-            <Tag size={12} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-            Etiquetas
-          </h4>
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            <label className="flex items-center gap-2 rounded-lg border border-cata-border bg-white px-3 py-2 text-xs text-cata-text">
-              <input
-                type="checkbox"
-                checked={prioridadMunicipal}
-                onChange={(e) => setPrioridadMunicipal(e.target.checked)}
-                className="h-3.5 w-3.5 rounded border-cata-border text-cata-red focus:ring-cata-red"
-              />
-              Prioridad municipal
-            </label>
-            <div>
-              <label htmlFor={`beca-${student.id}`} className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-cata-text/50">
-                Beca (%)
-              </label>
-              <input
-                id={`beca-${student.id}`}
-                type="number"
-                min={0}
-                max={100}
-                value={porcentajeBeca}
-                onChange={(e) => setPorcentajeBeca(e.target.value)}
-                className="input-field w-full py-1.5 text-xs"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label htmlFor={`motivo-beca-${student.id}`} className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-cata-text/50">
-                Motivo de la beca
-              </label>
-              <input
-                id={`motivo-beca-${student.id}`}
-                type="text"
-                value={motivoBeca}
-                onChange={(e) => setMotivoBeca(e.target.value)}
-                placeholder="Ej: Deportista destacado"
-                className="input-field w-full py-1.5 text-xs"
-              />
-            </div>
-          </div>
-          <div className="mt-2.5 flex items-center gap-3">
+        <div className="mt-2.5 space-y-2 rounded-lg bg-cata-bg/60 p-2.5">
+          <label className="flex items-center gap-2 text-xs text-cata-text">
+            <input
+              type="checkbox"
+              checked={prioridadMunicipal}
+              onChange={(e) => setPrioridadMunicipal(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-cata-border text-cata-red focus:ring-cata-red"
+            />
+            Prioridad municipal
+          </label>
+          <label className="block text-[11px] font-medium text-cata-text/65">
+            Porcentaje de beca (%)
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              value={porcentajeBeca}
+              onChange={(e) => setPorcentajeBeca(e.target.value)}
+              className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+            />
+          </label>
+          <label className="block text-[11px] font-medium text-cata-text/65">
+            Motivo de beca
+            <input
+              type="text"
+              value={motivoBeca}
+              onChange={(e) => setMotivoBeca(e.target.value)}
+              className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+              placeholder="Opcional"
+            />
+          </label>
+          {labelsError && <p className="text-xs text-cata-red">{labelsError}</p>}
+          {labelsSuccess && (
+            <p className="text-xs text-cata-state-ok">Etiquetas guardadas.</p>
+          )}
+          <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
               onClick={() => void handleSaveLabels()}
               disabled={labelsSaving}
-              className="btn-primary inline-flex items-center gap-1.5 py-1.5 text-xs disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-lg bg-cata-red px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-cata-red/80 disabled:opacity-50"
             >
-              {labelsSaving ? (
-                <Loader2 size={12} className="animate-spin" aria-hidden="true" />
-              ) : (
-                <Save size={12} strokeWidth={1.5} aria-hidden="true" />
-              )}
               {labelsSaving ? "Guardando..." : "Guardar etiquetas"}
             </button>
-            {labelsError && <p className="text-xs text-cata-red" role="alert">{labelsError}</p>}
-            {labelsSuccess && (
-              <p className="flex items-center gap-1 text-xs text-cata-state-ok" role="status">
-                <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
-                Etiquetas guardadas.
-              </p>
-            )}
+            <button
+              type="button"
+              onClick={() => setShowLabels(false)}
+              className="rounded-lg border border-cata-border px-2.5 py-1 text-xs text-cata-text/65 transition-colors hover:bg-cata-surface"
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       )}
@@ -517,13 +726,13 @@ function AccountRow({
   editModalOpen,
   onToggleEditModal,
 }: AccountRowProps): React.ReactElement {
+  const { showSuccess, showError } = useToast();
   const [roles, setRoles] = useState<BackendTipoRol[]>([]);
   const [activo, setActivo] = useState(true);
   const [roleLoading, setRoleLoading] = useState<BackendTipoRol | null>(null);
   const [stateLoading, setStateLoading] = useState(false);
   const [roleError, setRoleError] = useState<string | null>(null);
   const [stateError, setStateError] = useState<string | null>(null);
-  const activeCount = countActiveStudents(account);
   const statusBadge = getAccountStatusBadge(account);
   const personaId = Number(account.id);
 
@@ -536,9 +745,11 @@ function AccountRow({
       if (hasRole) {
         await quitarRol(personaId, role);
         setRoles((prev) => prev.filter((r) => r !== role));
+        showSuccess(`Rol ${ROLE_LABELS[role]} quitado correctamente.`);
       } else {
         await asignarRol(personaId, role);
         setRoles((prev) => [...prev, role]);
+        showSuccess(`Rol ${ROLE_LABELS[role]} asignado correctamente.`);
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "No se pudo actualizar el rol.";
@@ -549,6 +760,7 @@ function AccountRow({
         setRoles((prev) => prev.filter((r) => r !== role));
       } else {
         setRoleError(message);
+        showError(message);
       }
     } finally {
       setRoleLoading(null);
@@ -563,8 +775,11 @@ function AccountRow({
     try {
       await cambiarEstadoCuenta(personaId, next);
       setActivo(next);
+      showSuccess(next ? "Cuenta activada correctamente." : "Cuenta desactivada correctamente.");
     } catch (error: unknown) {
-      setStateError(error instanceof Error ? error.message : "No se pudo cambiar el estado.");
+      const message = error instanceof Error ? error.message : "No se pudo cambiar el estado.";
+      setStateError(message);
+      showError(message);
     } finally {
       setStateLoading(false);
     }
@@ -671,29 +886,24 @@ function AccountRow({
             {account.estudiantes.length}
           </span>
         </td>
-        <td className="hidden px-4 py-3.5 text-center sm:table-cell">
-          <span className="text-sm font-medium text-cata-text">
-            {activeCount}
+        <td className="hidden px-4 py-3.5 sm:table-cell">
+          <span className={`badge ${statusBadge.className}`}>
+            {statusBadge.label}
           </span>
         </td>
-        <td className="hidden px-4 py-3.5 sm:table-cell">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`badge ${statusBadge.className}`}>
-              {statusBadge.label}
-            </span>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.currentTarget.focus();
-                onToggleEditModal();
-              }}
-              className="inline-flex items-center gap-1 rounded-lg border border-cata-border p-1.5 text-cata-text/50 transition-colors hover:bg-cata-red/10 hover:text-cata-red"
-              aria-label="Editar"
-              title="Editar miembro"
-            >
-              <Pencil size={13} strokeWidth={1.5} aria-hidden="true" />
-            </button>
-          </div>
+        <td className="hidden px-4 py-3.5 text-right sm:table-cell">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.currentTarget.focus();
+              onToggleEditModal();
+            }}
+            className="inline-flex items-center gap-1 rounded-lg border border-cata-border p-1.5 text-cata-text/50 transition-colors hover:bg-cata-red/10 hover:text-cata-red"
+            aria-label="Editar"
+            title="Editar miembro"
+          >
+            <Pencil size={13} strokeWidth={1.5} aria-hidden="true" />
+          </button>
         </td>
       </tr>
       {editModalOpen &&
@@ -898,6 +1108,7 @@ export default function MembersPage(): React.ReactElement {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   const toggleEditModal = useCallback((accountId: string) => {
     setEditingAccountId((prev) => (prev === accountId ? null : accountId));
@@ -923,11 +1134,23 @@ export default function MembersPage(): React.ReactElement {
     void loadMembers();
   }, [loadMembers]);
 
+  // Reset to page 1 whenever the search term or filter chip changes, so the
+  // paginator never gets stuck on a stale/out-of-range page.
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, activeFlag]);
+
   const stats = buildMemberStats(accounts);
   const filteredAccounts = filterAccounts(accounts, searchTerm).filter((account) =>
     accountMatchesFlag(account, activeFlag),
   );
   const aggregateIsCapped = personasCapped;
+
+  const totalPages = useMemo(() => getTotalPages(filteredAccounts.length), [filteredAccounts]);
+  const paginatedAccounts = useMemo(
+    () => paginateAccounts(filteredAccounts, page),
+    [filteredAccounts, page],
+  );
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
@@ -935,6 +1158,8 @@ export default function MembersPage(): React.ReactElement {
         eyebrow="Gestión de Miembros"
         title="Miembros del Club"
       >
+        <BackLink href="/dashboard" label="Volver al Panel" />
+
         {error && (
           <div
             className="mb-6 flex items-center gap-2 rounded-xl border border-cata-red/30 bg-cata-red/10 px-4 py-3 text-sm text-cata-red"
@@ -1053,12 +1278,14 @@ export default function MembersPage(): React.ReactElement {
                     <th className="px-4 py-3 font-medium">Responsable de pago</th>
                     <th className="hidden px-4 py-3 font-medium sm:table-cell">Contacto</th>
                     <th className="hidden px-4 py-3 text-center font-medium sm:table-cell">Estudiantes</th>
-                    <th className="hidden px-4 py-3 text-center font-medium sm:table-cell">Activos</th>
-                    <th className="hidden px-4 py-3 font-medium sm:table-cell">Estado</th>
+                    <th className="hidden px-4 py-3 font-medium sm:table-cell">Estado de membresía</th>
+                    <th className="hidden px-4 py-3 text-right font-medium sm:table-cell">
+                      <span className="sr-only">Editar</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cata-border">
-                  {filteredAccounts.map((account) => (
+                  {paginatedAccounts.map((account) => (
                     <AccountRow
                       key={account.id}
                       account={account}
@@ -1071,7 +1298,37 @@ export default function MembersPage(): React.ReactElement {
               </table>
             </div>
           </div>
-        ) : (
+        ) : null}
+
+        {!loading && filteredAccounts.length > 0 && totalPages > 1 && (
+          <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
+            <p className="text-sm font-semibold text-cata-text">
+              Página {page} de {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="btn-secondary px-4 py-2 text-xs"
+              >
+                <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+                Anterior
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="btn-secondary px-4 py-2 text-xs"
+              >
+                Siguiente
+                <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!loading && filteredAccounts.length === 0 && (
           /* Empty state */
           <div className="card flex flex-col items-center py-16 text-center">
             <Users

@@ -627,6 +627,7 @@ describe("accountMatchesFlag", () => {
             fechaInicio: "2026-01-01",
             fechaFin: "2026-02-01",
             monto: 85,
+            id: 42,
           },
         },
       ],

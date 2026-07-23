@@ -3,12 +3,13 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.dominio.modelos import Membresia, TipoMembresia, Pago, ComprobantePago, Persona
-from app.dominio.enums import EstadoPago, EstadoMembresia
+from app.dominio.modelos import Membresia, TipoMembresia, Pago, ComprobantePago, Notificacion
+from app.dominio.enums import EstadoPago, EstadoMembresia, TipoNotificacion
 from app.dominio.excepciones import EntidadNoEncontrada, OperacionInvalida, PermisosInsuficientes
 from app.infraestructura.repositorios.persona_repositorio import PersonaRepositorio
 from app.infraestructura.repositorios.membresia_repositorio import MembresiaRepositorio, TipoMembresiaRepositorio
 from app.infraestructura.repositorios.pago_repositorio import PagoRepositorio, ComprobantePagoRepositorio
+from app.infraestructura.repositorios.ranking_repositorio import NotificacionRepositorio
 from app.servicios_negocio.persona_servicio import _calcular_edad
 from app.presentacion.schemas.membresia_pago_schemas import (
     TipoMembresiaCreateDTO, MembresiaCreateDTO, PagoCreateDTO, PagoValidarDTO, ComprobantePagoCreateDTO,
@@ -165,6 +166,7 @@ class PagoServicio:
         self.repo_comprobante = ComprobantePagoRepositorio(db)
         self.repo_membresia = MembresiaRepositorio(db)
         self.repo_persona = PersonaRepositorio(db)
+        self.repo_notificacion = NotificacionRepositorio(db)
 
     def registrar_pago(
         self,
@@ -330,14 +332,24 @@ class PagoServicio:
             self.db.flush()
 
             self._aplicar_regla_familiar_si_corresponde(membresia, pago)
-            self._aplicar_beca_si_corresponde(membresia, persona=pago.persona)
 
             self.repo.guardar_cambios(pago)
             self._disparar_generacion_comprobante_pdf(pago_id)
+            self._crear_notificacion_pago(
+                pago=pago,
+                tipo=TipoNotificacion.PAGO_APROBADO,
+                mensaje=f"Tu pago de ${pago.monto} fue aprobado. Tu membresía está activa.",
+            )
         else:
             # EstadoPago.RECHAZADO: el estado de Membresia no cambia; el rechazo
             # queda registrado únicamente en Pago.estado_pago y Pago.motivo_rechazo.
             self.repo.guardar_cambios(pago)
+            motivo = f": {pago.motivo_rechazo}" if pago.motivo_rechazo else ""
+            self._crear_notificacion_pago(
+                pago=pago,
+                tipo=TipoNotificacion.PAGO_RECHAZADO,
+                mensaje=f"Tu pago fue rechazado{motivo}.",
+            )
         return pago
 
     # --- E04-RF002: gratuidad del 4to miembro -------------------------------
@@ -368,21 +380,25 @@ class PagoServicio:
             membresia.es_gratuidad_familiar = True
         return None
 
-    # --- E01-RF011: beca/descuento -------------------------------------------
-    def _aplicar_beca_si_corresponde(self, membresia: Membresia, persona: Persona) -> None:
-        """
-        Aplica el porcentaje de beca/descuento de la persona (E01-RF011) sobre
-        el monto ya calculado. Se ejecuta DESPUÉS de la regla familiar (E04-RF002)
-        y respeta su resultado: si la gratuidad familiar ya dejó el monto en 0,
-        no hay nada que descontar (0 * cualquier% sigue siendo 0), así que no
-        hace falta un `if` explícito de exclusión -- pero se documenta para que
-        quede claro que el orden de aplicación importa y es intencional.
-        """
-        if not persona.porcentaje_beca:
-            return None
-        factor = (Decimal(100) - Decimal(persona.porcentaje_beca)) / Decimal(100)
-        membresia.monto_aplicado = (membresia.monto_aplicado * factor).quantize(Decimal("0.01"))
-        return None
+    def _crear_notificacion_pago(self, pago: Pago, tipo: TipoNotificacion, mensaje: str) -> None:
+        persona = self.repo_persona.obtener_por_id(pago.persona_id)
+        if not persona:
+            return
+        notif = Notificacion(
+            tipo=tipo,
+            mensaje=mensaje,
+            persona_id=persona.id,
+            entidad_relacionada_id=pago.id,
+        )
+        self.repo_notificacion.crear(notif)
+        if persona.representante_id:
+            notif_rep = Notificacion(
+                tipo=tipo,
+                mensaje=f"Para {persona.nombres} {persona.apellidos}: {mensaje}",
+                persona_id=persona.representante_id,
+                entidad_relacionada_id=pago.id,
+            )
+            self.repo_notificacion.crear(notif_rep)
 
     def adjuntar_comprobante(self, pago_id: int, datos: ComprobantePagoCreateDTO) -> ComprobantePago:
         pago = self.obtener_pago(pago_id)

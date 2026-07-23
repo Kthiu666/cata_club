@@ -70,6 +70,7 @@ export interface StudentProfileView {
   fechaNacimiento: string;
   ranking: StudentRankingView;
   recentSessions: StudentSessionView[];
+  membership: MembershipView | null;
 }
 
 /**
@@ -101,6 +102,42 @@ export interface BackendMembresiaPropia {
   id: number;
   estado: string;
   personaId: number;
+  montoAplicado?: string;
+  tipoMembresiaId?: number;
+}
+
+/** Enriched membership view for a single persona — built server-side. */
+export interface MembershipView {
+  id: number;
+  estado: string;
+  personaId: number;
+  montoAplicado: string | null;
+  categoria: string | null;
+  modalidad: string | null;
+  franjaHoraria: string | null;
+  /** End of the last approved payment period — derived from the most
+   *  recent Pago.fecha_fin. Surfaced so the student can see when their
+   *  membership expires and proactively renew (`estado` alone lies when
+   *  no transition to VENCIDA has run yet). */
+  fechaFin: string | null;
+}
+
+export function buildMembershipView(
+  mem: BackendMembresiaPropia,
+  tiposById: Map<number, BackendTipoMembresiaCatalogo>,
+  fechaFin: string | null = null,
+): MembershipView {
+  const tipo = mem.tipoMembresiaId != null ? tiposById.get(mem.tipoMembresiaId) : undefined;
+  return {
+    id: mem.id,
+    estado: mem.estado,
+    personaId: mem.personaId,
+    montoAplicado: mem.montoAplicado ?? null,
+    categoria: tipo?.categoria ?? null,
+    modalidad: tipo?.modalidad ?? null,
+    franjaHoraria: tipo?.franjaHoraria ?? null,
+    fechaFin,
+  };
 }
 
 export function buildMembershipPlans(tipos: BackendTipoMembresiaCatalogo[]): MembershipPlanView[] {
@@ -114,12 +151,9 @@ export function buildMembershipPlans(tipos: BackendTipoMembresiaCatalogo[]): Mem
 }
 
 export interface StudentPortalView {
-  /** null only when the self-persona lookup itself failed (not an auth/role concern — see route handler). */
   self: StudentProfileView | null;
   representados: StudentProfileView[];
-  /** Real `TipoMembresia` catalog (`GET /membresias/tipos`, open to any authenticated caller) — used to show real plan options instead of the old hardcoded `membershipPlans` array. */
   membershipPlans: MembershipPlanView[];
-  memberships: BackendMembresiaPropia[];
 }
 
 // ---------------------------------------------------------------------------
@@ -150,6 +184,7 @@ export function buildStudentProfileView(
   persona: BackendPersonaFull,
   ranking: StudentRankingView,
   recentSessions: StudentSessionView[],
+  membership: MembershipView | null = null,
 ): StudentProfileView {
   return {
     personaId: String(persona.id),
@@ -158,6 +193,7 @@ export function buildStudentProfileView(
     fechaNacimiento: persona.fechaNacimiento,
     ranking,
     recentSessions,
+    membership,
   };
 }
 
