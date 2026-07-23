@@ -117,6 +117,11 @@ def _disparar_notificacion_vencimiento(
             db.add(notif_rep)
 
         db.commit()
+        db.refresh(persona, ["usuario"])
+
+    if not persona.usuario:
+        logger.warning("persona_id=%s no tiene usuario vinculado — email omitido", persona.id)
+        return
 
     try:
         from app.infraestructura.notificaciones_servicio import ServicioNotificaciones
