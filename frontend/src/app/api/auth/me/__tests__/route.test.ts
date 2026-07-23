@@ -2,11 +2,10 @@
  * Route Handler Tests — GET/PATCH /api/auth/me (Issue #36: perfil propio)
  *
  * GET proxies backend GET /auth/me (now includes telefono). PATCH proxies
- * backend PATCH /auth/me; when the backend reissues tokens (only happens if
- * correo changed), this route must call setAuthCookies to rotate the HttpOnly
- * cookies AND strip the raw token fields out of the JSON body before it
- * reaches browser JS — mirrors the login route's setAuthCookies pattern and
- * session-route's "never leak a token in JSON" contract.
+ * backend PATCH /auth/me for telefono only — correo is never accepted or
+ * forwarded (it's the JWT `sub` claim; self-service editing was removed by
+ * design). The accessToken/refreshToken stripping in the route is defensive
+ * leftover from when correo changes used to reissue tokens.
  *
  * @vitest-environment node
  */
@@ -118,7 +117,7 @@ describe("PATCH /api/auth/me", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it("forwards correo/telefono to backend PATCH /auth/me", async () => {
+  it("forwards telefono to backend PATCH /auth/me", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse({ ...perfil, telefono: "0987654321" }));
 
     const access = makeJwt(3600);
@@ -140,29 +139,28 @@ describe("PATCH /api/auth/me", () => {
     );
   });
 
-  it("sets HttpOnly cookies and strips tokens from the JSON body when correo changes", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      jsonResponse({
-        ...perfil,
-        correo: "nueva@cataclub.com",
-        accessToken: "new-access-token",
-        refreshToken: "new-refresh-token",
-      }),
-    );
+  it("never forwards a correo field, even if present in the request body", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse({ ...perfil, telefono: "0987654321" }));
 
     const access = makeJwt(3600);
-    const response = await PATCH(
-      patchRequest({ correo: "nueva@cataclub.com" }, `${ACCESS_TOKEN_COOKIE}=${access}`),
+    await PATCH(
+      patchRequest(
+        { correo: "nueva@cataclub.com", telefono: "0987654321" },
+        `${ACCESS_TOKEN_COOKIE}=${access}`,
+      ),
     );
-    const body = await response.json();
 
-    expect(response.status).toBe(200);
-    expect(body.correo).toBe("nueva@cataclub.com");
-    expect(response.cookies.get(ACCESS_TOKEN_COOKIE)?.value).toBe("new-access-token");
-    expect(JSON.stringify(body)).not.toMatch(/token/i);
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:8000/api/v1/auth/me",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ telefono: "0987654321" }),
+      }),
+    );
   });
 
-  it("does not set the access-token cookie when telefono-only change carries no reissued tokens", async () => {
+  it("does not set the access-token cookie on an ordinary telefono update", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse({ ...perfil, telefono: "0987654321" }));
 
     const access = makeJwt(3600);
@@ -172,18 +170,5 @@ describe("PATCH /api/auth/me", () => {
 
     expect(response.status).toBe(200);
     expect(response.cookies.get(ACCESS_TOKEN_COOKIE)).toBeUndefined();
-  });
-
-  it("propagates the backend's duplicate-correo rejection", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      jsonResponse({ message: "El correo ya está en uso." }, 400),
-    );
-
-    const access = makeJwt(3600);
-    const response = await PATCH(
-      patchRequest({ correo: "duplicado@cataclub.com" }, `${ACCESS_TOKEN_COOKIE}=${access}`),
-    );
-
-    expect(response.status).toBe(400);
   });
 });

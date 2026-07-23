@@ -8,11 +8,13 @@
  * - ADMINISTRADOR/ENTRENADOR ("tesorero" falls through to this same branch
  *   too — it's a dead backend role no real account can carry anymore, see
  *   prior design decision) fetch their own identity via `fetchMiPerfil()`
- *   (`GET /api/auth/me`). Nombres, apellidos, and roles are read-only;
- *   correo/teléfono are edited inline (`actualizarMiPerfil()`, `PATCH
- *   /api/auth/me`) from the "Información personal" column. "Cambiar
- *   contraseña" (in "Estado de cuenta") reuses the existing unauthenticated
- *   recovery-email flow against the user's own known correo.
+ *   (`GET /api/auth/me`). Nombres, apellidos, roles, and correo are
+ *   read-only; teléfono is edited inline (`actualizarMiPerfil()`, `PATCH
+ *   /api/auth/me`) from the "Información personal" column. Correo is
+ *   intentionally NOT editable here — it's the JWT `sub` claim, and
+ *   self-service editing was removed by design (see auth_servicio.py).
+ *   "Cambiar contraseña" (in "Estado de cuenta") reuses the existing
+ *   unauthenticated recovery-email flow against the user's own known correo.
  *
  * - ALUMNO / representante-linked accounts fetch `fetchStudentPortal()` —
  *   the same data `/student` uses. The hero card summarizes the caller's
@@ -43,6 +45,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/components/shell/AppShell";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   fetchMiPerfil,
@@ -112,6 +115,12 @@ function describeMembership(
 }
 
 const NO_MEMBERSHIP_FALLBACK = "No disponible — consulte con administración";
+
+// Mirrors the backend's own allow-list (`TIPOS_MIME_PERMITIDOS_FOTO_PERFIL` /
+// `TAMANO_MAXIMO_FOTO_PERFIL_BYTES` in auth_servicio.py) so an invalid file
+// is rejected immediately, without a round trip to the server.
+const TIPOS_FOTO_PERFIL_PERMITIDOS = new Set(["image/jpeg", "image/png"]);
+const TAMANO_MAXIMO_FOTO_PERFIL_BYTES = 5 * 1024 * 1024;
 
 type StaffLoadState =
   | { status: "loading" }
@@ -238,7 +247,6 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
   // ---- Staff-only inline edit / change-password state. Always declared
   // (hooks can't be conditional) — simply unused on the student branch. ----
   const [editing, setEditing] = useState(false);
-  const [correo, setCorreo] = useState(props.kind === "staff" ? props.perfil.correo : "");
   const [telefono, setTelefono] = useState(props.kind === "staff" ? props.perfil.telefono : "");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -265,9 +273,18 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
     e.target.value = ""; // reset so re-selecting the same file re-triggers onChange
     if (!archivo) return;
 
+    setFotoSuccess(false);
+    if (!TIPOS_FOTO_PERFIL_PERMITIDOS.has(archivo.type)) {
+      setFotoError("Formato no válido. Solo se permiten imágenes JPG o PNG.");
+      return;
+    }
+    if (archivo.size > TAMANO_MAXIMO_FOTO_PERFIL_BYTES) {
+      setFotoError("La imagen supera el tamaño máximo permitido (5 MB).");
+      return;
+    }
+
     setUploadingFoto(true);
     setFotoError(null);
-    setFotoSuccess(false);
     try {
       const updated = await subirFotoPerfil(archivo);
       if (props.kind === "staff") {
@@ -285,7 +302,6 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
 
   function startEditing(): void {
     if (props.kind !== "staff") return;
-    setCorreo(props.perfil.correo);
     setTelefono(props.perfil.telefono);
     setSaveError(null);
     setSaveSuccess(false);
@@ -294,7 +310,6 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
 
   function cancelEditing(): void {
     if (props.kind !== "staff") return;
-    setCorreo(props.perfil.correo);
     setTelefono(props.perfil.telefono);
     setSaveError(null);
     setEditing(false);
@@ -307,17 +322,15 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
     setSaveError(null);
     setSaveSuccess(false);
     try {
-      const updated = await actualizarMiPerfil({
-        correo: correo.trim(),
-        telefono: telefono.trim(),
-      });
+      // Correo is intentionally never sent here — it's the JWT `sub` claim
+      // and self-service editing was removed by design (see auth_servicio.py).
+      const updated = await actualizarMiPerfil({ telefono: telefono.trim() });
       props.onSaved(updated);
       setEditing(false);
       setSaveSuccess(true);
     } catch (error: unknown) {
       // Revert — a rejected edit must never be left displayed as if it were
       // persisted (no silent data loss, per spec).
-      setCorreo(perfil.correo);
       setTelefono(perfil.telefono);
       setEditing(false);
       setSaveError(toErrorMessage(error, "No se pudo guardar los cambios."));
@@ -363,22 +376,15 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
   const membership = props.kind === "student" && self ? describeMembership(props.data.memberships, self.personaId) : null;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 py-8">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-cata-text">Mi cuenta</h1>
-          <p className="mt-1 text-sm text-cata-text/65">
-            Gestiona tu información y consulta tu estado en el sistema.
-          </p>
-        </div>
-        {props.kind === "student" && (
+    <div className="mx-auto w-full max-w-6xl space-y-6">
+      {props.kind === "student" && (
+        <div className="flex justify-end">
           <Link href="/student" className="btn-secondary inline-flex items-center gap-2 text-sm">
             Ver portal completo
             <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
           </Link>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Hero card */}
       <div data-testid="profile-hero" className="card relative overflow-hidden p-6 sm:p-8">
@@ -518,27 +524,13 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
             </div>
 
             <div>
-              <dt>
-                <label
-                  htmlFor="perfil-correo"
-                  className="mb-1 flex items-center gap-1.5 text-xs font-medium text-cata-text/65"
-                >
-                  <Mail size={13} strokeWidth={1.5} aria-hidden="true" />
-                  Correo electrónico
-                </label>
+              {/* Correo is never editable here — it's the JWT `sub` claim,
+                  and self-service editing was intentionally removed. */}
+              <dt className="mb-1 flex items-center gap-1.5 text-xs font-medium text-cata-text/65">
+                <Mail size={13} strokeWidth={1.5} aria-hidden="true" />
+                Correo electrónico
               </dt>
-              {props.kind === "staff" && editing ? (
-                <input
-                  id="perfil-correo"
-                  type="email"
-                  value={correo}
-                  onChange={(e) => setCorreo(e.target.value)}
-                  disabled={saving}
-                  className="input-field w-full"
-                />
-              ) : (
-                <dd className="text-sm text-cata-text">{correoDisplay}</dd>
-              )}
+              <dd className="text-sm text-cata-text">{correoDisplay}</dd>
             </div>
 
             {props.kind === "staff" && (
@@ -721,7 +713,11 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
             <h3 className="text-sm font-bold tracking-tight text-cata-text">Accesos rápidos</h3>
           </div>
           <nav className="space-y-1">
-            {getNavLinksForRole(props.role).map((link) => (
+            {/* "Inicio" (href "/") excluded — same convention as AppShell's
+                own sidebar nav, which is already visible on this page. */}
+            {getNavLinksForRole(props.role)
+              .filter((link) => link.href !== "/")
+              .map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -856,43 +852,51 @@ function ProfileContent(): React.ReactElement | null {
 
   if (role === null) return null;
 
+  let content: React.ReactNode;
   if (isStudentRole) {
-    if (studentState.status === "loading") return <LoadingBlock text="Cargando su cuenta..." />;
-    if (studentState.status === "error") {
-      return (
+    if (studentState.status === "loading") {
+      content = <LoadingBlock text="Cargando su cuenta..." />;
+    } else if (studentState.status === "error") {
+      content = (
         <ErrorBlock
           message={studentState.message}
           onRetry={() => setStudentReload((n) => n + 1)}
           showIcon
         />
       );
+    } else {
+      content = (
+        <ProfileLayout
+          kind="student"
+          role={role}
+          data={studentState.data}
+          sessionEmail={session?.user.email ?? ""}
+          sessionName={session?.user.name ?? ""}
+          fotoUrl={studentFotoUrl}
+          onFotoUpdated={setStudentFotoUrl}
+        />
+      );
     }
-    return (
+  } else if (staffState.status === "loading") {
+    content = <LoadingBlock text="Cargando perfil..." />;
+  } else if (staffState.status === "error") {
+    content = <ErrorBlock message={staffState.message} onRetry={() => setStaffReload((n) => n + 1)} />;
+  } else {
+    content = (
       <ProfileLayout
-        kind="student"
+        kind="staff"
         role={role}
-        data={studentState.data}
-        sessionEmail={session?.user.email ?? ""}
-        sessionName={session?.user.name ?? ""}
-        fotoUrl={studentFotoUrl}
-        onFotoUpdated={setStudentFotoUrl}
+        perfil={staffState.perfil}
+        accountEmail={staffState.perfil.correo ?? session?.user.email}
+        onSaved={(perfil) => setStaffState({ status: "ready", perfil })}
       />
     );
   }
 
-  if (staffState.status === "loading") return <LoadingBlock text="Cargando perfil..." />;
-  if (staffState.status === "error") {
-    return <ErrorBlock message={staffState.message} onRetry={() => setStaffReload((n) => n + 1)} />;
-  }
-
   return (
-    <ProfileLayout
-      kind="staff"
-      role={role}
-      perfil={staffState.perfil}
-      accountEmail={staffState.perfil.correo ?? session?.user.email}
-      onSaved={(perfil) => setStaffState({ status: "ready", perfil })}
-    />
+    <AppShell title="Mi cuenta" subtitle="Gestiona tu información y consulta tu estado en el sistema.">
+      {content}
+    </AppShell>
   );
 }
 

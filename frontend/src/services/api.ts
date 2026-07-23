@@ -1001,14 +1001,9 @@ export async function fetchMiPerfil(): Promise<PerfilPropio> {
   return request<PerfilPropio>(apiEndpoint("/auth/me"));
 }
 
-/**
- * Update the logged-in user's own correo/teléfono — PATCH /api/auth/me.
- * If correo changes, the backend reissues tokens; the BFF route rotates the
- * HttpOnly cookies transparently and this client never sees a token.
- */
+/** Update the logged-in user's own telefono — PATCH /api/auth/me. Correo is not editable (see `ActualizarPerfilPropioPayload`). */
 export async function actualizarMiPerfil(data: ActualizarPerfilPropioPayload): Promise<PerfilPropio> {
   const body: Record<string, unknown> = {};
-  if (data.correo !== undefined) body.correo = data.correo;
   if (data.telefono !== undefined) body.telefono = data.telefono;
 
   return request<PerfilPropio>(apiEndpoint("/auth/me"), {

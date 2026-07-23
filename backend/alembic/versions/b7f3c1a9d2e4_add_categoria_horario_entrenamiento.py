@@ -70,19 +70,22 @@ def upgrade() -> None:
         )
 
     # --- Backfill: mapear categoria a partir de hora_inicio -------------------
+    # Raw UPDATE with an explicit `::categoria` cast — psycopg3 binds a Python
+    # str parameter as VARCHAR by default, and Postgres does not implicitly
+    # cast VARCHAR to a custom enum type, so relying on SQLAlchemy Core's
+    # `.values(categoria=...)` (even with the column declared as `sa.Enum`)
+    # still emits `categoria=$1::VARCHAR` and fails with DatatypeMismatch.
     bind = op.get_bind()
     horario_tabla = sa.table(
         'horario_entrenamiento',
         sa.column('id', sa.Integer),
         sa.column('hora_inicio', sa.Time),
-        sa.column('categoria', sa.String),
     )
     filas = bind.execute(sa.select(horario_tabla.c.id, horario_tabla.c.hora_inicio)).fetchall()
     for fila_id, hora_inicio in filas:
         bind.execute(
-            horario_tabla.update()
-            .where(horario_tabla.c.id == fila_id)
-            .values(categoria=categoria_para_hora_inicio(hora_inicio))
+            sa.text("UPDATE horario_entrenamiento SET categoria = :categoria ::categoria WHERE id = :id"),
+            {"categoria": categoria_para_hora_inicio(hora_inicio), "id": fila_id},
         )
 
     with op.batch_alter_table('horario_entrenamiento', schema=None) as batch_op:
