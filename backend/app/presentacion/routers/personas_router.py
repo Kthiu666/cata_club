@@ -32,13 +32,15 @@ async def registrar_persona(persona_in: PersonaCreateDTO, db: Session = Depends(
     return PersonaServicio(db).registrar_persona(persona_in)
 
 
-# --- GETs: requieren token válido (no rol específico) para no exponer
-# datos sensibles (cédula, teléfono, fecha de nacimiento) a cualquier cliente
-# sin autenticar. Lo protegemos en el router, no sólo en el servicio.
+# --- ADMINISTRADOR-only: PersonaResponseDTO expone cédula, teléfono y
+# fecha de nacimiento — PII real. Antes solo exigía un token válido (no un
+# rol específico), lo que dejaba pedir el roster completo del club a
+# cualquier sesión autenticada (alumno, entrenador, representante), no solo
+# a admins. Único consumidor real es la página admin de Miembros.
 @router.get(
     "/",
     response_model=PaginatedResponse[PersonaResponseDTO],
-    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
+    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
 )
 def listar_personas(skip: int = 0, limit: int = 50, db: Session = Depends(obtener_sesion)):
     items, total = PersonaServicio(db).listar_personas(skip, limit)
