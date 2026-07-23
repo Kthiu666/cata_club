@@ -27,6 +27,13 @@ del enum `tiponotificacion` NO se remueven de la base de datos: PostgreSQL no
 soporta eliminar valores de un enum existente sin recrear el tipo y migrar
 filas (ver downgrade de a3b4c5d6e7f8) -- quedan huérfanos mas inofensivos en
 el ENUM de DB; el enum Python ya no los declara.
+
+Como el enum Python ya no declara esos tres valores, cualquier fila de
+`notificacion` que los tenga persistidos rompería la deserialización de
+SQLAlchemy (`Enum(TipoNotificacion)` lanza `LookupError` ante un valor no
+declarado) la próxima vez que se lea. Por eso este upgrade() borra las
+notificaciones huérfanas antes de tocar cualquier otra cosa: son avisos de
+una funcionalidad que ya no existe, no tiene sentido conservarlas.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -39,6 +46,11 @@ depends_on = None
 
 
 def upgrade() -> None:
+    op.execute(
+        "DELETE FROM notificacion WHERE tipo IN "
+        "('RANKING_REINGRESO_APROBADO', 'JUSTIFICATIVO_APROBADO', 'JUSTIFICATIVO_RECHAZADO')"
+    )
+
     op.drop_table('solicitud_clase_extra')
     op.drop_table('justificativo_ranking')
     op.drop_table('resultado_ranking_mensual')

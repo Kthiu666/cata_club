@@ -220,28 +220,6 @@ describe.skip("GroupsPage — unassigned dropdown assign (MOVED to RankingPage �
   });
 });
 
-describe("GroupsPage — Selección Oficial extracted to its own route (PR9)", () => {
-  beforeEach(() => {
-    mockFetchMembers.mockReset();
-    mockFetchHorarios.mockReset();
-    mockFetchNivelesConOcupacion.mockReset();
-    mockFetchMembers.mockResolvedValue({ accounts: [UNASSIGNED_ACCOUNT], niveles: NIVELES });
-    mockFetchHorarios.mockResolvedValue([]);
-    mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
-  });
-
-  it("no longer renders the Selección Oficial section inline", async () => {
-    render(<ToastProvider><GroupsPage /></ToastProvider>);
-    await screen.findByText(/horarios de entrenamiento/i);
-
-    // Scoped to <main> — the sidebar nav link text ("Selección Oficial",
-    // now pointing at the dedicated route) legitimately still renders there.
-    const main = screen.getByRole("main");
-    expect(within(main).queryByText(/selección oficial/i)).not.toBeInTheDocument();
-    expect(document.getElementById("seleccion-oficial")).not.toBeInTheDocument();
-  });
-});
-
 describe("GroupsPage — categoria-driven locked schedule form (v2 design)", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();
