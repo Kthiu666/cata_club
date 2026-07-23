@@ -42,9 +42,6 @@ const personaResponse = {
   cedula: "1710034065",
   fechaNacimiento: "1990-05-14",
   telefono: "0991234567",
-  prioridadMunicipal: true,
-  porcentajeBeca: 25,
-  motivoBeca: "Deportista destacada",
 };
 
 beforeEach(() => {
@@ -59,7 +56,7 @@ afterEach(() => {
 
 describe("PATCH /api/personas/[id]", () => {
   it("returns 401 without calling the backend when no auth cookie is present", async () => {
-    const response = await PATCH(patchRequest("5", { prioridadMunicipal: true }), { params: { id: "5" } });
+    const response = await PATCH(patchRequest("5", { telefonoContacto: "0998765432" }), { params: { id: "5" } });
 
     expect(response.status).toBe(401);
     expect(global.fetch).not.toHaveBeenCalled();
@@ -70,7 +67,7 @@ describe("PATCH /api/personas/[id]", () => {
 
     const access = makeJwt(3600);
     const response = await PATCH(
-      patchRequest("5", { prioridadMunicipal: true, porcentajeBeca: 25 }, `${ACCESS_TOKEN_COOKIE}=${access}`),
+      patchRequest("5", { telefonoContacto: "0998765432" }, `${ACCESS_TOKEN_COOKIE}=${access}`),
       { params: { id: "5" } },
     );
     const body = await response.json();
@@ -82,7 +79,7 @@ describe("PATCH /api/personas/[id]", () => {
       "http://localhost:8000/api/v1/personas/5",
       expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ prioridadMunicipal: true, porcentajeBeca: 25 }),
+        body: JSON.stringify({ telefonoContacto: "0998765432" }),
       }),
     );
   });
@@ -92,7 +89,7 @@ describe("PATCH /api/personas/[id]", () => {
 
     const access = makeJwt(3600);
     const response = await PATCH(
-      patchRequest("5", { prioridadMunicipal: true }, `${ACCESS_TOKEN_COOKIE}=${access}`),
+      patchRequest("5", { telefonoContacto: "0998765432" }, `${ACCESS_TOKEN_COOKIE}=${access}`),
       { params: { id: "5" } },
     );
 

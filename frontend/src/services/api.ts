@@ -744,18 +744,6 @@ export async function fetchAsignacionesRanking(): Promise<AsignacionRanking[]> {
 // Reports API Methods
 // ---------------------------------------------------------------------------
 
-/** Fetch personas filtered by etiquetas (prioridad municipal, becado). */
-export async function fetchPersonasPorEtiquetas(filtros: {
-  prioridadMunicipal?: boolean;
-  becado?: boolean;
-}): Promise<PersonaReporte[]> {
-  const qs = new URLSearchParams();
-  if (filtros.prioridadMunicipal !== undefined) qs.set("prioridad_municipal", String(filtros.prioridadMunicipal));
-  if (filtros.becado !== undefined) qs.set("becado", String(filtros.becado));
-  const query = qs.toString();
-  return request<PersonaReporte[]>(apiEndpoint(`/personas/reportes${query ? `?${query}` : ""}`));
-}
-
 /** Fetch new personas registered within a given date range. */
 export async function fetchNuevosPorPeriodo(
   fechaInicio: string,
@@ -940,12 +928,9 @@ export interface PersonaUpdatePayload {
   fotoUrl?: string;
   direccionId?: number;
   institucionId?: number;
-  prioridadMunicipal?: boolean;
-  porcentajeBeca?: number;
-  motivoBeca?: string;
 }
 
-/** Admin-only: update a person's basic data, including priority/discount labels. */
+/** Admin-only: update a person's basic data. */
 export async function actualizarPersona(
   personaId: number,
   data: PersonaUpdatePayload,
@@ -958,9 +943,6 @@ export async function actualizarPersona(
   if (data.fotoUrl !== undefined) body.foto_url = data.fotoUrl;
   if (data.direccionId !== undefined) body.direccion_id = data.direccionId;
   if (data.institucionId !== undefined) body.institucion_id = data.institucionId;
-  if (data.prioridadMunicipal !== undefined) body.prioridad_municipal = data.prioridadMunicipal;
-  if (data.porcentajeBeca !== undefined) body.porcentaje_beca = data.porcentajeBeca;
-  if (data.motivoBeca !== undefined) body.motivo_beca = data.motivoBeca;
 
   return request<PersonaResponse>(apiEndpoint(`/personas/${personaId}`), {
     method: "PATCH",

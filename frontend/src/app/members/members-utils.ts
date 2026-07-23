@@ -44,9 +44,6 @@ export interface MemberStudentSummary {
   grupoId: string | null;
   fechaNacimiento?: string;
   activo: boolean;
-  prioridadMunicipal?: boolean;
-  porcentajeBeca?: number;
-  motivoBeca?: string;
   membresia: {
     /**
      * Display label for the membership plan. Was `TipoMembresia` (a strict
