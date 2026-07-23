@@ -27,7 +27,6 @@ import { useNotificaciones } from "@/lib/useNotificaciones";
 import { NAV_ICON_MAP } from "@/components/Header";
 import NotificationBell from "@/components/NotificationBell";
 import UserMenuDropdown from "@/components/UserMenuDropdown";
-import ChatWidget from "@/components/chatbot/ChatWidget";
 
 export interface AppShellProps {
   /** Small uppercase label above the page title (defaults to "Panel de gestión"). */
@@ -396,8 +395,6 @@ export default function AppShell({
           </div>
         </div>
       )}
-
-      {session && <ChatWidget />}
     </div>
   );
 }

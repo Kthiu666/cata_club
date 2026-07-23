@@ -2,12 +2,22 @@
  * POST /api/chatbot — BFF proxy to the backend's public (no auth),
  * rate-limited (15/min) `POST /chatbot/consultar`. Static-FAQ helper for
  * navigating the app — no personal/sensitive data involved, so this proxy
- * uses the unauthenticated `backendFetch` (not `backendFetchAuthed`).
+ * skips auth entirely (no `backendFetchAuthed`).
+ *
+ * Does NOT use the shared `backendFetch` helper: that hardcodes a 10s abort
+ * timeout tuned for fast DB-backed CRUD calls. An LLM completion — especially
+ * the free-tier model currently wired up, which spends tokens on internal
+ * reasoning before answering — can legitimately take longer, so 10s caused
+ * intermittent false-timeout failures. This route uses its own longer
+ * timeout instead of widening the shared default for every other BFF route.
  */
 
 import { NextResponse } from "next/server";
-import { backendFetch } from "@/lib/server/auth";
+import { getBackendApiUrl } from "@/lib/server/auth";
 import { passthroughBackendError } from "@/lib/server/backend-client";
+
+/** LLM completions can run longer than typical CRUD calls — see module docstring. */
+const CHATBOT_TIMEOUT_MS = 30_000;
 
 interface ChatbotRequestBody {
   mensaje: string;
@@ -49,18 +59,25 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ message: "El mensaje del chat es inválido o está vacío." }, { status: 400 });
   }
 
-  const result = await backendFetch("/chatbot/consultar", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mensaje: body.mensaje, historial: body.historial }),
-  });
-
-  if (!result.ok) {
-    const status = result.error.code === "timeout" ? 504 : 503;
-    return NextResponse.json({ message: result.error.message }, { status });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CHATBOT_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(`${getBackendApiUrl()}/chatbot/consultar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mensaje: body.mensaje, historial: body.historial }),
+      signal: controller.signal,
+    });
+  } catch (error: unknown) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return NextResponse.json({ message: "El asistente tardó demasiado en responder." }, { status: 504 });
+    }
+    return NextResponse.json({ message: "No se pudo contactar al asistente." }, { status: 503 });
+  } finally {
+    clearTimeout(timeoutId);
   }
 
-  const response = result.data;
   if (!response.ok) {
     return passthroughBackendError(response, "No se pudo contactar al asistente.");
   }

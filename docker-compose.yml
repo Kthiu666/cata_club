@@ -32,7 +32,14 @@ services:
       MP_MAX_MESSAGES: 500
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      # Mismo motivo que el build del frontend: el resolver DNS embebido de
+      # la red bridge por defecto falla para descargar paquetes (PyPI) en
+      # algunos setups aunque el host tenga internet — se construye sobre la
+      # red del host para evitarlo. Solo afecta al build, no al contenedor
+      # en ejecución.
+      network: host
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -64,6 +71,8 @@ services:
       SMTP_FROM: ${SMTP_FROM:-no-reply@cataclub.com}
       SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      # --- Chatbot de FAQ (gateway OpenCode) ---
+      OPENCODE_API_KEY: ${OPENCODE_API_KEY:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
       interval: 10s
@@ -85,7 +94,14 @@ services:
       "
 
   celery-worker:
-    build: ./backend
+    build:
+      context: ./backend
+      # Mismo motivo que el build del frontend: el resolver DNS embebido de
+      # la red bridge por defecto falla para descargar paquetes (PyPI) en
+      # algunos setups aunque el host tenga internet — se construye sobre la
+      # red del host para evitarlo. Solo afecta al build, no al contenedor
+      # en ejecución.
+      network: host
     restart: unless-stopped
     environment: *backend_env
     depends_on:
@@ -98,7 +114,14 @@ services:
     command: uv run celery -A app.infraestructura.tareas.celery_app worker --loglevel=info
 
   celery-beat:
-    build: ./backend
+    build:
+      context: ./backend
+      # Mismo motivo que el build del frontend: el resolver DNS embebido de
+      # la red bridge por defecto falla para descargar paquetes (PyPI) en
+      # algunos setups aunque el host tenga internet — se construye sobre la
+      # red del host para evitarlo. Solo afecta al build, no al contenedor
+      # en ejecución.
+      network: host
     restart: unless-stopped
     environment: *backend_env
     depends_on:

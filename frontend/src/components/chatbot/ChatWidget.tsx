@@ -58,7 +58,7 @@ export default function ChatWidget(): React.ReactElement {
       const { reply } = await consultarChatbot(texto, historial);
       setMensajes((prev) => [...prev, { id: proximoId++, rol: "asistente", texto: reply }]);
     } catch {
-      setError("No se pudo contactar al asistente. Intentá de nuevo en un momento.");
+      setError("No se pudo contactar al asistente. Inténtalo de nuevo en un momento.");
     } finally {
       setEnviando(false);
     }
@@ -90,7 +90,7 @@ export default function ChatWidget(): React.ReactElement {
           <div className="flex items-center justify-between border-b border-cata-border bg-cata-black px-4 py-3 text-white">
             <div>
               <p className="text-sm font-bold">Asistente de Cata Club</p>
-              <p className="text-xs text-white/55">Preguntame cómo usar la app</p>
+              <p className="text-xs text-white/55">Pregúntame cómo usar la app</p>
             </div>
             <button
               type="button"
@@ -105,14 +105,14 @@ export default function ChatWidget(): React.ReactElement {
           <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
             {mensajes.length === 0 && (
               <p className="px-2 text-center text-xs text-cata-text/45">
-                Hola 👋 Preguntame cómo tomar asistencia, ver tus pagos, solicitar una clase extra, y más.
+                Hola 👋 Pregúntame cómo tomar asistencia, ver tus pagos, consultar horarios, y más.
               </p>
             )}
 
             {mensajes.map((m) => (
               <div key={m.id} className={`flex ${m.rol === "usuario" ? "justify-end" : "justify-start"}`}>
                 <p
-                  className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${
+                  className={`max-w-[85%] whitespace-pre-line rounded-2xl px-3.5 py-2 text-sm ${
                     m.rol === "usuario"
                       ? "rounded-br-sm bg-cata-red text-white"
                       : "rounded-bl-sm bg-cata-bg text-cata-text"
@@ -145,7 +145,7 @@ export default function ChatWidget(): React.ReactElement {
               type="text"
               value={borrador}
               onChange={(e): void => setBorrador(e.target.value)}
-              placeholder="Escribí tu pregunta…"
+              placeholder="Escribe tu pregunta…"
               aria-label="Mensaje para el asistente"
               disabled={enviando}
               className="input-field flex-1"
