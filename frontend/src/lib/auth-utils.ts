@@ -57,6 +57,7 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
       links.push(
         { href: "/trainer", label: "Dashboard" },
         { href: "/trainer/attendance", label: "Asistencia" },
+        { href: "/trainer/attendance/history", label: "Historial Asistencia" },
         { href: "/trainer/nivel", label: "Nivel" },
       );
       break;
