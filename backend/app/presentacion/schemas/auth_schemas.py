@@ -52,10 +52,11 @@ class LogoutResponseDTO(ResponseBase, BaseModel):
 
 # --- Issue #36: perfil propio (self-service) --------------------------------
 class ActualizarPerfilPropioDTO(BaseModel):
-    """Payload de PATCH /auth/me. Ambos campos son opcionales (edición
-    parcial); solo los campos presentes en el request se actualizan
+    """Payload de PATCH /auth/me. `correo` deliberadamente NO es editable
+    aquí -- es el `sub` del JWT, y la edición propia de correo fue removida
+    por diseño (ver auth_servicio.py). `telefono` es opcional (edición
+    parcial); solo se actualiza si viene presente en el request
     (`exclude_unset=True` en el servicio)."""
-    correo: Optional[EmailStr] = None
     telefono: Optional[str] = Field(default=None, max_length=15)
 
 
@@ -68,11 +69,6 @@ class ActualizarPerfilPropioResponseDTO(ResponseBase, BaseModel):
     telefono: str
     fecha_creacion: datetime
     foto_url: Optional[str] = None
-    access_token: Optional[str] = None
-    """Presente SOLO si `correo` cambió (el `sub` del JWT es el correo; sin
-    reemisión, el access token vigente del usuario dejaría de resolver a su
-    cuenta en el próximo request)."""
-    refresh_token: Optional[str] = None
 
 
 # --- Foto de perfil (self-service, POST /auth/me/foto) -----------------------

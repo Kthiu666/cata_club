@@ -1,6 +1,6 @@
 /**
  * GET /api/auth/me — fetch the logged-in user's own profile (Issue #36).
- * PATCH /api/auth/me — update the logged-in user's own correo/teléfono.
+ * PATCH /api/auth/me — update the logged-in user's own telefono.
  *
  * BFF proxies to FastAPI's:
  *   GET /auth/me (now includes telefono, fechaCreacion)
@@ -16,11 +16,11 @@
  * fetch/mutate path consumed only by `PerfilPropio` (src/types/domain.ts),
  * not the global session used by AuthContext/nav/ProtectedRoute.
  *
- * Correo changes cause the backend to reissue the token pair (the JWT `sub`
- * claim is the correo — see auth_servicio.py). When that happens, this route
- * calls setAuthCookies to rotate the HttpOnly cookies transparently and
- * strips `accessToken`/`refreshToken` out of the JSON body before it reaches
- * browser JS — tokens must never appear in a client-visible response.
+ * Correo is intentionally never accepted here — it's the JWT `sub` claim,
+ * and self-service editing was removed by design (see auth_servicio.py). The
+ * accessToken/refreshToken stripping below is defensive leftover from when
+ * correo changes reissued tokens; kept in case the backend response shape
+ * ever carries them again, but is a no-op in practice now.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -47,7 +47,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 }
 
 interface PatchBody {
-  correo?: string;
   telefono?: string;
 }
 
@@ -70,7 +69,6 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
   }
 
   const backendBody: Record<string, unknown> = {};
-  if (body.correo !== undefined) backendBody.correo = body.correo;
   if (body.telefono !== undefined) backendBody.telefono = body.telefono;
 
   const result = await backendFetchAuthed(request, "/auth/me", {

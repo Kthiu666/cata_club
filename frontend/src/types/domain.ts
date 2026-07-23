@@ -320,9 +320,12 @@ export interface PerfilPropio {
   fotoUrl?: string | null;
 }
 
-/** Payload to update the logged-in user's own correo/teléfono — both optional (partial edit). */
+/**
+ * Payload to update the logged-in user's own telefono. Correo is
+ * intentionally excluded — it's the JWT `sub` claim, and self-service
+ * editing was removed by design (see backend `auth_servicio.py`).
+ */
 export interface ActualizarPerfilPropioPayload {
-  correo?: string;
   telefono?: string;
 }
 

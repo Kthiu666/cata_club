@@ -79,29 +79,22 @@ class AuthServicio:
     # --- Issue #36: perfil propio (self-service) ----------------------------
     def actualizar_perfil_propio(self, correo_actual: str, cambios: ActualizarPerfilPropioDTO) -> dict:
         """
-        Actualiza correo y/o teléfono del USUARIO AUTENTICADO (resuelto vía el
-        `sub` del JWT, jamás vía un identificador recibido en el request:
-        así un usuario nunca puede editar el registro de otro).
+        Actualiza el teléfono del USUARIO AUTENTICADO (resuelto vía el `sub`
+        del JWT, jamás vía un identificador recibido en el request: así un
+        usuario nunca puede editar el registro de otro).
 
-        `exclude_unset=True`: solo se tocan los campos que vinieron en el
-        payload (edición parcial). Si `correo` cambia, se valida unicidad
-        ANTES de mutar nada (para no persistir parcialmente si falla) y se
-        reemite el par de tokens -- el `sub` del JWT es el correo, así que sin
-        reemisión el access token vigente del usuario dejaría de resolver a su
-        cuenta en el siguiente request (lo desloguearía silenciosamente).
+        Correo deliberadamente no es editable aquí -- es el `sub` del JWT
+        (`ActualizarPerfilPropioDTO` ni siquiera acepta el campo), evitando
+        el riesgo de que un cambio de correo desloguee silenciosamente al
+        usuario o requiera reemisión de tokens.
+
+        `exclude_unset=True`: solo se toca `telefono` si vino en el payload
+        (edición parcial).
         """
         usuario = self.obtener_usuario_actual(correo_actual)
         if not usuario.activo:
             raise CredencialesInvalidas("La cuenta está desactivada")
         datos = cambios.model_dump(exclude_unset=True)
-
-        correo_nuevo = datos.get("correo")
-        correo_cambio = correo_nuevo is not None and correo_nuevo != usuario.correo
-        if correo_cambio and self.repo.obtener_por_correo(correo_nuevo) is not None:
-            raise EntidadDuplicada("El correo ya está en uso por otra cuenta")
-
-        if correo_cambio:
-            usuario.correo = correo_nuevo
 
         telefono_nuevo = datos.get("telefono")
         if telefono_nuevo is not None:
@@ -110,7 +103,7 @@ class AuthServicio:
         self.db.commit()
         self.db.refresh(usuario)
 
-        respuesta = {
+        return {
             "correo": usuario.correo,
             "persona_id": usuario.persona_id,
             "nombres": usuario.persona.nombres,
@@ -120,9 +113,6 @@ class AuthServicio:
             "fecha_creacion": usuario.fecha_creacion,
             "foto_url": usuario.persona.foto_url,
         }
-        if correo_cambio:
-            respuesta.update(self._emitir_par_tokens(usuario))
-        return respuesta
 
     # --- Foto de perfil (self-service, POST /auth/me/foto) -------------------
     TIPOS_MIME_PERMITIDOS_FOTO_PERFIL = {"image/jpeg", "image/png"}

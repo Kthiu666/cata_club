@@ -600,7 +600,7 @@ describe("fetchMiPerfil", () => {
 });
 
 describe("actualizarMiPerfil", () => {
-  it("sends PATCH to /api/auth/me with only telefono when correo is omitted", async () => {
+  it("sends PATCH to /api/auth/me with telefono — correo is not an accepted field", async () => {
     const perfil = makePerfilPropio({ telefono: "0987654321" });
     vi.mocked(global.fetch).mockResolvedValue(okResponse(perfil));
 
@@ -614,32 +614,6 @@ describe("actualizarMiPerfil", () => {
       }),
     );
     expect(result).toEqual(perfil);
-  });
-
-  it("sends PATCH to /api/auth/me with only correo when telefono is omitted", async () => {
-    const perfil = makePerfilPropio({ correo: "nueva@cataclub.com" });
-    vi.mocked(global.fetch).mockResolvedValue(okResponse(perfil));
-
-    const result = await actualizarMiPerfil({ correo: "nueva@cataclub.com" });
-
-    expect(global.fetch).toHaveBeenCalledWith(
-      "/api/auth/me",
-      expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ correo: "nueva@cataclub.com" }),
-      }),
-    );
-    expect(result).toEqual(perfil);
-  });
-
-  it("throws a typed error when the backend rejects a duplicate correo", async () => {
-    vi.mocked(global.fetch).mockResolvedValue(
-      errorResponse(400, { message: "El correo ya está en uso." }),
-    );
-
-    await expect(actualizarMiPerfil({ correo: "duplicado@cataclub.com" })).rejects.toThrow(
-      "El correo ya está en uso.",
-    );
   });
 });
 

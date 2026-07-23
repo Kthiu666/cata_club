@@ -8,11 +8,13 @@
  * - ADMINISTRADOR/ENTRENADOR ("tesorero" falls through to this same branch
  *   too — it's a dead backend role no real account can carry anymore, see
  *   prior design decision) fetch their own identity via `fetchMiPerfil()`
- *   (`GET /api/auth/me`). Nombres, apellidos, and roles are read-only;
- *   correo/teléfono are edited inline (`actualizarMiPerfil()`, `PATCH
- *   /api/auth/me`) from the "Información personal" column. "Cambiar
- *   contraseña" (in "Estado de cuenta") reuses the existing unauthenticated
- *   recovery-email flow against the user's own known correo.
+ *   (`GET /api/auth/me`). Nombres, apellidos, roles, and correo are
+ *   read-only; teléfono is edited inline (`actualizarMiPerfil()`, `PATCH
+ *   /api/auth/me`) from the "Información personal" column. Correo is
+ *   intentionally NOT editable here — it's the JWT `sub` claim, and
+ *   self-service editing was removed by design (see auth_servicio.py).
+ *   "Cambiar contraseña" (in "Estado de cuenta") reuses the existing
+ *   unauthenticated recovery-email flow against the user's own known correo.
  *
  * - ALUMNO / representante-linked accounts fetch `fetchStudentPortal()` —
  *   the same data `/student` uses. The hero card summarizes the caller's
@@ -245,7 +247,6 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
   // ---- Staff-only inline edit / change-password state. Always declared
   // (hooks can't be conditional) — simply unused on the student branch. ----
   const [editing, setEditing] = useState(false);
-  const [correo, setCorreo] = useState(props.kind === "staff" ? props.perfil.correo : "");
   const [telefono, setTelefono] = useState(props.kind === "staff" ? props.perfil.telefono : "");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -301,7 +302,6 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
 
   function startEditing(): void {
     if (props.kind !== "staff") return;
-    setCorreo(props.perfil.correo);
     setTelefono(props.perfil.telefono);
     setSaveError(null);
     setSaveSuccess(false);
@@ -310,7 +310,6 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
 
   function cancelEditing(): void {
     if (props.kind !== "staff") return;
-    setCorreo(props.perfil.correo);
     setTelefono(props.perfil.telefono);
     setSaveError(null);
     setEditing(false);
@@ -323,17 +322,15 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
     setSaveError(null);
     setSaveSuccess(false);
     try {
-      const updated = await actualizarMiPerfil({
-        correo: correo.trim(),
-        telefono: telefono.trim(),
-      });
+      // Correo is intentionally never sent here — it's the JWT `sub` claim
+      // and self-service editing was removed by design (see auth_servicio.py).
+      const updated = await actualizarMiPerfil({ telefono: telefono.trim() });
       props.onSaved(updated);
       setEditing(false);
       setSaveSuccess(true);
     } catch (error: unknown) {
       // Revert — a rejected edit must never be left displayed as if it were
       // persisted (no silent data loss, per spec).
-      setCorreo(perfil.correo);
       setTelefono(perfil.telefono);
       setEditing(false);
       setSaveError(toErrorMessage(error, "No se pudo guardar los cambios."));
@@ -527,27 +524,13 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
             </div>
 
             <div>
-              <dt>
-                <label
-                  htmlFor="perfil-correo"
-                  className="mb-1 flex items-center gap-1.5 text-xs font-medium text-cata-text/65"
-                >
-                  <Mail size={13} strokeWidth={1.5} aria-hidden="true" />
-                  Correo electrónico
-                </label>
+              {/* Correo is never editable here — it's the JWT `sub` claim,
+                  and self-service editing was intentionally removed. */}
+              <dt className="mb-1 flex items-center gap-1.5 text-xs font-medium text-cata-text/65">
+                <Mail size={13} strokeWidth={1.5} aria-hidden="true" />
+                Correo electrónico
               </dt>
-              {props.kind === "staff" && editing ? (
-                <input
-                  id="perfil-correo"
-                  type="email"
-                  value={correo}
-                  onChange={(e) => setCorreo(e.target.value)}
-                  disabled={saving}
-                  className="input-field w-full"
-                />
-              ) : (
-                <dd className="text-sm text-cata-text">{correoDisplay}</dd>
-              )}
+              <dd className="text-sm text-cata-text">{correoDisplay}</dd>
             </div>
 
             {props.kind === "staff" && (
@@ -730,7 +713,11 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
             <h3 className="text-sm font-bold tracking-tight text-cata-text">Accesos rápidos</h3>
           </div>
           <nav className="space-y-1">
-            {getNavLinksForRole(props.role).map((link) => (
+            {/* "Inicio" (href "/") excluded — same convention as AppShell's
+                own sidebar nav, which is already visible on this page. */}
+            {getNavLinksForRole(props.role)
+              .filter((link) => link.href !== "/")
+              .map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
