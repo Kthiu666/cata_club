@@ -347,6 +347,10 @@ def main() -> None:
             db, Rol, Rol.tipo_rol == TipoRol.ALUMNO,
             {"tipo_rol": TipoRol.ALUMNO, "descripcion": "Alumno"},
         )
+        rol_representante, _ = _obtener_o_crear(
+            db, Rol, Rol.tipo_rol == TipoRol.REPRESENTANTE,
+            {"tipo_rol": TipoRol.REPRESENTANTE, "descripcion": "Representante"},
+        )
 
         now = datetime.now(timezone.utc)
 
@@ -355,7 +359,6 @@ def main() -> None:
 
         for rep_data in REPRESENTANTES:
             rep = rep_data["representante"]
-            # Representante persona (no roles — pure parent)
             existing_rep_user = db.query(Usuario).filter(Usuario.correo == rep["correo"]).first()
             if existing_rep_user:
                 print(f"[seed] Representante {rep['correo']} ya existe — saltando.")
@@ -375,7 +378,7 @@ def main() -> None:
                     correo=rep["correo"],
                     contrasenia=GestorAutenticacion.obtener_hash_contrasenia("alumno123"),
                     persona_id=rep_persona.id,
-                    roles=[],
+                    roles=[rol_representante, rol_alumno],
                 )
                 db.add(rep_usuario)
                 representantes_creados += 1

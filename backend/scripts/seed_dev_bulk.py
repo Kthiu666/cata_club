@@ -219,11 +219,14 @@ def _crear_persona_y_usuario(
     return persona, True
 
 
-def _crear_representante(db, indice: int) -> tuple[Persona, bool]:
-    """Crea (o recupera) un representante puro: NO es un TipoRol (sigue
-    siendo la relación Persona.representante_id, ver rol_servicio.py), así
-    que su Usuario se crea sin roles -- puede iniciar sesión y el frontend
-    lo trata como "representante" por tener representados, no por un rol."""
+def _crear_representante(
+    db,
+    indice: int,
+    rol_representante: Rol,
+    rol_alumno: Rol,
+) -> tuple[Persona, bool]:
+    """Crea (o recupera) un representante con roles REPRESENTANTE + ALUMNO,
+    replicando la asignación del enrollment service real."""
     nombre = _nombre_para(indice, femenino=(indice % 2 == 0))
     apellido = _apellido_para(indice)
     cedula = _cedula_para(indice)
@@ -253,7 +256,7 @@ def _crear_representante(db, indice: int) -> tuple[Persona, bool]:
         correo=correo,
         contrasenia=GestorAutenticacion.obtener_hash_contrasenia(CONTRASENIA_COMPARTIDA),
         persona_id=persona.id,
-        roles=[],
+        roles=[rol_representante, rol_alumno],
     )
     db.add(usuario)
     db.flush()
@@ -397,6 +400,10 @@ def main() -> None:
             db, Rol, Rol.tipo_rol == TipoRol.ALUMNO,
             {"tipo_rol": TipoRol.ALUMNO, "descripcion": "Alumno"},
         )
+        rol_representante, _ = _obtener_o_crear(
+            db, Rol, Rol.tipo_rol == TipoRol.REPRESENTANTE,
+            {"tipo_rol": TipoRol.REPRESENTANTE, "descripcion": "Representante"},
+        )
 
         niveles = {
             n.numero_nivel: n
@@ -442,7 +449,7 @@ def main() -> None:
         estudiantes: list[tuple[Persona, bool]] = []  # (persona, es_nueva)
 
         for cantidad_hijos in HIJOS_POR_REPRESENTANTE:
-            representante, es_nuevo = _crear_representante(db, indice)
+            representante, es_nuevo = _crear_representante(db, indice, rol_representante, rol_alumno)
             if es_nuevo:
                 representantes_creados += 1
             indice += 1
