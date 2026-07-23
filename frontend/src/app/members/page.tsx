@@ -572,7 +572,13 @@ function AccountRow({
 
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const editTriggerRef = useRef<HTMLButtonElement>(null);
+  // Two "Editar" triggers exist per row — a desktop one (in the sm-only
+  // contact/status column) and a mobile one (next to the status badge in
+  // the always-visible name column), since the desktop column is entirely
+  // CSS-hidden below `sm` and mobile would otherwise have no way to open
+  // the modal at all. Neither needs its own ref: focus-restoration below
+  // captures whichever element was actually focused (i.e. whichever
+  // trigger the user actually clicked) right before the dialog opens.
 
   // Native <dialog> shown via showModal(): the browser traps Tab focus and
   // renders the ::backdrop for us, so no manual focus trap is needed (unlike
@@ -588,6 +594,8 @@ function AccountRow({
     const dialog = dialogRef.current;
     if (!editModalOpen || !dialog) return;
 
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
     setRoleError(null);
     setStateError(null);
     if (!dialog.open) dialog.showModal();
@@ -602,11 +610,10 @@ function AccountRow({
 
     document.addEventListener("keydown", handleKeyDown);
     dialog.addEventListener("click", handleBackdropClick);
-    const triggerElement = editTriggerRef.current;
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       dialog.removeEventListener("click", handleBackdropClick);
-      triggerElement?.focus();
+      previouslyFocused?.focus();
     };
   }, [editModalOpen, onToggleEditModal]);
 
@@ -629,9 +636,21 @@ function AccountRow({
               <p className="text-xs text-cata-text/65">
                 {getPayerTypeLabel(account.role)}
               </p>
-              <span className={`mt-1 inline-flex sm:hidden ${statusBadge.className}`}>
-                {statusBadge.label}
-              </span>
+              <div className="mt-1 flex items-center gap-2 sm:hidden">
+                <span className={statusBadge.className}>{statusBadge.label}</span>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.currentTarget.focus();
+                    onToggleEditModal();
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg border border-cata-border p-1.5 text-cata-text/50 transition-colors hover:bg-cata-red/10 hover:text-cata-red"
+                  aria-label="Editar"
+                  title="Editar miembro"
+                >
+                  <Pencil size={13} strokeWidth={1.5} aria-hidden="true" />
+                </button>
+              </div>
             </div>
           </div>
         </td>
@@ -663,9 +682,11 @@ function AccountRow({
               {statusBadge.label}
             </span>
             <button
-              ref={editTriggerRef}
               type="button"
-              onClick={onToggleEditModal}
+              onClick={(event) => {
+                event.currentTarget.focus();
+                onToggleEditModal();
+              }}
               className="inline-flex items-center gap-1 rounded-lg border border-cata-border p-1.5 text-cata-text/50 transition-colors hover:bg-cata-red/10 hover:text-cata-red"
               aria-label="Editar"
               title="Editar miembro"
