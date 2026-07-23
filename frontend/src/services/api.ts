@@ -818,6 +818,35 @@ export async function exportAsistenciaReportePdf(params?: {
   await downloadBlob(apiEndpoint(`/asistencias/reportes/pdf${queryString}`), "reporte-asistencia.pdf");
 }
 
+/** Fetch the payments report (Reportes "Pagos" tab), optionally filtered by date range/status. */
+export async function fetchPagosReporte(params?: {
+  fechaInicio?: string;
+  fechaFin?: string;
+  estadoPago?: string;
+}): Promise<PaymentValidationRequest[]> {
+  const qs = new URLSearchParams();
+  if (params?.fechaInicio) qs.set("fechaInicio", params.fechaInicio);
+  if (params?.fechaFin) qs.set("fechaFin", params.fechaFin);
+  if (params?.estadoPago) qs.set("estadoPago", params.estadoPago);
+  const query = qs.toString();
+  return request<PaymentValidationRequest[]>(apiEndpoint(`/payments/reportes${query ? `?${query}` : ""}`));
+}
+
+/** Export the payments report as a PDF and trigger its download. */
+export async function exportPagosReportePdf(params?: {
+  fechaInicio?: string;
+  fechaFin?: string;
+  estadoPago?: string;
+}): Promise<void> {
+  const qs = new URLSearchParams();
+  if (params?.fechaInicio) qs.set("fechaInicio", params.fechaInicio);
+  if (params?.fechaFin) qs.set("fechaFin", params.fechaFin);
+  if (params?.estadoPago) qs.set("estadoPago", params.estadoPago);
+  const query = qs.toString();
+  const queryString = query ? `?${query}` : "";
+  await downloadBlob(apiEndpoint(`/payments/reportes/pdf${queryString}`), "reporte-pagos.pdf");
+}
+
 /** Search persons by name (autocomplete). */
 export async function searchStudents(
   query: string,

@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, File, UploadFile, Query
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Query, status
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 from typing import List, Optional
+from datetime import date
 
 from app.infraestructura.db import obtener_sesion
+from app.infraestructura.generador_pdf import construir_respuesta_pdf, generar_reporte_pdf
 from app.dominio.enums import EstadoPago
 from app.presentacion.schemas.membresia_pago_schemas import (
     MembresiaCreateDTO, MembresiaEstadisticasResponseDTO, MembresiaResponseDTO,
@@ -14,6 +17,28 @@ from app.presentacion.schemas.base import PaginatedResponse
 from app.seguridad.gestor_auth import GestorAutenticacion
 from app.servicios_negocio.membresia_pago_servicio import MembresiaServicio, PagoServicio
 from app.servicios_negocio.gestor_permisos import GestorPermisos
+
+_COLUMNAS_PAGOS_PDF = [
+    "Estudiante", "Monto", "Tipo de Pago", "Vigencia Desde", "Vigencia Hasta",
+    "Estado", "Fecha de Registro",
+]
+
+
+def _pagos_a_filas(pagos: List[PagoListItemDTO]) -> list[list[str]]:
+    """Convierte una lista de `PagoListItemDTO` en filas de texto para el PDF
+    de reporte, en el mismo orden que `_COLUMNAS_PAGOS_PDF`."""
+    return [
+        [
+            p.persona_nombre_completo,
+            f"USD {p.monto:.2f}",
+            p.tipo_pago.value,
+            p.fecha_inicio.strftime("%d/%m/%Y"),
+            p.fecha_fin.strftime("%d/%m/%Y"),
+            p.estado_pago.value,
+            p.fecha_registro.strftime("%d/%m/%Y"),
+        ]
+        for p in pagos
+    ]
 
 router = APIRouter(prefix="/membresias", tags=["Membresías y Pagos"])
 
@@ -122,6 +147,72 @@ def listar_pagos(
 ):
     items, total = PagoServicio(db).listar_pagos(estado_pago=estado_pago, skip=skip, limit=limit)
     return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
+
+
+def _reporte_pagos_items(
+    db: Session,
+    estado_pago: Optional[EstadoPago],
+    fecha_inicio: Optional[date],
+    fecha_fin: Optional[date],
+) -> List[PagoListItemDTO]:
+    """Valida el rango de fechas y trae TODOS los pagos que matchean el
+    filtro -- compartido por el endpoint JSON y el de PDF de abajo, que
+    necesitan exactamente la misma validación + fetch (única diferencia:
+    qué hacen con `items` después)."""
+    if fecha_inicio is not None and fecha_fin is not None and fecha_inicio >= fecha_fin:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="La fecha de inicio debe ser anterior a la fecha de fin.",
+        )
+    items, _ = PagoServicio(db).listar_pagos(
+        estado_pago=estado_pago, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+        skip=0, limit=10000,
+    )
+    return items
+
+
+# --- Reporte de pagos (E04-RF014-style): a diferencia de la cola paginada de
+# arriba, devuelve TODOS los pagos que matchean el filtro -- el frontend
+# pagina client-side (mismo convenio ya usado por `reporte_nuevos_por_periodo`
+# en personas_router.py y `reporte_asistencia` en asistencias_router.py).
+@router.get(
+    "/pagos/reportes",
+    response_model=List[PagoListItemDTO],
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
+)
+def reporte_pagos(
+    estado_pago: Optional[EstadoPago] = Query(default=None),
+    fecha_inicio: Optional[date] = Query(default=None),
+    fecha_fin: Optional[date] = Query(default=None),
+    db: Session = Depends(obtener_sesion),
+):
+    return _reporte_pagos_items(db, estado_pago, fecha_inicio, fecha_fin)
+
+
+# --- Exportación a PDF del reporte de pagos ---------------------------------
+# `generar_reporte_pdf` es CPU-bound (renderizado ReportLab síncrono); se
+# ejecuta vía `run_in_threadpool` para no bloquear el event loop de asyncio
+# (un solo worker uvicorn) — mismo motivo que en `personas_router.py` /
+# `asistencias_router.py`.
+@router.get(
+    "/pagos/reportes/pdf",
+    dependencies=[Depends(GestorPermisos(ROL_ADMIN))],
+)
+async def reporte_pagos_pdf(
+    estado_pago: Optional[EstadoPago] = Query(default=None),
+    fecha_inicio: Optional[date] = Query(default=None),
+    fecha_fin: Optional[date] = Query(default=None),
+    db: Session = Depends(obtener_sesion),
+):
+    items = _reporte_pagos_items(db, estado_pago, fecha_inicio, fecha_fin)
+    pdf_bytes = await run_in_threadpool(
+        generar_reporte_pdf,
+        titulo="Reporte de Pagos",
+        columnas=_COLUMNAS_PAGOS_PDF,
+        filas=_pagos_a_filas(items),
+    )
+    fecha_iso = date.today().isoformat()
+    return construir_respuesta_pdf(pdf_bytes, f"reporte-pagos_{fecha_iso}.pdf")
 
 
 # --- Membresia ---

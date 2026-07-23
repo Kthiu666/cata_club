@@ -20,6 +20,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ContextualHelp from "@/components/ContextualHelp";
 import BackLink from "@/components/BackLink";
+import PaginationControls from "@/components/PaginationControls";
 import { useToast } from "@/contexts/ToastContext";
 import {
   Users,
@@ -43,8 +44,6 @@ import {
   ToggleRight,
   Pencil,
   X,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import { fetchMembers, obtenerRolesDePersona, asignarRol, quitarRol, cambiarEstadoCuenta, actualizarPersona, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia } from "@/services/api";
 import type { TipoMembresiaCatalogo } from "@/services/api";
@@ -1116,31 +1115,7 @@ export default function MembersPage(): React.ReactElement {
         ) : null}
 
         {!loading && filteredAccounts.length > 0 && totalPages > 1 && (
-          <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
-            <p className="text-sm font-semibold text-cata-text">
-              Página {page} de {totalPages}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="btn-secondary px-4 py-2 text-xs"
-              >
-                <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
-                Anterior
-              </button>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                className="btn-secondary px-4 py-2 text-xs"
-              >
-                Siguiente
-                <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
-              </button>
-            </div>
-          </div>
+          <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
         )}
 
         {!loading && filteredAccounts.length === 0 && (

@@ -14,7 +14,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -39,6 +39,8 @@ import {
   Paperclip,
   Building2,
   Hash,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import type {
   PaymentValidationRequest,
@@ -48,6 +50,7 @@ import type {
 import { fetchPaymentValidations, updatePaymentValidation } from "@/services/api";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format-utils";
 import { useToast } from "@/contexts/ToastContext";
+import { paginatePaymentRequests, getTotalPages } from "@/app/payments/payments-utils";
 
 type FilterKey = "all" | "pendiente" | "validado" | "rechazado";
 
@@ -91,6 +94,7 @@ export default function PaymentsPage(): React.ReactElement {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [confirmApproveOpen, setConfirmApproveOpen] = useState(false);
   const [previewUnavailable, setPreviewUnavailable] = useState(false);
+  const [page, setPage] = useState(1);
 
   const loadRequests = useCallback(async (): Promise<void> => {
     try {
@@ -118,6 +122,18 @@ export default function PaymentsPage(): React.ReactElement {
     activeFilter === "all"
       ? requests
       : requests.filter((r) => r.validationStatus === activeFilter);
+
+  // Reset to page 1 whenever the filter changes, so the paginator never
+  // gets stuck on a stale/out-of-range page.
+  useEffect(() => {
+    setPage(1);
+  }, [activeFilter]);
+
+  const totalPages = useMemo(() => getTotalPages(filtered.length), [filtered]);
+  const paginatedRequests = useMemo(
+    () => paginatePaymentRequests(filtered, page),
+    [filtered, page],
+  );
 
   const counts = {
     total: requests.length,
@@ -347,7 +363,7 @@ export default function PaymentsPage(): React.ReactElement {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-cata-border">
-                      {filtered.map((req) => (
+                      {paginatedRequests.map((req) => (
                         <tr
                           key={req.id}
                           onClick={() => handleSelect(req)}
@@ -395,6 +411,34 @@ export default function PaymentsPage(): React.ReactElement {
                     </tbody>
                   </table>
                 </div>
+
+                {totalPages > 1 && (
+                  <div className="flex flex-col items-center justify-between gap-3 border-t border-cata-border px-4 py-3 sm:flex-row">
+                    <p className="text-sm font-semibold text-cata-text">
+                      Página {page} de {totalPages}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={page <= 1}
+                        className="btn-secondary px-4 py-2 text-xs"
+                      >
+                        <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+                        Anterior
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={page >= totalPages}
+                        className="btn-secondary px-4 py-2 text-xs"
+                      >
+                        Siguiente
+                        <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>

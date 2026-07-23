@@ -479,15 +479,15 @@ function buildRecords(count: number): AttendanceRecord[] {
 
 describe("paginateRecords", () => {
   it("slices records to ATTENDANCE_PAGE_SIZE for page 1, and the remainder for a later page", () => {
-    expect(ATTENDANCE_PAGE_SIZE).toBe(25);
-    const records = buildRecords(60);
+    expect(ATTENDANCE_PAGE_SIZE).toBe(10);
+    const records = buildRecords(25);
     const page1 = paginateRecords(records, 1);
-    expect(page1).toHaveLength(25);
+    expect(page1).toHaveLength(10);
     expect(page1[0].id).toBe("rec-0");
-    expect(page1[24].id).toBe("rec-24");
+    expect(page1[9].id).toBe("rec-9");
     const page3 = paginateRecords(records, 3);
-    expect(page3).toHaveLength(10);
-    expect(page3[0].id).toBe("rec-50");
+    expect(page3).toHaveLength(5);
+    expect(page3[0].id).toBe("rec-20");
   });
 
   it("returns an empty array for a page beyond the data", () => {
@@ -504,9 +504,9 @@ describe("paginateRecords", () => {
 
 describe("getTotalPages", () => {
   it("rounds up to a whole page count, floored at 1 (never 0 pages)", () => {
-    expect(getTotalPages(288)).toBe(12);
-    expect(getTotalPages(26)).toBe(2);
-    expect(getTotalPages(25)).toBe(1);
+    expect(getTotalPages(288)).toBe(29);
+    expect(getTotalPages(11)).toBe(2);
+    expect(getTotalPages(10)).toBe(1);
     expect(getTotalPages(0)).toBe(1);
   });
 });

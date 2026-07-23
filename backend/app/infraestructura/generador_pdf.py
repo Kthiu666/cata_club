@@ -21,13 +21,12 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    HRFlowable, PageBreak,
+    HRFlowable,
 )
 
 _LOGO_PATH = Path(__file__).parent / "assets" / "cata-club-logo.jpeg"
 _ROJO_INSTITUCIONAL = "#D92128"
 _NEGRO_INSTITUCIONAL = "#111111"
-_FILAS_POR_PAGINA = 10
 _NOMBRE_CLUB = "Cata Club - Academia de Tenis"
 
 
@@ -208,8 +207,12 @@ def generar_reporte_pdf(
     Construye un PDF de reporte tabular genérico en memoria y devuelve bytes.
 
     Reglas:
-      - Las filas se paginan de a `_FILAS_POR_PAGINA` (10) por página, con un
-        `Table` (incluyendo fila de encabezado) por cada bloque + `PageBreak`.
+      - Todas las filas van en una única `Table` (`repeatRows=1`); ReportLab
+        la parte automáticamente donde el contenido deja de entrar en la
+        página, repitiendo el encabezado en cada continuación. Antes se
+        forzaba un corte fijo cada 10 filas (`PageBreak` manual) sin importar
+        cuánto espacio real ocupaban esas filas, dejando la mayor parte de
+        cada página en blanco.
       - El logo institucional y una barra roja `#D92128` se dibujan en cada
         página vía callback `onFirstPage`/`onLaterPages` de `doc.build`.
       - Si `filas` está vacío se emite un `Paragraph` centrado indicando que
@@ -260,17 +263,10 @@ def generar_reporte_pdf(
             sin_resultados_estilo,
         ))
     else:
-        bloques = [
-            filas[i:i + _FILAS_POR_PAGINA]
-            for i in range(0, len(filas), _FILAS_POR_PAGINA)
-        ]
-        for indice, bloque in enumerate(bloques):
-            datos_tabla = [columnas] + bloque
-            tabla = Table(datos_tabla, hAlign="LEFT", repeatRows=1)
-            tabla.setStyle(_estilo_tabla_reporte())
-            elementos.append(tabla)
-            if indice < len(bloques) - 1:
-                elementos.append(PageBreak())
+        datos_tabla = [columnas] + filas
+        tabla = Table(datos_tabla, hAlign="LEFT", repeatRows=1)
+        tabla.setStyle(_estilo_tabla_reporte())
+        elementos.append(tabla)
 
     doc.build(
         elementos,
