@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import BackLink from "@/components/BackLink";
 import {
   fetchNuevosPorPeriodo,
   fetchAttendanceRecords,
@@ -179,6 +180,8 @@ function ReportsContent(): React.ReactElement {
       eyebrow="Reportes"
       title="Reportes y Analítica"
     >
+      <BackLink href="/dashboard" label="Volver al Panel" />
+
       {/* Tab selector */}
       <div className="mb-6 flex gap-1 rounded-xl bg-cata-bg p-1">
         <button

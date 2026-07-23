@@ -107,6 +107,7 @@ function validateChildData(data: AddDependentFormData): string[] {
   if (!data.apellidos.trim()) errors.push("Los apellidos son obligatorios.");
   if (!data.fechaNacimiento) errors.push("La fecha de nacimiento es obligatoria.");
   else if (!isValidDate(data.fechaNacimiento)) errors.push("La fecha de nacimiento ingresada no es válida.");
+  else if (isFutureDate(data.fechaNacimiento)) errors.push("La fecha de nacimiento no puede ser en el futuro.");
   if (!data.cedula.trim()) errors.push("La cédula de identidad es obligatoria.");
   else if (!/^\d{10}$/.test(data.cedula.trim())) errors.push("La cédula debe tener 10 dígitos.");
   if (!data.telefono.trim()) errors.push("El teléfono es obligatorio.");
@@ -139,6 +140,15 @@ function isValidDate(value: string): boolean {
     parsed.getMonth() === month - 1 &&
     parsed.getDate() === day
   );
+}
+
+/** `value` is a valid "YYYY-MM-DD" already — compares by local calendar date, not UTC, to avoid off-by-one near midnight. */
+function isFutureDate(value: string): boolean {
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return parsed > today;
 }
 
 export function getAddDependentErrorMessage(error: unknown): string {

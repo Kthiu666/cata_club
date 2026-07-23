@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Loader2, Save, CheckCircle2, Stethoscope, Plus } from "lucide-react";
 import { fetchFichaMedica, actualizarFichaMedica } from "@/services/api";
+import { useToast } from "@/contexts/ToastContext";
 import type { FichaMedicaEditable, TipoSangre } from "@/types/domain";
 
 interface MedicalRecordEditorProps {
@@ -10,6 +11,7 @@ interface MedicalRecordEditorProps {
 }
 
 export default function MedicalRecordEditor({ personaId }: MedicalRecordEditorProps): React.ReactElement {
+  const { showSuccess, showError } = useToast();
   const [state, setState] = useState<
     | { status: "loading" }
     | { status: "error"; message: string }
@@ -78,8 +80,11 @@ export default function MedicalRecordEditor({ personaId }: MedicalRecordEditorPr
       });
       setSaveSuccess(true);
       setReloadToken((n) => n + 1);
+      showSuccess("Ficha médica guardada correctamente.");
     } catch (error: unknown) {
-      setSaveError(error instanceof Error ? error.message : "No se pudo guardar la ficha médica.");
+      const message = error instanceof Error ? error.message : "No se pudo guardar la ficha médica.";
+      setSaveError(message);
+      showError(message);
     } finally {
       setSaving(false);
     }

@@ -26,6 +26,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import BackLink from "@/components/BackLink";
 import { Users, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, GraduationCap } from "lucide-react";
 import {
   fetchMembers,
@@ -69,12 +70,16 @@ export interface NivelAsignacionPanelProps {
   readonly eyebrow: string;
   readonly title: string;
   readonly allowedRoles: UserRole[];
+  readonly backHref: string;
+  readonly backLabel: string;
 }
 
 export default function NivelAsignacionPanel({
   eyebrow,
   title,
   allowedRoles,
+  backHref,
+  backLabel,
 }: NivelAsignacionPanelProps): React.ReactElement {
   const [members, setMembers] = useState<Awaited<ReturnType<typeof fetchMembers>>["accounts"]>([]);
   const [niveles, setNiveles] = useState<NivelConOcupacion[]>([]);
@@ -162,6 +167,8 @@ export default function NivelAsignacionPanel({
   return (
     <ProtectedRoute allowedRoles={allowedRoles}>
       <AppShell eyebrow={eyebrow} title={title}>
+        <BackLink href={backHref} label={backLabel} />
+
         {loadError && (
           <div
             className="mb-6 flex items-center gap-2 rounded-xl border border-cata-red/30 bg-cata-red/10 px-4 py-3 text-sm text-cata-red"
@@ -205,7 +212,7 @@ const NIVEL_FILTER_UNASSIGNED = "sin-asignar";
 const SUCCESS_RESET_DELAY_MS = 2000;
 
 function AsignarNivelTab({ students, niveles, loading, onOptimisticAssign, onBackgroundRefresh }: AsignarNivelTabProps): React.ReactElement {
-  const { showSuccess } = useToast();
+  const { showSuccess, showError } = useToast();
   const [drafts, setDrafts] = useState<Record<string, number>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -303,9 +310,9 @@ function AsignarNivelTab({ students, niveles, loading, onOptimisticAssign, onBac
       resetTimersRef.current.set(estudianteId, timer);
     } catch (err) {
       console.error("[nivel] assign/move nivel failed", err);
-      setError(
-        err instanceof ApiClientError ? err.message : "Error al asignar el nivel.",
-      );
+      const message = err instanceof ApiClientError ? err.message : "Error al asignar el nivel.";
+      setError(message);
+      showError(message);
     } finally {
       setSavingId(null);
     }

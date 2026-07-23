@@ -46,7 +46,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import BackLink from "@/components/BackLink";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastContext";
 import {
   fetchMiPerfil,
   actualizarMiPerfil,
@@ -242,6 +244,7 @@ type ProfileLayoutProps =
     };
 
 function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
+  const { showSuccess, showError } = useToast();
   // ---- Staff-only inline edit / change-password state. Always declared
   // (hooks can't be conditional) — simply unused on the student branch. ----
   const [editing, setEditing] = useState(false);
@@ -291,8 +294,11 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
         props.onFotoUpdated(updated.fotoUrl);
       }
       setFotoSuccess(true);
+      showSuccess("Foto de perfil actualizada correctamente.");
     } catch (error: unknown) {
-      setFotoError(toErrorMessage(error, "No se pudo actualizar la foto de perfil."));
+      const message = toErrorMessage(error, "No se pudo actualizar la foto de perfil.");
+      setFotoError(message);
+      showError(message);
     } finally {
       setUploadingFoto(false);
     }
@@ -326,12 +332,15 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
       props.onSaved(updated);
       setEditing(false);
       setSaveSuccess(true);
+      showSuccess("Perfil actualizado correctamente.");
     } catch (error: unknown) {
       // Revert — a rejected edit must never be left displayed as if it were
       // persisted (no silent data loss, per spec).
       setTelefono(perfil.telefono);
       setEditing(false);
-      setSaveError(toErrorMessage(error, "No se pudo guardar los cambios."));
+      const message = toErrorMessage(error, "No se pudo guardar los cambios.");
+      setSaveError(message);
+      showError(message);
     } finally {
       setSaving(false);
     }
@@ -345,8 +354,11 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
     try {
       const result = await solicitarRecuperacion(props.accountEmail);
       setPasswordMessage(result.mensaje);
+      showSuccess(result.mensaje);
     } catch (error: unknown) {
-      setPasswordError(toErrorMessage(error, "No se pudo enviar el correo de recuperación."));
+      const message = toErrorMessage(error, "No se pudo enviar el correo de recuperación.");
+      setPasswordError(message);
+      showError(message);
     } finally {
       setRequestingPassword(false);
     }
@@ -382,6 +394,13 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
             <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
           </Link>
         </div>
+      )}
+
+      {props.kind === "staff" && (
+        <BackLink
+          href={props.role === "admin" ? "/dashboard" : "/trainer"}
+          label="Volver al Panel"
+        />
       )}
 
       {/* Hero card */}

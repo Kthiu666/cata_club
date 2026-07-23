@@ -141,6 +141,10 @@ export default function TrainerAttendancePage(): React.ReactElement {
     if (submitError) showError(submitError);
   }, [submitError, showError]);
 
+  useEffect(() => {
+    if (rosterError) showError(rosterError);
+  }, [rosterError, showError]);
+
   // Reset student page when search filter changes.
   useEffect(() => {
     setStudentPage(1);

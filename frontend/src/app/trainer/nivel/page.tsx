@@ -17,6 +17,8 @@ export default function NivelPage(): React.ReactElement {
       eyebrow="Área de entrenadores"
       title="Nivel"
       allowedRoles={["trainer"]}
+      backHref="/trainer"
+      backLabel="Volver a Entrenador"
     />
   );
 }

@@ -21,7 +21,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import BackLink from "@/components/BackLink";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastContext";
 import { fetchStudentPortal, crearRepresentado } from "@/services/api";
 import { calculateAge } from "@/app/student/enroll/enroll-utils";
 import { WizardTextarea, PersonIdentityFields, EmergencyContactFields, WizardNavigation } from "@/components/wizard-fields";
@@ -54,6 +56,7 @@ import {
 function AddDependentContent(): React.ReactElement {
   const { session } = useAuth();
   const router = useRouter();
+  const { showSuccess, showError } = useToast();
 
   const [step, setStep] = useState<AddDependentStep>("child");
   const [formData, setFormData] = useState<AddDependentFormData>(initialAddDependentFormData);
@@ -160,12 +163,15 @@ function AddDependentContent(): React.ReactElement {
     setSubmitting(true);
     try {
       await crearRepresentado(representanteId, buildRepresentadoPayload(formData));
+      showSuccess("Dependiente agregado correctamente.");
       // Navigation-remount: /student refetches the portal summary on mount,
       // so the new dependent appears without any optimistic client state.
       router.push("/student");
     } catch (error: unknown) {
       setSubmitting(false);
-      setFormErrors([getAddDependentErrorMessage(error)]);
+      const message = getAddDependentErrorMessage(error);
+      setFormErrors([message]);
+      showError(message);
     }
   }
 
@@ -363,6 +369,8 @@ function AddDependentContent(): React.ReactElement {
 
   return (
     <div className="py-8">
+      <BackLink href="/student" label="Volver" />
+
       {/* Hero Banner */}
       <div className="relative mb-10 overflow-hidden rounded-3xl border border-cata-border bg-cata-surface px-6 py-10 shadow-elevated sm:px-10 sm:py-12">
         <div className="absolute inset-0 bg-logo-glow" />

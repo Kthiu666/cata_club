@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import BackLink from "@/components/BackLink";
 import {
   Calendar,
   Clock,
@@ -139,6 +140,8 @@ export default function AttendancePage(): React.ReactElement {
         eyebrow="Asistencias"
         title="Asistencias"
       >
+        <BackLink href="/dashboard" label="Volver al Panel" />
+
         {/* Loading state */}
         {loading && (
           <div className="flex items-center justify-center py-16">
