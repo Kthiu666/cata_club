@@ -648,6 +648,7 @@ function makeAlumnoHorario(overrides: Partial<AlumnoHorario> = {}): AlumnoHorari
     id: 10,
     personaId: 3,
     personaNombreCompleto: "Sofia Martinez",
+    edad: 12,
     horarioId: 1,
     horarioDia: "LUNES",
     horarioHoraInicio: "18:00",

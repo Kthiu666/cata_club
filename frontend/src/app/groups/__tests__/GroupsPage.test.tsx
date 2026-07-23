@@ -12,6 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import GroupsPage from "@/app/groups/page";
+import { ApiClientError } from "@/services/api";
 import type { NivelConOcupacion } from "@/services/api";
 import type { Justificativo } from "@/types/domain";
 import type { MemberAccount } from "@/app/members/members-utils";
@@ -713,7 +714,7 @@ describe("GroupsPage — accordion single-expand mechanics (PR3a)", () => {
   });
 });
 
-describe("GroupsPage — real roster via fetchAlumnosPorHorario + día-pill selector (PR3b)", () => {
+describe("GroupsPage — grupo-level roster: union across días, assign/unassign to every día (bugfix)", () => {
   const MULTI_DIA_GROUP_ROWS = [
     { id: 601, diaSemana: "LUNES", horaInicio: "15:00", horaFin: "16:00", categoria: "FORMATIVO", entrenadorId: 1, nivelRankingId: 2 },
     { id: 602, diaSemana: "MIERCOLES", horaInicio: "15:00", horaFin: "16:00", categoria: "FORMATIVO", entrenadorId: 1, nivelRankingId: 2 },
@@ -752,19 +753,25 @@ describe("GroupsPage — real roster via fetchAlumnosPorHorario + día-pill sele
     mockFetchNivelesConOcupacion.mockReset();
     mockFetchAlumnosPorHorario.mockReset();
     mockAsignarAlumnoAHorario.mockReset();
+    mockDesasignarAlumnoDeHorario.mockReset();
     mockFetchJustificativosPendientes.mockResolvedValue([]);
     mockFetchHorarios.mockResolvedValue([...MULTI_DIA_GROUP_ROWS, SINGLE_DIA_ROW]);
     mockFetchNivelesConOcupacion.mockResolvedValue(NIVELES);
     mockFetchMembers.mockResolvedValue({ accounts: [NIVEL_MATCH_UNENROLLED_ACCOUNT], niveles: NIVELES });
+    mockAsignarAlumnoAHorario.mockResolvedValue({});
+    mockDesasignarAlumnoDeHorario.mockResolvedValue(undefined);
     mockFetchAlumnosPorHorario.mockImplementation((horarioId: number) => {
       if (horarioId === 601) {
         return Promise.resolve([
-          { id: 1, personaId: 20, personaNombreCompleto: "Ana Pérez", horarioId: 601, horarioDia: "LUNES", horarioHoraInicio: "15:00", horarioHoraFin: "16:00", fechaAsignacion: "2026-01-01" },
+          { id: 1, personaId: 20, personaNombreCompleto: "Ana Pérez", edad: 12, horarioId: 601, horarioDia: "LUNES", horarioHoraInicio: "15:00", horarioHoraFin: "16:00", fechaAsignacion: "2026-01-01" },
         ]);
       }
       if (horarioId === 602) {
         return Promise.resolve([
-          { id: 2, personaId: 21, personaNombreCompleto: "Bruno Díaz", horarioId: 602, horarioDia: "MIERCOLES", horarioHoraInicio: "15:00", horarioHoraFin: "16:00", fechaAsignacion: "2026-01-01" },
+          // Same personaId 20 as the LUNES row above — must be deduplicated
+          // in the union, plus Bruno who is only enrolled on this día.
+          { id: 1, personaId: 20, personaNombreCompleto: "Ana Pérez", edad: 12, horarioId: 602, horarioDia: "MIERCOLES", horarioHoraInicio: "15:00", horarioHoraFin: "16:00", fechaAsignacion: "2026-01-01" },
+          { id: 2, personaId: 21, personaNombreCompleto: "Bruno Díaz", edad: 15, horarioId: 602, horarioDia: "MIERCOLES", horarioHoraInicio: "15:00", horarioHoraFin: "16:00", fechaAsignacion: "2026-01-01" },
         ]);
       }
       return Promise.resolve([]);
@@ -783,7 +790,19 @@ describe("GroupsPage — real roster via fetchAlumnosPorHorario + día-pill sele
     expect(screen.queryByText("Carla Ruiz")).not.toBeInTheDocument();
   });
 
-  it("renders día pills for a multi-día group and switching pills reloads the roster for that día's horario_id", async () => {
+  it("shows each student's age next to their name in the roster (Fix 1)", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const [multiDiaCard] = cards();
+    fireEvent.click(within(multiDiaCard).getByRole("button", { name: /ver alumnos/i }));
+    await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
+
+    expect(await screen.findByText("Ana Pérez · 12 años")).toBeInTheDocument();
+    expect(await screen.findByText("Bruno Díaz · 15 años")).toBeInTheDocument();
+  });
+
+  it("renders the deduplicated union of every día's roster, not just one día (bugfix)", async () => {
     render(<GroupsPage />);
     await screen.findByText(/horarios de entrenamiento/i);
 
@@ -792,46 +811,131 @@ describe("GroupsPage — real roster via fetchAlumnosPorHorario + día-pill sele
     await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
 
     await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(601));
-    expect(await screen.findByText("Ana Pérez")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Mié" }));
-
     await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(602));
-    expect(await screen.findByText("Bruno Díaz")).toBeInTheDocument();
-    expect(screen.queryByText("Ana Pérez")).not.toBeInTheDocument();
+
+    // Ana (personaId 20) appears on both LUNES and MIERCOLES rows but only
+    // once in the rendered roster — deduplicated by personaId.
+    expect(await screen.findByText("Alumnos asignados (2)")).toBeInTheDocument();
+    expect(screen.getAllByText("Ana Pérez · 12 años")).toHaveLength(1);
+    expect(screen.getByText("Bruno Díaz · 15 años")).toBeInTheDocument();
   });
 
-  it("does not render día pills for a single-día group", async () => {
-    render(<GroupsPage />);
-    await screen.findByText(/horarios de entrenamiento/i);
-
-    const [, singleDiaCard] = cards();
-    fireEvent.click(within(singleDiaCard).getByRole("button", { name: /ver alumnos/i }));
-    await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
-
-    expect(screen.queryByRole("button", { name: "Vie" })).not.toBeInTheDocument();
-  });
-
-  it("assigning a student uses the horario_id of the currently selected día pill, not always the group's first row", async () => {
-    mockFetchMembers.mockResolvedValue({ accounts: [ASSIGNABLE_ACCOUNT], niveles: NIVELES });
-    mockAsignarAlumnoAHorario.mockResolvedValue({});
+  it("no longer renders a día-pill selector — assignment acts on the whole grupo now", async () => {
     render(<GroupsPage />);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [multiDiaCard] = cards();
     fireEvent.click(within(multiDiaCard).getByRole("button", { name: /ver alumnos/i }));
     await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
-    await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(601));
 
-    fireEvent.click(screen.getByRole("button", { name: "Mié" }));
+    expect(screen.queryByRole("button", { name: "Lun" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mié" })).not.toBeInTheDocument();
+  });
+
+  it("assigning a student calls asignarAlumnoAHorario once per horario_id row of the group", async () => {
+    mockFetchMembers.mockResolvedValue({ accounts: [ASSIGNABLE_ACCOUNT], niveles: NIVELES });
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const [multiDiaCard] = cards();
+    fireEvent.click(within(multiDiaCard).getByRole("button", { name: /ver alumnos/i }));
+    await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
     await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(602));
 
     fireEvent.change(screen.getByLabelText("Seleccionar alumno"), { target: { value: "70" } });
     fireEvent.click(screen.getByRole("button", { name: /^asignar$/i }));
 
     await waitFor(() => {
+      expect(mockAsignarAlumnoAHorario).toHaveBeenCalledWith({ persona_id: 70, horario_id: 601 });
       expect(mockAsignarAlumnoAHorario).toHaveBeenCalledWith({ persona_id: 70, horario_id: 602 });
     });
+    expect(mockAsignarAlumnoAHorario).toHaveBeenCalledTimes(2);
+  });
+
+  it("assigning tolerates a per-row 400 (already assigned to that día) and still reports success if any row assigned", async () => {
+    mockFetchMembers.mockResolvedValue({ accounts: [ASSIGNABLE_ACCOUNT], niveles: NIVELES });
+    mockAsignarAlumnoAHorario.mockImplementation((dto: { horario_id: number }) =>
+      dto.horario_id === 601
+        ? Promise.reject(new ApiClientError("El alumno ya está asignado al horario.", 400))
+        : Promise.resolve({}),
+    );
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const [multiDiaCard] = cards();
+    fireEvent.click(within(multiDiaCard).getByRole("button", { name: /ver alumnos/i }));
+    await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
+    await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(602));
+
+    fireEvent.change(screen.getByLabelText("Seleccionar alumno"), { target: { value: "70" } });
+    fireEvent.click(screen.getByRole("button", { name: /^asignar$/i }));
+
+    await waitFor(() => {
+      expect(mockAsignarAlumnoAHorario).toHaveBeenCalledTimes(2);
+    });
+    expect(await screen.findByText(/asignado correctamente/i)).toBeInTheDocument();
+  });
+
+  it("shows a real error (not a false success) when every row fails with a non-400 error while assigning", async () => {
+    mockFetchMembers.mockResolvedValue({ accounts: [ASSIGNABLE_ACCOUNT], niveles: NIVELES });
+    mockAsignarAlumnoAHorario.mockRejectedValue(new ApiClientError("Error de red al asignar el alumno.", 500));
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const [multiDiaCard] = cards();
+    fireEvent.click(within(multiDiaCard).getByRole("button", { name: /ver alumnos/i }));
+    await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
+    await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(602));
+
+    fireEvent.change(screen.getByLabelText("Seleccionar alumno"), { target: { value: "70" } });
+    fireEvent.click(screen.getByRole("button", { name: /^asignar$/i }));
+
+    await waitFor(() => {
+      expect(mockAsignarAlumnoAHorario).toHaveBeenCalledTimes(2);
+    });
+    expect(await screen.findByText("Error de red al asignar el alumno.")).toBeInTheDocument();
+    expect(screen.queryByText(/asignado correctamente/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ya estaba asignado a este horario/i)).not.toBeInTheDocument();
+  });
+
+  it("desasignating a student calls desasignarAlumnoDeHorario once per horario_id row of the group", async () => {
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const [multiDiaCard] = cards();
+    fireEvent.click(within(multiDiaCard).getByRole("button", { name: /ver alumnos/i }));
+    await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
+    await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(602));
+
+    const anaRow = (await screen.findByText("Ana Pérez · 12 años")).closest("div") as HTMLElement;
+    fireEvent.click(within(anaRow).getByTitle("Desasignar alumno"));
+
+    await waitFor(() => {
+      expect(mockDesasignarAlumnoDeHorario).toHaveBeenCalledWith(20, 601);
+      expect(mockDesasignarAlumnoDeHorario).toHaveBeenCalledWith(20, 602);
+    });
+    expect(mockDesasignarAlumnoDeHorario).toHaveBeenCalledTimes(2);
+    expect(await screen.findByText("Alumno desasignado del horario.")).toBeInTheDocument();
+  });
+
+  it("shows a real error (not a false success) when every row fails with a non-404 error while desasignating", async () => {
+    mockDesasignarAlumnoDeHorario.mockRejectedValue(new ApiClientError("Error de red al desasignar el alumno.", 500));
+    render(<GroupsPage />);
+    await screen.findByText(/horarios de entrenamiento/i);
+
+    const [multiDiaCard] = cards();
+    fireEvent.click(within(multiDiaCard).getByRole("button", { name: /ver alumnos/i }));
+    await screen.findByRole("heading", { name: "Asignar alumnos al horario" });
+    await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(602));
+
+    const anaRow = (await screen.findByText("Ana Pérez · 12 años")).closest("div") as HTMLElement;
+    fireEvent.click(within(anaRow).getByTitle("Desasignar alumno"));
+
+    await waitFor(() => {
+      expect(mockDesasignarAlumnoDeHorario).toHaveBeenCalledTimes(2);
+    });
+    expect(await screen.findByText("Error de red al desasignar el alumno.")).toBeInTheDocument();
+    expect(screen.queryByText("Alumno desasignado del horario.")).not.toBeInTheDocument();
   });
 });
 

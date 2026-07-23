@@ -149,10 +149,11 @@ export default function GroupsPage(): React.ReactElement {
   } | null>(null);
 
   // Asignación directa alumno ↔ horario — content unchanged from PR2b, now
-  // rendered inline via `expandedGroup.tab === "alumnos"` instead of a fixed
-  // bottom-of-page panel. `alumnosHorarioId` tracks which underlying
-  // `horario_id` row the open "Alumnos" tab acts on.
-  const [alumnosHorarioId, setAlumnosHorarioId] = useState<number | null>(null);
+  // rendered inline via `expandedGroup.tab === "alumnos"`. Assignment is at
+  // GRUPO level (every underlying `horario_id` día row), not per-día: a
+  // student enrolled in a día-group belongs to ALL its días, never just one.
+  // `alumnosPorHorario` holds the deduplicated (by `personaId`) union of the
+  // roster across every row of the currently open group.
   const [alumnosPorHorario, setAlumnosPorHorario] = useState<AlumnoHorario[]>([]);
   const [cargandoAlumnos, setCargandoAlumnos] = useState(false);
   const [asignandoAlumno, setAsignandoAlumno] = useState(false);
@@ -174,11 +175,20 @@ export default function GroupsPage(): React.ReactElement {
     setTimeout(() => setNotification(null), 4000);
   }, []);
 
-  const cargarAlumnosPorHorario = useCallback(async (horarioId: number): Promise<void> => {
+  /** Loads the roster for a whole día-group: fetches every underlying row's
+   * assignees and deduplicates by `personaId` (a student assigned — even
+   * inconsistently, to only some días — must appear exactly once). */
+  const cargarAlumnosDelGrupo = useCallback(async (group: HorarioGroup): Promise<void> => {
     setCargandoAlumnos(true);
     try {
-      const alumnos = await fetchAlumnosPorHorario(horarioId);
-      setAlumnosPorHorario(alumnos);
+      const listasPorDia = await Promise.all(group.rows.map((row) => fetchAlumnosPorHorario(row.id)));
+      const porPersona = new Map<number, AlumnoHorario>();
+      for (const lista of listasPorDia) {
+        for (const alumno of lista) {
+          if (!porPersona.has(alumno.personaId)) porPersona.set(alumno.personaId, alumno);
+        }
+      }
+      setAlumnosPorHorario(Array.from(porPersona.values()));
     } catch {
       showNotification("error", "Error al cargar los alumnos del horario.");
     } finally {
@@ -186,31 +196,79 @@ export default function GroupsPage(): React.ReactElement {
     }
   }, [showNotification]);
 
-  const handleAsignarAlumno = useCallback(async (): Promise<void> => {
-    if (!alumnosHorarioId || !alumnoSeleccionado) return;
+  /** Assigns the selected student to EVERY día row of the group — a student
+   * belongs to the whole grupo, not to one día. Per-row failures (e.g. an
+   * inconsistent prior assignment already covering that specific row) don't
+   * abort the loop; the outcome is reported as a normal success if at least
+   * one row newly assigned, or as "already assigned" if none did — but only
+   * when every failure was the benign "ya estaba asignado" case (HTTP 400).
+   * Any other failure (network, 404, etc.) is a real error and must never be
+   * swallowed into a success message. */
+  const handleAsignarAlumno = useCallback(async (group: HorarioGroup): Promise<void> => {
+    if (!alumnoSeleccionado) return;
     setAsignandoAlumno(true);
     try {
-      await asignarAlumnoAHorario({ persona_id: alumnoSeleccionado, horario_id: alumnosHorarioId });
-      showNotification("success", "Alumno asignado correctamente al horario.");
-      setAlumnoSeleccionado(null);
-      await cargarAlumnosPorHorario(alumnosHorarioId);
-    } catch (err) {
-      showNotification("error", extractErrorMessage(err, "Error al asignar el alumno."));
+      let asignados = 0;
+      let primerErrorReal: unknown = null;
+      for (const row of group.rows) {
+        try {
+          await asignarAlumnoAHorario({ persona_id: alumnoSeleccionado, horario_id: row.id });
+          asignados++;
+        } catch (err) {
+          const esBenigno = err instanceof ApiClientError && err.status === 400;
+          if (!esBenigno && primerErrorReal === null) {
+            primerErrorReal = err;
+          }
+          // Benigno (400): ya estaba asignado a esta fila puntual — se
+          // continúa con el resto de los días del grupo. No benigno: se
+          // trackea el primero para reportarlo abajo, pero igual se sigue
+          // intentando el resto de las filas.
+        }
+      }
+      if (primerErrorReal !== null) {
+        showNotification("error", extractErrorMessage(primerErrorReal, "Error al asignar el alumno al horario."));
+      } else {
+        showNotification(
+          "success",
+          asignados > 0
+            ? "Alumno asignado correctamente al horario."
+            : "El alumno ya estaba asignado a este horario.",
+        );
+        setAlumnoSeleccionado(null);
+      }
+      await cargarAlumnosDelGrupo(group);
     } finally {
       setAsignandoAlumno(false);
     }
-  }, [alumnosHorarioId, alumnoSeleccionado, cargarAlumnosPorHorario, showNotification]);
+  }, [alumnoSeleccionado, cargarAlumnosDelGrupo, showNotification]);
 
-  const handleDesasignarAlumno = useCallback(async (personaId: number): Promise<void> => {
-    if (!alumnosHorarioId) return;
-    try {
-      await desasignarAlumnoDeHorario(personaId, alumnosHorarioId);
-      showNotification("success", "Alumno desasignado del horario.");
-      await cargarAlumnosPorHorario(alumnosHorarioId);
-    } catch (err) {
-      showNotification("error", extractErrorMessage(err, "Error al desasignar el alumno."));
+  /** Unassigns the student from EVERY día row of the group, same all-días
+   * criterion as assignment. A per-row 404 ("no había asignación en esa
+   * fila") is the only benign outcome this endpoint can produce, so it's
+   * swallowed; any other failure is real and must surface as an error
+   * instead of the "desasignado" success message. */
+  const handleDesasignarAlumno = useCallback(async (group: HorarioGroup, personaId: number): Promise<void> => {
+    let primerErrorReal: unknown = null;
+    for (const row of group.rows) {
+      try {
+        await desasignarAlumnoDeHorario(personaId, row.id);
+      } catch (err) {
+        const esBenigno = err instanceof ApiClientError && err.status === 404;
+        if (!esBenigno && primerErrorReal === null) {
+          primerErrorReal = err;
+        }
+        // Benigno (404): no estaba asignado a esta fila puntual — se
+        // continúa con el resto. No benigno: se trackea el primero para
+        // reportarlo abajo.
+      }
     }
-  }, [alumnosHorarioId, cargarAlumnosPorHorario, showNotification]);
+    if (primerErrorReal !== null) {
+      showNotification("error", extractErrorMessage(primerErrorReal, "Error al desasignar el alumno del horario."));
+    } else {
+      showNotification("success", "Alumno desasignado del horario.");
+    }
+    await cargarAlumnosDelGrupo(group);
+  }, [cargarAlumnosDelGrupo, showNotification]);
 
   const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -286,22 +344,12 @@ export default function GroupsPage(): React.ReactElement {
     setExpandedGroup({ key: group.key, tab: "editar" });
   }
 
-  /** Opens the "Alumnos" accordion tab for a group — content unchanged from
-   * PR2b (real `fetchAlumnosPorHorario` roster), acting on the group's first
-   * underlying día row. Per-día selection across a multi-día group is PR3b. */
+  /** Opens the "Alumnos" accordion tab for a group — loads the roster for
+   * the WHOLE group (every día row), not a single día (a student belongs to
+   * the whole recurring grupo, not one día). */
   function openAlumnosTab(group: HorarioGroup): void {
-    const primaryRowId = group.rows[0].id;
     setExpandedGroup({ key: group.key, tab: "alumnos" });
-    setAlumnosHorarioId(primaryRowId);
-    void cargarAlumnosPorHorario(primaryRowId);
-  }
-
-  /** Switches which underlying `horario_id` row the open "Alumnos" tab acts
-   * on — used by the día-pill selector for multi-día groups (PR3b). */
-  function selectAlumnosDia(rowId: number): void {
-    setAlumnosHorarioId(rowId);
-    setAlumnoSeleccionado(null);
-    void cargarAlumnosPorHorario(rowId);
+    void cargarAlumnosDelGrupo(group);
   }
 
   /** Collapses whichever accordion panel (editar or alumnos) is open. */
@@ -311,7 +359,6 @@ export default function GroupsPage(): React.ReactElement {
     setFormData(EMPTY_FORM);
     setSelectedDias(new Set());
     setFormError(null);
-    setAlumnosHorarioId(null);
     setAlumnosPorHorario([]);
     setAlumnoSeleccionado(null);
   }
@@ -595,9 +642,10 @@ export default function GroupsPage(): React.ReactElement {
   }
 
   /** Roster/assign panel — real enrollment via `fetchAlumnosPorHorario`,
-   * rendered inline (PR3a). Assignment is inherently per-`horario_id`, so a
-   * multi-día group shows a día-pill selector to pick which underlying row
-   * the roster/assign/unassign actions act on (PR3b). */
+   * rendered inline (PR3a). Assignment/unassignment/roster act on the WHOLE
+   * grupo (every underlying `horario_id` día row) at once — there is no
+   * per-día selection anymore, since a student belongs to every día of the
+   * grupo, never to a single loose day. */
   function renderAlumnosPanel(group: HorarioGroup): React.ReactElement {
     return (
       <>
@@ -612,25 +660,6 @@ export default function GroupsPage(): React.ReactElement {
             Cerrar
           </button>
         </div>
-
-        {group.rows.length > 1 && (
-          <div className="mb-4 flex flex-wrap gap-1.5">
-            {group.rows.map((row) => (
-              <button
-                key={row.id}
-                type="button"
-                onClick={() => selectAlumnosDia(row.id)}
-                className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${
-                  alumnosHorarioId === row.id
-                    ? "bg-cata-red text-white"
-                    : "bg-cata-bg text-cata-text/60 hover:bg-cata-red/10"
-                }`}
-              >
-                {shortDiaLabel(row.diaSemana)}
-              </button>
-            ))}
-          </div>
-        )}
 
         {cargandoAlumnos ? (
           <div className="flex items-center gap-2 py-4 text-sm text-cata-text/50">
@@ -647,10 +676,10 @@ export default function GroupsPage(): React.ReactElement {
                 <div className="space-y-2">
                   {alumnosPorHorario.map((a) => (
                     <div key={a.id} className="flex items-center justify-between rounded-lg bg-cata-bg px-3 py-2">
-                      <span className="text-sm text-cata-text">{a.personaNombreCompleto}</span>
+                      <span className="text-sm text-cata-text">{a.personaNombreCompleto} · {a.edad} años</span>
                       <button
                         type="button"
-                        onClick={() => void handleDesasignarAlumno(a.personaId)}
+                        onClick={() => void handleDesasignarAlumno(group, a.personaId)}
                         className="rounded-lg border border-cata-border p-1 text-cata-text/50 transition-colors hover:bg-red-50 hover:text-cata-red"
                         title="Desasignar alumno"
                       >
@@ -685,7 +714,7 @@ export default function GroupsPage(): React.ReactElement {
               </div>
               <button
                 type="button"
-                onClick={() => void handleAsignarAlumno()}
+                onClick={() => void handleAsignarAlumno(group)}
                 disabled={!alumnoSeleccionado || asignandoAlumno}
                 className="btn-primary inline-flex items-center gap-1.5 text-xs"
               >

@@ -1296,6 +1296,7 @@ export interface AlumnoHorario {
   id: number;
   personaId: number;
   personaNombreCompleto: string;
+  edad: number;
   horarioId: number;
   horarioDia: string;
   horarioHoraInicio: string;

@@ -14,6 +14,7 @@ from app.presentacion.schemas.asistencia_schemas import (
     AsistenciaCreateDTO, HorarioCreateDTO, HorarioUpdateDTO,
     AlumnoHorarioCreateDTO, AlumnoHorarioDetalleDTO
 )
+from app.servicios_negocio.persona_servicio import _calcular_edad
 
 
 class AsistenciaServicio:
@@ -156,6 +157,7 @@ class AsistenciaServicio:
                 id=a.id,
                 persona_id=a.persona_id,
                 persona_nombre_completo=f"{a.persona.nombres} {a.persona.apellidos}",
+                edad=_calcular_edad(a.persona.fecha_nacimiento),
                 horario_id=a.horario_id,
                 horario_dia=a.horario.dia_semana,
                 horario_hora_inicio=a.horario.hora_inicio,
@@ -176,6 +178,7 @@ class AsistenciaServicio:
                 id=a.id,
                 persona_id=a.persona_id,
                 persona_nombre_completo=f"{a.persona.nombres} {a.persona.apellidos}",
+                edad=_calcular_edad(a.persona.fecha_nacimiento),
                 horario_id=a.horario_id,
                 horario_dia=a.horario.dia_semana,
                 horario_hora_inicio=a.horario.hora_inicio,

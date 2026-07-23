@@ -1,6 +1,7 @@
 from app.dominio.modelos import Persona, Usuario, Rol
 from app.dominio.enums import TipoRol
 from app.seguridad.gestor_auth import GestorAutenticacion
+from app.servicios_negocio.persona_servicio import _calcular_edad
 from datetime import date
 
 
@@ -88,3 +89,33 @@ def test_asistencia_permite_entrenador_sustituto_distinto_al_titular(client, db_
     assert resp.status_code == 201
     assert resp.json()["entrenadorId"] == sustituto["id"]
     assert resp.json()["entrenadorId"] != horario["entrenadorId"]
+
+
+def test_listar_alumnos_por_horario_incluye_edad_calculada(client, db_session):
+    """`AlumnoHorarioDetalleDTO.edad` debe salir calculada a partir de
+    `Persona.fecha_nacimiento` vía `_calcular_edad`, no hardcodeada ni
+    ausente -- roster del frontend la necesita para mostrarla junto al
+    nombre del alumno."""
+    entrenador = _crear_persona_api(client, "1710034065", "Carlos")
+    _convertir_en_entrenador(db_session, entrenador["id"])
+    alumno = _crear_persona_api(client, "1710034073", "Ana")
+
+    horario = client.post(
+        "/api/v1/asistencias/horarios",
+        json={
+            "categoria": "JUVENIL", "dia_semana": "LUNES",
+            "entrenador_id": entrenador["id"],
+        },
+    ).json()
+
+    client.post(
+        "/api/v1/asistencias/asignar-alumno",
+        json={"persona_id": alumno["id"], "horario_id": horario["id"]},
+    )
+
+    resp = client.get(f"/api/v1/asistencias/horarios/{horario['id']}/alumnos")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    edad_esperada = _calcular_edad(date(2010, 5, 14))
+    assert body[0]["edad"] == edad_esperada
