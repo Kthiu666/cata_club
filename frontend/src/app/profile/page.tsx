@@ -371,7 +371,9 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
   // null` account (a representante with no own alumno profile) has no
   // personal status to report, so the hero deliberately shows nothing for
   // it instead of a misleading "no disponible" claim.
-  const membership = props.kind === "student" && self ? describeMembership(props.data.memberships, self.personaId) : null;
+  const membership = props.kind === "student" && self?.membership
+    ? describeMembership([self.membership], self.personaId)
+    : null;
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">

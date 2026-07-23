@@ -685,6 +685,9 @@ export interface MembershipSummary {
   fechaFin: string | null;
 }
 
+/** Alias used by the profile page to refer to a membership row in a collection. */
+export type StudentMembershipSummary = MembershipSummary;
+
 /** A real `TipoMembresia` catalog entry (`GET /membresias/tipos`) — replaces the old hardcoded `membershipPlans` array. */
 export interface MembershipPlanSummary {
   id: string;
@@ -753,6 +756,17 @@ export async function fetchNuevosPorPeriodo(
     fecha_fin: fechaFin,
   });
   return request<PersonaReporte[]>(apiEndpoint(`/personas/reportes/nuevos-por-periodo?${qs.toString()}`));
+}
+
+/** Filter personas by etiquetas (prioridad municipal / becado) — `GET /api/personas/reportes`. */
+export async function fetchPersonasPorEtiquetas(
+  filtros: { prioridadMunicipal?: boolean; becado?: boolean } = {},
+): Promise<PersonaReporte[]> {
+  const qs = new URLSearchParams();
+  if (filtros.prioridadMunicipal) qs.set("prioridad_municipal", "true");
+  if (filtros.becado) qs.set("becado", "true");
+  const query = qs.toString();
+  return request<PersonaReporte[]>(apiEndpoint(`/personas/reportes${query ? `?${query}` : ""}`));
 }
 
 /** Search persons by name (autocomplete). */
