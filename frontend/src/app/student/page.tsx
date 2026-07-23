@@ -421,7 +421,7 @@ function ActivePortalView({
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Link
-          href="/student/enroll?type=child"
+          href={representative ? "/student/add-dependent" : "/student/enroll?type=child"}
           className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
         >
           <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />

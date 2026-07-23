@@ -21,15 +21,13 @@ import Link from "next/link";
 import { enrollStudent } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { clearLegacyEnrollmentSession } from "@/lib/enrollment-session";
+import { WizardInput, WizardTextarea, PersonIdentityFields, EmergencyContactFields, WizardNavigation } from "@/components/wizard-fields";
 import { BLOOD_TYPES } from "@/types/enrollment";
 import {
   User,
   UserPlus,
   Calendar,
   Heart,
-  Phone,
-  ChevronLeft,
-  ChevronRight,
   CheckCircle,
   AlertTriangle,
   GraduationCap,
@@ -51,28 +49,6 @@ import {
   type EnrollmentType,
   type WizardStep,
 } from "./enroll-utils";
-
-// ---------------------------------------------------------------------------
-// Constants — see enroll-utils.ts for shared constants
-// ---------------------------------------------------------------------------
-
-const ACCENTED_CHARS: Record<string, string> = {
-  á: "a", é: "e", í: "i", ó: "o", ú: "u", ü: "u", ñ: "n",
-};
-
-/**
- * Derives a stable, unique-enough field id from a label so <label htmlFor>
- * can be programmatically associated with its <input>/<textarea>.
- */
-function slugifyLabel(label: string): string {
-  return label
-    .toLowerCase()
-    .split("")
-    .map((char) => ACCENTED_CHARS[char] ?? char)
-    .join("")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -254,35 +230,7 @@ export default function EnrollPage(): React.ReactElement {
     inputMode?: string;
     disabled?: boolean;
   }): React.ReactElement {
-    const fieldId = `enroll-${slugifyLabel(opts.label)}`;
-    return (
-      <div className="mb-4">
-        <label htmlFor={fieldId} className="mb-1.5 block text-sm font-medium text-cata-text">
-          {opts.label}
-          {opts.required && <span className="ml-0.5 text-cata-red">*</span>}
-        </label>
-        <div className="relative">
-          {opts.icon && (
-            <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cata-text/65">
-              {opts.icon}
-            </span>
-          )}
-          <input
-            id={fieldId}
-            type={opts.type ?? "text"}
-            value={opts.value}
-            onChange={(e) => opts.onChange(e.target.value)}
-            placeholder={opts.placeholder}
-            required={opts.required}
-            disabled={opts.disabled ?? submitting}
-            pattern={opts.pattern}
-            maxLength={opts.maxLength}
-            inputMode={(opts.inputMode ?? "text") as React.InputHTMLAttributes<HTMLInputElement>["inputMode"]}
-            className={`input-field ${opts.icon ? "pl-10" : ""}`}
-          />
-        </div>
-      </div>
-    );
+    return <WizardInput idPrefix="enroll" {...opts} disabled={opts.disabled ?? submitting} />;
   }
 
   function renderTextarea(opts: {
@@ -294,35 +242,7 @@ export default function EnrollPage(): React.ReactElement {
     icon?: React.ReactNode;
     rows?: number;
   }): React.ReactElement {
-    const fieldId = `enroll-${slugifyLabel(opts.label)}`;
-    return (
-      <div className="mb-4">
-        <label htmlFor={fieldId} className="mb-1.5 block text-sm font-medium text-cata-text">
-          {opts.label}
-          {opts.required && <span className="ml-0.5 text-cata-red">*</span>}
-          {!opts.required && (
-            <span className="ml-1 text-cata-text/45">(opcional)</span>
-          )}
-        </label>
-        <div className="relative">
-          {opts.icon && (
-            <span className="pointer-events-none absolute left-3.5 top-3 text-cata-text/65">
-              {opts.icon}
-            </span>
-          )}
-          <textarea
-            id={fieldId}
-            value={opts.value}
-            onChange={(e) => opts.onChange(e.target.value)}
-            placeholder={opts.placeholder}
-            required={opts.required}
-            disabled={submitting}
-            rows={opts.rows ?? 3}
-            className={`input-field ${opts.icon ? "pl-10" : ""} resize-none`}
-          />
-        </div>
-      </div>
-    );
+    return <WizardTextarea idPrefix="enroll" disabled={submitting} {...opts} />;
   }
 
   // ---- Step renderers ----
@@ -434,75 +354,27 @@ export default function EnrollPage(): React.ReactElement {
             "Ingrese los datos personales del estudiante a inscribir:"}
         </p>
 
-        {renderInput({
-          label: "Nombres",
-          value: formData.nombres,
-          onChange: (v) => updateField("nombres", v),
-          placeholder: "p. ej. Juan Carlos",
-          required: true,
-          icon: <User size={16} strokeWidth={1.5} aria-hidden="true" />,
-        })}
-
-        {renderInput({
-          label: "Apellidos",
-          value: formData.apellidos,
-          onChange: (v) => updateField("apellidos", v),
-          placeholder: "p. ej. Rodríguez López",
-          required: true,
-          icon: <User size={16} strokeWidth={1.5} aria-hidden="true" />,
-        })}
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          {renderInput({
-            label: "Fecha de Nacimiento",
-            value: formData.fechaNacimiento,
-            onChange: (v) => updateField("fechaNacimiento", v),
-            type: "date",
-            required: true,
-            icon: <Calendar size={16} strokeWidth={1.5} aria-hidden="true" />,
-          })}
-
-          {renderInput({
-            label: "Cédula de Identidad",
-            value: formData.cedula,
-            onChange: (v) => updateField("cedula", v),
-            placeholder: "p. ej. 1712345678",
-            required: true,
-            icon: <Hash size={16} strokeWidth={1.5} aria-hidden="true" />,
-            pattern: "[0-9]{10}",
-            maxLength: 10,
-            inputMode: "numeric",
-          })}
-        </div>
-
-        {renderInput({
-          label: "Teléfono",
-          value: formData.telefono,
-          onChange: (v) => updateField("telefono", v),
-          placeholder: "p. ej. 0991234567",
-          required: true,
-          icon: <Phone size={16} strokeWidth={1.5} aria-hidden="true" />,
-          inputMode: "tel",
-        })}
-
-        {formData.fechaNacimiento && (() => {
-          const age = calculateAge(formData.fechaNacimiento);
-          const ageValid = !isNaN(age);
-          return (
-            <div className="rounded-xl bg-cata-bg p-3 text-xs text-cata-text/65">
-              Edad calculada:{" "}
-              <span className="font-medium text-cata-text">
-                {ageValid ? `${age} años` : "—"}
+        <PersonIdentityFields
+          idPrefix="enroll"
+          disabled={submitting}
+          nombres={formData.nombres}
+          apellidos={formData.apellidos}
+          fechaNacimiento={formData.fechaNacimiento}
+          cedula={formData.cedula}
+          telefono={formData.telefono}
+          onNombresChange={(v) => updateField("nombres", v)}
+          onApellidosChange={(v) => updateField("apellidos", v)}
+          onFechaNacimientoChange={(v) => updateField("fechaNacimiento", v)}
+          onCedulaChange={(v) => updateField("cedula", v)}
+          onTelefonoChange={(v) => updateField("telefono", v)}
+          renderAgeWarning={(age) =>
+            age < 18 && formData.enrollmentType === "self" && (
+              <span className="ml-1 text-amber-700">
+                — Los menores de edad requieren un representante.
               </span>
-              {ageValid && age < 18 &&
-                formData.enrollmentType === "self" && (
-                  <span className="ml-1 text-amber-700">
-                    — Los menores de edad requieren un representante.
-                  </span>
-                )}
-            </div>
-          );
-        })()}
+            )
+          }
+        />
 
         {/* Representante fields — shown for child enrollment */}
         {formData.enrollmentType === "child" && (
@@ -631,35 +503,14 @@ export default function EnrollPage(): React.ReactElement {
           rows: 2,
         })}
 
-        <div className="my-8 h-px bg-cata-border" />
-
-        <div className="mb-3 flex items-center gap-2">
-          <Phone size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-          <p className="text-xs font-semibold uppercase tracking-wider text-cata-text/45">
-            Contacto de Emergencia
-          </p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          {renderInput({
-            label: "Nombre del Contacto",
-            value: formData.contactoEmergencia,
-            onChange: (v) => updateField("contactoEmergencia", v),
-            placeholder: "p. ej. María Rodríguez",
-            required: true,
-            icon: <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />,
-          })}
-
-          {renderInput({
-            label: "Teléfono de Emergencia",
-            value: formData.telefonoEmergencia,
-            onChange: (v) => updateField("telefonoEmergencia", v),
-            placeholder: "p. ej. 0991234567",
-            required: true,
-            icon: <Phone size={16} strokeWidth={1.5} aria-hidden="true" />,
-            inputMode: "tel",
-          })}
-        </div>
+        <EmergencyContactFields
+          idPrefix="enroll"
+          disabled={submitting}
+          contacto={formData.contactoEmergencia}
+          telefono={formData.telefonoEmergencia}
+          onContactoChange={(v) => updateField("contactoEmergencia", v)}
+          onTelefonoChange={(v) => updateField("telefonoEmergencia", v)}
+        />
 
         {renderTextarea({
           label: "Observaciones Adicionales",
@@ -965,62 +816,30 @@ export default function EnrollPage(): React.ReactElement {
               {step === "health" && renderHealthStep()}
               {step === "summary" && renderSummary()}
 
-              {/* Validation errors */}
-              {formErrors.length > 0 && (
-                <div className="alert-error mt-4 items-start" role="alert">
-                  <AlertTriangle size={14} strokeWidth={1.5} className="mt-0.5 shrink-0" aria-hidden="true" />
-                  <ul className="list-inside list-disc space-y-1">
-                    {formErrors.map((err, i) => (
-                      <li key={i}>{err}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Navigation */}
-              <div className="mt-8 flex items-center justify-between gap-3">
-                <div>
-                  {!isFirst && (
-                    <button
-                      type="button"
-                      onClick={handleBack}
-                      disabled={submitting}
-                      className="btn-ghost"
-                    >
-                      <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
-                      Atrás
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex gap-3">
-                  {!isLast ? (
-                    <button
-                      type="button"
-                      onClick={handleNext}
-                      className="btn-primary shadow-soft"
-                    >
-                      Siguiente
-                      <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
-                    </button>
-                  ) : (
-                    <button
-                      type="submit"
-                      disabled={submitting || !summaryReviewed}
-                      className="btn-primary shadow-soft disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {submitting ? (
-                        "Inscribiendo..."
-                      ) : (
-                        <>
-                          <CheckCircle size={14} strokeWidth={2} aria-hidden="true" />
-                          Confirmar Inscripción
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-              </div>
+              <WizardNavigation
+                formErrors={formErrors}
+                isFirst={isFirst}
+                isLast={isLast}
+                submitting={submitting}
+                onBack={handleBack}
+                onNext={handleNext}
+                submitButton={
+                  <button
+                    type="submit"
+                    disabled={submitting || !summaryReviewed}
+                    className="btn-primary shadow-soft disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {submitting ? (
+                      "Inscribiendo..."
+                    ) : (
+                      <>
+                        <CheckCircle size={14} strokeWidth={2} aria-hidden="true" />
+                        Confirmar Inscripción
+                      </>
+                    )}
+                  </button>
+                }
+              />
             </form>
           </div>
 

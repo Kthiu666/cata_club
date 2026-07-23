@@ -117,6 +117,26 @@ beforeEach(() => {
   mockFetchPagosDePersona.mockReset().mockResolvedValue([]);
 });
 
+describe("StudentPage — Agregar/Inscribir dependiente CTA", () => {
+  it("links to the public enrollment wizard when the account has no dependents yet", async () => {
+    render(<StudentPage />);
+
+    const link = await screen.findByText("Inscribir hijo/dependiente");
+    expect(link.closest("a")).toHaveAttribute("href", "/student/enroll?type=child");
+  });
+
+  it("links to the authenticated add-dependent wizard once the account already represents a dependent", async () => {
+    mockFetchStudentPortal
+      .mockReset()
+      .mockResolvedValue({ ...PORTAL, representados: [{ ...PORTAL.self, personaId: "42" }] });
+
+    render(<StudentPage />);
+
+    const link = await screen.findByText("Agregar hijo/dependiente");
+    expect(link.closest("a")).toHaveAttribute("href", "/student/add-dependent");
+  });
+});
+
 describe("StudentPage — Pagos section", () => {
   it("fetches and renders the persona's payment history from the service", async () => {
     mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_APROBADO]);
