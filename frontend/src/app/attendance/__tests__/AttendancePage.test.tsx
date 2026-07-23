@@ -100,7 +100,7 @@ describe("AttendancePage — Horarios section removed, Tomar asistencia added (P
 describe("AttendancePage — visible records pagination (PR8b)", () => {
   beforeEach(() => {
     mockFetchTrainingSchedules.mockReset().mockResolvedValue(SCHEDULES);
-    mockFetchAttendanceRecords.mockReset().mockResolvedValue(buildRecords(30));
+    mockFetchAttendanceRecords.mockReset().mockResolvedValue(buildRecords(15));
   });
 
   it("shows labeled Anterior/Siguiente controls (visible text, not icon-only) and a prominent page count", async () => {

@@ -19,7 +19,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useToast } from "@/contexts/ToastContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
@@ -36,6 +36,8 @@ import {
   Users,
   UserPlus,
   UserMinus,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
@@ -54,7 +56,7 @@ import {
 import type { Horario, CrearHorarioDTO, ActualizarHorarioDTO, NivelConOcupacion, AlumnoHorario, Entrenador } from "@/services/api";
 import { groupHorarios, diffGroupSave, type StudentRef, type HorarioGroup } from "@/lib/groups-utils";
 import { CATEGORIA_METADATA, CATEGORIA_OPTIONS, diasPermitidos, horarioDe, type Categoria } from "@/services/categorias";
-import { countUniqueAlumnos } from "./groups-page-utils";
+import { countUniqueAlumnos, paginateHorarioGroups, getHorarioGroupsTotalPages } from "./groups-page-utils";
 
 const DIA_LABELS: Record<string, string> = {
   LUNES: "Lunes",
@@ -174,6 +176,8 @@ export default function GroupsPage(): React.ReactElement {
   // horarios.
   const [entrenadores, setEntrenadores] = useState<Entrenador[]>([]);
   const [entrenadoresLoading, setEntrenadoresLoading] = useState(true);
+
+  const [page, setPage] = useState(1);
 
   const showNotification = useCallback((type: "success" | "error", message: string): void => {
     setNotification({ type, message });
@@ -334,6 +338,20 @@ export default function GroupsPage(): React.ReactElement {
     void loadData();
     void cargarEntrenadores();
   }, [loadData, cargarEntrenadores]);
+
+  const horarioGroups = useMemo(() => groupHorarios(horarios), [horarios]);
+
+  // Reset to page 1 whenever the underlying list changes, so the paginator
+  // never gets stuck on a stale/out-of-range page.
+  useEffect(() => {
+    setPage(1);
+  }, [horarioGroups.length]);
+
+  const totalPages = useMemo(() => getHorarioGroupsTotalPages(horarioGroups.length), [horarioGroups]);
+  const paginatedHorarioGroups = useMemo(
+    () => paginateHorarioGroups(horarioGroups, page),
+    [horarioGroups, page],
+  );
 
   function openCreateForm(): void {
     setEditingGroup(null);
@@ -820,7 +838,7 @@ export default function GroupsPage(): React.ReactElement {
           </div>
         ) : horarios.length > 0 ? (
           <div className="space-y-3">
-            {groupHorarios(horarios).map((group) => {
+            {paginatedHorarioGroups.map((group) => {
               // Asignar-alumnos opens the tab on the first día in the group
               // (per-día switching happens inside the tab via the día-pill
               // selector — PR3b). The trash icon, unlike that, deletes the
@@ -906,7 +924,37 @@ export default function GroupsPage(): React.ReactElement {
               );
             })}
           </div>
-        ) : (
+        ) : null}
+
+        {!loading && horarioGroups.length > 0 && totalPages > 1 && (
+          <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
+            <p className="text-sm font-semibold text-cata-text">
+              Página {page} de {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="btn-secondary px-4 py-2 text-xs"
+              >
+                <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+                Anterior
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="btn-secondary px-4 py-2 text-xs"
+              >
+                Siguiente
+                <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!loading && horarios.length === 0 && (
           <div className="card flex flex-col items-center py-16 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-cata-red/10">
               <Calendar size={28} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />

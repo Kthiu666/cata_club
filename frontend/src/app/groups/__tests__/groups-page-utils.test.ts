@@ -18,8 +18,12 @@ import {
   nivelToGrupo,
   buildGroupCardsFromNiveles,
   countUniqueAlumnos,
+  HORARIO_GROUPS_PAGE_SIZE,
+  paginateHorarioGroups,
+  getHorarioGroupsTotalPages,
 } from "../groups-page-utils";
 import type { AlumnoHorario, NivelConOcupacion } from "@/services/api";
+import type { HorarioGroup } from "@/lib/groups-utils";
 
 function makeAlumno(personaId: number, horarioId: number): AlumnoHorario {
   return {
@@ -339,5 +343,51 @@ describe("buildGroupCardsFromNiveles", () => {
   it("returns 0% capacity when capacidadMaxima is 0 (avoids divide-by-zero)", () => {
     const [card] = buildGroupCardsFromNiveles([{ ...nivelFixture, capacidadMaxima: 0, personasActuales: 0 }]);
     expect(card.capacityPercent).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// paginateHorarioGroups / getHorarioGroupsTotalPages (client-side pagination)
+// ---------------------------------------------------------------------------
+
+function buildHorarioGroups(count: number): HorarioGroup[] {
+  return Array.from({ length: count }, (_, i) => ({
+    key: `group-${i}`,
+    categoria: "SUB10",
+    horaInicio: "15:00",
+    horaFin: "16:00",
+    entrenadorId: 1,
+    nivelRankingId: null,
+    rows: [{ id: i, diaSemana: "LUNES" }],
+  }));
+}
+
+describe("paginateHorarioGroups", () => {
+  it("uses a page size of 10", () => {
+    expect(HORARIO_GROUPS_PAGE_SIZE).toBe(10);
+  });
+
+  it("slices groups to the page size for page 1, and the remainder for a later page", () => {
+    const groups = buildHorarioGroups(25);
+    const page1 = paginateHorarioGroups(groups, 1);
+    expect(page1).toHaveLength(10);
+    expect(page1[0].key).toBe("group-0");
+    expect(page1[9].key).toBe("group-9");
+
+    const page3 = paginateHorarioGroups(groups, 3);
+    expect(page3).toHaveLength(5);
+    expect(page3[0].key).toBe("group-20");
+  });
+
+  it("returns an empty array for a page beyond the data", () => {
+    expect(paginateHorarioGroups(buildHorarioGroups(5), 5)).toEqual([]);
+  });
+});
+
+describe("getHorarioGroupsTotalPages", () => {
+  it("rounds up to a whole page count, floored at 1 (never 0 pages)", () => {
+    expect(getHorarioGroupsTotalPages(25)).toBe(3);
+    expect(getHorarioGroupsTotalPages(10)).toBe(1);
+    expect(getHorarioGroupsTotalPages(0)).toBe(1);
   });
 });

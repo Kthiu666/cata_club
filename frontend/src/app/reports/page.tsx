@@ -19,6 +19,8 @@ import {
   CheckCircle,
   Download,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
@@ -37,6 +39,12 @@ import {
   type AttendanceRecord,
   type TrainingSchedule,
 } from "@/app/attendance/attendance-utils";
+import {
+  paginatePersonaResults,
+  getPersonaReportTotalPages,
+  paginateAsistenciaResults,
+  getAsistenciaReportTotalPages,
+} from "@/app/reports/reports-utils";
 import type { PersonaReporte } from "@/types/domain";
 
 type ReportTab = "periodo" | "asistencia";
@@ -77,6 +85,9 @@ function ReportsContent(): React.ReactElement {
   const [edadMin, setEdadMin] = useState("");
   const [edadMax, setEdadMax] = useState("");
 
+  const [personaPage, setPersonaPage] = useState(1);
+  const [asistenciaPage, setAsistenciaPage] = useState(1);
+
   function switchTab(next: ReportTab): void {
     setTab(next);
     setPersonaResults([]);
@@ -86,6 +97,8 @@ function ReportsContent(): React.ReactElement {
     setSearchTerm("");
     setEdadMin("");
     setEdadMax("");
+    setPersonaPage(1);
+    setAsistenciaPage(1);
   }
 
   /** Calculate age in years from a birth date string. */
@@ -123,6 +136,34 @@ function ReportsContent(): React.ReactElement {
     return results;
   }, [personaResults, searchTerm, edadMin, edadMax]);
 
+  // Reset to page 1 whenever the underlying filtered list changes, so the
+  // paginator never gets stuck on a stale/out-of-range page.
+  useEffect(() => {
+    setPersonaPage(1);
+  }, [filteredPersonaResults.length]);
+
+  useEffect(() => {
+    setAsistenciaPage(1);
+  }, [attendanceResults.length]);
+
+  const personaTotalPages = useMemo(
+    () => getPersonaReportTotalPages(filteredPersonaResults.length),
+    [filteredPersonaResults],
+  );
+  const paginatedPersonaResults = useMemo(
+    () => paginatePersonaResults(filteredPersonaResults, personaPage),
+    [filteredPersonaResults, personaPage],
+  );
+
+  const asistenciaTotalPages = useMemo(
+    () => getAsistenciaReportTotalPages(attendanceResults.length),
+    [attendanceResults],
+  );
+  const paginatedAttendanceResults = useMemo(
+    () => paginateAsistenciaResults(attendanceResults, asistenciaPage),
+    [attendanceResults, asistenciaPage],
+  );
+
   // Fetch horarios for the attendance filter dropdown (once, on mount)
   useEffect(() => {
     void fetchTrainingSchedules()
@@ -136,7 +177,7 @@ function ReportsContent(): React.ReactElement {
       setError("Seleccione ambas fechas.");
       return;
     }
-    if (fechaInicio > fechaFin) {
+    if (fechaInicio >= fechaFin) {
       setError("La fecha de inicio debe ser anterior a la fecha de fin.");
       return;
     }
@@ -159,6 +200,11 @@ function ReportsContent(): React.ReactElement {
 
   async function handleAsistenciaSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
+
+    if (attFechaInicio && attFechaFin && attFechaInicio > attFechaFin) {
+      setError("La fecha de inicio debe ser anterior a la fecha de fin.");
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -367,6 +413,10 @@ function ReportsContent(): React.ReactElement {
         <PersonaReportTable
           personaResults={personaResults}
           filteredPersonaResults={filteredPersonaResults}
+          paginatedPersonaResults={paginatedPersonaResults}
+          page={personaPage}
+          totalPages={personaTotalPages}
+          onPageChange={setPersonaPage}
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
           edadMin={edadMin}
@@ -403,6 +453,12 @@ function ReportsContent(): React.ReactElement {
             )}
           </div>
 
+          {attendanceResults.length > 0 && asistenciaTotalPages > 1 && (
+            <p className="border-b border-cata-border bg-cata-bg/30 px-6 py-2 text-xs text-cata-text/55">
+              El PDF incluye los {attendanceResults.length} registros encontrados, no solo esta página.
+            </p>
+          )}
+
           {attendanceResults.length === 0 ? (
             <div className="px-6 py-12 text-center">
               <CheckCircle size={32} className="mx-auto mb-3 text-cata-text/25" strokeWidth={1.5} />
@@ -423,7 +479,7 @@ function ReportsContent(): React.ReactElement {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cata-border">
-                  {attendanceResults.map((record) => {
+                  {paginatedAttendanceResults.map((record) => {
                     const tokens = ATTENDANCE_BADGE_TOKENS[record.estado] ?? {
                       badgeClass: "bg-cata-border/40 text-cata-text/65",
                       iconClass: "text-cata-text/65",
@@ -448,6 +504,34 @@ function ReportsContent(): React.ReactElement {
               </table>
             </div>
           )}
+
+          {attendanceResults.length > 0 && asistenciaTotalPages > 1 && (
+            <div className="flex flex-col items-center justify-between gap-3 border-t border-cata-border px-6 py-4 sm:flex-row">
+              <p className="text-sm font-semibold text-cata-text">
+                Página {asistenciaPage} de {asistenciaTotalPages}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAsistenciaPage((p) => Math.max(1, p - 1))}
+                  disabled={asistenciaPage <= 1}
+                  className="btn-secondary px-4 py-2 text-xs"
+                >
+                  <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAsistenciaPage((p) => Math.min(asistenciaTotalPages, p + 1))}
+                  disabled={asistenciaPage >= asistenciaTotalPages}
+                  className="btn-secondary px-4 py-2 text-xs"
+                >
+                  Siguiente
+                  <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </AppShell>
@@ -466,6 +550,10 @@ function ReportsContent(): React.ReactElement {
 function PersonaReportTable({
   personaResults,
   filteredPersonaResults,
+  paginatedPersonaResults,
+  page,
+  totalPages,
+  onPageChange,
   searchTerm,
   setSearchTerm,
   edadMin,
@@ -478,6 +566,10 @@ function PersonaReportTable({
 }: {
   personaResults: PersonaReporte[];
   filteredPersonaResults: PersonaReporte[];
+  paginatedPersonaResults: PersonaReporte[];
+  page: number;
+  totalPages: number;
+  onPageChange: (updater: (page: number) => number) => void;
   searchTerm: string;
   setSearchTerm: (value: string) => void;
   edadMin: string;
@@ -510,6 +602,12 @@ function PersonaReportTable({
           </button>
         )}
       </div>
+
+      {personaResults.length > 0 && (totalPages > 1 || searchTerm || edadMin || edadMax) && (
+        <p className="border-b border-cata-border bg-cata-bg/30 px-6 py-2 text-xs text-cata-text/55">
+          El PDF incluye los {personaResults.length} resultados del rango de fechas seleccionado — no se limita a esta página ni aplica la búsqueda o el filtro de edad.
+        </p>
+      )}
 
       {/* Local filters */}
       {personaResults.length > 0 && (
@@ -594,7 +692,7 @@ function PersonaReportTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-cata-border">
-              {filteredPersonaResults.map((persona) => (
+              {paginatedPersonaResults.map((persona) => (
                 <tr key={persona.id} className="transition-colors hover:bg-cata-bg/30">
                   <td className="px-6 py-3">
                     <span className="font-medium text-cata-text">
@@ -617,6 +715,34 @@ function PersonaReportTable({
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {filteredPersonaResults.length > 0 && totalPages > 1 && (
+        <div className="flex flex-col items-center justify-between gap-3 border-t border-cata-border px-6 py-4 sm:flex-row">
+          <p className="text-sm font-semibold text-cata-text">
+            Página {page} de {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onPageChange((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="btn-secondary px-4 py-2 text-xs"
+            >
+              <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+              Anterior
+            </button>
+            <button
+              type="button"
+              onClick={() => onPageChange((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="btn-secondary px-4 py-2 text-xs"
+            >
+              Siguiente
+              <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+            </button>
+          </div>
         </div>
       )}
     </div>

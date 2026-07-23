@@ -237,3 +237,114 @@ describe("ReportsPage — Exportar PDF button (asistencia tab)", () => {
     });
   });
 });
+
+describe("ReportsPage — date-range validation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchTrainingSchedules.mockResolvedValue([]);
+  });
+
+  it("periodo tab: rejects an end date equal to the start date without calling the API", async () => {
+    render(<ReportsPage />);
+    fireEvent.change(screen.getByLabelText(/fecha inicio/i), { target: { value: "2026-06-01" } });
+    fireEvent.change(screen.getByLabelText(/fecha fin/i), { target: { value: "2026-06-01" } });
+    fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
+
+    expect(await screen.findByText(/la fecha de inicio debe ser anterior a la fecha de fin/i)).toBeInTheDocument();
+    expect(mockFetchNuevosPorPeriodo).not.toHaveBeenCalled();
+  });
+
+  it("periodo tab: rejects an end date before the start date without calling the API", async () => {
+    render(<ReportsPage />);
+    fireEvent.change(screen.getByLabelText(/fecha inicio/i), { target: { value: "2026-06-15" } });
+    fireEvent.change(screen.getByLabelText(/fecha fin/i), { target: { value: "2026-06-01" } });
+    fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
+
+    expect(await screen.findByText(/la fecha de inicio debe ser anterior a la fecha de fin/i)).toBeInTheDocument();
+    expect(mockFetchNuevosPorPeriodo).not.toHaveBeenCalled();
+  });
+
+  it("asistencia tab: rejects an end date before the start date without calling the API", async () => {
+    render(<ReportsPage />);
+    fireEvent.click(screen.getByRole("button", { name: /asistencia/i }));
+    await waitFor(() => expect(mockFetchTrainingSchedules).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText(/fecha inicio/i), { target: { value: "2026-06-15" } });
+    fireEvent.change(screen.getByLabelText(/fecha fin/i), { target: { value: "2026-06-01" } });
+    fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
+
+    expect(await screen.findByText(/la fecha de inicio debe ser anterior a la fecha de fin/i)).toBeInTheDocument();
+    expect(mockFetchAttendanceRecords).not.toHaveBeenCalled();
+  });
+
+  it("asistencia tab: allows an end date equal to the start date (single-day report)", async () => {
+    mockFetchAttendanceRecords.mockResolvedValue([]);
+
+    render(<ReportsPage />);
+    fireEvent.click(screen.getByRole("button", { name: /asistencia/i }));
+    await waitFor(() => expect(mockFetchTrainingSchedules).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText(/fecha inicio/i), { target: { value: "2026-06-01" } });
+    fireEvent.change(screen.getByLabelText(/fecha fin/i), { target: { value: "2026-06-01" } });
+    fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
+
+    await waitFor(() => expect(mockFetchAttendanceRecords).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/la fecha de inicio debe ser anterior a la fecha de fin/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("ReportsPage — PDF export scope note", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchTrainingSchedules.mockResolvedValue([]);
+  });
+
+  function buildPersonas(count: number): PersonaReporte[] {
+    return Array.from({ length: count }, (_, i) => ({
+      ...PERSONA,
+      id: i + 1,
+      cedula: String(1000000000 + i),
+    }));
+  }
+
+  it("periodo tab: shown once results span more than one page", async () => {
+    mockFetchNuevosPorPeriodo.mockResolvedValue(buildPersonas(11));
+
+    render(<ReportsPage />);
+    fillPeriodoFechas();
+    fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
+
+    expect(await screen.findByText(/el pdf incluye los 11 resultados/i)).toBeInTheDocument();
+  });
+
+  it("periodo tab: hidden when a single page of unfiltered results is shown", async () => {
+    mockFetchNuevosPorPeriodo.mockResolvedValue(buildPersonas(3));
+
+    render(<ReportsPage />);
+    fillPeriodoFechas();
+    fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
+
+    await waitFor(() => expect(exportButton()).toBeInTheDocument());
+    expect(screen.queryByText(/el pdf incluye los/i)).not.toBeInTheDocument();
+  });
+
+  it("asistencia tab: shown once results span more than one page", async () => {
+    mockFetchAttendanceRecords.mockResolvedValue(
+      Array.from({ length: 11 }, (_, i) => ({
+        id: i + 1,
+        fecha: "2026-07-06",
+        horario: "Lunes 08:00–09:00",
+        estudiante: "Juan Pérez",
+        estado: "PRESENTE" as const,
+        entrenador: "Carlos Ruiz",
+      })),
+    );
+
+    render(<ReportsPage />);
+    fireEvent.click(screen.getByRole("button", { name: /asistencia/i }));
+    await waitFor(() => expect(mockFetchTrainingSchedules).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: /^buscar$/i }));
+
+    expect(await screen.findByText(/el pdf incluye los 11 registros/i)).toBeInTheDocument();
+  });
+});

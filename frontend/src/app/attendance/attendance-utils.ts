@@ -277,7 +277,7 @@ export function buildScheduleGroupMap(
 // ---------------------------------------------------------------------------
 
 /** Records per page for the attendance records table. */
-export const ATTENDANCE_PAGE_SIZE = 25;
+export const ATTENDANCE_PAGE_SIZE = 10;
 
 /**
  * Slice a (possibly already filtered) records list to a single page.

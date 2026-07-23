@@ -6,7 +6,7 @@
  */
 
 import type { Grupo } from "@/types/domain";
-import type { StudentRef, GroupCardData } from "@/lib/groups-utils";
+import type { StudentRef, GroupCardData, HorarioGroup } from "@/lib/groups-utils";
 import { getLevelLabel } from "@/lib/groups-utils";
 import type { AlumnoHorario, NivelConOcupacion } from "@/services/api";
 
@@ -177,4 +177,39 @@ export function buildGroupCardsFromNiveles(niveles: NivelConOcupacion[]): GroupC
     scheduleCount: 0,
     scheduleLabels: [],
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Pagination (client-side, mirrors members-utils.ts's paginateAccounts/getTotalPages)
+// ---------------------------------------------------------------------------
+
+/** Horario groups per page for the Gestión de Horarios list. */
+export const HORARIO_GROUPS_PAGE_SIZE = 10;
+
+/**
+ * Slice a (possibly already filtered) horario groups list to a single page.
+ *
+ * `page` is 1-indexed. Returns an empty array when `page` is beyond the
+ * available data — never throws or wraps around.
+ */
+export function paginateHorarioGroups(
+  groups: HorarioGroup[],
+  page: number,
+  pageSize: number = HORARIO_GROUPS_PAGE_SIZE,
+): HorarioGroup[] {
+  const start = (page - 1) * pageSize;
+  return groups.slice(start, start + pageSize);
+}
+
+/**
+ * Total number of pages for a given horario group count.
+ *
+ * Always returns at least 1 (never 0 pages, even for an empty list) so
+ * "Página 1 de 1" is a valid state to render.
+ */
+export function getHorarioGroupsTotalPages(
+  totalGroups: number,
+  pageSize: number = HORARIO_GROUPS_PAGE_SIZE,
+): number {
+  return Math.max(1, Math.ceil(totalGroups / pageSize));
 }
