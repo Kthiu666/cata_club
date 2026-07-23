@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, Response, status, Query
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 from typing import List, Optional
 from datetime import date
 
 from app.dominio.enums import Categoria
 from app.infraestructura.db import obtener_sesion
+from app.infraestructura.generador_pdf import generar_reporte_pdf
 from app.presentacion.schemas.asistencia_schemas import (
     AsistenciaCreateDTO, AsistenciaResponseDTO, HorarioCreateDTO, HorarioUpdateDTO, HorarioResponseDTO,
     AlumnoHorarioCreateDTO, AlumnoHorarioDetalleDTO,
@@ -80,6 +82,58 @@ async def reporte_asistencia(
     return AsistenciaServicio(db).generar_reporte(
         horario_id=horario_id, persona_id=persona_id,
         fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+    )
+
+
+# --- Exportación a PDF del reporte de asistencia ----------------------------
+# IMPORTANTE: a diferencia del endpoint JSON de arriba (que permite
+# ADMINISTRADOR y ENTRENADOR), este export PDF exige exclusivamente
+# ADMINISTRADOR. Es una restricción intencional del capability
+# `report-pdf-export` -- no es un descuido a "corregir".
+# `generar_reporte_pdf` es CPU-bound (renderizado ReportLab síncrono); se
+# ejecuta vía `run_in_threadpool` para no bloquear el event loop de asyncio
+# (un solo worker uvicorn) — mismo motivo por el que
+# `generar_comprobante_pago_pdf` corre en una tarea de Celery, no inline.
+@router.get(
+    "/reportes/pdf",
+    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
+)
+async def reporte_asistencia_pdf(
+    horario_id: Optional[int] = Query(default=None),
+    persona_id: Optional[int] = Query(default=None),
+    fecha_inicio: Optional[date] = Query(default=None),
+    fecha_fin: Optional[date] = Query(default=None),
+    db: Session = Depends(obtener_sesion),
+):
+    registros = AsistenciaServicio(db).generar_reporte(
+        horario_id=horario_id, persona_id=persona_id,
+        fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+    )
+    columnas = ["Fecha", "Horario", "Estudiante", "Estado", "Entrenador"]
+    filas = [
+        [
+            r.fecha_entrenamiento.strftime("%d/%m/%Y"),
+            f"{r.horario.dia_semana.value} {r.horario.hora_inicio.strftime('%H:%M')}"
+            f"–{r.horario.hora_fin.strftime('%H:%M')}",
+            f"{r.persona.nombres} {r.persona.apellidos}",
+            r.estado.value,
+            f"{r.entrenador.nombres} {r.entrenador.apellidos}",
+        ]
+        for r in registros
+    ]
+    pdf_bytes = await run_in_threadpool(
+        generar_reporte_pdf,
+        titulo="Reporte de Asistencia",
+        columnas=columnas,
+        filas=filas,
+    )
+    fecha_iso = date.today().isoformat()
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="reporte-asistencia_{fecha_iso}.pdf"'
+        },
     )
 
 
