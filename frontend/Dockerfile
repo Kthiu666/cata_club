@@ -6,9 +6,8 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-FROM base AS builder
+FROM deps AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # NEXT_PUBLIC_* vars are inlined into the client bundle at build time,
