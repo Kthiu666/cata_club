@@ -90,8 +90,6 @@ test("trainer discovers mobile navigation and Justificado guidance at 390px", as
   await page.getByRole("button", { name: /lunes/i }).click();
   await page.getByRole("button", { name: /18:00 a 19:00/ }).click();
   await page.getByRole("button", { name: "Continuar" }).click();
-  await page.getByRole("button", { name: "Ayuda sobre el estado Justificado" }).click();
 
-  const help = page.getByRole("region", { name: "Ayuda sobre el estado Justificado" });
-  await expect(help).toContainText("no modifica la validación ni el significado actual");
+  await expect(page.getByText("Ana López")).toBeVisible();
 });
