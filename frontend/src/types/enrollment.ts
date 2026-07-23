@@ -48,3 +48,30 @@ export interface EnrollmentRequest {
 export interface EnrollmentResponse {
   enrolled: true;
 }
+
+export interface AddChildStudent {
+  nombres: string;
+  apellidos: string;
+  cedula: string;
+  fechaNacimiento: string;
+  telefono: string;
+}
+
+export interface AddChildMedicalRecord {
+  tipoSangre: BloodType;
+  condicionesSalud: string;
+  alergias: string;
+  contactoEmergencia: string;
+  telefonoEmergencia: string;
+  observaciones?: string;
+}
+
+export interface AddChildRequest {
+  alumno: AddChildStudent;
+  fichaMedica?: AddChildMedicalRecord;
+}
+
+export interface AddChildResponse {
+  persona_id: number;
+  mensaje: string;
+}

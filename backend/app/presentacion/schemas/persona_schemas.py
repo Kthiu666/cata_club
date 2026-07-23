@@ -4,7 +4,6 @@ from typing import Optional, List
 
 from app.dominio.enums import TipoEscuela, NivelTecnicoAlumno, TipoSangre, TipoManoDominante
 from app.presentacion.schemas.base import ResponseBase
-from app.presentacion.schemas.enrollment_schemas import EnrollmentFichaMedicaDTO
 
 
 # --- Institucion ---
@@ -34,21 +33,6 @@ class PersonaCreateDTO(BaseModel):
     porcentaje_beca: Optional[int] = Field(default=0, ge=0, le=100)
     motivo_beca: Optional[str] = Field(default=None, max_length=150)
 
-
-# --- Representado (portal autoservicio) -------------------------------------
-class RepresentadoCreateDTO(BaseModel):
-    """Payload minimal para que un representante autenticado agregue un
-    dependiente desde el portal (POST /personas/{persona_id}/representados).
-    Deliberadamente NO expone campos solo-admin de `PersonaCreateDTO`
-    (`representante_id`, `direccion_id`, `institucion_id`,
-    `prioridad_municipal`, `porcentaje_beca`, `motivo_beca`): el
-    `representante_id` lo fuerza el servicio desde el token, nunca el cliente."""
-    nombres: str = Field(..., max_length=100)
-    apellidos: str = Field(..., max_length=100)
-    cedula: str = Field(..., min_length=10, max_length=10)
-    fecha_nacimiento: date
-    telefono: str
-    ficha_medica: Optional[EnrollmentFichaMedicaDTO] = None
 
 
 class PersonaUpdateDTO(BaseModel):

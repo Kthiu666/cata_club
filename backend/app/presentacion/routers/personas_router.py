@@ -6,9 +6,12 @@ from datetime import date, datetime, time, timezone
 from app.infraestructura.db import obtener_sesion
 from app.presentacion.schemas.persona_schemas import (
     PersonaCreateDTO, PersonaResponseDTO, PersonaUpdateDTO,
-    PersonaBusquedaDTO, RepresentadoCreateDTO,
+    PersonaBusquedaDTO,
     AntecedentesClubCreateDTO, AntecedentesClubUpdateDTO, AntecedentesClubResponseDTO,
     EntrenadorResponseDTO,
+)
+from app.presentacion.schemas.enrollment_schemas import (
+    AddChildCreateDTO, AddChildResponseDTO,
 )
 from app.presentacion.schemas.base import PaginatedResponse
 from app.seguridad.gestor_auth import GestorAutenticacion
@@ -17,7 +20,6 @@ from app.servicios_negocio.antecedentes_club_servicio import AntecedentesClubSer
 from app.servicios_negocio.rol_servicio import RolServicio
 from app.servicios_negocio.gestor_permisos import GestorPermisos
 from app.dominio.enums import TipoRol
-from app.dominio.excepciones import PermisosInsuficientes
 from pydantic import BaseModel
 from app.presentacion.schemas.base import ResponseBase
 
@@ -138,27 +140,40 @@ async def listar_representados(persona_id: int, db: Session = Depends(obtener_se
     return PersonaServicio(db).listar_representados(persona_id)
 
 
-# --- Autoservicio del portal: representante agrega un dependiente ----------
-# El rol se exige vía `GestorPermisos(["REPRESENTANTE"])`; la identidad del
-# representante se toma EXCLUSIVAMENTE de `token_payload["persona_id"]` (nunca
-# del cuerpo), y se compara contra el `persona_id` de la URL. Mismo patrón que
-# el chequeo inline de `crear_antecedentes_club` (línea ~165): reusa la
-# excepción de dominio ya mapeada a 403, sin revelar si el `persona_id` de la
-# URL existe o pertenece a otro representante.
 @router.post(
-    "/{persona_id}/representados", response_model=PersonaResponseDTO,
+    "/{representante_id}/representados",
+    response_model=AddChildResponseDTO,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(GestorPermisos(["REPRESENTANTE"]))],
+    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
-async def crear_representado(
-    persona_id: int,
-    datos: RepresentadoCreateDTO,
+async def agregar_representado(
+    representante_id: int,
+    datos: AddChildCreateDTO,
     token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
     db: Session = Depends(obtener_sesion),
 ):
-    if persona_id != token_payload.get("persona_id"):
-        raise PermisosInsuficientes("Permisos insuficientes para esta operación")
-    return PersonaServicio(db).crear_representado(persona_id, datos)
+    token_persona_id = token_payload.get("persona_id")
+    if token_persona_id != representante_id:
+        from app.dominio.excepciones import PermisosInsuficientes
+        raise PermisosInsuficientes("Solo puede agregar representados a su propia cuenta")
+
+    servicio = PersonaServicio(db)
+    nuevo_hijo = servicio.registrar_hijo_de_representante(representante_id, datos.alumno)
+
+    if datos.ficha_medica:
+        from app.servicios_negocio.ficha_medica_servicio import FichaMedicaServicio
+        from app.presentacion.schemas.persona_schemas import FichaMedicaCreateDTO
+        ficha_datos = FichaMedicaCreateDTO(
+            tipo_sangre=datos.ficha_medica.tipo_sangre,
+            persona_id=nuevo_hijo.id,
+            enfermedades=datos.ficha_medica.enfermedades,
+            alergias=datos.ficha_medica.alergias,
+            contacto_emergencia=datos.ficha_medica.contacto_emergencia,
+            telefono_emergencia=datos.ficha_medica.telefono_emergencia,
+        )
+        FichaMedicaServicio(db).crear_ficha_medica(ficha_datos)
+
+    return AddChildResponseDTO(persona_id=nuevo_hijo.id)
 
 
 @router.patch(

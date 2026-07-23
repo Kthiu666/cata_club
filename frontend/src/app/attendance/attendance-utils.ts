@@ -1,5 +1,5 @@
 /**
- * Pure utility functions and mock data for the admin Horarios y Asistencia page.
+ * Pure utility functions and mock data for the admin Asistencias page.
  *
  * Admin overview: available schedules (Horario) and recent attendance records
  * (Asistencia). This is separate from the trainer attendance flow
@@ -250,7 +250,7 @@ export function jsDayIndexToDiaSemana(dayIndex: number): DiaSemana {
 /**
  * Build a map of scheduleId → linked group names.
  *
- * Used by the admin Horarios y Asistencia page to show which groups link
+ * Used by the admin Asistencias page to show which groups link
  * to each schedule slot.
  */
 export function buildScheduleGroupMap(

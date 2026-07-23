@@ -15,10 +15,10 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
-import { Users, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Users, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   fetchMembers,
   assignStudentToNivel,
@@ -28,11 +28,32 @@ import {
 } from "@/services/api";
 import { useToast } from "@/contexts/ToastContext";
 import { buildNivelStudents } from "./nivel-utils";
+import { paginateRecords, getTotalPages } from "@/app/attendance/attendance-utils";
 
-function nivelLabel(niveles: NivelConOcupacion[], nivelId: number | null): string {
-  if (nivelId === null) return "Sin asignar";
+/** Tamaño de página para la lista de estudiantes (Nivel). */
+const NIVEL_PAGE_SIZE = 10;
+
+const NIVEL_COLOR_MAP: Record<string, string> = {
+  principiante: "bg-sky-100 text-sky-700",
+  intermedio: "bg-violet-100 text-violet-700",
+  avanzado: "bg-fuchsia-100 text-fuchsia-700",
+};
+const DEFAULT_BADGE_CLASS = "bg-gray-100 text-gray-400";
+
+function nivelBadge(
+  niveles: NivelConOcupacion[],
+  nivelId: number | null,
+): { label: string; className: string } {
+  if (nivelId === null) {
+    return { label: "Sin asignar", className: DEFAULT_BADGE_CLASS };
+  }
   const nivel = niveles.find((n) => n.id === nivelId);
-  return nivel ? nivel.nombre ?? String(nivel.numeroNivel) : `Nivel ${nivelId}`;
+  if (!nivel) {
+    return { label: `Nivel ${nivelId}`, className: DEFAULT_BADGE_CLASS };
+  }
+  const label = nivel.nombre ?? String(nivel.numeroNivel);
+  const className = NIVEL_COLOR_MAP[nivel.nivelCategoria] ?? DEFAULT_BADGE_CLASS;
+  return { label, className };
 }
 
 export default function NivelPage(): React.ReactElement {
@@ -40,6 +61,8 @@ export default function NivelPage(): React.ReactElement {
   const [niveles, setNiveles] = useState<NivelConOcupacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const membersRef = useRef(members);
+  membersRef.current = members;
 
   const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -54,6 +77,62 @@ export default function NivelPage(): React.ReactElement {
       setLoading(false);
     }
   }, []);
+
+  const silentRefresh = useCallback(async (): Promise<void> => {
+    try {
+      const { accounts: membersData, niveles: nivelesData } = await fetchMembers();
+      setMembers(membersData);
+      setNiveles(nivelesData);
+    } catch {
+      /* swallow — data is stale but functional */
+    }
+  }, []);
+
+  const handleOptimisticAssign = useCallback(
+    (studentId: string, newNivelId: number) => {
+      const currentMembers = membersRef.current;
+      let oldNivelId: number | null = null;
+      for (const account of currentMembers) {
+        for (const est of account.estudiantes) {
+          if (est.id === studentId && est.grupoId !== null) {
+            oldNivelId = Number(est.grupoId);
+            break;
+          }
+        }
+        if (oldNivelId !== null) break;
+      }
+
+      setMembers((prev) =>
+        prev.map((account) => ({
+          ...account,
+          estudiantes: account.estudiantes.map((est) =>
+            est.id === studentId ? { ...est, grupoId: String(newNivelId) } : est,
+          ),
+        })),
+      );
+
+      setNiveles((prev) =>
+        prev.map((n) => {
+          if (oldNivelId !== null && n.id === oldNivelId) {
+            return {
+              ...n,
+              personasActuales: Math.max(0, n.personasActuales - 1),
+              cuposDisponibles: n.cuposDisponibles + 1,
+            };
+          }
+          if (n.id === newNivelId) {
+            return {
+              ...n,
+              personasActuales: n.personasActuales + 1,
+              cuposDisponibles: Math.max(0, n.cuposDisponibles - 1),
+            };
+          }
+          return n;
+        }),
+      );
+    },
+    [],
+  );
 
   useEffect(() => {
     void loadData();
@@ -81,7 +160,8 @@ export default function NivelPage(): React.ReactElement {
           students={students}
           niveles={niveles}
           loading={loading}
-          onAssigned={loadData}
+          onOptimisticAssign={handleOptimisticAssign}
+          onBackgroundRefresh={silentRefresh}
         />
       </AppShell>
     </ProtectedRoute>
@@ -96,7 +176,8 @@ interface AsignarNivelTabProps {
   students: ReturnType<typeof buildNivelStudents>;
   niveles: NivelConOcupacion[];
   loading: boolean;
-  onAssigned: () => Promise<void>;
+  onOptimisticAssign: (studentId: string, newNivelId: number) => void;
+  onBackgroundRefresh: () => Promise<void>;
 }
 
 const NIVEL_FILTER_UNASSIGNED = "sin-asignar";
@@ -104,7 +185,7 @@ const NIVEL_FILTER_UNASSIGNED = "sin-asignar";
 /** How long the "Asignado" label stays on the row before reverting to "Asignar". */
 const SUCCESS_RESET_DELAY_MS = 2000;
 
-function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNivelTabProps): React.ReactElement {
+function AsignarNivelTab({ students, niveles, loading, onOptimisticAssign, onBackgroundRefresh }: AsignarNivelTabProps): React.ReactElement {
   const { showSuccess } = useToast();
   const [drafts, setDrafts] = useState<Record<string, number>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -115,6 +196,7 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
   const [successIds, setSuccessIds] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
   const [nivelFilter, setNivelFilter] = useState("");
+  const [page, setPage] = useState(1);
   // One reset timer per student (keyed by estudianteId), not a single shared
   // ref — otherwise a second student's assignment completing overwrites the
   // ref before the first student's timer is cleared, leaving it orphaned:
@@ -148,6 +230,20 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
     return matchesSearch && matchesNivel;
   });
 
+  /** Resetea a página 1 cada vez que cambian los filtros o los datos. */
+  useEffect(() => {
+    setPage(1);
+  }, [filteredStudents.length, searchTerm, nivelFilter]);
+
+  const totalPages = useMemo(
+    () => getTotalPages(filteredStudents.length, NIVEL_PAGE_SIZE),
+    [filteredStudents.length],
+  );
+  const paginatedStudents = useMemo(
+    () => paginateRecords(filteredStudents, page, NIVEL_PAGE_SIZE),
+    [filteredStudents, page],
+  );
+
   async function handleAssign(estudianteId: string): Promise<void> {
     const nivelId = drafts[estudianteId];
     if (!nivelId) return;
@@ -172,9 +268,10 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
       } else {
         await moveStudentToNivel(Number(estudianteId), nivelId);
       }
-      await onAssigned();
+      onOptimisticAssign(estudianteId, nivelId);
       setSuccessIds((prev) => new Set(prev).add(estudianteId));
       showSuccess("Nivel asignado correctamente.");
+      void onBackgroundRefresh();
       const timer = setTimeout(() => {
         setSuccessIds((prev) => {
           if (!prev.has(estudianteId)) return prev;
@@ -254,13 +351,13 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
             <thead>
               <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
                 <th className="px-4 py-3 font-medium">Estudiante</th>
-                <th className="px-4 py-3 font-medium">Nivel actual</th>
+                <th className="px-4 py-3 text-center font-medium">Nivel actual</th>
                 <th className="px-4 py-3 font-medium">Nuevo nivel</th>
                 <th className="px-4 py-3 font-medium" />
               </tr>
             </thead>
             <tbody className="divide-y divide-cata-border">
-              {filteredStudents.map((student) => (
+              {paginatedStudents.map((student) => (
                 <tr key={student.id}>
                   <td className="px-4 py-3">
                     <span className="font-medium text-cata-text">
@@ -272,8 +369,15 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-cata-text/65">
-                    {nivelLabel(niveles, student.nivelRankingId)}
+                  <td className="px-4 py-3 text-center">
+                    {(() => {
+                      const badge = nivelBadge(niveles, student.nivelRankingId);
+                      return (
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
+                          {badge.label}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3">
                     <select
@@ -315,6 +419,37 @@ function AsignarNivelTab({ students, niveles, loading, onAssigned }: AsignarNive
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Paginación */}
+      {!loading && filteredStudents.length > NIVEL_PAGE_SIZE && (
+        <div className="flex items-center justify-between border-t border-cata-border bg-cata-bg px-4 py-3">
+          <p className="text-xs text-cata-text/65">
+            Página {page} de {totalPages} · {filteredStudents.length} estudiante{filteredStudents.length !== 1 ? "s" : ""}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="btn-secondary inline-flex items-center gap-1 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Página anterior"
+            >
+              <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+              Anterior
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="btn-secondary inline-flex items-center gap-1 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Página siguiente"
+            >
+              Siguiente
+              <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+            </button>
+          </div>
         </div>
       )}
     </div>

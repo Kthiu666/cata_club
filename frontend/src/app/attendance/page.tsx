@@ -1,5 +1,5 @@
 /**
- * Horarios y Asistencia — Admin overview of training schedules and attendance.
+ * Asistencias — Admin overview of training schedules and attendance.
  *
  * Admin can view real schedules (Horario, from `GET /asistencias/horarios`)
  * and attendance records (Asistencia, from `GET /asistencias/reportes`), both

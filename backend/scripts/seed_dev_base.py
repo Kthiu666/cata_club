@@ -43,6 +43,7 @@ from app.dominio.modelos import (
     Membresia,
     Pago,
     Ranking,
+    AlumnoHorario,
 )
 from app.dominio.enums import (
     TipoRol,
@@ -486,6 +487,65 @@ def main() -> None:
             db.add(ranking)
 
             print(f"[seed] Alumno creado: {alu['nombres']} {alu['apellidos']} ({alu['correo']})")
+
+        # ==================================================================
+        # 8. Asignaciones alumno_horario (para que el wizard de asistencia
+        # muestre estudiantes al seleccionar un horario). Sin este bloque,
+        # la tabla `alumno_horario` queda vacía y `/asistencias/horarios/:id
+        # /alumnos` responde `[]` para cualquier horario — el entrenador ve
+        # "Este horario no tiene alumnos asignados" en todos lados.
+        #
+        # Asignamos cada alumno a TODOS los horarios de su categoría de
+        # membresía:
+        #   - "Mensual Infantil" (franja 15-18h) → FORMATIVO, INFANTIL,
+        #     JUVENIL (cierren a las 18:00).
+        #   - "Mensual Adultos" (franja 20-21h) → ADULTOS.
+        # Idempotente: usa _obtener_o_crear con el unique (persona_id,
+        # horario_id) para no duplicar al re-ejecutar el seed.
+        # ==================================================================
+        MIEMBRO_A_CATEGORIAS_HORARIOS = {
+            "Mensual Infantil": [Categoria.FORMATIVO, Categoria.INFANTIL, Categoria.JUVENIL],
+            "Mensual Adultos": [Categoria.ADULTOS],
+        }
+
+        alumno_persona_ids = db.query(Persona.id).join(Usuario, Usuario.persona_id == Persona.id).join(
+            Rol, Usuario.roles  # relación M2M_usuario_rol
+        ).filter(Rol.tipo_rol == TipoRol.ALUMNO).all()
+        alumno_persona_ids = [pid[0] for pid in alumno_persona_ids]
+
+        horarios_por_categoria: dict[Categoria, list[HorarioEntrenamiento]] = {
+            cat: db.query(HorarioEntrenamiento).filter(
+                HorarioEntrenamiento.categoria == cat
+            ).all()
+            for cat in CATEGORIA_METADATA.keys()
+        }
+
+        asignaciones_creadas = 0
+        for persona_id in alumno_persona_ids:
+            membresia = db.query(Membresia).filter(Membresia.persona_id == persona_id).first()
+            if not membresia or not membresia.tipo_membresia_id:
+                continue
+            tipo_membresia = db.query(TipoMembresia).filter(
+                TipoMembresia.id == membresia.tipo_membresia_id
+            ).first()
+            if not tipo_membresia:
+                continue
+            categorias_horario = MIEMBRO_A_CATEGORIAS_HORARIOS.get(
+                tipo_membresia.categoria, []
+            )
+            for cat_horario in categorias_horario:
+                for horario in horarios_por_categoria.get(cat_horario, []):
+                    _, created = _obtener_o_crear(
+                        db, AlumnoHorario,
+                        (AlumnoHorario.persona_id == persona_id)
+                        & (AlumnoHorario.horario_id == horario.id),
+                        {"persona_id": persona_id, "horario_id": horario.id},
+                    )
+                    if created:
+                        asignaciones_creadas += 1
+        print(f"[seed] Asignaciones alumno_horario creadas: {asignaciones_creadas}")
+        if asignaciones_creadas == 0 and alumno_persona_ids:
+            print("[seed] WARN: alumno_horario vacío — alumnos sin categoría de membresía mapeada.")
 
         db.commit()
         print("[seed] Base seed completado exitosamente.")
