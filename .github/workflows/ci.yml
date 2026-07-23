@@ -36,7 +36,7 @@ jobs:
           AMBIENTE: test
           # Ponemos una clave larga simulada para que el validador de Pydantic pase sin problemas
           JWT_SECRET_KEY: "clave_super_secreta_y_segura_de_mas_de_32_caracteres_para_los_tests"
-        run: uv run pytest tests/ -v
+        run: uv run pytest tests/ -v --cov=app --cov-report=term-missing
 
   frontend:
     name: Frontend (Node)
@@ -69,6 +69,9 @@ jobs:
 
       - name: Unit tests
         run: pnpm test
+
+      - name: Coverage report
+        run: pnpm run test:coverage
 
       - name: Build
         run: pnpm build
