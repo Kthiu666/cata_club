@@ -669,6 +669,17 @@ export interface StudentProfileSummary {
   fechaNacimiento: string;
   ranking: StudentRankingSummary;
   recentSessions: StudentSessionSummary[];
+  membership: MembershipSummary | null;
+}
+
+export interface MembershipSummary {
+  id: number;
+  estado: string;
+  personaId: number;
+  montoAplicado: string | null;
+  categoria: string | null;
+  modalidad: string | null;
+  franjaHoraria: string | null;
 }
 
 /** A real `TipoMembresia` catalog entry (`GET /membresias/tipos`) — replaces the old hardcoded `membershipPlans` array. */
@@ -680,28 +691,13 @@ export interface MembershipPlanSummary {
   modalidad: string;
 }
 
-/**
- * Full `/student` portal payload for the logged-in persona.
- *
- * Deliberately has no per-student membership/payment field: no backend
- * endpoint lets a student/representante read their own or their dependents'
- * Membresia/Pago (see src/lib/server/student-adapter.ts) — the page renders
- * an explicit "not available" card instead of a fabricated one.
- */
 export interface StudentPortalSummary {
   self: StudentProfileSummary | null;
   representados: StudentProfileSummary[];
   membershipPlans: MembershipPlanSummary[];
-  memberships: StudentMembershipSummary[];
 }
 
-export interface StudentMembershipSummary {
-  id: number;
-  estado: string;
-  personaId: number;
-}
-
-/** Fetch the logged-in persona's own portal data (profile, representados, ranking, recent attendance) — `GET /api/student`. */
+/** Fetch the logged-in persona's own portal data — `GET /api/student`. */
 export async function fetchStudentPortal(personaId: string): Promise<StudentPortalSummary> {
   return request<StudentPortalSummary>(apiEndpoint(`/student?personaId=${encodeURIComponent(personaId)}`));
 }
@@ -864,6 +860,18 @@ export async function fetchPagosDePersona(personaId: string): Promise<PagoPerson
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
   return request<PagoPersona[]>(apiEndpoint(`/membresias/pagos/persona/${personaId}`), {
     headers: mockHeaders,
+  });
+}
+
+/** Upload a payment voucher (comprobante) — `POST /api/membresias/pagos/{pagoId}/voucher`. */
+export async function subirVoucherPago(pagoId: number, archivo: File): Promise<PagoPersona> {
+  const formData = new FormData();
+  formData.append("archivo", archivo);
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<PagoPersona>(apiEndpoint(`/membresias/pagos/${pagoId}/voucher`), {
+    method: "POST",
+    body: formData,
+    headers: { ...mockHeaders },
   });
 }
 
