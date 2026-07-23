@@ -13,7 +13,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { MessageCircle, X, Send, Loader2, AlertTriangle } from "lucide-react";
+import { Volleyball, X, Send, Loader2, AlertTriangle } from "lucide-react";
 import { consultarChatbot, type ChatbotTurno } from "@/services/api";
 
 /** How many prior turns to send as `historial` on each request — mirrors the backend's own cap. */
@@ -76,7 +76,9 @@ export default function ChatWidget(): React.ReactElement {
         {open ? (
           <X size={22} strokeWidth={1.5} aria-hidden="true" />
         ) : (
-          <MessageCircle size={22} strokeWidth={1.5} aria-hidden="true" />
+          // lucide-react has no table-tennis paddle icon — Volleyball (a
+          // textured ball) is a friendlier sport-themed stand-in than a bare circle.
+          <Volleyball size={22} strokeWidth={1.5} aria-hidden="true" />
         )}
       </button>
 
