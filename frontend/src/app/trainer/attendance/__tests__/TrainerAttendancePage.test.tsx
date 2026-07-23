@@ -148,23 +148,6 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
     });
   });
 
-  it("opens named help that preserves the existing Justificado semantics", async () => {
-    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
-    mockFetchTrainingSchedules.mockResolvedValue([
-      { id: 12, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
-    ]);
-    mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
-
-    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
-    fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
-    fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Ayuda sobre el estado Justificado" }));
-
-    const help = screen.getByRole("region", { name: "Ayuda sobre el estado Justificado" });
-    expect(help).toHaveTextContent("no modifica la validación ni el significado actual");
-  });
-
   it("shows the horario descriptor (día + rango) and no nivel/grupo text on mark-attendance and confirm", async () => {
     mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
     mockFetchTrainingSchedules.mockResolvedValue([
@@ -295,5 +278,48 @@ describe("TrainerAttendancePage — schedule accordion grouped by day (Slice A)"
 
     await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(12));
     expect(await screen.findByText("Ana López")).toBeInTheDocument();
+  });
+
+  it("paginates the student list 10-en-10 and shows Anterior/Siguiente controls", async () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    mockFetchTrainingSchedules.mockResolvedValue([
+      { id: 12, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+    ]);
+
+    const students = Array.from({ length: 25 }, (_, i) => ({
+      id: i + 1,
+      personaId: 100 + i,
+      personaNombreCompleto: `Student ${String(i + 1).padStart(2, "0")}`,
+      horarioId: 12,
+      horarioDia: "lun",
+      horarioHoraInicio: "18:00",
+      horarioHoraFin: "19:00",
+      fechaAsignacion: "2026-01-01",
+    }));
+    mockFetchAlumnosPorHorario.mockResolvedValue(students);
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    await screen.findByText("Student 01");
+    expect(screen.getByText("Student 10")).toBeInTheDocument();
+    expect(screen.queryByText("Student 11")).not.toBeInTheDocument();
+
+    const pageInfo = screen.getByText(/Página 1 de 3/);
+    expect(pageInfo).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Página siguiente" }));
+    expect(await screen.findByText("Student 11")).toBeInTheDocument();
+    expect(screen.getByText("Student 20")).toBeInTheDocument();
+    expect(screen.queryByText("Student 01")).not.toBeInTheDocument();
+    expect(screen.getByText(/Página 2 de 3/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Página siguiente" }));
+    expect(await screen.findByText("Student 21")).toBeInTheDocument();
+    expect(screen.getByText("Student 25")).toBeInTheDocument();
+    expect(screen.queryByText("Student 26")).not.toBeInTheDocument();
+    expect(screen.getByText(/Página 3 de 3/)).toBeInTheDocument();
   });
 });

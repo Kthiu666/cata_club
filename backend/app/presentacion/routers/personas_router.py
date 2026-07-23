@@ -10,6 +10,9 @@ from app.presentacion.schemas.persona_schemas import (
     AntecedentesClubCreateDTO, AntecedentesClubUpdateDTO, AntecedentesClubResponseDTO,
     EntrenadorResponseDTO,
 )
+from app.presentacion.schemas.enrollment_schemas import (
+    AddChildCreateDTO, AddChildResponseDTO,
+)
 from app.presentacion.schemas.base import PaginatedResponse
 from app.seguridad.gestor_auth import GestorAutenticacion
 from app.servicios_negocio.persona_servicio import PersonaServicio
@@ -135,6 +138,42 @@ async def obtener_persona(persona_id: int, db: Session = Depends(obtener_sesion)
 )
 async def listar_representados(persona_id: int, db: Session = Depends(obtener_sesion)):
     return PersonaServicio(db).listar_representados(persona_id)
+
+
+@router.post(
+    "/{representante_id}/representados",
+    response_model=AddChildResponseDTO,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
+)
+async def agregar_representado(
+    representante_id: int,
+    datos: AddChildCreateDTO,
+    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
+    db: Session = Depends(obtener_sesion),
+):
+    token_persona_id = token_payload.get("persona_id")
+    if token_persona_id != representante_id:
+        from app.dominio.excepciones import PermisosInsuficientes
+        raise PermisosInsuficientes("Solo puede agregar representados a su propia cuenta")
+
+    servicio = PersonaServicio(db)
+    nuevo_hijo = servicio.registrar_hijo_de_representante(representante_id, datos.alumno)
+
+    if datos.ficha_medica:
+        from app.servicios_negocio.ficha_medica_servicio import FichaMedicaServicio
+        from app.presentacion.schemas.persona_schemas import FichaMedicaCreateDTO
+        ficha_datos = FichaMedicaCreateDTO(
+            tipo_sangre=datos.ficha_medica.tipo_sangre,
+            persona_id=nuevo_hijo.id,
+            enfermedades=datos.ficha_medica.enfermedades,
+            alergias=datos.ficha_medica.alergias,
+            contacto_emergencia=datos.ficha_medica.contacto_emergencia,
+            telefono_emergencia=datos.ficha_medica.telefono_emergencia,
+        )
+        FichaMedicaServicio(db).crear_ficha_medica(ficha_datos)
+
+    return AddChildResponseDTO(persona_id=nuevo_hijo.id)
 
 
 @router.patch(

@@ -28,10 +28,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # FK nombrada `fk_ranking_nivel_ranking` en la migración original
-    # (a1f3c9d02b7e) sobre `horario_entrenamiento`.
+    # FK nombrada `fk_horario_entrenamiento_nivel_ranking` en la migración
+    # original (a1f3c9d02b7e) sobre `horario_entrenamiento`.
+    # ( La FK `fk_ranking_nivel_ranking` vive en `ranking`, NO aquí. )
     op.drop_constraint(
-        "fk_ranking_nivel_ranking",
+        "fk_horario_entrenamiento_nivel_ranking",
         "horario_entrenamiento",
         type_="foreignkey",
     )
@@ -44,7 +45,7 @@ def downgrade() -> None:
         sa.Column("nivel_ranking_id", sa.Integer(), nullable=True),
     )
     op.create_foreign_key(
-        "fk_ranking_nivel_ranking",
+        "fk_horario_entrenamiento_nivel_ranking",
         "horario_entrenamiento",
         "nivel_ranking",
         ["nivel_ranking_id"],

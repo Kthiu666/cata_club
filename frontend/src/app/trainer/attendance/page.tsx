@@ -19,11 +19,11 @@
 
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
-import ContextualHelp from "@/components/ContextualHelp";
+
 import StudentSearch from "@/components/StudentSearch";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
@@ -53,7 +53,7 @@ import {
   resolveDisplayTrainerName,
   type SessionStudent,
 } from "./attendance-utils";
-import { getAttendanceBadgeTokens, formatDay, groupSchedulesByDay } from "@/app/attendance/attendance-utils";
+import { getAttendanceBadgeTokens, formatDay, groupSchedulesByDay, paginateRecords, getTotalPages } from "@/app/attendance/attendance-utils";
 import type { TrainingSchedule } from "@/app/attendance/attendance-utils";
 import type { DiaSemana } from "@/types/domain";
 import {
@@ -81,6 +81,9 @@ const STEP_LABELS: Record<WizardStep, string> = {
 // ---------------------------------------------------------------------------
 // UI constants
 // ---------------------------------------------------------------------------
+
+/** Page size for the student list in the attendance registration wizard. */
+const WIZARD_PAGE_SIZE = 10;
 
 const ATTENDANCE_ICONS: Record<EstadoAsistencia, React.ReactNode> = {
   present: <UserCheck size={16} strokeWidth={2} aria-hidden="true" />,
@@ -110,6 +113,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
 
   const [students, setStudents] = useState<SessionStudent[]>([]);
   const [searchFilter, setSearchFilter] = useState("");
+  const [studentPage, setStudentPage] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -136,6 +140,11 @@ export default function TrainerAttendancePage(): React.ReactElement {
   useEffect(() => {
     if (submitError) showError(submitError);
   }, [submitError, showError]);
+
+  // Reset student page when search filter changes.
+  useEffect(() => {
+    setStudentPage(1);
+  }, [searchFilter]);
 
   const currentIndex = STEP_ORDER.indexOf(step);
   const isFirst = currentIndex === 0;
@@ -170,6 +179,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
     try {
       const alumnoHorarios = await fetchAlumnosPorHorario(selectedScheduleId);
       setStudents(buildRosterFromAlumnoHorarios(alumnoHorarios));
+      setStudentPage(1);
       setStep("mark-attendance");
     } catch (err) {
       console.error("[trainer/attendance] fetchAlumnosPorHorario failed", err);
@@ -241,6 +251,23 @@ export default function TrainerAttendancePage(): React.ReactElement {
     setSubmitError(null);
     setResult(null);
   }
+
+  // ---- Student list pagination (attendance wizard) ----
+
+  const filteredStudents = useMemo(() => {
+    if (!searchFilter.trim()) return students;
+    const q = searchFilter.toLowerCase();
+    return students.filter((s) => s.name.toLowerCase().includes(q));
+  }, [students, searchFilter]);
+
+  const totalStudentPages = useMemo(
+    () => getTotalPages(filteredStudents.length, WIZARD_PAGE_SIZE),
+    [filteredStudents.length],
+  );
+  const paginatedStudents = useMemo(
+    () => paginateRecords(filteredStudents, studentPage, WIZARD_PAGE_SIZE),
+    [filteredStudents, studentPage],
+  );
 
   // ---- Step renderers ----
 
@@ -342,30 +369,13 @@ export default function TrainerAttendancePage(): React.ReactElement {
           <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
         </button>
 
-        {/* Domain reminder */}
-        <div className="rounded-xl border border-amber-500/30 bg-amber-900/20 p-3 text-xs text-amber-400">
-          <p className="flex items-center gap-1.5 font-medium">
-            <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
-            Cualquier entrenador puede registrar asistencia
-          </p>
-          <p className="mt-1 text-amber-700/80">
-            Los horarios no están asignados a un entrenador específico.
-            El sistema registrará quién tomó la asistencia.
-          </p>
-        </div>
+
       </div>
     );
   }
 
   function renderMarkAttendance(): React.ReactElement | null {
     if (!selectedSchedule) return null;
-
-    const filteredStudents = searchFilter.trim()
-      ? students.filter((s) => {
-          const q = searchFilter.toLowerCase();
-          return s.name.toLowerCase().includes(q);
-        })
-      : students;
 
     const presentCount = countByState(students, "present");
     const absentCount = countByState(students, "absent");
@@ -407,9 +417,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
               {justifiedCount} Justificados
             </span>
           </div>
-          <ContextualHelp title="Ayuda sobre el estado Justificado">
-            <p>Use Justificado según el criterio actual del club. Esta selección no modifica la validación ni el significado actual del estado.</p>
-          </ContextualHelp>
+
         </div>
 
         {/* Student list with attendance toggle */}
@@ -436,51 +444,84 @@ export default function TrainerAttendancePage(): React.ReactElement {
                 <p className="text-sm text-cata-text/50">No se encontraron alumnos con ese nombre.</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {filteredStudents.map((student) => {
-                  const idx = students.findIndex((s) => s.id === student.id);
-                  return (
-                    <div
-                      key={student.id}
-                      className="card-hover flex items-center justify-between gap-3 p-4"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cata-red/15">
-                          <UserCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+              <>
+                <div className="space-y-2">
+                  {paginatedStudents.map((student) => {
+                    const idx = students.findIndex((s) => s.id === student.id);
+                    return (
+                      <div
+                        key={student.id}
+                        className="card-hover flex items-center justify-between gap-3 p-4"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cata-red/15">
+                            <UserCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                          </div>
+                          <span className="text-sm font-medium text-cata-text">
+                            {student.name}
+                          </span>
                         </div>
-                        <span className="text-sm font-medium text-cata-text">
-                          {student.name}
-                        </span>
-                      </div>
 
-                      <fieldset>
-                        <legend className="sr-only">Estado de asistencia de {student.name}</legend>
-                        <div className="grid grid-cols-2 gap-1 sm:flex">
-                          {ATTENDANCE_STATES.map((state) => {
-                            const isActive = student.attendance === state;
-                            return (
-                              <button
-                                key={state}
-                                type="button"
-                                onClick={() => handleDirectAttendanceSet(idx, state)}
-                                aria-pressed={isActive}
-                                className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
-                                  isActive
-                                    ? `border-current/20 ${getAttendanceBadgeTokens(state).badgeClass}`
-                                    : "border-transparent text-cata-text/45 hover:border-cata-border hover:text-cata-text/65"
-                                }`}
-                              >
-                                {ATTENDANCE_ICONS[state]}
-                                <span>{ATTENDANCE_LABELS[state]}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </fieldset>
+                        <fieldset>
+                          <legend className="sr-only">Estado de asistencia de {student.name}</legend>
+                          <div className="grid grid-cols-2 gap-1 sm:flex">
+                            {ATTENDANCE_STATES.map((state) => {
+                              const isActive = student.attendance === state;
+                              return (
+                                <button
+                                  key={state}
+                                  type="button"
+                                  onClick={() => handleDirectAttendanceSet(idx, state)}
+                                  aria-pressed={isActive}
+                                  className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
+                                    isActive
+                                      ? `border-current/20 ${getAttendanceBadgeTokens(state).badgeClass}`
+                                      : "border-transparent text-cata-text/45 hover:border-cata-border hover:text-cata-text/65"
+                                  }`}
+                                >
+                                  {ATTENDANCE_ICONS[state]}
+                                  <span>{ATTENDANCE_LABELS[state]}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </fieldset>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Student list pagination */}
+                {filteredStudents.length > WIZARD_PAGE_SIZE && (
+                  <div className="flex items-center justify-between rounded-xl border border-cata-border bg-cata-bg px-4 py-3">
+                    <p className="text-xs text-cata-text/65">
+                      Página {studentPage} de {totalStudentPages} · {filteredStudents.length} alumno{filteredStudents.length !== 1 ? "s" : ""}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setStudentPage((p) => Math.max(1, p - 1))}
+                        disabled={studentPage === 1}
+                        className="btn-secondary inline-flex items-center gap-1 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Página anterior"
+                      >
+                        <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+                        Anterior
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStudentPage((p) => Math.min(totalStudentPages, p + 1))}
+                        disabled={studentPage === totalStudentPages}
+                        className="btn-secondary inline-flex items-center gap-1 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Página siguiente"
+                      >
+                        Siguiente
+                        <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                      </button>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

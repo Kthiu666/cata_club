@@ -6,6 +6,7 @@ from app.dominio.enums import TipoRol
 from app.dominio.excepciones import EntidadNoEncontrada, EntidadDuplicada, OperacionInvalida
 from app.infraestructura.repositorios.persona_repositorio import PersonaRepositorio
 from app.presentacion.schemas.persona_schemas import PersonaCreateDTO, PersonaUpdateDTO
+from app.presentacion.schemas.enrollment_schemas import AddChildRepresentanteDTO
 
 
 # --- Restricciones de dominio: edad y tutor legal ---------------------------
@@ -79,6 +80,40 @@ class PersonaServicio:
 
     def listar_representados(self, persona_id: int) -> list[Persona]:
         return self.obtener_persona(persona_id).representados
+
+    def registrar_hijo_de_representante(
+        self, representante_id: int, datos: AddChildRepresentanteDTO
+    ) -> Persona:
+        representante = self.repo.obtener_por_id(representante_id)
+        if not representante:
+            raise EntidadNoEncontrada(f"Representante con id {representante_id} no encontrado")
+
+        edad_rep = _calcular_edad(representante.fecha_nacimiento)
+        if edad_rep < EDAD_MAYORIA_EDAD:
+            raise OperacionInvalida(
+                f"El representante legal debe ser mayor de edad "
+                f"({EDAD_MAYORIA_EDAD} años o más); tiene {edad_rep} años."
+            )
+
+        if self.repo.obtener_por_cedula(datos.cedula):
+            raise EntidadDuplicada(f"Ya existe una persona con la cédula {datos.cedula}")
+
+        edad_alumno = _calcular_edad(datos.fecha_nacimiento)
+        if edad_alumno < EDAD_MINIMA_ALUMNO or edad_alumno > EDAD_MAXIMA_ALUMNO:
+            raise OperacionInvalida(
+                f"La edad del alumno debe estar entre {EDAD_MINIMA_ALUMNO} "
+                f"y {EDAD_MAXIMA_ALUMNO} años (calculado: {edad_alumno})."
+            )
+
+        alumno = Persona(
+            nombres=datos.nombres,
+            apellidos=datos.apellidos,
+            cedula=datos.cedula,
+            fecha_nacimiento=datos.fecha_nacimiento,
+            telefono=datos.telefono,
+            representante_id=representante_id,
+        )
+        return self.repo.crear(alumno)
 
     def listar_entrenadores(self) -> list[Persona]:
         """Personas con rol ENTRENADOR — usado por el selector de entrenador
