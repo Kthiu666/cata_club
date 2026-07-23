@@ -78,8 +78,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     backendFetchAuthed(request, "/membresias/tipos"),
   ]);
 
-  if (!representadosResult.ok || !representadosResult.response.ok) {
-    return NextResponse.json({ message: "No se pudo cargar la cuenta." }, { status: 500 });
+  if (!representadosResult.ok) {
+    return NextResponse.json({ message: "No autorizado" }, { status: representadosResult.status });
+  }
+  if (!representadosResult.response.ok) {
+    return passthroughBackendError(representadosResult.response, "No se pudo cargar la cuenta.");
   }
   const representadosPersonas = (await representadosResult.response.json()) as BackendPersonaFull[];
 

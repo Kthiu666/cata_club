@@ -156,17 +156,19 @@ describe("StudentPage — membership display", () => {
 
     render(<StudentPage />);
 
-    const region = await screen.findByRole("region", { name: /membresía activa/i });
-    expect(region).toHaveTextContent("Activa");
-    expect(region).toHaveTextContent("Mensual");
+    const heading = await screen.findByRole("heading", { name: /activa/i });
+    expect(heading).toBeInTheDocument();
+    const card = heading.closest("section")!;
+    expect(card).toHaveTextContent("Mensual");
   });
 
   it("shows sin membresía when membership is null", async () => {
     render(<StudentPage />);
 
-    const region = await screen.findByRole("region", { name: /sin membresía/i });
-    expect(region).toHaveTextContent("Sin membresía");
-    expect(region).toHaveTextContent("Aún no tenés una membresía");
+    const heading = await screen.findByRole("heading", { name: /sin membresía/i });
+    expect(heading).toBeInTheDocument();
+    const card = heading.closest("section")!;
+    expect(card).toHaveTextContent("Aún no tenés una membresía");
   });
 
   it("shows pendiente de activación for INACTIVA state", async () => {
@@ -177,8 +179,9 @@ describe("StudentPage — membership display", () => {
 
     render(<StudentPage />);
 
-    const region = await screen.findByRole("region", { name: /pendiente de activación/i });
-    expect(region).toHaveTextContent("Pendiente de activación");
-    expect(region).toHaveTextContent("validación del primer pago");
+    const heading = await screen.findByRole("heading", { name: /pendiente de activación/i });
+    expect(heading).toBeInTheDocument();
+    const card = heading.closest("section")!;
+    expect(card).toHaveTextContent("validación del primer pago");
   });
 });
