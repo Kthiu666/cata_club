@@ -392,3 +392,38 @@ export function getAccountStatusBadge(account: MemberAccount): {
   }
   return { label: "Sin membresía activa", className: "badge-error" };
 }
+
+// ---------------------------------------------------------------------------
+// Pagination (client-side, mirrors attendance-utils.ts's paginateRecords/getTotalPages)
+// ---------------------------------------------------------------------------
+
+/** Accounts per page for the members table. */
+export const MEMBERS_PAGE_SIZE = 10;
+
+/**
+ * Slice a (possibly already filtered) accounts list to a single page.
+ *
+ * `page` is 1-indexed. Returns an empty array when `page` is beyond the
+ * available data — never throws or wraps around.
+ */
+export function paginateAccounts(
+  accounts: MemberAccount[],
+  page: number,
+  pageSize: number = MEMBERS_PAGE_SIZE,
+): MemberAccount[] {
+  const start = (page - 1) * pageSize;
+  return accounts.slice(start, start + pageSize);
+}
+
+/**
+ * Total number of pages for a given account count.
+ *
+ * Always returns at least 1 (never 0 pages, even for an empty list) so
+ * "Página 1 de 1" is a valid state to render.
+ */
+export function getTotalPages(
+  totalAccounts: number,
+  pageSize: number = MEMBERS_PAGE_SIZE,
+): number {
+  return Math.max(1, Math.ceil(totalAccounts / pageSize));
+}

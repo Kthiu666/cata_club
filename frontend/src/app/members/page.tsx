@@ -14,7 +14,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
@@ -42,6 +42,8 @@ import {
   Tag,
   Pencil,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { fetchMembers, asignarRol, quitarRol, cambiarEstadoCuenta, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia, actualizarPersona } from "@/services/api";
 import type { TipoMembresiaCatalogo } from "@/services/api";
@@ -50,12 +52,13 @@ import { getUserInitials } from "@/lib/auth-utils";
 import {
   buildMemberStats,
   formatMembershipPeriod,
-  countActiveStudents,
   filterAccounts,
   accountMatchesFlag,
   countAccountsMatchingFlag,
   getAccountStatusBadge,
   getNivelLabelFromGrupo,
+  paginateAccounts,
+  getTotalPages,
   MEMBERS_AGGREGATE_LIMIT,
   MEMBERSHIP_STATUS_LABELS,
   MEMBERSHIP_STATUS_BADGE,
@@ -523,7 +526,6 @@ function AccountRow({
   const [stateLoading, setStateLoading] = useState(false);
   const [roleError, setRoleError] = useState<string | null>(null);
   const [stateError, setStateError] = useState<string | null>(null);
-  const activeCount = countActiveStudents(account);
   const statusBadge = getAccountStatusBadge(account);
   const personaId = Number(account.id);
 
@@ -669,11 +671,6 @@ function AccountRow({
         <td className="hidden px-4 py-3.5 text-center sm:table-cell">
           <span className="text-sm font-medium text-cata-text">
             {account.estudiantes.length}
-          </span>
-        </td>
-        <td className="hidden px-4 py-3.5 text-center sm:table-cell">
-          <span className="text-sm font-medium text-cata-text">
-            {activeCount}
           </span>
         </td>
         <td className="hidden px-4 py-3.5 sm:table-cell">
@@ -898,6 +895,7 @@ export default function MembersPage(): React.ReactElement {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   const toggleEditModal = useCallback((accountId: string) => {
     setEditingAccountId((prev) => (prev === accountId ? null : accountId));
@@ -923,11 +921,23 @@ export default function MembersPage(): React.ReactElement {
     void loadMembers();
   }, [loadMembers]);
 
+  // Reset to page 1 whenever the search term or filter chip changes, so the
+  // paginator never gets stuck on a stale/out-of-range page.
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, activeFlag]);
+
   const stats = buildMemberStats(accounts);
   const filteredAccounts = filterAccounts(accounts, searchTerm).filter((account) =>
     accountMatchesFlag(account, activeFlag),
   );
   const aggregateIsCapped = personasCapped;
+
+  const totalPages = useMemo(() => getTotalPages(filteredAccounts.length), [filteredAccounts]);
+  const paginatedAccounts = useMemo(
+    () => paginateAccounts(filteredAccounts, page),
+    [filteredAccounts, page],
+  );
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
@@ -1053,12 +1063,11 @@ export default function MembersPage(): React.ReactElement {
                     <th className="px-4 py-3 font-medium">Responsable de pago</th>
                     <th className="hidden px-4 py-3 font-medium sm:table-cell">Contacto</th>
                     <th className="hidden px-4 py-3 text-center font-medium sm:table-cell">Estudiantes</th>
-                    <th className="hidden px-4 py-3 text-center font-medium sm:table-cell">Activos</th>
-                    <th className="hidden px-4 py-3 font-medium sm:table-cell">Estado</th>
+                    <th className="hidden px-4 py-3 font-medium sm:table-cell">Estado de membresía</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cata-border">
-                  {filteredAccounts.map((account) => (
+                  {paginatedAccounts.map((account) => (
                     <AccountRow
                       key={account.id}
                       account={account}
@@ -1071,7 +1080,37 @@ export default function MembersPage(): React.ReactElement {
               </table>
             </div>
           </div>
-        ) : (
+        ) : null}
+
+        {!loading && filteredAccounts.length > 0 && totalPages > 1 && (
+          <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
+            <p className="text-sm font-semibold text-cata-text">
+              Página {page} de {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="btn-secondary px-4 py-2 text-xs"
+              >
+                <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+                Anterior
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="btn-secondary px-4 py-2 text-xs"
+              >
+                Siguiente
+                <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!loading && filteredAccounts.length === 0 && (
           /* Empty state */
           <div className="card flex flex-col items-center py-16 text-center">
             <Users
