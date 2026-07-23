@@ -19,6 +19,8 @@ import { createPortal } from "react-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ContextualHelp from "@/components/ContextualHelp";
+import BackLink from "@/components/BackLink";
+import { useToast } from "@/contexts/ToastContext";
 import {
   Users,
   UserCheck,
@@ -153,6 +155,7 @@ function calculateAge(fechaNacimiento: string | undefined): number | null {
 }
 
 function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElement {
+  const { showSuccess, showError } = useToast();
   const [showMedical, setShowMedical] = useState(false);
   const [showCreateMembership, setShowCreateMembership] = useState(false);
   const [tiposMembresia, setTiposMembresia] = useState<TipoMembresiaCatalogo[]>([]);
@@ -208,10 +211,11 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
       });
       setMembershipSuccess(true);
       setShowCreateMembership(false);
+      showSuccess("Membresía creada correctamente.");
     } catch (err) {
-      setMembershipError(
-        err instanceof Error ? err.message : "Error al crear la membresía.",
-      );
+      const message = err instanceof Error ? err.message : "Error al crear la membresía.";
+      setMembershipError(message);
+      showError(message);
     } finally {
       setMembershipLoading(false);
     }
@@ -396,6 +400,7 @@ function AccountRow({
   editModalOpen,
   onToggleEditModal,
 }: AccountRowProps): React.ReactElement {
+  const { showSuccess, showError } = useToast();
   const [roles, setRoles] = useState<BackendTipoRol[]>([]);
   const [activo, setActivo] = useState(true);
   const [roleLoading, setRoleLoading] = useState<BackendTipoRol | null>(null);
@@ -414,9 +419,11 @@ function AccountRow({
       if (hasRole) {
         await quitarRol(personaId, role);
         setRoles((prev) => prev.filter((r) => r !== role));
+        showSuccess(`Rol ${ROLE_LABELS[role]} quitado correctamente.`);
       } else {
         await asignarRol(personaId, role);
         setRoles((prev) => [...prev, role]);
+        showSuccess(`Rol ${ROLE_LABELS[role]} asignado correctamente.`);
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "No se pudo actualizar el rol.";
@@ -427,6 +434,7 @@ function AccountRow({
         setRoles((prev) => prev.filter((r) => r !== role));
       } else {
         setRoleError(message);
+        showError(message);
       }
     } finally {
       setRoleLoading(null);
@@ -441,8 +449,11 @@ function AccountRow({
     try {
       await cambiarEstadoCuenta(personaId, next);
       setActivo(next);
+      showSuccess(next ? "Cuenta activada correctamente." : "Cuenta desactivada correctamente.");
     } catch (error: unknown) {
-      setStateError(error instanceof Error ? error.message : "No se pudo cambiar el estado.");
+      const message = error instanceof Error ? error.message : "No se pudo cambiar el estado.";
+      setStateError(message);
+      showError(message);
     } finally {
       setStateLoading(false);
     }
@@ -821,6 +832,8 @@ export default function MembersPage(): React.ReactElement {
         eyebrow="Gestión de Miembros"
         title="Miembros del Club"
       >
+        <BackLink href="/dashboard" label="Volver al Panel" />
+
         {error && (
           <div
             className="mb-6 flex items-center gap-2 rounded-xl border border-cata-red/30 bg-cata-red/10 px-4 py-3 text-sm text-cata-red"

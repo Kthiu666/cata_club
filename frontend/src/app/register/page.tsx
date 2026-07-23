@@ -107,6 +107,7 @@ export default function RegisterPage(): React.ReactElement {
         </>
       }
       description="Creá tu cuenta para gestionar estudiantes, pagos y asistencia del club desde un solo lugar."
+      showBackToSite
     >
       {demoSuccess ? (
         <div className="text-center">

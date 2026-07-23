@@ -20,6 +20,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { enrollStudent } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastContext";
 import { clearLegacyEnrollmentSession } from "@/lib/enrollment-session";
 import { WizardInput, WizardTextarea, PersonIdentityFields, EmergencyContactFields, WizardNavigation } from "@/components/wizard-fields";
 import { BLOOD_TYPES } from "@/types/enrollment";
@@ -56,6 +57,7 @@ import {
 
 export default function EnrollPage(): React.ReactElement {
   const { refreshSession } = useAuth();
+  const { showError } = useToast();
   const [step, setStep] = useState<WizardStep>("type");
   const [formData, setFormData] = useState<EnrollFormData>(initialFormData);
   const [submitting, setSubmitting] = useState(false);
@@ -151,7 +153,9 @@ export default function EnrollPage(): React.ReactElement {
       setConfirmed(true);
     } catch (error: unknown) {
       setSubmitting(false);
-      setFormErrors([getEnrollmentErrorMessage(error)]);
+      const message = getEnrollmentErrorMessage(error);
+      setFormErrors([message]);
+      showError(message);
     }
   }
 

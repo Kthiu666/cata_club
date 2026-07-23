@@ -23,6 +23,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/contexts/ToastContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import BackLink from "@/components/BackLink";
 import {
   Calendar,
   Plus,
@@ -123,7 +124,7 @@ export default function GroupsPage(): React.ReactElement {
   const [niveles, setNiveles] = useState<NivelConOcupacion[]>([]);
   const [allStudents, setAllStudents] = useState<StudentRef[]>([]);
   const [loading, setLoading] = useState(true);
-  const { showError } = useToast();
+  const { showSuccess, showError } = useToast();
 
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -229,21 +230,23 @@ export default function GroupsPage(): React.ReactElement {
         }
       }
       if (primerErrorReal !== null) {
-        showNotification("error", extractErrorMessage(primerErrorReal, "Error al asignar el alumno al horario."));
+        const message = extractErrorMessage(primerErrorReal, "Error al asignar el alumno al horario.");
+        showNotification("error", message);
+        showError(message);
       } else {
-        showNotification(
-          "success",
+        const message =
           asignados > 0
             ? "Alumno asignado correctamente al horario."
-            : "El alumno ya estaba asignado a este horario.",
-        );
+            : "El alumno ya estaba asignado a este horario.";
+        showNotification("success", message);
+        showSuccess(message);
         setAlumnoSeleccionado(null);
       }
       await cargarAlumnosDelGrupo(group);
     } finally {
       setAsignandoAlumno(false);
     }
-  }, [alumnoSeleccionado, cargarAlumnosDelGrupo, showNotification]);
+  }, [alumnoSeleccionado, cargarAlumnosDelGrupo, showNotification, showSuccess, showError]);
 
   /** Unassigns the student from EVERY día row of the group, same all-días
    * criterion as assignment. A per-row 404 ("no había asignación en esa
@@ -266,12 +269,15 @@ export default function GroupsPage(): React.ReactElement {
       }
     }
     if (primerErrorReal !== null) {
-      showNotification("error", extractErrorMessage(primerErrorReal, "Error al desasignar el alumno del horario."));
+      const message = extractErrorMessage(primerErrorReal, "Error al desasignar el alumno del horario.");
+      showNotification("error", message);
+      showError(message);
     } else {
       showNotification("success", "Alumno desasignado del horario.");
+      showSuccess("Alumno desasignado del horario.");
     }
     await cargarAlumnosDelGrupo(group);
-  }, [cargarAlumnosDelGrupo, showNotification]);
+  }, [cargarAlumnosDelGrupo, showNotification, showSuccess, showError]);
 
   const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -317,10 +323,11 @@ export default function GroupsPage(): React.ReactElement {
     } catch {
       setEntrenadores([]);
       showNotification("error", "No se pudieron cargar los entrenadores. Intente nuevamente.");
+      showError("No se pudieron cargar los entrenadores. Intente nuevamente.");
     } finally {
       setEntrenadoresLoading(false);
     }
-  }, [showNotification]);
+  }, [showNotification, showError]);
 
   useEffect(() => {
     void loadData();
@@ -436,7 +443,9 @@ export default function GroupsPage(): React.ReactElement {
         return;
       }
 
-      showNotification("success", editingGroup ? "Horario actualizado correctamente." : "Horario creado correctamente.");
+      const message = editingGroup ? "Horario actualizado correctamente." : "Horario creado correctamente.";
+      showNotification("success", message);
+      showSuccess(message);
       closeExpanded();
       await loadData();
     } catch (err) {
@@ -448,7 +457,9 @@ export default function GroupsPage(): React.ReactElement {
       // data on a retry (which would re-create the row that already
       // succeeded). `loadData()` resyncs `horarios` with what's actually
       // persisted so any retry starts from a reopened, accurate group.
-      showNotification("error", extractErrorMessage(err, "Error al guardar el horario."));
+      const message = extractErrorMessage(err, "Error al guardar el horario.");
+      showNotification("error", message);
+      showError(message);
       closeExpanded();
       await loadData();
     } finally {
@@ -466,12 +477,14 @@ export default function GroupsPage(): React.ReactElement {
         }
         await eliminarHorario(pending.id);
       }
-      showNotification(
-        "success",
-        pendingDeletionScope === "group" ? "Horario eliminado correctamente." : "Horario actualizado correctamente.",
-      );
+      const message =
+        pendingDeletionScope === "group" ? "Horario eliminado correctamente." : "Horario actualizado correctamente.";
+      showNotification("success", message);
+      showSuccess(message);
     } catch (err) {
-      showNotification("error", extractErrorMessage(err, "Error al eliminar el horario."));
+      const message = extractErrorMessage(err, "Error al eliminar el horario.");
+      showNotification("error", message);
+      showError(message);
     } finally {
       setPendingDeletions(null);
       setPendingDeletionScope("days");
@@ -511,7 +524,9 @@ export default function GroupsPage(): React.ReactElement {
       setPendingDeletionScope("group");
       setPendingDeletions(nextPending);
     } catch (err) {
-      showNotification("error", extractErrorMessage(err, "Error al eliminar el horario."));
+      const message = extractErrorMessage(err, "Error al eliminar el horario.");
+      showNotification("error", message);
+      showError(message);
     } finally {
       setDeletingId(null);
     }
@@ -741,6 +756,8 @@ export default function GroupsPage(): React.ReactElement {
         eyebrow="Gestión Operativa"
         title="Gestión de Horarios"
       >
+        <BackLink href="/dashboard" label="Volver al Panel" />
+
         {loadError && (
           <div
             className="mb-4 flex items-center gap-2 rounded-xl border border-cata-red/30 bg-cata-red/10 px-4 py-3 text-sm text-cata-red"

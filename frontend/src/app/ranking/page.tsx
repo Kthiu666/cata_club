@@ -23,6 +23,8 @@ export default function RankingPage(): React.ReactElement {
       eyebrow="Niveles"
       title="Niveles"
       allowedRoles={["admin"]}
+      backHref="/dashboard"
+      backLabel="Volver al Panel"
     />
   );
 }
