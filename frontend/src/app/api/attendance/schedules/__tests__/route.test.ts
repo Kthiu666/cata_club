@@ -31,7 +31,7 @@ function getRequest(cookie = ""): NextRequest {
   return new NextRequest("http://localhost/api/attendance/schedules", { headers: cookie ? { cookie } : {} });
 }
 
-const horario = { id: 1, diaSemana: "LUNES", horaInicio: "15:00:00", horaFin: "16:30:00", entrenadorId: 2 };
+const horario = { id: 1, diaSemana: "LUNES", horaInicio: "15:00:00", horaFin: "16:30:00", entrenadorId: 2, nivelRankingId: null };
 const personas = { items: [{ id: 2, nombres: "Carla", apellidos: "Trainer" }] };
 
 beforeEach(() => {
@@ -74,7 +74,7 @@ describe("GET /api/attendance/schedules", () => {
 
     expect(response.status).toBe(200);
     expect(body).toEqual([
-      { id: 1, diaSemana: "lun", horaInicio: "15:00", horaFin: "16:30", entrenadorId: 2, entrenadorNombre: "Carla Trainer" },
+      { id: 1, diaSemana: "lun", horaInicio: "15:00", horaFin: "16:30", entrenadorId: 2, entrenadorNombre: "Carla Trainer", nivelRankingId: null },
     ]);
   });
 

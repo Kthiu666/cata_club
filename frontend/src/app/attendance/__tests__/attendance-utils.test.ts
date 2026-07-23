@@ -520,6 +520,7 @@ function buildSchedule(id: number, diaSemana: TrainingSchedule["diaSemana"]): Tr
     horaFin: "16:00",
     entrenadorId: 1,
     entrenadorNombre: `Entrenador ${id}`,
+    nivelRankingId: null,
   };
 }
 
