@@ -27,6 +27,7 @@ import type {
   BackendTipoRol,
   FichaMedicaEditable,
   FichaMedicaUpdatePayload,
+  TipoSangre,
   ResultadoMensual,
   SeleccionOficial,
   PersonaReporte,
@@ -1119,6 +1120,48 @@ export async function actualizarPersona(
   return request<PersonaResponse>(apiEndpoint(`/personas/${personaId}`), {
     method: "PATCH",
     body: JSON.stringify(body),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Representados (Portal Autoservicio) — a representante adding a dependent
+// ---------------------------------------------------------------------------
+
+/** Ficha médica payload for a new dependent — mirrors the backend's
+ *  `EnrollmentFichaMedicaDTO` (reused as-is by `RepresentadoCreateDTO`). */
+export interface RepresentadoFichaMedicaPayload {
+  tipoSangre: TipoSangre;
+  enfermedades?: string[];
+  alergias?: string;
+  contactoEmergencia?: string;
+  telefonoEmergencia?: string;
+}
+
+/** Payload for the self-service "add a dependent" endpoint. Deliberately
+ *  narrow — no admin-only fields (e.g. `representanteId`) are accepted here;
+ *  the backend always derives `representante_id` from the caller's own
+ *  token, never from the request body. */
+export interface RepresentadoCreatePayload {
+  nombres: string;
+  apellidos: string;
+  cedula: string;
+  fechaNacimiento: string;
+  telefono: string;
+  fichaMedica?: RepresentadoFichaMedicaPayload;
+}
+
+/**
+ * Representante-only self-service: add a second/third dependent (child)
+ * from the authenticated portal. Creates only a `Persona` + `FichaMedica` —
+ * no `Usuario`, no role assignment. See `POST /personas/{persona_id}/representados`.
+ */
+export async function crearRepresentado(
+  personaId: number,
+  payload: RepresentadoCreatePayload,
+): Promise<PersonaResponse> {
+  return request<PersonaResponse>(apiEndpoint(`/personas/${personaId}/representados`), {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
