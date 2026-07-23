@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchStudentPortal, registrarPago, subirVoucherPago, fetchPagosDePersona } from "@/services/api";
-import type { StudentPortalSummary, StudentProfileSummary, MembershipSummary, RegistrarPagoInput, PagoPersona } from "@/services/api";
+import { fetchStudentPortal, fetchPagosDePersona } from "@/services/api";
+import type { StudentPortalSummary, StudentProfileSummary, MembershipSummary, PagoPersona } from "@/services/api";
 import { ATTENDANCE_LABELS, ATTENDANCE_BADGE_TOKENS } from "@/app/attendance/attendance-utils";
-import { derivePortalMode, isRepresentative, describeRanking } from "./student-utils";
+import { derivePortalMode, isRepresentative, isMinor, describeRanking } from "./student-utils";
 import {
   Calendar,
   ShieldCheck,
@@ -22,9 +22,7 @@ import {
   Trophy,
   RefreshCw,
   Clock,
-  Plus,
-  Loader2,
-  Upload,
+  Users,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -61,239 +59,15 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void 
   );
 }
 
-/**
- * Inline "register payment" / "renew membership" form rendered inside
- * MembershipCard when the membership is INACTIVA (first payment) or has
- * expired (VENCIDA / fecha_fin < today). Calls `registrarPago` (POST
- * /api/membresias/pagos), which the backend authorizes for the owner,
- * their representative, or ADMIN — so the student themselves can trigger
- * the renewal cycle without admin intervention. On success, `onRenewed`
- * refreshes the portal so the new PENDIENTE_VALIDACION row appears in
- * PagosSection and the MembershipCard shows the new state.
- */
-function RenewPaymentForm({
-  membership,
-  personaId,
-  onRenewed,
-  label,
-}: {
-  membership: MembershipSummary;
-  personaId: string;
-  onRenewed: () => void;
-  label: string;
-}): React.ReactElement {
-  const [showForm, setShowForm] = useState(false);
-  const [monto, setMonto] = useState<string>(membership.montoAplicado ?? "");
-  const [tipoPago, setTipoPago] = useState<"EFECTIVO" | "TRANSFERENCIA">("TRANSFERENCIA");
-  const [fechaInicio, setFechaInicio] = useState<string>("");
-  const [fechaFin, setFechaFin] = useState<string>("");
-  const [voucherFile, setVoucherFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  /** Monthly price extracted from the membership's montoAplicado (e.g. "150.00" → 150). */
-  const monthlyPrice = parseFloat(String(membership.montoAplicado ?? "").replace(/[^0-9.]/g, "")) || 0;
-
-  /** Calculate fechaFin from monto and monthly price. Returns ISO date string (YYYY-MM-DD). */
-  function calcFechaFin(baseDate: Date, amount: number): string {
-    if (monthlyPrice <= 0 || amount <= 0) return "";
-    const months = Math.ceil(amount / monthlyPrice);
-    const fin = new Date(baseDate);
-    fin.setMonth(fin.getMonth() + months);
-    return fin.toISOString().slice(0, 10);
-  }
-
-  /** Resolve the start date: day after previous fechaFin if still in the future, else today. */
-  function resolveFechaInicio(): Date {
-    const hoy = new Date();
-    const prevFin = membership.fechaFin ? new Date(membership.fechaFin + "T12:00:00") : null;
-    return prevFin && prevFin.getTime() > hoy.getTime() ? prevFin : hoy;
-  }
-
-  function handleOpen(): void {
-    setShowForm(true);
-    setError(null);
-    setVoucherFile(null);
-    const base = resolveFechaInicio();
-    setFechaInicio(base.toISOString().slice(0, 10));
-    const amount = parseFloat(String(monto).replace(/[^0-9.]/g, "")) || 0;
-    setFechaFin(amount > 0 ? calcFechaFin(base, amount) : "");
-  }
-
-  /** Recalculate fechaFin when monto changes. */
-  function handleMontoChange(value: string): void {
-    setMonto(value);
-    if (!fechaInicio) return;
-    const amount = parseFloat(value.replace(/[^0-9.]/g, "")) || 0;
-    setFechaFin(amount > 0 ? calcFechaFin(new Date(fechaInicio + "T12:00:00"), amount) : "");
-  }
-
-  async function handleSubmit(): Promise<void> {
-    const montoNum = Number(monto);
-    if (!montoNum || montoNum <= 0) {
-      setError("El monto debe ser mayor a 0.");
-      return;
-    }
-    if (!fechaInicio || !fechaFin) {
-      setError("Las fechas son obligatorias.");
-      return;
-    }
-    if (fechaInicio >= fechaFin) {
-      setError("La fecha de inicio debe ser anterior a la fecha de fin.");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      const nuevoPago = await registrarPago({
-        monto: montoNum,
-        tipoPago,
-        fechaInicio,
-        fechaFin,
-        personaId: Number(personaId),
-        membresiaId: membership.id,
-      } satisfies RegistrarPagoInput);
-
-      if (voucherFile && nuevoPago?.id) {
-        await subirVoucherPago(nuevoPago.id, voucherFile);
-      }
-
-      setShowForm(false);
-      setVoucherFile(null);
-      onRenewed();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo registrar el pago.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (!showForm) {
-    return (
-      <button
-        type="button"
-        onClick={handleOpen}
-        className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-cata-red px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-cata-red/85"
-      >
-        <Plus size={14} strokeWidth={1.5} aria-hidden="true" />
-        {label}
-      </button>
-    );
-  }
-
-  const durationLabel = (() => {
-    const amount = parseFloat(String(monto).replace(/[^0-9.]/g, "")) || 0;
-    if (monthlyPrice <= 0 || amount <= 0) return null;
-    const months = Math.ceil(amount / monthlyPrice);
-    return months === 1 ? "1 mes de vigencia" : `${months} meses de vigencia`;
-  })();
-
+function RepresentanteCard({ nombre }: { nombre: string | null }): React.ReactElement {
   return (
-    <div className="mt-3 space-y-2.5 rounded-lg bg-cata-bg/60 p-3">
-      <div className="grid grid-cols-2 gap-2">
-        <label className="text-xs font-medium text-cata-text/65">
-          Monto
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={monto}
-            onChange={(e) => handleMontoChange(e.target.value)}
-            className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
-            placeholder="0.00"
-          />
-        </label>
-        <label className="text-xs font-medium text-cata-text/65">
-          Método
-          <select
-            value={tipoPago}
-            onChange={(e) => {
-              const val = e.target.value as "EFECTIVO" | "TRANSFERENCIA";
-              setTipoPago(val);
-              if (val !== "TRANSFERENCIA") setVoucherFile(null);
-            }}
-            className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
-          >
-            <option value="TRANSFERENCIA">Transferencia</option>
-            <option value="EFECTIVO">Efectivo</option>
-          </select>
-        </label>
+    <div className="mt-3 flex items-center gap-3 rounded-lg border border-cata-border bg-cata-bg/60 px-3 py-2.5">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cata-red/15">
+        <Users size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
       </div>
-
-      <div className="grid grid-cols-2 gap-2 rounded-lg border border-cata-border/50 bg-cata-surface/50 px-2.5 py-2">
-        <div className="text-xs">
-          <span className="text-cata-text/45">Inicio: </span>
-          <span className="font-medium text-cata-text">{fechaInicio || "—"}</span>
-        </div>
-        <div className="text-xs">
-          <span className="text-cata-text/45">Fin: </span>
-          <span className="font-medium text-cata-text">{fechaFin || "—"}</span>
-        </div>
-      </div>
-      {durationLabel && (
-        <p className="text-[10px] text-cata-text/45">
-          {durationLabel}
-          {monthlyPrice > 0 && ` (precio mensual: $${monthlyPrice})`}
-        </p>
-      )}
-
-      {tipoPago === "TRANSFERENCIA" && (
-        <label className="block text-xs font-medium text-cata-text/65">
-          Comprobante de pago
-          <div className="mt-0.5 flex items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,application/pdf"
-              onChange={(e) => setVoucherFile(e.target.files?.[0] ?? null)}
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 rounded-lg border border-dashed border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text/65 transition-colors hover:border-cata-red/30 hover:text-cata-text"
-            >
-              <Upload size={12} strokeWidth={1.5} aria-hidden="true" />
-              {voucherFile ? voucherFile.name : "Seleccionar archivo"}
-            </button>
-            {voucherFile && (
-              <button
-                type="button"
-                onClick={() => setVoucherFile(null)}
-                className="text-[10px] text-cata-text/45 hover:text-cata-red"
-              >
-                Quitar
-              </button>
-            )}
-          </div>
-          <span className="mt-0.5 block text-[10px] text-cata-text/40">PDF, JPG o PNG</span>
-        </label>
-      )}
-
-      {error && <p className="text-xs text-cata-red">{error}</p>}
-      <div className="flex gap-1.5">
-        <button
-          type="button"
-          onClick={() => void handleSubmit()}
-          disabled={loading || !monto || !fechaInicio || !fechaFin}
-          className="inline-flex items-center gap-1 rounded-lg bg-cata-red px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-cata-red/80 disabled:opacity-50"
-        >
-          {loading ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <CreditCard size={12} strokeWidth={1.5} />
-          )}
-          Registrar pago
-        </button>
-        <button
-          type="button"
-          onClick={() => { setShowForm(false); setVoucherFile(null); }}
-          className="rounded-lg border border-cata-border px-2.5 py-1.5 text-xs text-cata-text/65 transition-colors hover:bg-cata-surface"
-        >
-          Cancelar
-        </button>
+      <div className="min-w-0">
+        <p className="text-[10px] uppercase tracking-wide text-cata-text/45">Tu representante</p>
+        <p className="text-sm font-medium text-cata-text truncate">{nombre ?? "No disponible"}</p>
       </div>
     </div>
   );
@@ -301,14 +75,14 @@ function RenewPaymentForm({
 
 function MembershipCard({
   membership,
-  personaId,
-  onRenewed,
   hasPendingPago = false,
+  minor = false,
+  representanteNombre = null,
 }: {
   membership: MembershipSummary | null;
-  personaId: string;
-  onRenewed: () => void;
   hasPendingPago?: boolean;
+  minor?: boolean;
+  representanteNombre?: string | null;
 }): React.ReactElement {
   if (!membership) {
     return (
@@ -323,8 +97,11 @@ function MembershipCard({
           </div>
         </div>
         <p className="text-xs leading-relaxed text-cata-text/55">
-          Aún no tenés una membresía registrada. Consulte con administración.
+          Aún no tenés una membresía registrada. Consultá con tu representante o con administración.
         </p>
+        {minor && representanteNombre && (
+          <RepresentanteCard nombre={representanteNombre} />
+        )}
       </section>
     );
   }
@@ -350,17 +127,23 @@ function MembershipCard({
             {membership.montoAplicado ? ` — $${membership.montoAplicado}` : ""}
           </p>
         )}
-        {hasPendingPago ? (
+        {hasPendingPago && (
           <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
             Ya tenés un pago pendiente de validación. Esperá a que sea aprobado para registrar uno nuevo.
           </p>
+        )}
+        {minor ? (
+          <RepresentanteCard nombre={representanteNombre} />
         ) : (
-          <RenewPaymentForm
-            membership={membership}
-            personaId={personaId}
-            onRenewed={onRenewed}
-            label="Registrar primer pago"
-          />
+          !hasPendingPago && (
+            <Link
+              href="/student/payments"
+              className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-cata-red px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-cata-red/85"
+            >
+              <CreditCard size={14} strokeWidth={1.5} aria-hidden="true" />
+              Registrar primer pago
+            </Link>
+          )
         )}
       </section>
     );
@@ -394,18 +177,22 @@ function MembershipCard({
           {membership.fechaFin && <p>Vigencia hasta: {membership.fechaFin}</p>}
         </div>
       )}
-      {isExpired && (
-        hasPendingPago ? (
-          <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
-            Ya tenés un pago pendiente de validación. Esperá a que sea aprobado para registrar uno nuevo.
-          </p>
-        ) : (
-          <RenewPaymentForm
-            membership={membership}
-            personaId={personaId}
-            onRenewed={onRenewed}
-            label="Renovar membresía"
-          />
+      {hasPendingPago && (
+        <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+          Ya tenés un pago pendiente de validación. Esperá a que sea aprobado.
+        </p>
+      )}
+      {minor ? (
+        <RepresentanteCard nombre={representanteNombre} />
+      ) : (
+        !hasPendingPago && (
+          <Link
+            href="/student/payments"
+            className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-cata-red px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-cata-red/85"
+          >
+            <CreditCard size={14} strokeWidth={1.5} aria-hidden="true" />
+            {isExpired ? "Renovar membresía" : "Gestionar pagos"}
+          </Link>
         )
       )}
     </section>
@@ -518,6 +305,8 @@ function MembershipPlansGrid({ data }: { data: StudentPortalSummary }): React.Re
 // ---------------------------------------------------------------------------
 
 function PendingEnrollmentView({ data }: { data: StudentPortalSummary }): React.ReactElement {
+  const minor = isMinor(data.self?.fechaNacimiento);
+
   return (
     <div className="mb-8">
       <div className="mb-6 rounded-2xl border border-cata-border bg-cata-bg p-6">
@@ -525,31 +314,49 @@ function PendingEnrollmentView({ data }: { data: StudentPortalSummary }): React.
           <UserPlus size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
           <h2 className="text-lg font-bold text-cata-text">Bienvenido a Cata Club</h2>
         </div>
-        <p className="text-sm leading-relaxed text-cata-text/65">
-          Su cuenta está creada pero todavía no tiene una matrícula activa. Elija el plan que mejor se
-          adapte a sus necesidades y complete su inscripción, o inscriba a un hijo/dependiente, para
-          comenzar a entrenar.
-        </p>
-        <p className="mt-3 text-xs leading-relaxed text-cata-text/45">
-          Una vez inscrito, desde su portal podrá agregar hijos o dependientes si necesita gestionar las
-          membresías de su familia.
-        </p>
+        {minor ? (
+          <>
+            <p className="text-sm leading-relaxed text-cata-text/65">
+              Tu cuenta está creada pero todavía no tenés una membresía activa.
+              Consultá con tu representante para completar la inscripción.
+            </p>
+            {data.representanteNombre && (
+              <RepresentanteCard nombre={data.representanteNombre} />
+            )}
+          </>
+        ) : (
+          <>
+            <p className="text-sm leading-relaxed text-cata-text/65">
+              Su cuenta está creada pero todavía no tiene una matrícula activa. Elija el plan que mejor se
+              adapte a sus necesidades y complete su inscripción, o inscriba a un hijo/dependiente, para
+              comenzar a entrenar.
+            </p>
+            <p className="mt-3 text-xs leading-relaxed text-cata-text/45">
+              Una vez inscrito, desde su portal podrá agregar hijos o dependientes si necesita gestionar las
+              membresías de su familia.
+            </p>
+          </>
+        )}
       </div>
 
-      <MembershipPlansGrid data={data} />
+      {!minor && (
+        <>
+          <MembershipPlansGrid data={data} />
 
-      <div className="mt-8 flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-center">
-        <Link href="/student/enroll?type=self" className="btn-primary inline-flex items-center gap-2 shadow-soft">
-          <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
-          Inscribirme como Jugador
-          <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
-        </Link>
-        <Link href="/student/enroll?type=child" className="btn-secondary inline-flex items-center gap-2">
-          <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
-          Inscribir hijo/dependiente
-          <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
-        </Link>
-      </div>
+          <div className="mt-8 flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-center">
+            <Link href="/student/enroll?type=self" className="btn-primary inline-flex items-center gap-2 shadow-soft">
+              <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
+              Inscribirme como Jugador
+              <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+            </Link>
+            <Link href="/student/enroll?type=child" className="btn-secondary inline-flex items-center gap-2">
+              <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
+              Inscribir hijo/dependiente
+              <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+            </Link>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -567,6 +374,8 @@ function ActivePortalView({
   hasAlumnoRole: boolean;
   onRenewed: () => void;
 }): React.ReactElement {
+  const selfIsMinor = isMinor(data.self?.fechaNacimiento);
+
   const managedProfiles: StudentProfileSummary[] =
     hasAlumnoRole && data.self ? [data.self, ...data.representados] : data.representados;
 
@@ -602,6 +411,8 @@ function ActivePortalView({
 
   const representative = isRepresentative(data.representados.length);
   const selectedProfile = managedProfiles.find((p) => p.personaId === selectedId) ?? managedProfiles[0] ?? null;
+
+  const selectedIsMinor = isMinor(selectedProfile?.fechaNacimiento);
 
   return (
     <>
@@ -639,26 +450,28 @@ function ActivePortalView({
         </div>
       )}
 
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <Link
-          href={representative ? "/student/add-dependent" : "/student/enroll?type=child"}
-          className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
-        >
-          <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
-          {representative ? "Agregar hijo/dependiente" : "Inscribir hijo/dependiente"}
-          <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
-        </Link>
-        {!hasAlumnoRole && (
+      {!selfIsMinor && (
+        <div className="mb-6 flex flex-wrap items-center gap-3">
           <Link
-            href="/student/enroll?type=self"
+            href={representative ? "/student/add-dependent" : "/student/enroll?type=child"}
             className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
           >
-            <GraduationCap size={16} strokeWidth={1.5} aria-hidden="true" />
-            Unirme como jugador
+            <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
+            {representative ? "Agregar hijo/dependiente" : "Inscribir hijo/dependiente"}
             <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
           </Link>
-        )}
-      </div>
+          {!hasAlumnoRole && (
+            <Link
+              href="/student/enroll?type=self"
+              className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
+            >
+              <GraduationCap size={16} strokeWidth={1.5} aria-hidden="true" />
+              Unirme como jugador
+              <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+            </Link>
+          )}
+        </div>
+      )}
 
       {selectedProfile === null ? (
         <div className="card p-6 text-center">
@@ -671,24 +484,26 @@ function ActivePortalView({
             <RankingCard profile={selectedProfile} />
             <MembershipCard
               membership={selectedProfile.membership}
-              personaId={selectedProfile.personaId}
-              onRenewed={handleRenewed}
               hasPendingPago={hasPendingPago}
+              minor={selectedIsMinor}
+              representanteNombre={data.representanteNombre}
             />
           </div>
 
           <RecentSessionsSection profile={selectedProfile} />
 
-          <div className="mt-6">
-            <Link
-              href="/student/payments"
-              className="inline-flex items-center gap-2 rounded-xl border border-cata-border bg-cata-surface px-4 py-3 text-sm font-medium text-cata-text transition-colors hover:border-cata-red/30 hover:text-cata-red"
-            >
-              <CreditCard size={16} strokeWidth={1.5} aria-hidden="true" />
-              Ver historial de pagos
-              <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
-            </Link>
-          </div>
+          {!selfIsMinor && (
+            <div className="mt-6">
+              <Link
+                href="/student/payments"
+                className="inline-flex items-center gap-2 rounded-xl border border-cata-border bg-cata-surface px-4 py-3 text-sm font-medium text-cata-text transition-colors hover:border-cata-red/30 hover:text-cata-red"
+              >
+                <CreditCard size={16} strokeWidth={1.5} aria-hidden="true" />
+                Ver historial de pagos
+                <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+              </Link>
+            </div>
+          )}
         </>
       )}
     </>

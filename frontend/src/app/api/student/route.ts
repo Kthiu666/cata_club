@@ -130,10 +130,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     ...representadosPersonas.map((persona) => fetchProfile(request, persona.id, horariosById, tiposById)),
   ]);
 
+  const validRepresentados = representados.filter((profile): profile is StudentProfileView => profile !== null);
+
+  let representanteNombre: string | null = null;
+  if (self?.representanteId) {
+    const repResult = await backendFetchAuthed(request, `/personas/${self.representanteId}`);
+    if (repResult.ok && repResult.response.ok) {
+      const rep = (await repResult.response.json()) as { nombres: string; apellidos: string };
+      representanteNombre = `${rep.nombres} ${rep.apellidos}`;
+    }
+  }
+
   const portal: StudentPortalView = {
     self,
-    representados: representados.filter((profile): profile is StudentProfileView => profile !== null),
+    representados: validRepresentados,
     membershipPlans: buildMembershipPlans(tipos),
+    representanteNombre,
   };
 
   const response = NextResponse.json(portal);

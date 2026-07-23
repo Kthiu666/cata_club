@@ -667,6 +667,7 @@ export interface StudentProfileSummary {
   nombres: string;
   apellidos: string;
   fechaNacimiento: string;
+  representanteId: number | null;
   ranking: StudentRankingSummary;
   recentSessions: StudentSessionSummary[];
   membership: MembershipSummary | null;
@@ -701,6 +702,7 @@ export interface StudentPortalSummary {
   self: StudentProfileSummary | null;
   representados: StudentProfileSummary[];
   membershipPlans: MembershipPlanSummary[];
+  representanteNombre: string | null;
 }
 
 /** Fetch the logged-in persona's own portal data — `GET /api/student`. */

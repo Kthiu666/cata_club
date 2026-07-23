@@ -18,7 +18,7 @@ import type {
   MembershipSummary,
   RegistrarPagoInput,
 } from "@/services/api";
-import { isRepresentative } from "../student-utils";
+import { isRepresentative, isMinor } from "../student-utils";
 import {
   filterPagosByStatus,
   sortPagosByDate,
@@ -231,17 +231,19 @@ function PagoEstadoBadge({
 }
 
 // ---------------------------------------------------------------------------
-// Renew payment form (inline, same as dashboard)
+// Renew payment form (inline, improved with proportional date calculation)
 // ---------------------------------------------------------------------------
 
 function RenewPaymentForm({
   membership,
   personaId,
   onRenewed,
+  hasPendingPago = false,
 }: {
   membership: MembershipSummary;
   personaId: string;
   onRenewed: () => void;
+  hasPendingPago?: boolean;
 }): React.ReactElement {
   const [showForm, setShowForm] = useState(false);
   const [monto, setMonto] = useState<string>(membership.montoAplicado ?? "");
@@ -253,19 +255,37 @@ function RenewPaymentForm({
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const monthlyPrice = parseFloat(String(membership.montoAplicado ?? "").replace(/[^0-9.]/g, "")) || 0;
+
+  function calcFechaFin(baseDate: Date, amount: number): string {
+    if (monthlyPrice <= 0 || amount <= 0) return "";
+    const months = Math.ceil(amount / monthlyPrice);
+    const fin = new Date(baseDate);
+    fin.setMonth(fin.getMonth() + months);
+    return fin.toISOString().slice(0, 10);
+  }
+
+  function resolveFechaInicio(): Date {
+    const hoy = new Date();
+    const prevFin = membership.fechaFin ? new Date(membership.fechaFin + "T12:00:00") : null;
+    return prevFin && prevFin.getTime() > hoy.getTime() ? prevFin : hoy;
+  }
+
   function handleOpen(): void {
     setShowForm(true);
     setError(null);
     setVoucherFile(null);
-    const hoy = new Date();
-    const prevFin = membership.fechaFin
-      ? new Date(membership.fechaFin + "T12:00:00")
-      : null;
-    const base = prevFin && prevFin.getTime() > hoy.getTime() ? prevFin : hoy;
-    const fin = new Date(base);
-    fin.setMonth(fin.getMonth() + 1);
+    const base = resolveFechaInicio();
     setFechaInicio(base.toISOString().slice(0, 10));
-    setFechaFin(fin.toISOString().slice(0, 10));
+    const amount = parseFloat(String(monto).replace(/[^0-9.]/g, "")) || 0;
+    setFechaFin(amount > 0 ? calcFechaFin(base, amount) : "");
+  }
+
+  function handleMontoChange(value: string): void {
+    setMonto(value);
+    if (!fechaInicio) return;
+    const amount = parseFloat(value.replace(/[^0-9.]/g, "")) || 0;
+    setFechaFin(amount > 0 ? calcFechaFin(new Date(fechaInicio + "T12:00:00"), amount) : "");
   }
 
   async function handleSubmit(): Promise<void> {
@@ -308,12 +328,20 @@ function RenewPaymentForm({
     }
   }
 
+  if (hasPendingPago) {
+    return (
+      <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+        Ya tenés un pago pendiente de validación. Esperá a que sea aprobado para registrar uno nuevo.
+      </p>
+    );
+  }
+
   if (!showForm) {
     return (
       <button
         type="button"
         onClick={handleOpen}
-        className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-cata-red px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-cata-red/85"
+        className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-cata-red px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-cata-red/85"
       >
         <Plus size={14} strokeWidth={1.5} aria-hidden="true" />
         Registrar pago
@@ -321,8 +349,15 @@ function RenewPaymentForm({
     );
   }
 
+  const durationLabel = (() => {
+    const amount = parseFloat(String(monto).replace(/[^0-9.]/g, "")) || 0;
+    if (monthlyPrice <= 0 || amount <= 0) return null;
+    const months = Math.ceil(amount / monthlyPrice);
+    return months === 1 ? "1 mes de vigencia" : `${months} meses de vigencia`;
+  })();
+
   return (
-    <div className="mt-3 space-y-2.5 rounded-lg bg-cata-bg/60 p-3">
+    <div className="space-y-2.5 rounded-lg bg-cata-bg/60 p-3">
       <div className="grid grid-cols-2 gap-2">
         <label className="text-xs font-medium text-cata-text/65">
           Monto
@@ -331,7 +366,7 @@ function RenewPaymentForm({
             step="0.01"
             min="0"
             value={monto}
-            onChange={(e) => setMonto(e.target.value)}
+            onChange={(e) => handleMontoChange(e.target.value)}
             className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
             placeholder="0.00"
           />
@@ -351,25 +386,24 @@ function RenewPaymentForm({
             <option value="EFECTIVO">Efectivo</option>
           </select>
         </label>
-        <label className="text-xs font-medium text-cata-text/65">
-          Inicio
-          <input
-            type="date"
-            value={fechaInicio}
-            onChange={(e) => setFechaInicio(e.target.value)}
-            className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
-          />
-        </label>
-        <label className="text-xs font-medium text-cata-text/65">
-          Fin
-          <input
-            type="date"
-            value={fechaFin}
-            onChange={(e) => setFechaFin(e.target.value)}
-            className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
-          />
-        </label>
       </div>
+
+      <div className="grid grid-cols-2 gap-2 rounded-lg border border-cata-border/50 bg-cata-surface/50 px-2.5 py-2">
+        <div className="text-xs">
+          <span className="text-cata-text/45">Inicio: </span>
+          <span className="font-medium text-cata-text">{fechaInicio || "—"}</span>
+        </div>
+        <div className="text-xs">
+          <span className="text-cata-text/45">Fin: </span>
+          <span className="font-medium text-cata-text">{fechaFin || "—"}</span>
+        </div>
+      </div>
+      {durationLabel && (
+        <p className="text-[10px] text-cata-text/45">
+          {durationLabel}
+          {monthlyPrice > 0 && ` (precio mensual: $${monthlyPrice})`}
+        </p>
+      )}
 
       {tipoPago === "TRANSFERENCIA" && (
         <label className="block text-xs font-medium text-cata-text/65">
@@ -555,6 +589,11 @@ function PaymentsContent({
     managedProfiles.find((p) => p.personaId === selectedId) ?? managedProfiles[0] ?? null;
 
   const representative = isRepresentative(data.representados.length);
+  const selectedIsMinor = isMinor(selectedProfile?.fechaNacimiento);
+
+  const hasPendingPago =
+    pagosState.status === "ready" &&
+    pagosState.pagos.some((p) => p.estadoPago === "PENDIENTE_VALIDACION");
 
   useEffect(() => {
     if (!managedProfiles.some((p) => p.personaId === selectedId)) {
@@ -683,8 +722,8 @@ function PaymentsContent({
         <>
           <MembershipStatusBar membership={selectedProfile.membership} />
 
-          {/* Renewal form when membership is inactive or expired */}
-          {selectedProfile.membership &&
+          {/* Renewal form when membership is inactive or expired — hidden for minors */}
+          {!selectedIsMinor && selectedProfile.membership &&
             (selectedProfile.membership.estado === "INACTIVA" ||
               selectedProfile.membership.estado === "VENCIDA") && (
               <div className="mb-6">
@@ -692,9 +731,16 @@ function PaymentsContent({
                   membership={selectedProfile.membership}
                   personaId={selectedProfile.personaId}
                   onRenewed={handleRenewed}
+                  hasPendingPago={hasPendingPago}
                 />
               </div>
             )}
+
+          {selectedIsMinor && (
+            <p className="mb-6 text-xs text-cata-text/55">
+              Los menores de edad no pueden registrar pagos. Consultá con tu representante.
+            </p>
+          )}
 
           {/* Filter chips */}
           <FilterChips active={filter} onChange={setFilter} counts={counts} />

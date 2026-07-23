@@ -72,13 +72,15 @@ const PORTAL: StudentPortalSummary = {
     personaId: "9",
     nombres: "Alumno",
     apellidos: "Test",
-    fechaNacimiento: "2010-05-14",
+    fechaNacimiento: "1995-05-14",
+    representanteId: null,
     ranking: { status: "unavailable", reason: "error" },
     recentSessions: [],
     membership: null,
   },
   representados: [],
   membershipPlans: [],
+  representanteNombre: null,
 };
 
 beforeEach(() => {
@@ -162,7 +164,7 @@ describe("StudentPage — membership display", () => {
     expect(card).toHaveTextContent("validación del primer pago");
   });
 
-  it("renders a 'Registrar primer pago' button for an INACTIVA membership", async () => {
+  it("renders a 'Registrar primer pago' link for an INACTIVA membership", async () => {
     mockFetchStudentPortal.mockResolvedValueOnce({
       ...PORTAL,
       self: { ...PORTAL.self!, membership: { id: 5, estado: "INACTIVA", personaId: 9, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: null, fechaFin: null } },
@@ -170,11 +172,11 @@ describe("StudentPage — membership display", () => {
 
     render(<StudentPage />);
 
-    const button = await screen.findByRole("button", { name: /registrar primer pago/i });
-    expect(button).toBeInTheDocument();
+    const link = await screen.findByText("Registrar primer pago");
+    expect(link.closest("a")).toHaveAttribute("href", "/student/payments");
   });
 
-  it("renders a 'Renovar membresía' button when the membership is VENCIDA", async () => {
+  it("renders a 'Renovar membresía' link when the membership is VENCIDA", async () => {
     mockFetchStudentPortal.mockResolvedValueOnce({
       ...PORTAL,
       self: { ...PORTAL.self!, membership: { id: 6, estado: "VENCIDA", personaId: 9, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: "Tarde", fechaFin: "2026-06-30" } },
@@ -184,11 +186,11 @@ describe("StudentPage — membership display", () => {
 
     const heading = await screen.findByRole("heading", { name: /vencida/i });
     expect(heading).toBeInTheDocument();
-    const button = await screen.findByRole("button", { name: /renovar membresía/i });
-    expect(button).toBeInTheDocument();
+    const link = await screen.findByText("Renovar membresía");
+    expect(link.closest("a")).toHaveAttribute("href", "/student/payments");
   });
 
-  it("renders a 'Renovar membresía' button when ACTIVA but fechaFin already passed", async () => {
+  it("renders a 'Renovar membresía' link when ACTIVA but fechaFin already passed", async () => {
     mockFetchStudentPortal.mockResolvedValueOnce({
       ...PORTAL,
       self: { ...PORTAL.self!, membership: { id: 7, estado: "ACTIVA", personaId: 9, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: "Tarde", fechaFin: "2025-12-31" } },
@@ -198,11 +200,11 @@ describe("StudentPage — membership display", () => {
 
     const heading = await screen.findByRole("heading", { name: /vencida/i });
     expect(heading).toBeInTheDocument();
-    const button = await screen.findByRole("button", { name: /renovar membresía/i });
-    expect(button).toBeInTheDocument();
+    const link = await screen.findByText("Renovar membresía");
+    expect(link.closest("a")).toHaveAttribute("href", "/student/payments");
   });
 
-  it("does NOT render a renovar button when ACTIVA and fechaFin is in the future", async () => {
+  it("does NOT render a renovar link when ACTIVA and fechaFin is in the future", async () => {
     mockFetchStudentPortal.mockResolvedValueOnce({
       ...PORTAL,
       self: { ...PORTAL.self!, membership: { id: 8, estado: "ACTIVA", personaId: 9, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: "Tarde", fechaFin: "2999-12-31" } },
@@ -211,7 +213,7 @@ describe("StudentPage — membership display", () => {
     render(<StudentPage />);
 
     await screen.findByRole("heading", { name: /activa/i });
-    expect(screen.queryByRole("button", { name: /renovar membresía/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /registrar primer pago/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Renovar membresía")).not.toBeInTheDocument();
+    expect(screen.queryByText("Registrar primer pago")).not.toBeInTheDocument();
   });
 });
