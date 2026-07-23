@@ -1129,3 +1129,30 @@ export async function fetchHorariosPorAlumno(personaId: number): Promise<AlumnoH
     headers: mockHeaders,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Chatbot (FAQ helper widget)
+// ---------------------------------------------------------------------------
+
+/** One prior turn of the chatbot conversation, kept client-side (no server-side persistence). */
+export interface ChatbotTurno {
+  rol: "usuario" | "asistente";
+  texto: string;
+}
+
+export interface ChatbotRespuesta {
+  reply: string;
+}
+
+/**
+ * Ask the FAQ chatbot a question. `historial` is the last few turns of the
+ * conversation (the caller is responsible for capping it — see
+ * ChatWidget.tsx) so the backend can keep the multi-turn context without
+ * this client needing to know its cap.
+ */
+export async function consultarChatbot(mensaje: string, historial?: ChatbotTurno[]): Promise<ChatbotRespuesta> {
+  return request<ChatbotRespuesta>(apiEndpoint("/chatbot"), {
+    method: "POST",
+    body: JSON.stringify({ mensaje, historial }),
+  });
+}

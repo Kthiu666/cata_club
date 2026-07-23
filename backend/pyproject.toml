@@ -25,6 +25,8 @@ dependencies = [
     "cloudinary>=1.41.0",
     # --- Rate limiting ---
     "slowapi>=0.1.9",
+    # --- Chatbot de FAQ (DeepSeek vía gateway OpenAI-compatible OpenCode Zen) ---
+    "openai>=1.50.0",
 ]
 
 [tool.uv]
