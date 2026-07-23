@@ -194,6 +194,35 @@ describe("RegisterPage", () => {
     });
   });
 
+  describe("empty submit", () => {
+    it("shows inline field errors and blocks submission instead of relying on native validation", () => {
+      render(<RegisterPage />);
+
+      fireEvent.click(screen.getByRole("button", { name: /crear cuenta/i }));
+
+      expect(screen.getAllByRole("alert").length).toBeGreaterThan(0);
+      expect(screen.getByText("Ingrese su correo electrónico.")).toBeInTheDocument();
+      expect(screen.getByLabelText("Correo electrónico")).toHaveAttribute("aria-invalid", "true");
+      expect(
+        screen.queryByText(/registro de demostración completado/i),
+      ).not.toBeInTheDocument();
+    });
+
+    it("clears once every required field is filled in and resubmitted", async () => {
+      render(<RegisterPage />);
+
+      fireEvent.click(screen.getByRole("button", { name: /crear cuenta/i }));
+      expect(screen.getByText("Ingrese su correo electrónico.")).toBeInTheDocument();
+
+      submitDemoForm();
+
+      expect(
+        await screen.findByText(/registro de demostración completado/i, undefined, { timeout: 3000 }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Ingrese su correo electrónico.")).not.toBeInTheDocument();
+    });
+  });
+
   describe("password mismatch", () => {
     it("reports the mismatch via toast.showError instead of an inline alert", () => {
       render(<RegisterPage />);
