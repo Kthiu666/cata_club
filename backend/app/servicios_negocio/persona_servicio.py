@@ -2,6 +2,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from app.dominio.modelos import Persona
+from app.dominio.enums import TipoRol
 from app.dominio.excepciones import EntidadNoEncontrada, EntidadDuplicada, OperacionInvalida
 from app.infraestructura.repositorios.persona_repositorio import PersonaRepositorio
 from app.presentacion.schemas.persona_schemas import PersonaCreateDTO, PersonaUpdateDTO
@@ -78,6 +79,12 @@ class PersonaServicio:
 
     def listar_representados(self, persona_id: int) -> list[Persona]:
         return self.obtener_persona(persona_id).representados
+
+    def listar_entrenadores(self) -> list[Persona]:
+        """Personas con rol ENTRENADOR — usado por el selector de entrenador
+        al crear/editar un `HorarioEntrenamiento` (dropdown con nombres
+        reales en vez de un ID a mano)."""
+        return self.repo.listar_por_rol(TipoRol.ENTRENADOR)
 
     def actualizar_persona(self, persona_id: int, cambios: PersonaUpdateDTO) -> Persona:
         persona = self.obtener_persona(persona_id)

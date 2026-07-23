@@ -18,10 +18,31 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Deshabilitar rate limiting en tests
 os.environ.setdefault("AMBIENTE", "test")
 
-from app.dominio.modelos import Base
+from app.dominio.modelos import Base, Persona, Usuario, Rol
+from app.dominio.enums import TipoRol
 from app.infraestructura.db import obtener_sesion
 from app.seguridad.gestor_auth import GestorAutenticacion
 from main import app
+
+
+def crear_entrenador(db_session, cedula: str = "1710034065") -> int:
+    """Crea una persona con rol ENTRENADOR y devuelve su persona_id. Helper
+    compartido entre los tests de horario/categoria que necesitan un
+    entrenador_id válido (evita duplicar esta fábrica en cada archivo)."""
+    persona = Persona(
+        nombres="Carlos", apellidos="Ruiz", cedula=cedula,
+        fecha_nacimiento=_date_cls(1990, 1, 1), telefono="0991112222",
+    )
+    db_session.add(persona)
+    db_session.flush()
+    rol = Rol(tipo_rol=TipoRol.ENTRENADOR, descripcion="Entrenador")
+    usuario = Usuario(
+        correo=f"entrenador{cedula}@cataclub.test",
+        contrasenia="hash", persona_id=persona.id, roles=[rol],
+    )
+    db_session.add(usuario)
+    db_session.commit()
+    return persona.id
 
 
 # --- Congelamiento de "hoy" para los tests --------------------------------

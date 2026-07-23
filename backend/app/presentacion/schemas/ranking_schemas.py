@@ -54,6 +54,17 @@ class AsignarNivelInicialDTO(BaseModel):
 
 # --- Ranking (fila por persona) ---------------------------------------------
 class RankingResponseDTO(ResponseBase, BaseModel):
+    """Response de asignar-nivel-inicial/mover-de-nivel/seleccion-oficial.
+
+    `puntaje_acumulado`, `posicion_actual` y `meses_consecutivos_ausente`
+    quedan congelados (el cierre mensual RF007 era su único escritor,
+    removido en slice B2 de `limpieza-asistencia-y-nivel-entrenador`). Se
+    mantienen acá solo por compatibilidad de shape con estos tres endpoints;
+    ningún consumidor del frontend los lee. Los DTOs de solo-lectura del
+    ranking (`TablaRankingItemDTO`, `PerfilRankingAlumnoDTO`,
+    `AsignacionRankingResponseDTO`) ya no los exponen.
+    """
+
     id: int = Field(..., examples=[1])
     persona_id: int = Field(..., examples=[1])
     puntaje_acumulado: int = Field(..., examples=[150])
@@ -67,12 +78,16 @@ class RankingResponseDTO(ResponseBase, BaseModel):
 
 
 class TablaRankingItemDTO(ResponseBase, BaseModel):
-    """Fila de la tabla de un nivel (E03-RF010): posición + puntaje +
-    identificación del alumno, sin exponer el resto del Ranking."""
+    """Fila del roster de un nivel: identificación del alumno + su estado de
+    ranking, sin exponer el resto del Ranking. Ya NO expone
+    `posicion_actual`/`puntaje_acumulado`: quedaron congelados para siempre
+    tras remover `cerrar_mes()` (único escritor, slice B2) -- mostrarlos
+    seguía siendo un dato "vivo" falso. Este endpoint sigue existiendo porque
+    también es el roster que usa la asistencia del entrenador y el mapeo de
+    miembros (ver apply-progress de `limpieza-asistencia-y-nivel-entrenador`
+    slice E)."""
     persona_id: int
     persona_nombre_completo: str
-    posicion_actual: Optional[int] = None
-    puntaje_acumulado: int
     esta_en_ranking: bool
 
 
@@ -95,24 +110,6 @@ class ResultadoMensualResponseDTO(ResponseBase, BaseModel):
     puntos_obtenidos: int
     participo: bool
     ausencia_justificada: bool
-
-
-# --- Cierre mensual (E03-RF004/RF005/RF007/RF009) ---------------------------
-class SugerenciaMovimientoDTO(BaseModel):
-    persona_id: int
-    persona_nombre_completo: str
-    tipo: str  # "ASCENSO" | "DESCENSO"
-    nivel_actual_id: int
-    nivel_sugerido_id: int
-
-
-class CierreMensualResponseDTO(ResponseBase, BaseModel):
-    nivel_ranking_id: int
-    anio: int
-    mes: int
-    personas_procesadas: int
-    personas_eliminadas: List[int]
-    sugerencias: List[SugerenciaMovimientoDTO]
 
 
 # --- Justificativos (E03-RF006a/RF006b) -------------------------------------
@@ -173,9 +170,10 @@ class SeleccionOficialItemDTO(ResponseBase, BaseModel):
 
 # --- Perfil del alumno (E04-RF012) ------------------------------------------
 class PerfilRankingAlumnoDTO(ResponseBase, BaseModel):
+    """Ya NO expone `posicion_actual`/`puntaje_acumulado` (frozen forever
+    sin escritor desde que se removió `cerrar_mes()`, slice B2) -- ver
+    slice E."""
     persona_id: int
-    posicion_actual: Optional[int] = None
-    puntaje_acumulado: int
     nivel_ranking_id: Optional[int] = None
     nivel_ranking_nombre: Optional[str] = None
     esta_en_ranking: bool
@@ -193,14 +191,13 @@ class NotificacionResponseDTO(ResponseBase, BaseModel):
 
 # --- Listados para frontend (Phase 1) ----------------------------------------
 class AsignacionRankingResponseDTO(ResponseBase, BaseModel):
-    """Fila de un alumno en el ranking (para listado de asignaciones)."""
+    """Fila de un alumno en el ranking (para listado de asignaciones). Ya NO
+    expone `posicion_actual`/`puntaje_acumulado` -- ver slice E."""
     persona_id: int
     persona_nombre_completo: str
     nivel_ranking_id: int
     nivel_ranking_nombre: Optional[str] = None
     nivel_ranking_numero: int
-    posicion_actual: Optional[int] = None
-    puntaje_acumulado: int
     esta_en_ranking: bool
 
 
@@ -217,17 +214,3 @@ class ResultadoMensualRankingResponseDTO(ResponseBase, BaseModel):
     puntos_obtenidos: int
     participo: bool
     ausencia_justificada: bool
-
-
-class CierreMensualRankingResponseDTO(ResponseBase, BaseModel):
-    """Cierre mensual con info de nivel y cerrado por (para listado)."""
-    id: int
-    nivel_ranking_id: int
-    nivel_ranking_nombre: Optional[str] = None
-    nivel_ranking_numero: int
-    anio: int
-    mes: int
-    personas_procesadas: int
-    cerrado_por_id: int
-    cerrado_por_nombre: str
-    cerrado_en: datetime

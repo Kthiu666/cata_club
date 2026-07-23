@@ -27,9 +27,17 @@ import {
   fetchJustificativosPendientes,
   fetchMiPerfil,
   actualizarMiPerfil,
+  fetchHorarios,
+  crearHorario,
+  actualizarHorario,
+  eliminarHorario,
+  fetchAlumnosPorHorario,
+  asignarAlumnoAHorario,
+  desasignarAlumnoDeHorario,
+  fetchEntrenadores,
   subirFotoPerfil,
 } from "../api";
-import type { PaymentValidationRequest } from "../api";
+import type { PaymentValidationRequest, Horario, AlumnoHorario, Entrenador } from "../api";
 import type { Notificacion, Justificativo, PerfilPropio } from "@/types/domain";
 
 // ---------------------------------------------------------------------------
@@ -552,6 +560,27 @@ function makePerfilPropio(overrides: Partial<PerfilPropio> = {}): PerfilPropio {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Horarios / Asignación Alumno-Horario — BFF path fix (gestion-horarios PR-C)
+//
+// api.ts previously called `/api/asistencias/*`, but no such BFF route
+// handler directory has ever existed — only `/api/groups/horarios*` is real.
+// These tests pin the corrected `/api/groups/...` contract.
+// ---------------------------------------------------------------------------
+
+function makeHorario(overrides: Partial<Horario> = {}): Horario {
+  return {
+    id: 1,
+    diaSemana: "LUNES",
+    horaInicio: "18:00",
+    horaFin: "20:00",
+    categoria: "COMPETITIVO",
+    entrenadorId: 5,
+    nivelRankingId: null,
+    ...overrides,
+  };
+}
+
 describe("fetchMiPerfil", () => {
   it("calls GET /api/auth/me and returns the parsed profile", async () => {
     const perfil = makePerfilPropio();
@@ -610,6 +639,158 @@ describe("actualizarMiPerfil", () => {
 
     await expect(actualizarMiPerfil({ correo: "duplicado@cataclub.com" })).rejects.toThrow(
       "El correo ya está en uso.",
+    );
+  });
+});
+
+// camelCase — mirrors the real backend contract (`AlumnoHorarioDetalleDTO`
+// inherits `ResponseBase`, serialized camelCase server-side).
+function makeAlumnoHorario(overrides: Partial<AlumnoHorario> = {}): AlumnoHorario {
+  return {
+    id: 10,
+    personaId: 3,
+    personaNombreCompleto: "Sofia Martinez",
+    edad: 12,
+    horarioId: 1,
+    horarioDia: "LUNES",
+    horarioHoraInicio: "18:00",
+    horarioHoraFin: "20:00",
+    fechaAsignacion: "2026-07-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+describe("fetchHorarios", () => {
+  it("GETs /api/groups/horarios (not /api/asistencias/horarios)", async () => {
+    const items = [makeHorario(), makeHorario({ id: 2, categoria: "FORMATIVO" })];
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(items));
+
+    const result = await fetchHorarios();
+
+    expect(global.fetch).toHaveBeenCalledWith("/api/groups/horarios", expect.anything());
+    expect(result).toEqual(items);
+  });
+});
+
+describe("crearHorario", () => {
+  it("POSTs /api/groups/horarios", async () => {
+    const created = makeHorario();
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(created, { status: 201 }));
+
+    const dto = { dia_semana: "LUNES", categoria: "COMPETITIVO", entrenador_id: 5 };
+    const result = await crearHorario(dto);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/groups/horarios",
+      expect.objectContaining({ method: "POST", body: JSON.stringify(dto) }),
+    );
+    expect(result).toEqual(created);
+  });
+});
+
+describe("actualizarHorario", () => {
+  it("PUTs /api/groups/horarios/:id", async () => {
+    const updated = makeHorario({ categoria: "FORMATIVO" });
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(updated));
+
+    const dto = { categoria: "FORMATIVO" };
+    const result = await actualizarHorario(1, dto);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/groups/horarios/1",
+      expect.objectContaining({ method: "PUT", body: JSON.stringify(dto) }),
+    );
+    expect(result).toEqual(updated);
+  });
+});
+
+describe("eliminarHorario", () => {
+  it("DELETEs /api/groups/horarios/:id", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(new Response(null, { status: 204 }));
+
+    await eliminarHorario(1);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/groups/horarios/1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+});
+
+function makeEntrenador(overrides: Partial<Entrenador> = {}): Entrenador {
+  return { id: 5, nombreCompleto: "Carlos Ruiz", ...overrides };
+}
+
+describe("fetchEntrenadores", () => {
+  it("GETs /api/personas/entrenadores", async () => {
+    const items = [makeEntrenador(), makeEntrenador({ id: 9, nombreCompleto: "Diana Soto" })];
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(items));
+
+    const result = await fetchEntrenadores();
+
+    expect(global.fetch).toHaveBeenCalledWith("/api/personas/entrenadores", expect.anything());
+    expect(result).toEqual(items);
+  });
+});
+
+describe("fetchAlumnosPorHorario", () => {
+  it("GETs /api/groups/horarios/:id/alumnos", async () => {
+    const items = [makeAlumnoHorario(), makeAlumnoHorario({ id: 11, personaId: 4 })];
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(items));
+
+    const result = await fetchAlumnosPorHorario(1);
+
+    expect(global.fetch).toHaveBeenCalledWith("/api/groups/horarios/1/alumnos", expect.anything());
+    expect(result).toEqual(items);
+  });
+
+  it("targets a different horario id (triangulation)", async () => {
+    const items = [makeAlumnoHorario({ id: 20, horarioId: 7 })];
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(items));
+
+    const result = await fetchAlumnosPorHorario(7);
+
+    expect(global.fetch).toHaveBeenCalledWith("/api/groups/horarios/7/alumnos", expect.anything());
+    expect(result).toEqual(items);
+  });
+});
+
+describe("asignarAlumnoAHorario", () => {
+  it("POSTs /api/groups/asignar-alumno", async () => {
+    const created = makeAlumnoHorario();
+    vi.mocked(global.fetch).mockResolvedValue(okResponse(created, { status: 201 }));
+
+    const dto = { persona_id: 3, horario_id: 1 };
+    const result = await asignarAlumnoAHorario(dto);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/groups/asignar-alumno",
+      expect.objectContaining({ method: "POST", body: JSON.stringify(dto) }),
+    );
+    expect(result).toEqual(created);
+  });
+});
+
+describe("desasignarAlumnoDeHorario", () => {
+  it("DELETEs /api/groups/desasignar-alumno with query params", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(new Response(null, { status: 204 }));
+
+    await desasignarAlumnoDeHorario(3, 1);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/groups/desasignar-alumno?persona_id=3&horario_id=1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
+  it("targets different persona/horario ids (triangulation)", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(new Response(null, { status: 204 }));
+
+    await desasignarAlumnoDeHorario(9, 4);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/groups/desasignar-alumno?persona_id=9&horario_id=4",
+      expect.objectContaining({ method: "DELETE" }),
     );
   });
 });

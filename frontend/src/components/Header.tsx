@@ -66,7 +66,8 @@ export const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
   "/payments": ShieldCheck,
   "/attendance": Calendar,
   "/trainer": GraduationCap,
-  "/trainer/ranking": Trophy,
+  "/trainer/attendance": Calendar,
+  "/trainer/nivel": Trophy,
   "/reports": FileText,
   "/clases-extra": BookOpen,
   "/student": GraduationCap,
@@ -230,7 +231,9 @@ const APP_SHELL_ROUTES = new Set([
   "/attendance",
   "/trainer",
   "/trainer/attendance",
+  "/trainer/nivel",
   "/reports",
+  "/clases-extra",
   "/student",
 ]);
 

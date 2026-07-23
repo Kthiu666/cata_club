@@ -39,11 +39,18 @@ async function mockTrainerAttendanceRuntime(page: Page): Promise<void> {
       entrenadorNombre: "Carla Entrenadora",
     },
   ]));
-  await page.route("**/api/ranking/niveles", (route: Route) => fulfillJson(route, [
-    { id: 7, numeroNivel: 1, nivelCategoria: "principiante", nombre: "Elite", personasActuales: 1 },
-  ]));
-  await page.route("**/api/ranking/niveles/7/tabla", (route: Route) => fulfillJson(route, [
-    { personaId: 9, personaNombreCompleto: "Ana López", puntosTotales: 0, posicion: 1 },
+  await page.route("**/api/groups/horarios/11/alumnos", (route: Route) => fulfillJson(route, [
+    {
+      id: 1,
+      personaId: 9,
+      personaNombreCompleto: "Ana López",
+      edad: 12,
+      horarioId: 11,
+      horarioDia: "lun",
+      horarioHoraInicio: "18:00",
+      horarioHoraFin: "19:00",
+      fechaAsignacion: "2026-01-01T00:00:00Z",
+    },
   ]));
   await page.route("**/api/ranking/notificaciones/mias", (route: Route) => fulfillJson(route, []));
 }
@@ -54,7 +61,7 @@ test("trainer directly selects every attendance state at 390px", async ({ page }
 
   await page.goto("/trainer/attendance");
   await page.getByRole("button", { name: /lunes/i }).click();
-  await page.getByRole("button", { name: /elite/i }).click();
+  await page.getByRole("button", { name: /18:00 a 19:00/ }).click();
   await page.getByRole("button", { name: "Continuar" }).click();
 
   const stateGroup = page.getByRole("group", { name: "Estado de asistencia de Ana López" });
@@ -81,7 +88,7 @@ test("trainer discovers mobile navigation and Justificado guidance at 390px", as
   await page.getByRole("button", { name: "Cerrar menú" }).click();
 
   await page.getByRole("button", { name: /lunes/i }).click();
-  await page.getByRole("button", { name: /elite/i }).click();
+  await page.getByRole("button", { name: /18:00 a 19:00/ }).click();
   await page.getByRole("button", { name: "Continuar" }).click();
   await page.getByRole("button", { name: "Ayuda sobre el estado Justificado" }).click();
 

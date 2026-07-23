@@ -62,6 +62,17 @@ vi.mock("@/contexts/AuthContext", (): { useAuth: typeof useAuth } => ({
   useAuth: vi.fn<typeof useAuth>(),
 }));
 
+// Wraps the real implementation by default (every other test relies on real
+// role-based nav links) — only the active-link tests below override it with
+// a synthetic, route-table-independent link list via `mockReturnValueOnce`.
+vi.mock("@/lib/auth-utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/auth-utils")>();
+  return {
+    ...actual,
+    getNavLinksForRole: vi.fn(actual.getNavLinksForRole),
+  };
+});
+
 // useNotificaciones (consumed once by Header, fed into every rendered
 // NotificationBell) fetches on mount — stub it out so Header's tests don't
 // depend on network/timer behavior unrelated to nav/auth rendering.
@@ -77,6 +88,7 @@ vi.mock("@/services/api", () => ({
 // ---------------------------------------------------------------------------
 
 import { useAuth } from "@/contexts/AuthContext";
+import { getNavLinksForRole } from "@/lib/auth-utils";
 import {
   createUnauthenticatedAuth,
   createAuthenticatedAuth,
@@ -84,6 +96,7 @@ import {
 } from "./test-utils";
 
 const mockUseAuth = vi.mocked(useAuth);
+const mockGetNavLinksForRole = vi.mocked(getNavLinksForRole);
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -142,7 +155,9 @@ describe("Header", (): void => {
     "/attendance",
     "/trainer",
     "/trainer/attendance",
+    "/trainer/nivel",
     "/reports",
+    "/clases-extra",
     "/student",
   ])("hides the header on the %s app-shell route", (route): void => {
     mockPathname.mockReturnValue(route);
@@ -235,7 +250,7 @@ describe("Header", (): void => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Miembros/i })).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Grupos y Horarios/i }),
+      screen.getByRole("link", { name: /Gestión de Horarios/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Membresías/i }),
@@ -279,10 +294,16 @@ describe("Header", (): void => {
 
     render(<Header />);
 
-    // Trainer gets Inicio + Entrenador
+    // Trainer gets Inicio + Dashboard + Asistencia + Historial Asistencia + Nivel
     expect(screen.getByRole("link", { name: /Inicio/i })).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Entrenador/i }),
+      screen.getByRole("link", { name: /Dashboard/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Asistencia" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Historial Asistencia/i }),
     ).toBeInTheDocument();
 
     // Other roles not visible
@@ -313,7 +334,7 @@ describe("Header", (): void => {
     expect(
       screen.queryByText("Administración"),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText("Entrenador")).not.toBeInTheDocument();
+    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
 
     expect(screen.getByText("Carlos Martinez")).toBeInTheDocument();
   });
@@ -321,31 +342,40 @@ describe("Header", (): void => {
   // --- Active link highlighting ---
 
   // Every admin/trainer/student nav destination is now an app-shell route
-  // (hidden header, see the describe block above) except /trainer/ranking,
-  // which stays on the top header and matches one of its own nav links —
-  // the realistic case left for active-link coverage.
+  // (hidden header, see the describe block above), so no real business
+  // route keeps a multi-link nav on the top Header. These tests decouple
+  // the aria-current logic from the route table by stubbing
+  // `getNavLinksForRole` with a synthetic link list on a neutral route.
   it("marks the active link with aria-current=\"page\"", (): void => {
-    mockPathname.mockReturnValue("/trainer/ranking");
+    mockGetNavLinksForRole.mockReturnValueOnce([
+      { href: "/unauthorized", label: "Inicio" },
+      { href: "/somewhere-else", label: "Otro" },
+    ]);
+    mockPathname.mockReturnValue("/unauthorized");
     mockUseAuth.mockReturnValue(
       createAuthenticatedAuth("trainer", "Carlos Entrenador"),
     );
 
     render(<Header />);
 
-    const rankingLink = screen.getByRole("link", { name: /Ranking/i });
-    expect(rankingLink).toHaveAttribute("aria-current", "page");
+    const activeLink = screen.getByRole("link", { name: /Inicio/i });
+    expect(activeLink).toHaveAttribute("aria-current", "page");
   });
 
   it("does not apply aria-current to non-current route links", (): void => {
-    mockPathname.mockReturnValue("/trainer/ranking");
+    mockGetNavLinksForRole.mockReturnValueOnce([
+      { href: "/unauthorized", label: "Inicio" },
+      { href: "/somewhere-else", label: "Otro" },
+    ]);
+    mockPathname.mockReturnValue("/unauthorized");
     mockUseAuth.mockReturnValue(
       createAuthenticatedAuth("trainer", "Carlos Entrenador"),
     );
 
     render(<Header />);
 
-    const inicioLink = screen.getByRole("link", { name: /Inicio/i });
-    expect(inicioLink).not.toHaveAttribute("aria-current");
+    const otherLink = screen.getByRole("link", { name: /Otro/i });
+    expect(otherLink).not.toHaveAttribute("aria-current");
   });
 
   // --- Mobile menu ---

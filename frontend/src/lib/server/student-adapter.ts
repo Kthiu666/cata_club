@@ -34,11 +34,12 @@ import type { EstadoAsistencia } from "@/types/domain";
 // Backend DTO shapes (camelCase, as received from FastAPI)
 // ---------------------------------------------------------------------------
 
-/** `PerfilRankingAlumnoDTO` (see backend app/presentacion/schemas/ranking_schemas.py). */
+/** `PerfilRankingAlumnoDTO` (see backend app/presentacion/schemas/ranking_schemas.py).
+ * No longer carries `posicionActual`/`puntajeAcumulado` — backend stopped
+ * exposing them (frozen forever since `cerrar_mes()` was removed; see
+ * apply-progress of `limpieza-asistencia-y-nivel-entrenador` slice E). */
 export interface BackendPerfilRanking {
   personaId: number;
-  posicionActual: number | null;
-  puntajeAcumulado: number;
   nivelRankingId: number | null;
   nivelRankingNombre: string | null;
   estaEnRanking: boolean;
@@ -51,8 +52,6 @@ export interface BackendPerfilRanking {
 export type StudentRankingView =
   | {
       status: "available";
-      posicionActual: number | null;
-      puntajeAcumulado: number;
       nivelNombre: string | null;
       estaEnRanking: boolean;
     }
@@ -165,8 +164,6 @@ export function buildStudentProfileView(
 export function buildRankingView(perfil: BackendPerfilRanking): StudentRankingView {
   return {
     status: "available",
-    posicionActual: perfil.posicionActual,
-    puntajeAcumulado: perfil.puntajeAcumulado,
     nivelNombre: perfil.nivelRankingNombre,
     estaEnRanking: perfil.estaEnRanking,
   };

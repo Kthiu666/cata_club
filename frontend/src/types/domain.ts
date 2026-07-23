@@ -450,19 +450,6 @@ export interface ResultadoMensual {
 }
 
 /**
- * Record of a ranking-month closure (Cierre de Mes) for a given nivel — an
- * irreversible action that locks further result registration for that
- * nivel/period. Mirrors the backend's `CierreMensualResponseDTO`.
- */
-export interface CierreMensual {
-  nivelRankingId: number;
-  anio: number;
-  mes: number;
-  personasProcesadas: number;
-  personasEliminadas: number[];
-}
-
-/**
  * An entry in the official-selection roster (Selección Oficial) —
  * admin-managed, independent of the trainer-managed monthly ranking flow.
  */
@@ -526,9 +513,6 @@ export interface PersonaBusqueda {
 
 /** Notification type — mirrors backend's `TipoNotificacion` enum. */
 export type TipoNotificacion =
-  | "RANKING_ELIMINACION_PROXIMA"
-  | "RANKING_ASCENSO_SUGERIDO"
-  | "RANKING_DESCENSO_SUGERIDO"
   | "RANKING_REINGRESO_APROBADO"
   | "JUSTIFICATIVO_APROBADO"
   | "JUSTIFICATIVO_RECHAZADO";

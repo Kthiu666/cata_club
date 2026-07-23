@@ -9,12 +9,12 @@ import {
   nextAttendanceState,
   countByState,
   buildAttendanceSummary,
-  buildRosterFromTabla,
+  buildRosterFromAlumnoHorarios,
   resolveEntrenadorId,
   resolveDisplayTrainerName,
   type SessionStudent,
 } from "../attendance-utils";
-import type { TablaRankingItem } from "@/services/api";
+import type { AlumnoHorario } from "@/services/api";
 
 describe("nextAttendanceState", () => {
   it("cycles absent → present", () => {
@@ -102,26 +102,50 @@ describe("buildAttendanceSummary", () => {
   });
 });
 
-describe("buildRosterFromTabla", () => {
-  const tabla: TablaRankingItem[] = [
-    { personaId: 3, personaNombreCompleto: "Sofia Alumna", posicionActual: null, puntajeAcumulado: 0, estaEnRanking: true },
-    { personaId: 7, personaNombreCompleto: "Mateo Rodríguez", posicionActual: 2, puntajeAcumulado: 40, estaEnRanking: true },
+describe("buildRosterFromAlumnoHorarios", () => {
+  // camelCase fixture — matches the real backend contract: `AlumnoHorarioDetalleDTO`
+  // inherits `ResponseBase`, so responses are serialized camelCase
+  // (`persona_nombre_completo` never exists on the wire). A snake_case mock
+  // here would silently hide the exact bug this test guards against.
+  const alumnoHorarios: AlumnoHorario[] = [
+    {
+      id: 1,
+      personaId: 3,
+      personaNombreCompleto: "Sofia Alumna",
+      edad: 11,
+      horarioId: 12,
+      horarioDia: "lun",
+      horarioHoraInicio: "18:00",
+      horarioHoraFin: "19:00",
+      fechaAsignacion: "2026-01-01",
+    },
+    {
+      id: 2,
+      personaId: 7,
+      personaNombreCompleto: "Mateo Rodríguez",
+      edad: 13,
+      horarioId: 12,
+      horarioDia: "lun",
+      horarioHoraInicio: "18:00",
+      horarioHoraFin: "19:00",
+      fechaAsignacion: "2026-01-01",
+    },
   ];
 
-  it("maps each roster row to a SessionStudent defaulted to absent", () => {
-    const roster = buildRosterFromTabla(tabla);
+  it("maps each alumno-horario row to a SessionStudent defaulted to absent", () => {
+    const roster = buildRosterFromAlumnoHorarios(alumnoHorarios);
     expect(roster).toEqual([
       { id: "3", name: "Sofia Alumna", attendance: "absent" },
       { id: "7", name: "Mateo Rodríguez", attendance: "absent" },
     ]);
   });
 
-  it("returns an empty roster for an empty tabla", () => {
-    expect(buildRosterFromTabla([])).toEqual([]);
+  it("returns an empty roster for an empty array", () => {
+    expect(buildRosterFromAlumnoHorarios([])).toEqual([]);
   });
 
   it("stringifies personaId for use as a stable React key / POST payload id", () => {
-    const roster = buildRosterFromTabla(tabla);
+    const roster = buildRosterFromAlumnoHorarios(alumnoHorarios);
     expect(roster.every((s) => typeof s.id === "string")).toBe(true);
   });
 });

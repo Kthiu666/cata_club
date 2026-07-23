@@ -43,25 +43,35 @@ import { useAuth } from "@/contexts/AuthContext";
 const mockUseAuth = vi.mocked(useAuth);
 
 const mockFetchTrainingSchedules = vi.fn().mockResolvedValue([]);
-const mockFetchNivelesConOcupacion = vi.fn().mockResolvedValue([]);
-const mockFetchNivelRoster = vi.fn().mockResolvedValue([]);
+const mockFetchAlumnosPorHorario = vi.fn().mockResolvedValue([]);
 const mockRegisterAttendance = vi.fn();
 
 vi.mock("@/services/api", () => ({
   fetchTrainingSchedules: () => mockFetchTrainingSchedules(),
-  fetchNivelesConOcupacion: () => mockFetchNivelesConOcupacion(),
-  fetchNivelRoster: () => mockFetchNivelRoster(),
+  fetchAlumnosPorHorario: (horarioId: number) => mockFetchAlumnosPorHorario(horarioId),
   registerAttendance: (request: unknown) => mockRegisterAttendance(request),
   fetchNotificaciones: vi.fn().mockResolvedValue([]),
   marcarNotificacionLeida: vi.fn().mockResolvedValue(undefined),
 }));
 
+// camelCase — mirrors the real backend contract (`AlumnoHorarioDetalleDTO`
+// inherits `ResponseBase`, serialized camelCase server-side).
+const ANA_ALUMNO_HORARIO = {
+  id: 1,
+  personaId: 9,
+  personaNombreCompleto: "Ana López",
+  horarioId: 12,
+  horarioDia: "lun",
+  horarioHoraInicio: "18:00",
+  horarioHoraFin: "19:00",
+  fechaAsignacion: "2026-01-01",
+};
+
 describe("TrainerAttendancePage — role gate (PR8)", () => {
   beforeEach(() => {
     mockReplace.mockReset();
     mockFetchTrainingSchedules.mockResolvedValue([]);
-    mockFetchNivelesConOcupacion.mockResolvedValue([]);
-    mockFetchNivelRoster.mockResolvedValue([]);
+    mockFetchAlumnosPorHorario.mockResolvedValue([]);
     mockRegisterAttendance.mockReset();
   });
 
@@ -89,19 +99,14 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
   it("lets a trainer directly select each visibly labeled attendance state", async () => {
     mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
     mockFetchTrainingSchedules.mockResolvedValue([
-      { id: 12, diaSemana: "lunes", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+      { id: 12, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
     ]);
-    mockFetchNivelesConOcupacion.mockResolvedValue([
-      { id: 4, numeroNivel: 2, nombre: "Intermedio", nivelCategoria: "intermedio", personasActuales: 1 },
-    ]);
-    mockFetchNivelRoster.mockResolvedValue([
-      { personaId: 9, personaNombreCompleto: "Ana López", posicionActual: 1, puntajeAcumulado: 20, estaEnRanking: true },
-    ]);
+    mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
 
     render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
 
-    fireEvent.click(await screen.findByRole("button", { name: /lunes/i }));
-    fireEvent.click(screen.getByRole("button", { name: /intermedio/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
 
     const stateSelector = await screen.findByRole("group", { name: "Estado de asistencia de Ana López" });
@@ -120,20 +125,15 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
     if (trainerAuth.session) trainerAuth.session.user.id = "17";
     mockUseAuth.mockReturnValue(trainerAuth);
     mockFetchTrainingSchedules.mockResolvedValue([
-      { id: 12, diaSemana: "lunes", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+      { id: 12, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
     ]);
-    mockFetchNivelesConOcupacion.mockResolvedValue([
-      { id: 4, numeroNivel: 2, nombre: "Intermedio", nivelCategoria: "intermedio", personasActuales: 1 },
-    ]);
-    mockFetchNivelRoster.mockResolvedValue([
-      { personaId: 9, personaNombreCompleto: "Ana López", posicionActual: 1, puntajeAcumulado: 20, estaEnRanking: true },
-    ]);
+    mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
     mockRegisterAttendance.mockResolvedValue({ createdCount: 1, failed: [] });
 
     render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
 
-    fireEvent.click(await screen.findByRole("button", { name: /lunes/i }));
-    fireEvent.click(screen.getByRole("button", { name: /intermedio/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
     const stateSelector = await screen.findByRole("group", { name: "Estado de asistencia de Ana López" });
     fireEvent.click(within(stateSelector).getByRole("button", { name: "Justificado" }));
@@ -151,22 +151,149 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
   it("opens named help that preserves the existing Justificado semantics", async () => {
     mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
     mockFetchTrainingSchedules.mockResolvedValue([
-      { id: 12, diaSemana: "lunes", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+      { id: 12, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
     ]);
-    mockFetchNivelesConOcupacion.mockResolvedValue([
-      { id: 4, numeroNivel: 2, nombre: "Intermedio", nivelCategoria: "intermedio", personasActuales: 1 },
-    ]);
-    mockFetchNivelRoster.mockResolvedValue([
-      { personaId: 9, personaNombreCompleto: "Ana López", posicionActual: 1, puntajeAcumulado: 20, estaEnRanking: true },
-    ]);
+    mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
 
     render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
-    fireEvent.click(await screen.findByRole("button", { name: /lunes/i }));
-    fireEvent.click(screen.getByRole("button", { name: /intermedio/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
     fireEvent.click(await screen.findByRole("button", { name: "Ayuda sobre el estado Justificado" }));
 
     const help = screen.getByRole("region", { name: "Ayuda sobre el estado Justificado" });
     expect(help).toHaveTextContent("no modifica la validación ni el significado actual");
+  });
+
+  it("shows the horario descriptor (día + rango) and no nivel/grupo text on mark-attendance and confirm", async () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    mockFetchTrainingSchedules.mockResolvedValue([
+      { id: 12, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+    ]);
+    mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    await screen.findByText("Ana López");
+    expect(screen.getByText("Lunes")).toBeInTheDocument();
+    expect(screen.queryByText(/Nivel \d/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Grupo")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+    expect(await screen.findByText("Horario")).toBeInTheDocument();
+    expect(screen.getAllByText("Lunes", { exact: false }).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Grupo")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nivel \d/)).not.toBeInTheDocument();
+  });
+
+  it("shows an explanatory empty state and blocks final submit when the horario has no assigned alumnos", async () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    mockFetchTrainingSchedules.mockResolvedValue([
+      { id: 12, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+    ]);
+    mockFetchAlumnosPorHorario.mockResolvedValue([]);
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(await screen.findByText("Este horario no tiene alumnos asignados.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Siguiente" })).toBeDisabled();
+  });
+});
+
+describe("TrainerAttendancePage — schedule accordion grouped by day (Slice A)", () => {
+  beforeEach(() => {
+    mockReplace.mockReset();
+    mockFetchTrainingSchedules.mockResolvedValue([]);
+    mockFetchAlumnosPorHorario.mockResolvedValue([]);
+    mockRegisterAttendance.mockReset();
+  });
+
+  it("groups schedules on Monday, Wednesday and Friday into three independent day sections", async () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    mockFetchTrainingSchedules.mockResolvedValue([
+      { id: 1, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+      { id: 2, diaSemana: "mie", horaInicio: "09:00", horaFin: "10:00", entrenadorId: 18, entrenadorNombre: "Coach Diaz" },
+      { id: 3, diaSemana: "vie", horaInicio: "20:00", horaFin: "21:00", entrenadorId: 19, entrenadorNombre: "Coach Ruiz" },
+    ]);
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+
+    const mondaySection = await screen.findByRole("button", { name: /^lunes/i });
+    const wednesdaySection = screen.getByRole("button", { name: /^miércoles/i });
+    const fridaySection = screen.getByRole("button", { name: /^viernes/i });
+    expect(mondaySection).toBeInTheDocument();
+    expect(wednesdaySection).toBeInTheDocument();
+    expect(fridaySection).toBeInTheDocument();
+
+    // Collapsed by default: no schedule card is reachable before expanding.
+    expect(screen.queryByRole("button", { name: /18:00/i })).not.toBeInTheDocument();
+
+    fireEvent.click(mondaySection);
+    expect(await screen.findByRole("button", { name: /18:00/i })).toBeInTheDocument();
+    // Wednesday/Friday remain collapsed — their cards are not shown.
+    expect(screen.queryByRole("button", { name: /09:00/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /20:00/i })).not.toBeInTheDocument();
+  });
+
+  it("expands and collapses each day section independently of the others", async () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    mockFetchTrainingSchedules.mockResolvedValue([
+      { id: 1, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+      { id: 2, diaSemana: "mie", horaInicio: "09:00", horaFin: "10:00", entrenadorId: 18, entrenadorNombre: "Coach Diaz" },
+    ]);
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+
+    const mondaySection = await screen.findByRole("button", { name: /^lunes/i });
+    const wednesdaySection = screen.getByRole("button", { name: /^miércoles/i });
+
+    fireEvent.click(mondaySection);
+    expect(await screen.findByRole("button", { name: /18:00/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /09:00/i })).not.toBeInTheDocument();
+
+    fireEvent.click(wednesdaySection);
+    expect(await screen.findByRole("button", { name: /09:00/i })).toBeInTheDocument();
+    // Monday card is still visible — expanding Wednesday did not collapse it.
+    expect(screen.getByRole("button", { name: /18:00/i })).toBeInTheDocument();
+
+    fireEvent.click(mondaySection);
+    expect(screen.queryByRole("button", { name: /18:00/i })).not.toBeInTheDocument();
+    // Wednesday remains expanded — collapsing Monday did not affect it.
+    expect(screen.getByRole("button", { name: /09:00/i })).toBeInTheDocument();
+  });
+
+  it("omits the day section for a day with no schedules", async () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    mockFetchTrainingSchedules.mockResolvedValue([
+      { id: 1, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+    ]);
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+
+    await screen.findByRole("button", { name: /^lunes/i });
+    expect(screen.queryByRole("button", { name: /^martes/i })).not.toBeInTheDocument();
+  });
+
+  it("still triggers roster loading when a schedule card is selected inside an expanded day", async () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    mockFetchTrainingSchedules.mockResolvedValue([
+      { id: 12, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
+    ]);
+    mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+
+    fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    await waitFor(() => expect(mockFetchAlumnosPorHorario).toHaveBeenCalledWith(12));
+    expect(await screen.findByText("Ana López")).toBeInTheDocument();
   });
 });

@@ -69,6 +69,7 @@ class AlumnoHorarioDetalleDTO(ResponseBase, BaseModel):
     id: int
     persona_id: int
     persona_nombre_completo: str
+    edad: int
     horario_id: int
     horario_dia: DiaSemana
     horario_hora_inicio: time

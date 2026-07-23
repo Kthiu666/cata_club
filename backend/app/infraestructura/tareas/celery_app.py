@@ -30,7 +30,6 @@ celery_app = Celery(
         # circulares: celery_app importa SOLO los módulos de tareas, no los
         # servicios de dominio (esas referencias se resuelven en runtime).
         "app.infraestructura.tareas.alertas_tareas",
-        "app.infraestructura.tareas.ranking_tareas",
         "app.infraestructura.tareas.comprobante_tareas",
         "app.infraestructura.tareas.recuperacion_tareas",
     ],
@@ -79,12 +78,6 @@ celery_app.conf.beat_schedule = {
     #    Busca Pagos APROBADOS con fecha_fin == hoy + 5 y dispara alertas.
     "alertas-vencimiento-membresias-diaria": {
         "task": "app.infraestructura.tareas.alertas_tareas.alertar_vencimientos_hoy_mas_5",
-        "schedule": _hora_diaria,
-    },
-    # 2) Limpieza del Ranking por Inactividad (60 días):
-    #    Pasa esta_en_ranking = False para alumnos sin actividad > 60 días.
-    "limpieza-ranking-inactividad-diaria": {
-        "task": "app.infraestructura.tareas.ranking_tareas.limpiar_ranking_por_inactividad",
         "schedule": _hora_diaria,
     },
 }

@@ -1,5 +1,5 @@
 /**
- * Unit tests for the Ranking trainer page's pure utility functions.
+ * Unit tests for the Nivel trainer page's pure utility functions.
  * No React dependencies required.
  */
 
@@ -8,8 +8,8 @@ import {
   isValidPeriodo,
   currentPeriodo,
   parsePeriodo,
-  buildRankingStudents,
-} from "../ranking-utils";
+  buildNivelStudents,
+} from "../nivel-utils";
 
 describe("isValidPeriodo", () => {
   it("accepts a well-formed YYYY-MM period", () => {
@@ -50,7 +50,7 @@ describe("parsePeriodo", () => {
   });
 });
 
-describe("buildRankingStudents", () => {
+describe("buildNivelStudents", () => {
   const accounts = [
     {
       estudiantes: [
@@ -64,19 +64,19 @@ describe("buildRankingStudents", () => {
   ];
 
   it("flattens all students across accounts", () => {
-    const result = buildRankingStudents(accounts);
+    const result = buildNivelStudents(accounts);
     expect(result).toHaveLength(3);
     expect(result.map((s) => s.id)).toEqual(["stu-001", "stu-002", "stu-003"]);
   });
 
   it("derives nivelRankingId from grupoId, defaulting to null", () => {
-    const result = buildRankingStudents(accounts);
+    const result = buildNivelStudents(accounts);
     expect(result.find((s) => s.id === "stu-001")?.nivelRankingId).toBe(4);
     expect(result.find((s) => s.id === "stu-002")?.nivelRankingId).toBeNull();
   });
 
   it("preserves each student's activo flag", () => {
-    const result = buildRankingStudents(accounts);
+    const result = buildNivelStudents(accounts);
     expect(result.find((s) => s.id === "stu-002")?.activo).toBe(false);
   });
 });

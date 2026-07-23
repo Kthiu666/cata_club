@@ -120,3 +120,55 @@ export function backendTimeout(): readonly [AbortController, () => void] {
   const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
   return [controller, () => clearTimeout(timeoutId)] as const;
 }
+
+interface ProxyToBackendInit {
+  method: string;
+  accessToken: string;
+  /** JSON-serialized as the request body when present; omit for bodyless requests. */
+  body?: unknown;
+  /** Status returned on success. Use 204 for a no-content response. Defaults to 200. */
+  successStatus?: number;
+}
+
+/**
+ * Perform a simple proxied fetch to FastAPI and shape the `NextResponse`:
+ * attaches the Bearer token and JSON content-type (when a body is given),
+ * applies the shared timeout, relays a non-OK backend response as a
+ * user-facing error, and on success returns the backend's JSON body (or an
+ * empty 204) with `successStatus`. Centralizes the fetch/timeout/error-shaping
+ * sequence that simple single-call proxy routes would otherwise each repeat.
+ */
+export async function proxyToBackend(path: string, init: ProxyToBackendInit): Promise<NextResponse> {
+  const { method, accessToken, body, successStatus = 200 } = init;
+  const [controller, done] = backendTimeout();
+  try {
+    const response = await fetch(backendUrl(path), {
+      method,
+      headers: {
+        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const data = await parseJsonResponse(response);
+      return NextResponse.json(
+        { message: extractBackendErrorMessage(data, response.status) },
+        { status: response.status },
+      );
+    }
+
+    if (successStatus === 204) {
+      return new NextResponse(null, { status: 204 });
+    }
+
+    const data = await parseJsonResponse(response);
+    return NextResponse.json(data, { status: successStatus });
+  } catch (error: unknown) {
+    return handleProxyError(error);
+  } finally {
+    done();
+  }
+}

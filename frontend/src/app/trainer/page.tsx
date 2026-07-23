@@ -157,11 +157,11 @@ export default function TrainerPage(): React.ReactElement {
             <ArrowRight size={16} strokeWidth={1.5} aria-hidden="true" />
           </Link>
           <Link
-            href="/trainer/ranking"
+            href="/trainer/nivel"
             className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
           >
             <Trophy size={16} strokeWidth={1.5} aria-hidden="true" />
-            Gestionar Ranking
+            Gestionar Nivel
             <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
           </Link>
         </div>

@@ -5,29 +5,35 @@ Decisiones de diseño registradas aquí porque son las que se acordaron
 explícitamente con el equipo durante la integración (para que quien lea el
 código no tenga que reconstruir el razonamiento desde cero):
 
-1. Fórmula de puntos (RF004): puntos(p) = max(91 - p, 1).
-   Es la única función lineal que conecta los tres anclajes del requisito
-   (puesto 1 = 90, puesto 90+ = 1 fijo, descenso "proporcional" entre medio)
-   sin inventar parámetros libres.
+1. Fórmula de puntos (RF004, formalmente derogado como cierre mensual pero
+   la fórmula se reutiliza en RF003 al registrar el resultado del mes):
+   puntos(p) = max(91 - p, 1). Es la única función lineal que conecta los
+   tres anclajes del requisito original (puesto 1 = 90, puesto 90+ = 1 fijo,
+   descenso "proporcional" entre medio) sin inventar parámetros libres.
 
-2. Cierre mensual MANUAL (no Celery Beat automático): lo dispara el
-   Entrenador/Administrador con un endpoint explícito. Motivo: reproducible
-   en demos/sustentación sin depender del calendario real, más fácil de
-   testear, y no exige tener un worker de Celery Beat corriendo 24/7 en el
-   VPS solo para esto.
-
-3. "Nivel de Ranking" = grupo de entrenamiento (confirmado con el equipo):
+2. "Nivel de Ranking" = grupo de entrenamiento (confirmado con el equipo):
    no existen como conceptos separados. NivelRanking es a la vez el
    agrupador de horarios de entrenamiento y el nivel competitivo.
 
-4. Notificaciones in-app únicamente (no email/push).
+3. Notificaciones in-app únicamente (no email/push).
+
+Nota (limpieza cierre mensual + limpieza por inactividad): el cierre mensual
+manual (RF004/RF005/RF007/RF009 -- cálculo de puntos y posiciones,
+sugerencias de ascenso/descenso, eliminación automática por 2 meses
+consecutivos sin justificar) fue derogado por decisión de producto y removido
+de este servicio. La tarea Celery Beat `limpiar_ranking_por_inactividad`, que
+dependía del mismo dato huérfano (`Ranking.ultimo_combate_o_asistencia`, ya
+no escrito por nadie tras el cierre mensual), fue removida por la misma
+razón (falso positivo masivo: sin escritor, todos quedaban "inactivos"). Hoy
+no existe ningún mecanismo automático que ponga `esta_en_ranking = False`;
+la baja es administrativa/manual.
 """
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
 from app.dominio.modelos import (
-    CierreMensualRanking, NivelRanking, Ranking, ResultadoRankingMensual, JustificativoRanking,
+    NivelRanking, Ranking, ResultadoRankingMensual, JustificativoRanking,
     Notificacion, Persona, Usuario, Rol, usuario_rol,
 )
 from app.dominio.enums import EstadoJustificativoRanking, TipoNotificacion, TipoRol
@@ -35,25 +41,14 @@ from app.dominio.excepciones import EntidadNoEncontrada, OperacionInvalida, Perm
 from app.infraestructura.repositorios.persona_repositorio import PersonaRepositorio
 from app.infraestructura.repositorios.ranking_repositorio import (
     NivelRankingRepositorio, RankingRepositorio, ResultadoRankingMensualRepositorio,
-    JustificativoRankingRepositorio, NotificacionRepositorio, CierreMensualRankingRepositorio,
+    JustificativoRankingRepositorio, NotificacionRepositorio,
 )
 from app.presentacion.schemas.ranking_schemas import (
     NivelRankingCreateDTO, AsignarNivelInicialDTO, ResultadoMensualRegistrarDTO,
     JustificativoCreateDTO, JustificativoEvaluarDTO, SeleccionOficialDTO,
-    NivelRankingConOcupacionDTO, TablaRankingItemDTO, CierreMensualResponseDTO,
-    SugerenciaMovimientoDTO, PerfilRankingAlumnoDTO,
+    NivelRankingConOcupacionDTO, TablaRankingItemDTO, PerfilRankingAlumnoDTO,
     AsignacionRankingResponseDTO, ResultadoMensualRankingResponseDTO,
-    CierreMensualRankingResponseDTO,
 )
-
-# --- Umbral de eliminación automática (E03-RF007) ---------------------------
-MESES_CONSECUTIVOS_PARA_ELIMINAR = 2
-
-# --- Cuántos candidatos de borde se sugieren por nivel al cerrar el mes -----
-# Simplificación documentada: se sugiere solo el 1er lugar (candidato a
-# ascenso) y el último lugar (candidato a descenso) de cada nivel. Si se
-# necesita sugerir un rango más amplio, este es el único número a ajustar.
-CANDIDATOS_DE_BORDE_POR_NIVEL = 1
 
 
 def calcular_puntos_por_posicion(posicion: int) -> int:
@@ -121,7 +116,6 @@ class RankingServicio:
         self.repo_justificativo = JustificativoRankingRepositorio(db)
         self.repo_notificacion = NotificacionRepositorio(db)
         self.repo_persona = PersonaRepositorio(db)
-        self.repo_cierre = CierreMensualRankingRepositorio(db)
 
     # --- Listados para frontend -----------------------------------------------
     def listar_asignaciones(self) -> list[AsignacionRankingResponseDTO]:
@@ -136,8 +130,6 @@ class RankingServicio:
                     nivel_ranking_id=r.nivel_ranking_id,
                     nivel_ranking_nombre=nivel.nombre if nivel else None,
                     nivel_ranking_numero=nivel.numero_nivel if nivel else 0,
-                    posicion_actual=r.posicion_actual,
-                    puntaje_acumulado=r.puntaje_acumulado,
                     esta_en_ranking=r.esta_en_ranking,
                 )
             )
@@ -176,34 +168,6 @@ class RankingServicio:
             )
         return resultado
 
-    def listar_cierres_mensuales(
-        self, nivel_id: int | None = None
-    ) -> list[CierreMensualRankingResponseDTO]:
-        if nivel_id:
-            cierres = self.repo_cierre.listar_por_nivel(nivel_id)
-        else:
-            cierres = self.repo_cierre.listar_todos()
-
-        resultado = []
-        for c in cierres:
-            nivel = c.nivel_ranking
-            cerrado_por = c.cerrado_por
-            resultado.append(
-                CierreMensualRankingResponseDTO(
-                    id=c.id,
-                    nivel_ranking_id=c.nivel_ranking_id,
-                    nivel_ranking_nombre=nivel.nombre if nivel else None,
-                    nivel_ranking_numero=nivel.numero_nivel if nivel else 0,
-                    anio=c.anio,
-                    mes=c.mes,
-                    personas_procesadas=c.personas_procesadas,
-                    cerrado_por_id=c.cerrado_por_id,
-                    cerrado_por_nombre=f"{cerrado_por.nombres} {cerrado_por.apellidos}" if cerrado_por else "",
-                    cerrado_en=c.cerrado_en,
-                )
-            )
-        return resultado
-
     # --- E03-RF002: asignación de nivel inicial -----------------------------
     def asignar_nivel_inicial(self, datos: AsignarNivelInicialDTO) -> Ranking:
         persona = self.repo_persona.obtener_por_id(datos.persona_id)
@@ -229,8 +193,8 @@ class RankingServicio:
         return self.repo.guardar_cambios(ranking)
 
     def mover_de_nivel(self, persona_id: int, nuevo_nivel_id: int) -> Ranking:
-        """Aplica manualmente un ascenso/descenso (sugerido por el cierre
-        mensual o decidido directamente por el Entrenador/Administrador)."""
+        """Aplica manualmente un ascenso/descenso decidido por el
+        Entrenador/Administrador."""
         ranking = self.repo.obtener_por_persona(persona_id)
         if not ranking:
             raise EntidadNoEncontrada(f"No existe ranking para la persona {persona_id}")
@@ -243,15 +207,20 @@ class RankingServicio:
         return self.repo.guardar_cambios(ranking)
 
     def obtener_tabla_de_nivel(self, nivel_id: int) -> list[TablaRankingItemDTO]:
-        """E03-RF010."""
+        """Roster de un nivel (persona_id + nombre + esta_en_ranking).
+
+        Ex-E03-RF010 ("tabla de posiciones"): ya no ordena ni expone
+        posición/puntaje (ver `TablaRankingItemDTO`). Se mantiene porque el
+        roster de asistencia del entrenador y el mapeo de `/api/members` en
+        el frontend lo consumen para obtener "quién pertenece a este nivel"
+        (ver apply-progress de `limpieza-asistencia-y-nivel-entrenador`
+        slice E)."""
         NivelRankingServicio(self.db).obtener_nivel(nivel_id)  # 404 si no existe
         rankings = self.repo.listar_por_nivel(nivel_id, solo_activos=True)
         return [
             TablaRankingItemDTO(
                 persona_id=r.persona_id,
                 persona_nombre_completo=f"{r.persona.nombres} {r.persona.apellidos}",
-                posicion_actual=r.posicion_actual,
-                puntaje_acumulado=r.puntaje_acumulado,
                 esta_en_ranking=r.esta_en_ranking,
             )
             for r in rankings
@@ -294,145 +263,6 @@ class RankingServicio:
             ausencia_justificada=ausencia_justificada,
         )
         return self.repo_resultado.crear(resultado)
-
-    # --- E03-RF004/RF005/RF007/RF009: cierre mensual de un nivel -----------
-    def cerrar_mes(self, nivel_id: int, anio: int, mes: int, cerrado_por_id: int) -> CierreMensualResponseDTO:
-        """Dispara manualmente (botón "Cerrar ranking del mes") por
-        Entrenador/Administrador. Ver docstring del módulo, punto 2."""
-        nivel_servicio = NivelRankingServicio(self.db)
-        nivel = nivel_servicio.obtener_nivel(nivel_id)
-
-        rankings_activos = self.repo.listar_por_nivel(nivel_id, solo_activos=True)
-        resultados = {
-            r.persona_id: r
-            for r in self.repo_resultado.listar_por_nivel_y_periodo(nivel_id, anio, mes)
-        }
-
-        eliminadas: list[int] = []
-        procesadas = 0
-
-        for ranking in rankings_activos:
-            resultado = resultados.get(ranking.persona_id)
-            if resultado is None:
-                # Nadie registró su resultado para este alumno este mes:
-                # se trata como "no participó" (RF005), revisando si tiene
-                # justificativo aprobado para el período.
-                justificativo = self.repo_justificativo.obtener_por_persona_y_periodo(
-                    ranking.persona_id, anio, mes
-                )
-                ausencia_justificada = bool(
-                    justificativo and justificativo.estado == EstadoJustificativoRanking.APROBADO
-                )
-                resultado = self.repo_resultado.crear(
-                    ResultadoRankingMensual(
-                        persona_id=ranking.persona_id,
-                        nivel_ranking_id=nivel_id,
-                        anio=anio,
-                        mes=mes,
-                        posicion=None,
-                        puntos_obtenidos=0,
-                        participo=False,
-                        ausencia_justificada=ausencia_justificada,
-                    )
-                )
-
-            procesadas += 1
-            ranking.puntaje_acumulado += resultado.puntos_obtenidos
-
-            if resultado.participo or resultado.ausencia_justificada:
-                ranking.meses_consecutivos_ausente = 0
-                if resultado.participo:
-                    ranking.ultimo_combate_o_asistencia = datetime.now(timezone.utc)
-            else:
-                ranking.meses_consecutivos_ausente += 1
-
-            # --- E03-RF007: notificar y luego eliminar -----------------
-            if ranking.meses_consecutivos_ausente >= MESES_CONSECUTIVOS_PARA_ELIMINAR:
-                self._notificar_entrenadores_y_admins(
-                    nivel_id,
-                    TipoNotificacion.RANKING_ELIMINACION_PROXIMA,
-                    f"{ranking.persona.nombres} {ranking.persona.apellidos} será "
-                    f"eliminado del ranking por {ranking.meses_consecutivos_ausente} "
-                    f"meses consecutivos sin participar sin justificativo aprobado.",
-                    ranking.id,
-                )
-                ranking.esta_en_ranking = False
-                ranking.meses_consecutivos_ausente = 0
-                eliminadas.append(ranking.persona_id)
-
-            self.repo.guardar_cambios(ranking)
-
-        # --- E03-RF009: recalcular posiciones y sugerir ascensos/descensos --
-        activos_restantes = [r for r in rankings_activos if r.esta_en_ranking]
-        activos_restantes.sort(key=lambda r: (-r.puntaje_acumulado, r.persona_id))
-        for indice, ranking in enumerate(activos_restantes, start=1):
-            ranking.posicion_actual = indice
-            self.repo.guardar_cambios(ranking)
-
-        sugerencias = self._sugerir_movimientos(nivel, activos_restantes)
-
-        cierre_record = CierreMensualRanking(
-            nivel_ranking_id=nivel_id,
-            anio=anio,
-            mes=mes,
-            personas_procesadas=procesadas,
-            cerrado_por_id=cerrado_por_id,
-        )
-        self.repo_cierre.crear(cierre_record)
-
-        return CierreMensualResponseDTO(
-            nivel_ranking_id=nivel_id,
-            anio=anio,
-            mes=mes,
-            personas_procesadas=procesadas,
-            personas_eliminadas=eliminadas,
-            sugerencias=sugerencias,
-        )
-
-    def _sugerir_movimientos(
-        self, nivel: NivelRanking, activos_ordenados: list[Ranking]
-    ) -> list[SugerenciaMovimientoDTO]:
-        sugerencias: list[SugerenciaMovimientoDTO] = []
-        if not activos_ordenados:
-            return sugerencias
-
-        nivel_superior = self.repo_nivel.obtener_por_numero(nivel.numero_nivel - 1)
-        nivel_inferior = self.repo_nivel.obtener_por_numero(nivel.numero_nivel + 1)
-
-        if nivel_superior:
-            for r in activos_ordenados[:CANDIDATOS_DE_BORDE_POR_NIVEL]:
-                sugerencias.append(
-                    SugerenciaMovimientoDTO(
-                        persona_id=r.persona_id,
-                        persona_nombre_completo=f"{r.persona.nombres} {r.persona.apellidos}",
-                        tipo="ASCENSO",
-                        nivel_actual_id=nivel.id,
-                        nivel_sugerido_id=nivel_superior.id,
-                    )
-                )
-                self._notificar_persona(
-                    r.persona_id, TipoNotificacion.RANKING_ASCENSO_SUGERIDO,
-                    f"Tu entrenador sugirió tu ascenso al nivel {nivel_superior.numero_nivel}.",
-                    r.id,
-                )
-
-        if nivel_inferior:
-            for r in activos_ordenados[-CANDIDATOS_DE_BORDE_POR_NIVEL:]:
-                sugerencias.append(
-                    SugerenciaMovimientoDTO(
-                        persona_id=r.persona_id,
-                        persona_nombre_completo=f"{r.persona.nombres} {r.persona.apellidos}",
-                        tipo="DESCENSO",
-                        nivel_actual_id=nivel.id,
-                        nivel_sugerido_id=nivel_inferior.id,
-                    )
-                )
-                self._notificar_persona(
-                    r.persona_id, TipoNotificacion.RANKING_DESCENSO_SUGERIDO,
-                    f"Tu entrenador sugirió tu descenso al nivel {nivel_inferior.numero_nivel}.",
-                    r.id,
-                )
-        return sugerencias
 
     # --- E03-RF006a: alumno/representante registra justificativo -----------
     def crear_justificativo(
@@ -616,8 +446,6 @@ class RankingServicio:
         nivel = ranking.nivel_ranking
         return PerfilRankingAlumnoDTO(
             persona_id=persona_id,
-            posicion_actual=ranking.posicion_actual,
-            puntaje_acumulado=ranking.puntaje_acumulado,
             nivel_ranking_id=ranking.nivel_ranking_id,
             nivel_ranking_nombre=(nivel.nombre if nivel else None),
             esta_en_ranking=ranking.esta_en_ranking,

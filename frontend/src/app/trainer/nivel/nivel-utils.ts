@@ -1,15 +1,14 @@
 /**
- * Pure utility functions and configuration for the Ranking (Track Ranking)
- * trainer page.
+ * Pure utility functions and configuration for the Nivel trainer page.
  *
  * Extracted from page.tsx for testability — no React dependencies. Not part
  * of the original file list in the ticket; added following this repo's
  * established page.tsx + page-utils.ts convention (see
  * src/app/groups/groups-page-utils.ts, src/app/attendance/attendance-utils.ts).
  *
- * The "ranking category" a student is assigned to IS the same `nivel_ranking`
+ * The "nivel category" a student is assigned to IS the same `nivel_ranking`
  * record used by `NivelTecnico`/Grupo (src/app/groups/page.tsx) — the backend
- * has only one such table. There is no separate ranking-category taxonomy.
+ * has only one such table. There is no separate nivel-category taxonomy.
  */
 
 // ---------------------------------------------------------------------------
@@ -18,7 +17,7 @@
 
 const PERIODO_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-/** True when `value` matches the "YYYY-MM" ranking period format. */
+/** True when `value` matches the "YYYY-MM" nivel period format. */
 export function isValidPeriodo(value: string): boolean {
   return PERIODO_PATTERN.test(value);
 }
@@ -40,8 +39,8 @@ export function parsePeriodo(periodo: string): { anio: number; mes: number } {
 // Student list derivation
 // ---------------------------------------------------------------------------
 
-/** A lightweight student reference for ranking operations. */
-export interface RankingStudentRef {
+/** A lightweight student reference for nivel operations. */
+export interface NivelStudentRef {
   id: string;
   nombres: string;
   apellidos: string;
@@ -51,12 +50,12 @@ export interface RankingStudentRef {
 }
 
 /**
- * Build the ranking student list from the real member accounts (fetched via
+ * Build the nivel student list from the real member accounts (fetched via
  * fetchMembers(), same source as src/app/groups/page.tsx). Each student's
- * `grupoId` (their current nivel_ranking id) doubles as their ranking
+ * `grupoId` (their current nivel_ranking id) doubles as their nivel
  * category — there's no separate concept on the backend.
  */
-export function buildRankingStudents(
+export function buildNivelStudents(
   memberAccounts: ReadonlyArray<{
     estudiantes: ReadonlyArray<{
       id: string;
@@ -66,8 +65,8 @@ export function buildRankingStudents(
       grupoId: string | null;
     }>;
   }>,
-): RankingStudentRef[] {
-  const refs: RankingStudentRef[] = [];
+): NivelStudentRef[] {
+  const refs: NivelStudentRef[] = [];
   for (const account of memberAccounts) {
     for (const estudiante of account.estudiantes) {
       refs.push({

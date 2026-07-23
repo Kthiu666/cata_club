@@ -59,8 +59,6 @@ describe("describeRanking", () => {
   it("describes an available ranking with no nivel assigned yet", () => {
     const ranking: StudentRankingSummary = {
       status: "available",
-      posicionActual: null,
-      puntajeAcumulado: 0,
       nivelNombre: null,
       estaEnRanking: false,
     };
@@ -69,29 +67,16 @@ describe("describeRanking", () => {
     expect(result.badgeClass).toBe("badge-warning");
   });
 
-  it("describes an available ranking with a position", () => {
+  it("describes an active ranking without exposing position/points (removed — frozen data, no writer since cerrar_mes() removal)", () => {
     const ranking: StudentRankingSummary = {
       status: "available",
-      posicionActual: 3,
-      puntajeAcumulado: 120,
       nivelNombre: "Intermedios",
       estaEnRanking: true,
     };
     const result = describeRanking(ranking);
     expect(result.label).toBe("Intermedios");
-    expect(result.detail).toBe("Posición #3 · 120 pts");
+    expect(result.detail).toBe("Activo en este nivel.");
+    expect(result.detail).not.toMatch(/Posición|pts/);
     expect(result.badgeClass).toBe("badge-success");
-  });
-
-  it("describes an available ranking with no position yet", () => {
-    const ranking: StudentRankingSummary = {
-      status: "available",
-      posicionActual: null,
-      puntajeAcumulado: 10,
-      nivelNombre: "Principiantes",
-      estaEnRanking: true,
-    };
-    const result = describeRanking(ranking);
-    expect(result.detail).toBe("Sin posición aún · 10 pts");
   });
 });

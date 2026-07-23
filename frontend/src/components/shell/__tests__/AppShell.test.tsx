@@ -132,7 +132,7 @@ describe("AppShell", (): void => {
     render(<AppShell title="Dashboard">{null}</AppShell>);
 
     expect(screen.getByRole("link", { name: /Miembros/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Grupos/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Gestión de Horarios/i })).toBeInTheDocument();
     // "Inicio" is represented by the brand logo link, not a separate nav row.
     expect(screen.queryByRole("link", { name: /^Inicio$/i })).not.toBeInTheDocument();
   });
@@ -142,7 +142,8 @@ describe("AppShell", (): void => {
 
     render(<AppShell title="Panel">{null}</AppShell>);
 
-    expect(screen.getByRole("link", { name: /Entrenador/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Dashboard/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Asistencia" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Miembros/i })).not.toBeInTheDocument();
   });
 
@@ -266,7 +267,7 @@ describe("AppShell", (): void => {
     render(<AppShell title="Dashboard">{null}</AppShell>);
 
     fireEvent.click(screen.getByRole("button", { name: "Buscar secciones" }));
-    fireEvent.click(screen.getByRole("button", { name: /Grupos/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Gestión de Horarios/i }));
 
     expect(mockPush).toHaveBeenCalledWith("/groups");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -291,8 +292,8 @@ describe("AppShell", (): void => {
     fireEvent.click(screen.getByRole("button", { name: /Colapsar menú/i }));
 
     expect(container.querySelector("aside")).toHaveClass("lg:w-[76px]");
-    const groupsLink = screen.getByRole("link", { name: /Grupos y Horarios/i });
-    expect(groupsLink).toHaveAttribute("title", "Grupos y Horarios");
+    const groupsLink = screen.getByRole("link", { name: /Gestión de Horarios/i });
+    expect(groupsLink).toHaveAttribute("title", "Gestión de Horarios");
     expect(groupsLink.querySelector("span")).toHaveClass("lg:hidden");
     expect(screen.getByRole("button", { name: /Expandir menú/i })).toBeInTheDocument();
   });
