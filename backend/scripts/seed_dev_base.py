@@ -359,12 +359,12 @@ def main() -> None:
 
         for rep_data in REPRESENTANTES:
             rep = rep_data["representante"]
-            # Representante persona: necesita el rol REPRESENTANTE para que
-            # `GestorPermisos(["REPRESENTANTE"])` (autoservicio de dependientes)
-            # y el frontend (`frontend/src/lib/server/auth.ts`) la reconozcan
-            # como tal. El flujo real de autoinscripción lo asigna automático
-            # (enrollment_servicio.py); el seed antes lo omitía y dejaba la
-            # cuenta sin rol utilizable (-> /unauthorized al loguearse).
+            # Representante persona: necesita los roles REPRESENTANTE (para que
+            # `GestorPermisos(["REPRESENTANTE"])` y el frontend la reconozcan
+            # como tal) y ALUMNO (mismo criterio que el flujo real de
+            # autoinscripción, enrollment_servicio.py). El seed antes lo
+            # omitía y dejaba la cuenta sin rol utilizable (-> /unauthorized
+            # al loguearse).
             existing_rep_user = db.query(Usuario).filter(Usuario.correo == rep["correo"]).first()
             if existing_rep_user:
                 print(f"[seed] Representante {rep['correo']} ya existe — saltando.")
@@ -384,7 +384,7 @@ def main() -> None:
                     correo=rep["correo"],
                     contrasenia=GestorAutenticacion.obtener_hash_contrasenia("alumno123"),
                     persona_id=rep_persona.id,
-                    roles=[rol_representante],
+                    roles=[rol_representante, rol_alumno],
                 )
                 db.add(rep_usuario)
                 representantes_creados += 1

@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ContextualHelp from "@/components/ContextualHelp";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchStudentPortal, fetchPagosDePersona } from "@/services/api";
-import type { StudentPortalSummary, StudentProfileSummary, PagoPersona } from "@/services/api";
+import { fetchStudentPortal, fetchPagosDePersona, subirVoucherPago } from "@/services/api";
+import type { StudentPortalSummary, StudentProfileSummary, PagoPersona, MembershipSummary } from "@/services/api";
 import { ATTENDANCE_LABELS, ATTENDANCE_BADGE_TOKENS } from "@/app/attendance/attendance-utils";
 import { derivePortalMode, isRepresentative, describeRanking } from "./student-utils";
 import {
@@ -25,6 +25,9 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  Upload,
+  Paperclip,
+  Loader2,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -61,49 +64,79 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void 
   );
 }
 
-/** Shows the JWT-scoped membership state without fabricating payment data. */
-function MembershipCard({ memberships }: { memberships: StudentPortalSummary["memberships"] }): React.ReactElement {
-  const activeMembership = memberships.find((membership) => membership.estado === "ACTIVA" || membership.estado === "VENCIDA");
-  if (activeMembership) {
+function MembershipCard({ membership }: { membership: MembershipSummary | null }): React.ReactElement {
+  if (!membership) {
     return (
-      <section className="card-hover p-4 sm:p-5" aria-labelledby="membership-status-title">
+      <section className="card-hover p-4 sm:p-5" aria-labelledby="membership-unavailable-title">
         <div className="mb-2 flex items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
             <ShieldCheck size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-cata-text/65">Membresía</p>
-            <h2 id="membership-status-title" className="text-lg font-bold tracking-tight text-cata-text">Membresía {activeMembership.estado.toLowerCase()}</h2>
+            <h2 id="membership-unavailable-title" className="text-lg font-bold tracking-tight text-cata-text">Sin membresía</h2>
           </div>
         </div>
-        <p className="text-xs leading-relaxed text-cata-text/55">Tu membresía está disponible desde este portal.</p>
+        <p className="text-xs leading-relaxed text-cata-text/55">
+          Aún no tenés una membresía registrada. Consulte con administración.
+        </p>
       </section>
     );
   }
+
+  if (membership.estado === "INACTIVA") {
+    return (
+      <section className="card-hover p-4 sm:p-5" aria-labelledby="membership-inactive-title">
+        <div className="mb-2 flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100">
+            <Clock size={18} strokeWidth={1.5} className="text-amber-600" aria-hidden="true" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-cata-text/65">Membresía</p>
+            <h2 id="membership-inactive-title" className="text-lg font-bold tracking-tight text-cata-text">Pendiente de activación</h2>
+          </div>
+        </div>
+        <p className="text-xs leading-relaxed text-cata-text/55">
+          Tu membresía fue creada pero espera la validación del primer pago.
+        </p>
+        {membership.categoria && (
+          <p className="mt-1 text-xs text-cata-text/65">
+            Plan: {membership.categoria} {membership.franjaHoraria ? `(${membership.franjaHoraria})` : ""}
+            {membership.montoAplicado ? ` — $${membership.montoAplicado}` : ""}
+          </p>
+        )}
+      </section>
+    );
+  }
+
   return (
-    <section className="card-hover p-4 sm:p-5" aria-labelledby="membership-unavailable-title">
+    <section className="card-hover p-4 sm:p-5" aria-labelledby="membership-status-title">
       <div className="mb-2 flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
           <ShieldCheck size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-cata-text/65">Membresía</p>
-          <h2 id="membership-unavailable-title" className="text-lg font-bold tracking-tight text-cata-text">Membresía no disponible</h2>
+          <h2 id="membership-status-title" className="text-lg font-bold tracking-tight text-cata-text">
+            {membership.estado === "ACTIVA" ? "Activa" : "Vencida"}
+          </h2>
         </div>
+        <span className={membership.estado === "ACTIVA" ? "badge-success" : "badge-error"}>
+          {membership.estado === "ACTIVA" ? "Activa" : "Vencida"}
+        </span>
       </div>
-      <p className="text-xs leading-relaxed text-cata-text/55">
-        No disponible desde este portal por el momento. Consulte con administración del club.
-      </p>
-      <ContextualHelp title="Ayuda sobre membresía no disponible">
-        <p>La membresía no está disponible desde este portal por el momento. Consulte con administración para conocer las opciones disponibles.</p>
-      </ContextualHelp>
-      <a href="mailto:administracion@cataclub.local" className="mt-3 inline-flex text-xs font-medium text-cata-red hover:text-cata-red-light">
-        Consultar con administración
-      </a>
+      {membership.categoria && (
+        <div className="space-y-0.5 text-xs text-cata-text/65">
+          <p>Plan: {membership.categoria} {membership.franjaHoraria ? `(${membership.franjaHoraria})` : ""}</p>
+          <p>Modalidad: {membership.modalidad === "PERSONALIZADA" ? "Personalizada" : "Mensual"}</p>
+          {membership.montoAplicado && <p>Monto: ${membership.montoAplicado}</p>}
+        </div>
+      )}
     </section>
   );
 }
 
+/** Real `TipoMembresia` catalog cards for the pending-enrollment view — replaces the old hardcoded `membershipPlans` array. */
 function RankingCard({ profile }: { profile: StudentProfileSummary }): React.ReactElement {
   const display = describeRanking(profile.ranking);
   return (
@@ -121,6 +154,11 @@ function RankingCard({ profile }: { profile: StudentProfileSummary }): React.Rea
       <p className="text-sm text-cata-text/65">{display.detail}</p>
     </div>
   );
+}
+
+function formatSessionDate(iso: string): string {
+  const d = new Date(iso + "T12:00:00");
+  return d.toLocaleDateString("es-EC", { weekday: "long", day: "numeric", month: "short" });
 }
 
 function RecentSessionsSection({ profile }: { profile: StudentProfileSummary }): React.ReactElement {
@@ -145,7 +183,7 @@ function RecentSessionsSection({ profile }: { profile: StudentProfileSummary }):
                     <Calendar size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-cata-text">{session.fecha}</p>
+                    <p className="text-sm font-semibold text-cata-text">{formatSessionDate(session.fecha)}</p>
                     <p className="mt-0.5 text-xs text-cata-text/55">{session.horario}</p>
                     <span className={`mt-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${tokens.badgeClass}`}>
                       {ATTENDANCE_LABELS[session.estado]}
@@ -206,6 +244,10 @@ type PagosState =
 function PagosSection({ personaId }: { personaId: string }): React.ReactElement {
   const [state, setState] = useState<PagosState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
+  const [uploadingId, setUploadingId] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingUploadPagoId, setPendingUploadPagoId] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -226,6 +268,29 @@ function PagosSection({ personaId }: { personaId: string }): React.ReactElement 
     };
   }, [personaId, reloadToken]);
 
+  function handleSelectFile(pagoId: number): void {
+    setPendingUploadPagoId(pagoId);
+    fileInputRef.current?.click();
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = e.target.files?.[0];
+    if (!file || !pendingUploadPagoId) return;
+
+    setUploadingId(pendingUploadPagoId);
+    setUploadError(null);
+    try {
+      await subirVoucherPago(pendingUploadPagoId, file);
+      setReloadToken((n) => n + 1);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "No se pudo subir el comprobante.");
+    } finally {
+      setUploadingId(null);
+      setPendingUploadPagoId(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   return (
     <section className="mb-8">
       <div className="mb-4 flex items-center gap-2">
@@ -233,10 +298,23 @@ function PagosSection({ personaId }: { personaId: string }): React.ReactElement 
         <h2 className="text-lg font-bold text-cata-text">Pagos</h2>
       </div>
       <p className="mb-4 text-xs text-cata-text/65">
-        Historial de pagos registrados en su cuenta. La carga de comprobantes y el registro de nuevos
-        pagos no están disponibles desde este portal por el momento — consulte con administración del
-        club.
+        Historial de pagos registrados. Adjuntá el comprobante de transferencia para validar tu pago.
       </p>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,application/pdf"
+        className="hidden"
+        onChange={(e) => { void handleFileChange(e); }}
+      />
+
+      {uploadError && (
+        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-cata-red" role="alert">
+          {uploadError}
+          <button type="button" onClick={() => setUploadError(null)} className="ml-2 underline">Cerrar</button>
+        </div>
+      )}
 
       {state.status === "loading" && (
         <div className="card p-6 text-center">
@@ -269,6 +347,17 @@ function PagosSection({ personaId }: { personaId: string }): React.ReactElement 
                       ${pago.monto} · {pago.fechaInicio} – {pago.fechaFin}
                     </p>
                     <p className="text-xs text-cata-text/65">{TIPO_PAGO_LABEL[pago.tipoPago]}</p>
+                    {pago.voucherUrl && (
+                      <a
+                        href={pago.voucherUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1 inline-flex items-center gap-1 text-xs text-cata-red hover:underline"
+                      >
+                        <Paperclip size={10} strokeWidth={1.5} />
+                        Ver comprobante
+                      </a>
+                    )}
                     {pago.estadoPago === "RECHAZADO" && pago.motivoRechazo && (
                       <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
                         <p className="text-xs font-semibold text-cata-red">Motivo de rechazo</p>
@@ -277,7 +366,24 @@ function PagosSection({ personaId }: { personaId: string }): React.ReactElement 
                     )}
                   </div>
                 </div>
-                <PagoEstadoBadge estado={pago.estadoPago} />
+                <div className="flex items-center gap-2">
+                  {!pago.voucherUrl && pago.estadoPago !== "APROBADO" && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectFile(pago.id)}
+                      disabled={uploadingId === pago.id}
+                      className="inline-flex items-center gap-1 rounded-lg border border-cata-border px-2.5 py-1.5 text-xs font-medium text-cata-text transition-colors hover:border-cata-red/30 hover:text-cata-red disabled:opacity-50"
+                    >
+                      {uploadingId === pago.id ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <Upload size={12} strokeWidth={1.5} />
+                      )}
+                      {uploadingId === pago.id ? "Subiendo..." : "Subir comprobante"}
+                    </button>
+                  )}
+                  <PagoEstadoBadge estado={pago.estadoPago} />
+                </div>
               </div>
             ))}
           </div>
@@ -286,7 +392,8 @@ function PagosSection({ personaId }: { personaId: string }): React.ReactElement 
   );
 }
 
-/** Real `TipoMembresia` catalog cards for the pending-enrollment view — replaces the old hardcoded `membershipPlans` array. */
+
+
 function MembershipPlansGrid({ data }: { data: StudentPortalSummary }): React.ReactElement {
   if (data.membershipPlans.length === 0) {
     return (
@@ -449,9 +556,7 @@ function ActivePortalView({
         <>
           <div className="mb-8 grid gap-4 sm:grid-cols-2">
             <RankingCard profile={selectedProfile} />
-            <MembershipCard
-              memberships={data.memberships.filter((m) => String(m.personaId) === selectedProfile.personaId)}
-            />
+            <MembershipCard membership={selectedProfile.membership} />
           </div>
 
           <RecentSessionsSection profile={selectedProfile} />

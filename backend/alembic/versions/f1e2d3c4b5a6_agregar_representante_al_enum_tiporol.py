@@ -40,10 +40,10 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Añadir REPRESENTANTE al enum tiporol de PostgreSQL."""
     # ALTER TYPE ... ADD VALUE no puede vivir dentro de una transacción
-    # cuando el tipo ya está en uso: autocommit_block Commit-iza la
-    # transacción actual y ejecuta el DDL fuera de ella.
-    op.get_context().autocommit_block()
-    op.execute("ALTER TYPE tiporol ADD VALUE IF NOT EXISTS 'REPRESENTANTE'")
+    # cuando el tipo ya está en uso: autocommit_block es un context
+    # manager que emite COMMIT antes y después del bloque.
+    with op.get_context().autocommit_block():
+        op.execute("ALTER TYPE tiporol ADD VALUE IF NOT EXISTS 'REPRESENTANTE'")
 
 
 def downgrade() -> None:

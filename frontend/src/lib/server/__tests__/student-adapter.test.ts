@@ -97,6 +97,7 @@ describe("buildStudentProfileView", () => {
       fechaNacimiento: "1995-01-01",
       ranking: { status: "unavailable", reason: "forbidden" },
       recentSessions: [],
+      membership: null,
     });
   });
 });

@@ -239,16 +239,14 @@ describe("ProfilePage — student/representante summary view", () => {
         fechaNacimiento: "2012-05-10",
         ranking: {
           status: "available",
-          posicionActual: 3,
-          puntajeAcumulado: 120,
           nivelNombre: "Nivel 3",
           estaEnRanking: true,
         },
         recentSessions: [],
+        membership: { id: 1, estado: "ACTIVA", personaId: 1, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: "Tarde" },
       },
       representados: [],
       membershipPlans: [],
-      memberships: [{ id: 1, estado: "ACTIVA", personaId: 1 }],
     });
 
     render(
@@ -306,6 +304,7 @@ describe("ProfilePage — student/representante summary view", () => {
           fechaNacimiento: "2014-02-01",
           ranking: { status: "unavailable", reason: "forbidden" },
           recentSessions: [],
+          membership: null,
         },
         {
           personaId: "21",
@@ -314,14 +313,10 @@ describe("ProfilePage — student/representante summary view", () => {
           fechaNacimiento: "2016-08-15",
           ranking: { status: "unavailable", reason: "forbidden" },
           recentSessions: [],
+          membership: null,
         },
       ],
       membershipPlans: [],
-      // Realistic shape: /membresias/mias only ever scopes to the caller
-      // (the representante), never to a represented dependent — so this
-      // array is always irrelevant for representado cards, whatever it
-      // contains.
-      memberships: [{ id: 5, estado: "VENCIDA", personaId: 999 }],
     });
 
     render(
@@ -351,24 +346,23 @@ describe("ProfilePage — student/representante summary view", () => {
         nombres: "Rosa",
         apellidos: "Representante",
         fechaNacimiento: "1985-03-01",
-        ranking: { status: "unavailable", reason: "forbidden" },
-        recentSessions: [],
-      },
-      representados: [
-        {
-          personaId: "20",
-          nombres: "Juan",
-          apellidos: "Hijo",
-          fechaNacimiento: "2014-02-01",
           ranking: { status: "unavailable", reason: "forbidden" },
           recentSessions: [],
+          membership: { id: 9, estado: "ACTIVA", personaId: 1, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: null },
         },
-      ],
-      membershipPlans: [],
-      // Only the caller's (self, personaId "1") own membership is ever
-      // present — this is the real /membresias/mias contract.
-      memberships: [{ id: 9, estado: "ACTIVA", personaId: 1 }],
-    });
+        representados: [
+          {
+            personaId: "20",
+            nombres: "Juan",
+            apellidos: "Hijo",
+            fechaNacimiento: "2014-02-01",
+            ranking: { status: "unavailable", reason: "forbidden" },
+            recentSessions: [],
+            membership: null,
+          },
+        ],
+        membershipPlans: [],
+      });
 
     render(
       <ToastProvider>

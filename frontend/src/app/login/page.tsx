@@ -28,6 +28,9 @@ import LoginSuccessOverlay from "@/components/auth/LoginSuccessOverlay";
 /** How long the welcome overlay stays on screen before redirecting. */
 const WELCOME_OVERLAY_MS = 1400;
 
+/** Permissive client-side format check — the backend is the real source of truth for validity. */
+const EMAIL_FORMAT_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 /** Distinct, user-readable message per login failure kind. */
 function loginErrorMessage(error: AuthErrorKind): string {
   switch (error) {
@@ -78,7 +81,11 @@ export default function LoginPage(): React.ReactElement {
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
     const nextFieldErrors = {
-      email: trimmedEmail ? "" : "Ingrese su correo electrónico.",
+      email: !trimmedEmail
+        ? "Ingrese su correo electrónico."
+        : !EMAIL_FORMAT_REGEX.test(trimmedEmail)
+          ? "Ingrese un correo electrónico válido."
+          : "",
       password: trimmedPassword ? "" : "Ingrese su contraseña.",
     };
     setFieldErrors(nextFieldErrors);
