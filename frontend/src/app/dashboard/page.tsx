@@ -187,8 +187,8 @@ export default function DashboardPage(): React.ReactElement {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {quickActions.map((action) => (
-            <Link key={action.href} href={action.href}>
-              <div className="card-hover group flex items-start gap-4 p-4 sm:p-5">
+            <Link key={action.href} href={action.href} className="h-full">
+              <div className="card-hover group flex h-full items-start gap-4 p-4 sm:p-5">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cata-red/15">
                   <action.icon
                     size={20}

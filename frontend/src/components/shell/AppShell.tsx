@@ -302,7 +302,7 @@ export default function AppShell({
          * toggle stays — it's the only way to open the sidebar drawer on
          * small screens where it's hidden by default.
          */}
-        <div className="flex items-center justify-end gap-2 border-b border-cata-border bg-cata-surface px-5 py-3 sm:px-8">
+        <div className="flex items-center justify-end gap-2 bg-cata-bg px-5 py-3 shadow-soft sm:px-8">
           <p className="sr-only">{eyebrow}</p>
           <h1 className="sr-only">{title}</h1>
           {subtitle && <p className="sr-only">{subtitle}</p>}
