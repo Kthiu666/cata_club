@@ -258,12 +258,14 @@ export default function AppShell({
                 aria-haspopup="true"
                 aria-expanded={userMenuOpen}
                 aria-label={`Menú de cuenta de ${session.user.name}`}
-                className="flex w-full items-center gap-2.5 rounded-xl bg-white/[0.06] px-3 py-2.5 text-left transition-colors hover:bg-white/[0.1]"
+                className={`flex w-full items-center gap-2.5 rounded-xl bg-white/[0.06] px-3 py-2.5 text-left transition-colors hover:bg-white/[0.1] ${
+                  collapsed ? "lg:justify-center lg:px-0" : ""
+                }`}
               >
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cata-red/25 text-xs font-bold">
                   {getUserInitials(session.user.name)}
                 </div>
-                <div className="min-w-0 flex-1 leading-tight">
+                <div className={`min-w-0 flex-1 leading-tight ${collapsed ? "lg:hidden" : ""}`}>
                   <p className="truncate text-sm font-semibold">{session.user.name}</p>
                   <p className="truncate text-xs text-white/45">{getRoleLabel(session.user.role)}</p>
                 </div>
@@ -272,7 +274,7 @@ export default function AppShell({
                 <UserMenuDropdown
                   onLogout={logout}
                   onNavigate={(): void => setUserMenuOpen(false)}
-                  className="absolute bottom-full left-0 mb-1.5 w-full"
+                  className={`absolute bottom-full mb-1.5 ${collapsed ? "left-0 lg:w-56" : "left-0 w-full"}`}
                 />
               )}
             </div>
