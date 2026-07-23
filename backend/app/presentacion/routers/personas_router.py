@@ -6,7 +6,7 @@ from datetime import date, datetime, time, timezone
 from app.infraestructura.db import obtener_sesion
 from app.presentacion.schemas.persona_schemas import (
     PersonaCreateDTO, PersonaResponseDTO, PersonaUpdateDTO,
-    PersonaBusquedaDTO,
+    PersonaBusquedaDTO, RepresentadoCreateDTO,
     AntecedentesClubCreateDTO, AntecedentesClubUpdateDTO, AntecedentesClubResponseDTO,
     EntrenadorResponseDTO,
 )
@@ -17,6 +17,7 @@ from app.servicios_negocio.antecedentes_club_servicio import AntecedentesClubSer
 from app.servicios_negocio.rol_servicio import RolServicio
 from app.servicios_negocio.gestor_permisos import GestorPermisos
 from app.dominio.enums import TipoRol
+from app.dominio.excepciones import PermisosInsuficientes
 from pydantic import BaseModel
 from app.presentacion.schemas.base import ResponseBase
 
@@ -135,6 +136,29 @@ async def obtener_persona(persona_id: int, db: Session = Depends(obtener_sesion)
 )
 async def listar_representados(persona_id: int, db: Session = Depends(obtener_sesion)):
     return PersonaServicio(db).listar_representados(persona_id)
+
+
+# --- Autoservicio del portal: representante agrega un dependiente ----------
+# El rol se exige vía `GestorPermisos(["REPRESENTANTE"])`; la identidad del
+# representante se toma EXCLUSIVAMENTE de `token_payload["persona_id"]` (nunca
+# del cuerpo), y se compara contra el `persona_id` de la URL. Mismo patrón que
+# el chequeo inline de `crear_antecedentes_club` (línea ~165): reusa la
+# excepción de dominio ya mapeada a 403, sin revelar si el `persona_id` de la
+# URL existe o pertenece a otro representante.
+@router.post(
+    "/{persona_id}/representados", response_model=PersonaResponseDTO,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(GestorPermisos(["REPRESENTANTE"]))],
+)
+async def crear_representado(
+    persona_id: int,
+    datos: RepresentadoCreateDTO,
+    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
+    db: Session = Depends(obtener_sesion),
+):
+    if persona_id != token_payload.get("persona_id"):
+        raise PermisosInsuficientes("Permisos insuficientes para esta operación")
+    return PersonaServicio(db).crear_representado(persona_id, datos)
 
 
 @router.patch(
