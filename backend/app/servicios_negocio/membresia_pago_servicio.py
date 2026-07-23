@@ -225,6 +225,12 @@ class PagoServicio:
         if not self.repo_membresia.obtener_por_id(datos.membresia_id):
             raise EntidadNoEncontrada(f"Membresía con id {datos.membresia_id} no encontrada")
 
+        if self.repo.existe_pendiente_para_membresia(datos.membresia_id):
+            raise OperacionInvalida(
+                "Esta membresía ya tiene un pago pendiente de validación. "
+                "Espere a que sea validado antes de registrar uno nuevo."
+            )
+
         pago = Pago(**datos.model_dump(), estado_pago=EstadoPago.PENDIENTE_VALIDACION)
         return self.repo.crear(pago)
 

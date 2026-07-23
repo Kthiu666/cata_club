@@ -5,8 +5,8 @@ import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchStudentPortal, registrarPago, subirVoucherPago } from "@/services/api";
-import type { StudentPortalSummary, StudentProfileSummary, MembershipSummary, RegistrarPagoInput } from "@/services/api";
+import { fetchStudentPortal, registrarPago, subirVoucherPago, fetchPagosDePersona } from "@/services/api";
+import type { StudentPortalSummary, StudentProfileSummary, MembershipSummary, RegistrarPagoInput, PagoPersona } from "@/services/api";
 import { ATTENDANCE_LABELS, ATTENDANCE_BADGE_TOKENS } from "@/app/attendance/attendance-utils";
 import { derivePortalMode, isRepresentative, describeRanking } from "./student-utils";
 import {
@@ -303,10 +303,12 @@ function MembershipCard({
   membership,
   personaId,
   onRenewed,
+  hasPendingPago = false,
 }: {
   membership: MembershipSummary | null;
   personaId: string;
   onRenewed: () => void;
+  hasPendingPago?: boolean;
 }): React.ReactElement {
   if (!membership) {
     return (
@@ -348,12 +350,18 @@ function MembershipCard({
             {membership.montoAplicado ? ` — $${membership.montoAplicado}` : ""}
           </p>
         )}
-        <RenewPaymentForm
-          membership={membership}
-          personaId={personaId}
-          onRenewed={onRenewed}
-          label="Registrar primer pago"
-        />
+        {hasPendingPago ? (
+          <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+            Ya tenés un pago pendiente de validación. Esperá a que sea aprobado para registrar uno nuevo.
+          </p>
+        ) : (
+          <RenewPaymentForm
+            membership={membership}
+            personaId={personaId}
+            onRenewed={onRenewed}
+            label="Registrar primer pago"
+          />
+        )}
       </section>
     );
   }
@@ -387,12 +395,18 @@ function MembershipCard({
         </div>
       )}
       {isExpired && (
-        <RenewPaymentForm
-          membership={membership}
-          personaId={personaId}
-          onRenewed={onRenewed}
-          label="Renovar membresía"
-        />
+        hasPendingPago ? (
+          <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+            Ya tenés un pago pendiente de validación. Esperá a que sea aprobado para registrar uno nuevo.
+          </p>
+        ) : (
+          <RenewPaymentForm
+            membership={membership}
+            personaId={personaId}
+            onRenewed={onRenewed}
+            label="Renovar membresía"
+          />
+        )
       )}
     </section>
   );
@@ -557,6 +571,7 @@ function ActivePortalView({
     hasAlumnoRole && data.self ? [data.self, ...data.representados] : data.representados;
 
   const [selectedId, setSelectedId] = useState<string>(managedProfiles[0]?.personaId ?? "");
+  const [hasPendingPago, setHasPendingPago] = useState(false);
 
   function handleRenewed(): void {
     onRenewed();
@@ -569,6 +584,21 @@ function ActivePortalView({
     // Only re-run when the set of managed profile ids actually changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [managedProfiles.map((p) => p.personaId).join(",")]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    let cancelled = false;
+    fetchPagosDePersona(selectedId)
+      .then((pagos: PagoPersona[]) => {
+        if (!cancelled) {
+          setHasPendingPago(pagos.some((p) => p.estadoPago === "PENDIENTE_VALIDACION"));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setHasPendingPago(false);
+      });
+    return () => { cancelled = true; };
+  }, [selectedId]);
 
   const representative = isRepresentative(data.representados.length);
   const selectedProfile = managedProfiles.find((p) => p.personaId === selectedId) ?? managedProfiles[0] ?? null;
@@ -643,6 +673,7 @@ function ActivePortalView({
               membership={selectedProfile.membership}
               personaId={selectedProfile.personaId}
               onRenewed={handleRenewed}
+              hasPendingPago={hasPendingPago}
             />
           </div>
 
