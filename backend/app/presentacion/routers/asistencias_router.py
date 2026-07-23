@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response, status, Query
+from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 from typing import List, Optional
@@ -6,7 +6,7 @@ from datetime import date
 
 from app.dominio.enums import Categoria
 from app.infraestructura.db import obtener_sesion
-from app.infraestructura.generador_pdf import generar_reporte_pdf
+from app.infraestructura.generador_pdf import construir_respuesta_pdf, generar_reporte_pdf
 from app.presentacion.schemas.asistencia_schemas import (
     AsistenciaCreateDTO, AsistenciaResponseDTO, HorarioCreateDTO, HorarioUpdateDTO, HorarioResponseDTO,
     AlumnoHorarioCreateDTO, AlumnoHorarioDetalleDTO,
@@ -128,13 +128,7 @@ async def reporte_asistencia_pdf(
         filas=filas,
     )
     fecha_iso = date.today().isoformat()
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="reporte-asistencia_{fecha_iso}.pdf"'
-        },
-    )
+    return construir_respuesta_pdf(pdf_bytes, f"reporte-asistencia_{fecha_iso}.pdf")
 
 
 # --- Asignación directa Alumno ↔ Horario ------------------------------------

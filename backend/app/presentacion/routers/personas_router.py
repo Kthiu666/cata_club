@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 from typing import List, Optional
 from datetime import date, datetime, time, timezone
 
 from app.infraestructura.db import obtener_sesion
-from app.infraestructura.generador_pdf import generar_reporte_pdf
+from app.infraestructura.generador_pdf import construir_respuesta_pdf, generar_reporte_pdf
 from app.presentacion.schemas.persona_schemas import (
     PersonaCreateDTO, PersonaResponseDTO, PersonaUpdateDTO,
     PersonaBusquedaDTO, RepresentadoCreateDTO,
@@ -123,13 +123,7 @@ async def reporte_nuevos_por_periodo_pdf(
         filas=_personas_a_filas(personas),
     )
     fecha_iso = date.today().isoformat()
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="reporte-periodo_{fecha_iso}.pdf"'
-        },
-    )
+    return construir_respuesta_pdf(pdf_bytes, f"reporte-periodo_{fecha_iso}.pdf")
 
 
 # --- Selector de entrenador (dropdown al crear/editar un Horario) -----------

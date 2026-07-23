@@ -24,8 +24,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (horarioId) qs.set("horario_id", horarioId);
   if (personaId) qs.set("persona_id", personaId);
   const query = qs.toString();
+  const queryString = query ? `?${query}` : "";
 
-  const result = await backendFetchAuthed(request, `/asistencias/reportes/pdf${query ? `?${query}` : ""}`);
+  const result = await backendFetchAuthed(request, `/asistencias/reportes/pdf${queryString}`);
   if (!result.ok) {
     return NextResponse.json({ message: "No se pudo generar el PDF del reporte." }, { status: result.status });
   }

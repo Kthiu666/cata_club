@@ -814,7 +814,8 @@ export async function exportAsistenciaReportePdf(params?: {
   if (params?.horarioId !== undefined) qs.set("horarioId", String(params.horarioId));
   if (params?.personaId !== undefined) qs.set("personaId", String(params.personaId));
   const query = qs.toString();
-  await downloadBlob(apiEndpoint(`/asistencias/reportes/pdf${query ? `?${query}` : ""}`), "reporte-asistencia.pdf");
+  const queryString = query ? `?${query}` : "";
+  await downloadBlob(apiEndpoint(`/asistencias/reportes/pdf${queryString}`), "reporte-asistencia.pdf");
 }
 
 /** Search persons by name (autocomplete). */

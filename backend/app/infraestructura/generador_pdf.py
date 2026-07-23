@@ -14,6 +14,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from pathlib import Path
 
+from fastapi import Response
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -27,6 +28,7 @@ _LOGO_PATH = Path(__file__).parent / "assets" / "cata-club-logo.jpeg"
 _ROJO_INSTITUCIONAL = "#D92128"
 _NEGRO_INSTITUCIONAL = "#111111"
 _FILAS_POR_PAGINA = 10
+_NOMBRE_CLUB = "Cata Club - Academia de Tenis"
 
 
 def generar_comprobante_pago_pdf(
@@ -68,7 +70,7 @@ def generar_comprobante_pago_pdf(
         topMargin=18 * mm,
         bottomMargin=16 * mm,
         title=f"Comprobante de Pago #{pago_id}",
-        author="Cata Club - Academia de Tenis",
+        author=_NOMBRE_CLUB,
     )
 
     estilos = getSampleStyleSheet()
@@ -90,7 +92,7 @@ def generar_comprobante_pago_pdf(
     )
 
     elementos = [
-        Paragraph("Cata Club - Academia de Tenis", titulo),
+        Paragraph(_NOMBRE_CLUB, titulo),
         Paragraph("Comprobante digital de pago de membresía", subtitulo),
         HRFlowable(width="100%", thickness=1, color=colors.HexColor("#0B3D91")),
         Spacer(1, 8),
@@ -158,22 +160,41 @@ def generar_comprobante_pago_pdf(
     return pdf_bytes
 
 
-def _estilo_tabla() -> TableStyle:
-    """Devuelve los estilos de la tabla de detalle (TableStyle)."""
+def _construir_estilo_tabla(
+    *,
+    color_encabezado: str,
+    tamano_fuente: int,
+    color_filas_alternas: str,
+    relleno: int,
+) -> TableStyle:
+    """Builder compartido de `TableStyle` para las tablas de comprobante y
+    reporte: mismas reglas base (encabezado en negrita, grid gris, filas
+    alternadas), parametrizadas por color/tamaño/relleno para que cada tabla
+    conserve su identidad visual propia sin duplicar la lista de reglas."""
     return TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0B3D91")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(color_encabezado)),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("FONTSIZE", (0, 0), (-1, -1), tamano_fuente),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#BBBBBB")),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#F3F6FF")]),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor(color_filas_alternas)]),
+        ("LEFTPADDING", (0, 0), (-1, -1), relleno),
+        ("RIGHTPADDING", (0, 0), (-1, -1), relleno),
+        ("TOPPADDING", (0, 0), (-1, -1), relleno - 1),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), relleno - 1),
     ])
+
+
+def _estilo_tabla() -> TableStyle:
+    """Devuelve los estilos de la tabla de detalle (TableStyle)."""
+    return _construir_estilo_tabla(
+        color_encabezado="#0B3D91",
+        tamano_fuente=10,
+        color_filas_alternas="#F3F6FF",
+        relleno=6,
+    )
 
 
 def generar_reporte_pdf(
@@ -205,7 +226,7 @@ def generar_reporte_pdf(
         topMargin=30 * mm,
         bottomMargin=16 * mm,
         title=titulo,
-        author="Cata Club - Academia de Tenis",
+        author=_NOMBRE_CLUB,
     )
 
     estilos = getSampleStyleSheet()
@@ -263,20 +284,12 @@ def generar_reporte_pdf(
 
 def _estilo_tabla_reporte() -> TableStyle:
     """Devuelve los estilos de la tabla de un reporte tabular genérico."""
-    return TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(_ROJO_INSTITUCIONAL)),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#BBBBBB")),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#F3F0F0")]),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ])
+    return _construir_estilo_tabla(
+        color_encabezado=_ROJO_INSTITUCIONAL,
+        tamano_fuente=9,
+        color_filas_alternas="#F3F0F0",
+        relleno=5,
+    )
 
 
 def _dibujar_encabezado_pagina(canvas, doc) -> None:
@@ -306,3 +319,19 @@ def _dibujar_encabezado_pagina(canvas, doc) -> None:
         ancho_pagina - 30 * mm, 10 * mm, f"Página {doc.page}",
     )
     canvas.restoreState()
+
+
+def construir_respuesta_pdf(pdf_bytes: bytes, nombre_archivo: str) -> Response:
+    """Empaqueta bytes de PDF ya generados en una `Response` HTTP para
+    descarga (`Content-Disposition: attachment`).
+
+    Helper compartido por los routers de exportación a PDF
+    (`personas_router.reporte_nuevos_por_periodo_pdf`,
+    `asistencias_router.reporte_asistencia_pdf`) para no duplicar la misma
+    construcción de `Response` en cada endpoint.
+    """
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
+    )
