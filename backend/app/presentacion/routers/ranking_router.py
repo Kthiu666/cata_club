@@ -219,13 +219,21 @@ async def obtener_perfil_alumno(
     db: Session = Depends(obtener_sesion),
     token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
 ):
-    """Consulta privada: solo el propio alumno o un ADMINISTRADOR/ENTRENADOR
-    pueden verla."""
+    """Consulta privada: solo el propio alumno, su representante, o un
+    ADMINISTRADOR/ENTRENADOR pueden verla."""
     roles = token_payload.get("roles", [])
-    es_propio = token_payload.get("persona_id") == persona_id
+    solicitante_id = token_payload.get("persona_id")
+    es_propio = solicitante_id == persona_id
     if not es_propio and not any(r in ROL_ADMIN_O_ENTRENADOR for r in roles):
         from app.dominio.excepciones import PermisosInsuficientes
-        raise PermisosInsuficientes("No puede consultar el perfil de ranking de otra persona")
+        from app.infraestructura.repositorios.persona_repositorio import PersonaRepositorio
+        persona_objetivo = PersonaRepositorio(db).obtener_por_id(persona_id)
+        es_representante = (
+            persona_objetivo is not None
+            and persona_objetivo.representante_id == solicitante_id
+        )
+        if not es_representante:
+            raise PermisosInsuficientes("No puede consultar el perfil de ranking de otra persona")
     return RankingServicio(db).obtener_perfil_alumno(persona_id)
 
 
@@ -238,7 +246,12 @@ async def listar_mis_notificaciones(
     db: Session = Depends(obtener_sesion),
     token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
 ):
-    return NotificacionServicio(db).listar_propias(token_payload.get("persona_id"))
+    persona_id = token_payload.get("persona_id")
+    roles = token_payload.get("roles", [])
+    servicio = NotificacionServicio(db)
+    if "REPRESENTANTE" in roles:
+        return servicio.listar_para_persona_y_hijos(persona_id)
+    return servicio.listar_propias(persona_id)
 
 
 @router.patch(

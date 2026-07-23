@@ -74,6 +74,14 @@ class EntrenadorResponseDTO(ResponseBase, BaseModel):
     nombre_completo: str = Field(..., examples=["Carlos Ruiz"])
 
 
+class PersonaBusquedaDTO(ResponseBase, BaseModel):
+    """Resultado ligero para el autocomplete de búsqueda de personas."""
+    id: int
+    nombres: str
+    apellidos: str
+    foto_url: Optional[str] = None
+
+
 # --- AntecedentesClub ---
 class AntecedentesClubCreateDTO(BaseModel):
     nivel_tecnico_alumno: NivelTecnicoAlumno

@@ -76,6 +76,8 @@ class Settings(BaseSettings):
     # carpeta separada para los vouchers de transferencia que adjunta el cliente
     # (no es el PDF oficial generado al aprobar un pago — ese va a comprobantes)
     cloudinary_carpeta_vouchers: str = "cataclub/vouchers"
+    # carpeta separada para las fotos de perfil self-service de cada Persona
+    cloudinary_carpeta_fotos_perfil: str = "cataclub/fotos_perfil"
 
     # --- Correo / SMTP (envío transaccional) ---
     smtp_host: str = ""                       # ej. smtp.gmail.com, smtp.sendgrid.net o mailpit

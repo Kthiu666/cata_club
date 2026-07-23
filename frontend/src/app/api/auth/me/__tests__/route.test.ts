@@ -55,6 +55,7 @@ const perfil = {
   apellidos: "Torres",
   roles: ["ENTRENADOR"],
   telefono: "0991234567",
+  fechaCreacion: "2024-03-10T14:22:05.123456",
 };
 
 beforeEach(() => {
@@ -85,6 +86,11 @@ describe("GET /api/auth/me", () => {
     expect(response.status).toBe(200);
     expect(body).toEqual(perfil);
     expect(body.telefono).toBe("0991234567");
+    // Issue #36 (account creation date): the backend's camelCase alias
+    // generator already produces `fechaCreacion` — this route is a plain
+    // passthrough, no explicit field mapping is needed. This test just
+    // confirms the field survives the round trip unmodified.
+    expect(body.fechaCreacion).toBe("2024-03-10T14:22:05.123456");
     expect(global.fetch).toHaveBeenNthCalledWith(
       1,
       "http://localhost:8000/api/v1/auth/me",
@@ -123,6 +129,7 @@ describe("PATCH /api/auth/me", () => {
 
     expect(response.status).toBe(200);
     expect(body.telefono).toBe("0987654321");
+    expect(body.fechaCreacion).toBe("2024-03-10T14:22:05.123456");
     expect(global.fetch).toHaveBeenNthCalledWith(
       1,
       "http://localhost:8000/api/v1/auth/me",

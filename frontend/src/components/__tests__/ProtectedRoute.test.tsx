@@ -122,14 +122,14 @@ describe("ProtectedRoute", () => {
     expect(mockReplace).toHaveBeenCalledWith("/student");
   });
 
-  it("redirects tesorero to /payments when page requires admin", () => {
-    mockUseAuth.mockReturnValue(createAuthenticatedAuth("tesorero"));
+  it("redirects representante to /student when page requires admin", () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("representante"));
 
     render(
       <ProtectedRoute allowedRoles={["admin"]}>{CONTENT}</ProtectedRoute>,
     );
 
-    expect(mockReplace).toHaveBeenCalledWith("/payments");
+    expect(mockReplace).toHaveBeenCalledWith("/student");
   });
 
   // --- Unsupported role: authenticated, but no recognized backend role ---

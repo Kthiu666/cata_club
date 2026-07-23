@@ -12,10 +12,10 @@
  * N+1 to matter.
  */
 
-import type { MembershipStatus, PaymentValidationRequest, ProofFileType, ValidationStatus } from "@/services/api";
+import type { PaymentValidationRequest, ProofFileType, ValidationStatus } from "@/services/api";
+import { MEMBERSHIP_STATUS_BY_ESTADO, type BackendEstadoMembresia } from "@/lib/membership-status";
 
 export type BackendEstadoPago = "APROBADO" | "PENDIENTE_VALIDACION" | "RECHAZADO";
-export type BackendEstadoMembresia = "INACTIVA" | "ACTIVA" | "VENCIDA";
 export type BackendTipoPago = "EFECTIVO" | "TRANSFERENCIA";
 
 const VALIDATION_STATUS_BY_ESTADO_PAGO: Record<BackendEstadoPago, ValidationStatus> = {
@@ -24,16 +24,11 @@ const VALIDATION_STATUS_BY_ESTADO_PAGO: Record<BackendEstadoPago, ValidationStat
   RECHAZADO: "rechazado",
 };
 
-// PaymentValidationRequest.currentMembershipStatus has no "inactiva" value.
-// INACTIVA (membership created, never had an approved payment) reads
-// closest to "vencida" (needs a payment to become current) for this queue.
-// Exported: src/lib/server/members-adapter.ts reuses this exact mapping —
-// `EstadoMembresia` (domain.ts) is the same 3-value union as `MembershipStatus`.
-export const MEMBERSHIP_STATUS_BY_ESTADO: Record<BackendEstadoMembresia, MembershipStatus> = {
-  ACTIVA: "activa",
-  VENCIDA: "vencida",
-  INACTIVA: "vencida",
-};
+// Re-exported for backward compatibility — moved to lib/membership-status.ts
+// so client components (e.g. src/app/profile/page.tsx) don't have to import
+// from lib/server/**. `EstadoMembresia` (domain.ts) is the same 3-value
+// union as `MembershipStatus`.
+export { MEMBERSHIP_STATUS_BY_ESTADO, type BackendEstadoMembresia };
 
 const PAYMENT_METHOD_BY_TIPO_PAGO: Record<BackendTipoPago, string> = {
   EFECTIVO: "Efectivo",

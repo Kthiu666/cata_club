@@ -17,7 +17,6 @@ import type { UserRole } from "@/types/domain";
 const ALL_ROLES: UserRole[] = [
   "admin",
   "trainer",
-  "tesorero",
   "representante",
   "estudiante",
   "unsupported",
@@ -70,10 +69,6 @@ describe("getDefaultRoute", () => {
     expect(getDefaultRoute("trainer")).toBe("/trainer");
   });
 
-  it('returns "/payments" for tesorero', () => {
-    expect(getDefaultRoute("tesorero")).toBe("/payments");
-  });
-
   it('returns "/student" for representante', () => {
     expect(getDefaultRoute("representante")).toBe("/student");
   });
@@ -106,10 +101,6 @@ describe("getRoleLabel", () => {
 
   it('returns "Entrenador" for trainer', () => {
     expect(getRoleLabel("trainer")).toBe("Entrenador");
-  });
-
-  it('returns "Tesorero" for tesorero', () => {
-    expect(getRoleLabel("tesorero")).toBe("Tesorero");
   });
 
   it('returns "Representante" for representante', () => {
@@ -154,20 +145,14 @@ describe("getNavLinksForRole", () => {
     expect(links[9]).toEqual({ href: "/reports", label: "Reportes" });
   });
 
-  it("returns trainer links including Dashboard, Asistencia and Nivel", () => {
+  it("returns trainer links including Dashboard, Asistencia, Historial and Nivel", () => {
     const links = getNavLinksForRole("trainer");
-    expect(links).toHaveLength(4);
+    expect(links).toHaveLength(5);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
     expect(links[1]).toEqual({ href: "/trainer", label: "Dashboard" });
     expect(links[2]).toEqual({ href: "/trainer/attendance", label: "Asistencia" });
-    expect(links[3]).toEqual({ href: "/trainer/nivel", label: "Nivel" });
-  });
-
-  it("returns tesorero link to Membresías y Pagos", () => {
-    const links = getNavLinksForRole("tesorero");
-    expect(links).toHaveLength(2);
-    expect(links[0]).toEqual({ href: "/", label: "Inicio" });
-    expect(links[1]).toEqual({ href: "/payments", label: "Membresías y Pagos" });
+    expect(links[3]).toEqual({ href: "/trainer/attendance/history", label: "Historial Asistencia" });
+    expect(links[4]).toEqual({ href: "/trainer/nivel", label: "Nivel" });
   });
 
   it("returns only Inicio for unsupported (no role-specific nav)", () => {

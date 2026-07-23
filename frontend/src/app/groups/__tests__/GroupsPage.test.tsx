@@ -16,6 +16,7 @@ import { ApiClientError } from "@/services/api";
 import type { NivelConOcupacion } from "@/services/api";
 import type { Justificativo } from "@/types/domain";
 import type { MemberAccount } from "@/app/members/members-utils";
+import { ToastProvider } from "@/contexts/ToastContext";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -206,7 +207,7 @@ describe.skip("GroupsPage — unassigned dropdown assign (MOVED to RankingPage �
   });
 
   it("renders one dropdown + Asignar button per unassigned student, not one button per nivel", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     const row = await findUnassignedRow();
 
     const select = within(row).getByRole("combobox");
@@ -219,7 +220,7 @@ describe.skip("GroupsPage — unassigned dropdown assign (MOVED to RankingPage �
   });
 
   it("fires handleAssignStudent's mutation with the nivel picked from the dropdown", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     const row = await findUnassignedRow();
 
     const select = within(row).getByRole("combobox");
@@ -232,7 +233,7 @@ describe.skip("GroupsPage — unassigned dropdown assign (MOVED to RankingPage �
   });
 
   it("disables the Asignar button until a nivel is picked", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     const row = await findUnassignedRow();
 
     const assignButton = within(row).getByRole("button", { name: /asignar/i });
@@ -257,7 +258,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("opens a confirmation dialog on Aprobar without mutating yet", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^aprobar$/i }));
@@ -267,7 +268,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("evaluates as APROBADO only after the confirm control is activated", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^aprobar$/i }));
@@ -279,7 +280,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("reveals an inline reason input on Rechazar instead of a plain confirm dialog", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
@@ -290,7 +291,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("cancels the reject form without mutating", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
@@ -301,7 +302,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("shows a client-side error and does not call evaluarJustificativo when submitting an empty reason", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
@@ -312,7 +313,7 @@ describe.skip("GroupsPage — justificativo Aprobar/Rechazar confirmation gating
   });
 
   it("calls evaluarJustificativo with the trimmed motivoRechazo when a reason is typed and submitted", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/persona #10/i);
 
     fireEvent.click(screen.getByRole("button", { name: /^rechazar$/i }));
@@ -343,7 +344,7 @@ describe("GroupsPage — Selección Oficial extracted to its own route (PR9)", (
   });
 
   it("no longer renders the Selección Oficial section inline", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     // Scoped to <main> — the sidebar nav link text ("Selección Oficial",
@@ -367,14 +368,14 @@ describe("GroupsPage — categoria-driven locked schedule form (v2 design)", () 
   });
 
   it("renders the 'Gestión de Horarios' title (renamed from 'Grupos y Horarios')", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     expect(
       await screen.findByRole("heading", { name: "Gestión de Horarios" }),
     ).toBeInTheDocument();
   });
 
   it("locks the displayed time range to COMPETITIVO's 18:00–20:00 and offers Sábado as a día checkbox", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
     fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
 
@@ -385,7 +386,7 @@ describe("GroupsPage — categoria-driven locked schedule form (v2 design)", () 
   });
 
   it("locks the displayed time range to FORMATIVO's 15:00–16:00 and excludes Sábado from día checkboxes", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
     fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
 
@@ -396,7 +397,7 @@ describe("GroupsPage — categoria-driven locked schedule form (v2 design)", () 
   });
 
   it("has no editable hora_inicio/hora_fin time inputs left in the form (locked, not freeform)", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
     fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
 
@@ -423,7 +424,7 @@ describe("GroupsPage — grouped weekly schedule display (PR2a)", () => {
       { id: 103, diaSemana: "VIERNES", horaInicio: "18:00", horaFin: "20:00", categoria: "COMPETITIVO", entrenadorId: 1, nivelRankingId: 2 },
     ]);
 
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const cards = document.querySelectorAll(".card.p-5");
@@ -442,7 +443,7 @@ describe("GroupsPage — grouped weekly schedule display (PR2a)", () => {
       { id: 202, diaSemana: "LUNES", horaInicio: "15:00", horaFin: "16:00", categoria: "FORMATIVO", entrenadorId: 2, nivelRankingId: null },
     ]);
 
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const cards = document.querySelectorAll(".card.p-5");
@@ -472,7 +473,7 @@ describe("GroupsPage — categoria title + labeled Ver alumnos button (PR1 layou
   }
 
   it("shows the categoria label instead of the nivel line", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     expect(within(card()).getByText("Competitivo")).toBeInTheDocument();
@@ -481,7 +482,7 @@ describe("GroupsPage — categoria title + labeled Ver alumnos button (PR1 layou
   });
 
   it("renders 'Ver alumnos' as a labeled button that calls openAlumnosTab (opens the alumnos panel)", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const verAlumnosButton = within(card()).getByRole("button", { name: /ver alumnos/i });
@@ -507,7 +508,7 @@ describe("GroupsPage — unknown categoria value does not crash the card (bugfix
   });
 
   it("falls back to DEFAULT_CATEGORIA's label instead of crashing when categoria doesn't match any known key", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     expect(screen.getByText("Formativo")).toBeInTheDocument();
@@ -542,7 +543,7 @@ describe("GroupsPage — day-diffing unified save (PR2b)", () => {
   });
 
   async function openEditAndSubmit(): Promise<void> {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
     fireEvent.click(screen.getByRole("button", { name: /editar horario/i }));
     await screen.findByRole("heading", { name: "Editar Horario" });
@@ -646,7 +647,7 @@ describe("GroupsPage — accordion single-expand mechanics (PR3a)", () => {
   }
 
   it("renders the edit form inline under the card being edited, not at a fixed page position", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [cardA] = cards();
@@ -657,7 +658,7 @@ describe("GroupsPage — accordion single-expand mechanics (PR3a)", () => {
   });
 
   it("expanding group B's edit form collapses group A's — only one group expanded at a time", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [cardA, cardB] = cards();
@@ -674,7 +675,7 @@ describe("GroupsPage — accordion single-expand mechanics (PR3a)", () => {
   });
 
   it("opening the alumnos panel on group B closes group A's edit form (single accordion across tabs)", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [cardA, cardB] = cards();
@@ -688,7 +689,7 @@ describe("GroupsPage — accordion single-expand mechanics (PR3a)", () => {
   });
 
   it("switching tabs on the same group replaces the editar panel with the alumnos panel inline", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [cardA] = cards();
@@ -702,7 +703,7 @@ describe("GroupsPage — accordion single-expand mechanics (PR3a)", () => {
   });
 
   it("the 'Nuevo Horario' create form is not nested inside any existing group card", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
@@ -783,7 +784,7 @@ describe("GroupsPage — grupo-level roster: union across días, assign/unassign
   }
 
   it("does not render a nivel-filtered roster block outside the accordion", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     expect(screen.queryByText("Alumnos asignados")).not.toBeInTheDocument();
@@ -791,7 +792,7 @@ describe("GroupsPage — grupo-level roster: union across días, assign/unassign
   });
 
   it("shows each student's age next to their name in the roster (Fix 1)", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [multiDiaCard] = cards();
@@ -803,7 +804,7 @@ describe("GroupsPage — grupo-level roster: union across días, assign/unassign
   });
 
   it("renders the deduplicated union of every día's roster, not just one día (bugfix)", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [multiDiaCard] = cards();
@@ -821,7 +822,7 @@ describe("GroupsPage — grupo-level roster: union across días, assign/unassign
   });
 
   it("no longer renders a día-pill selector — assignment acts on the whole grupo now", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [multiDiaCard] = cards();
@@ -834,7 +835,7 @@ describe("GroupsPage — grupo-level roster: union across días, assign/unassign
 
   it("assigning a student calls asignarAlumnoAHorario once per horario_id row of the group", async () => {
     mockFetchMembers.mockResolvedValue({ accounts: [ASSIGNABLE_ACCOUNT], niveles: NIVELES });
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [multiDiaCard] = cards();
@@ -859,7 +860,7 @@ describe("GroupsPage — grupo-level roster: union across días, assign/unassign
         ? Promise.reject(new ApiClientError("El alumno ya está asignado al horario.", 400))
         : Promise.resolve({}),
     );
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [multiDiaCard] = cards();
@@ -879,7 +880,7 @@ describe("GroupsPage — grupo-level roster: union across días, assign/unassign
   it("shows a real error (not a false success) when every row fails with a non-400 error while assigning", async () => {
     mockFetchMembers.mockResolvedValue({ accounts: [ASSIGNABLE_ACCOUNT], niveles: NIVELES });
     mockAsignarAlumnoAHorario.mockRejectedValue(new ApiClientError("Error de red al asignar el alumno.", 500));
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [multiDiaCard] = cards();
@@ -899,7 +900,7 @@ describe("GroupsPage — grupo-level roster: union across días, assign/unassign
   });
 
   it("desasignating a student calls desasignarAlumnoDeHorario once per horario_id row of the group", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [multiDiaCard] = cards();
@@ -920,7 +921,7 @@ describe("GroupsPage — grupo-level roster: union across días, assign/unassign
 
   it("shows a real error (not a false success) when every row fails with a non-404 error while desasignating", async () => {
     mockDesasignarAlumnoDeHorario.mockRejectedValue(new ApiClientError("Error de red al desasignar el alumno.", 500));
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     const [multiDiaCard] = cards();
@@ -977,7 +978,7 @@ describe("GroupsPage — trash icon deletes the whole group, not just the first 
       return Promise.resolve([]);
     });
 
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     fireEvent.click(screen.getByTitle("Eliminar horario"));
@@ -1007,7 +1008,7 @@ describe("GroupsPage — trash icon deletes the whole group, not just the first 
       return Promise.resolve([]);
     });
 
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
 
     fireEvent.click(screen.getByTitle("Eliminar horario"));
@@ -1030,7 +1031,7 @@ describe("GroupsPage — trash icon deletes the whole group, not just the first 
 
   it("canceling the confirmation makes no delete calls and does not resync data", async () => {
     mockFetchAlumnosPorHorario.mockResolvedValue([]);
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
     mockFetchHorarios.mockClear();
 
@@ -1082,7 +1083,7 @@ describe("GroupsPage — save resyncs local state after a mid-sequence failure (
       id === 301 ? Promise.resolve({}) : Promise.reject(new Error("boom")),
     );
 
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
     fireEvent.click(screen.getByRole("button", { name: /editar horario/i }));
     await screen.findByRole("heading", { name: "Editar Horario" });
@@ -1128,7 +1129,7 @@ describe("GroupsPage — real entrenador dropdown (CRITICAL fix: no arbitrary au
   });
 
   it("populates the dropdown with real entrenador names, not raw ids", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
     fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
 
@@ -1139,7 +1140,7 @@ describe("GroupsPage — real entrenador dropdown (CRITICAL fix: no arbitrary au
   });
 
   it("creating a new horario sends the entrenador_id chosen from the dropdown, not an auto-filled value", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
     fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
 
@@ -1153,7 +1154,7 @@ describe("GroupsPage — real entrenador dropdown (CRITICAL fix: no arbitrary au
   });
 
   it("blocks submit and shows a validation message when no entrenador is selected", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
     fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
 
@@ -1165,7 +1166,7 @@ describe("GroupsPage — real entrenador dropdown (CRITICAL fix: no arbitrary au
   });
 
   it("editing an existing horario preselects the group's real entrenador by name, not a raw id input", async () => {
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
     fireEvent.click(screen.getByRole("button", { name: /editar horario/i }));
 
@@ -1183,7 +1184,7 @@ describe("GroupsPage — real entrenador dropdown (CRITICAL fix: no arbitrary au
       }),
     );
 
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
 
     const select = (await screen.findByLabelText("Entrenador")) as HTMLSelectElement;
@@ -1198,7 +1199,7 @@ describe("GroupsPage — real entrenador dropdown (CRITICAL fix: no arbitrary au
     mockFetchEntrenadores.mockReset();
     mockFetchEntrenadores.mockResolvedValue([]);
 
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
     await screen.findByText(/horarios de entrenamiento/i);
     fireEvent.click(screen.getByRole("button", { name: /nuevo horario/i }));
 
@@ -1211,7 +1212,7 @@ describe("GroupsPage — real entrenador dropdown (CRITICAL fix: no arbitrary au
     mockFetchEntrenadores.mockReset();
     mockFetchEntrenadores.mockRejectedValue(new Error("network down"));
 
-    render(<GroupsPage />);
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
 
     // The horarios list (backed by fetchHorarios/fetchNivelesConOcupacion/
     // fetchMembers) must still render normally — a rejected fetchEntrenadores

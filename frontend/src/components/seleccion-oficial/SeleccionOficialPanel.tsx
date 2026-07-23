@@ -24,6 +24,7 @@ import {
 } from "@/services/api";
 import type { SeleccionOficialRosterItem } from "@/services/api";
 import type { StudentRef } from "@/lib/groups-utils";
+import { useToast } from "@/contexts/ToastContext";
 
 export interface SeleccionOficialPanelProps {
   readonly eyebrow?: string;
@@ -41,6 +42,7 @@ export default function SeleccionOficialPanel({
   const [seleccionEstudianteId, setSeleccionEstudianteId] = useState("");
   const [seleccionLoading, setSeleccionLoading] = useState(false);
   const [seleccionError, setSeleccionError] = useState<string | null>(null);
+  const { showError } = useToast();
 
   const loadStudents = useCallback(async (): Promise<void> => {
     setLoadError(null);
@@ -74,6 +76,10 @@ export default function SeleccionOficialPanel({
     void loadStudents();
     void loadRoster();
   }, [loadStudents, loadRoster]);
+
+  useEffect(() => {
+    if (seleccionError) showError(seleccionError);
+  }, [seleccionError, showError]);
 
   async function handleSeleccionOficialSubmit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -139,12 +145,6 @@ export default function SeleccionOficialPanel({
             Roster de selección oficial gestionado por administración — independiente del flujo
             mensual de ranking a cargo del entrenador.
           </p>
-
-          {seleccionError && (
-            <div className="alert-error mb-4" role="alert">
-              {seleccionError}
-            </div>
-          )}
 
           <form
             onSubmit={handleSeleccionOficialSubmit}

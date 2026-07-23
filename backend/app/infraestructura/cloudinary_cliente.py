@@ -154,3 +154,61 @@ def subir_voucher_pago(
 
     logger.info("Voucher de pago %d subido a Cloudinary: %s", pago_id, url)
     return url
+
+
+def subir_foto_perfil(
+    contenido: bytes,
+    nombre_publico: str,
+    content_type: str,
+    persona_id: int,
+) -> str:
+    """
+    Sube la foto de perfil self-service de una Persona (Issue: foto de
+    perfil propia). Mismo criterio de validación/subida que
+    `subir_voucher_pago`, restringido a imágenes.
+
+    Mapeo por tipo MIME: solo image/jpeg | image/png -> resource_type="image"
+    (no se fuerza `format`, se respeta el original del cliente).
+
+    Carpeta destino: `settings.cloudinary_carpeta_fotos_perfil` (separada de
+    comprobantes/vouchers, para no mezclar conceptos).
+    `overwrite=True` + `invalidate=True`: el `public_id` se deriva del
+    `persona_id` del caller (mismo valor en cada subida), así una foto nueva
+    SOBRESCRIBE la anterior en vez de acumular recursos huérfanos.
+
+    Returns:
+        URL pública HTTPS del recurso subido.
+    """
+    _configurar_cliente()
+
+    if not contenido:
+        raise ValueError("El contenido de la foto está vacío; no se puede subir.")
+
+    if content_type not in ("image/jpeg", "image/png"):
+        raise ValueError(f"Tipo MIME no soportado para foto de perfil: {content_type}")
+
+    upload_kwargs = {
+        "resource_type": "image",
+        "public_id": nombre_publico,
+        "folder": settings.cloudinary_carpeta_fotos_perfil,
+        "overwrite": True,
+        "invalidate": True,
+    }
+
+    try:
+        resultado = cloudinary.uploader.upload(contenido, **upload_kwargs)
+    except Exception as exc:
+        logger.exception(
+            "Fallo subiendo foto de perfil a Cloudinary (persona_id=%s, public_id=%s)",
+            persona_id, nombre_publico,
+        )
+        raise RuntimeError(f"Error subiendo foto de perfil a Cloudinary: {exc}") from exc
+
+    url: Optional[str] = resultado.get("secure_url")
+    if not url:
+        raise RuntimeError(
+            f"Cloudinary no retornó `secure_url` (foto perfil persona_id={persona_id})"
+        )
+
+    logger.info("Foto de perfil de persona %d subida a Cloudinary: %s", persona_id, url)
+    return url

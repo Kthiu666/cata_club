@@ -1,7 +1,8 @@
 from typing import Optional, List
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.dominio.modelos import Persona, Usuario, Rol
+from app.dominio.modelos import Persona, Usuario, Rol, usuario_rol
 from app.dominio.enums import TipoRol
 
 
@@ -76,3 +77,21 @@ class PersonaRepositorio:
             .order_by(Persona.fecha_registro.asc())
             .all()
         )
+
+    def buscar_por_nombre(
+        self, q: str, rol: Optional[str] = None, skip: int = 0, limit: int = 20
+    ) -> List[Persona]:
+        """Búsqueda de personas por nombre/apellido con filtro opcional por rol."""
+        stmt = select(Persona)
+        if rol:
+            stmt = (
+                stmt.join(Usuario, Usuario.persona_id == Persona.id)
+                .join(usuario_rol, usuario_rol.c.usuario_id == Usuario.id)
+                .join(Rol, Rol.id == usuario_rol.c.rol_id)
+                .where(Rol.tipo_rol == rol)
+            )
+        filtro = f"%{q}%"
+        stmt = stmt.where(
+            (Persona.nombres.ilike(filtro)) | (Persona.apellidos.ilike(filtro))
+        )
+        return list(self.db.execute(stmt).scalars().all())

@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import TrainerAttendancePage from "@/app/trainer/attendance/page";
 import { createAuthenticatedAuth } from "@/components/__tests__/test-utils";
+import { ToastProvider } from "@/contexts/ToastContext";
 
 const mockReplace = vi.fn();
 
@@ -80,18 +81,18 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
   ] as const)("grants access to role=%s instead of redirecting away", async (role, name) => {
     mockUseAuth.mockReturnValue(createAuthenticatedAuth(role, name));
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
 
     expect(await screen.findByText("Seleccione el horario de entrenamiento:")).toBeInTheDocument();
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
-  it("redirects a role with no attendance access (e.g. tesorero) away", async () => {
-    mockUseAuth.mockReturnValue(createAuthenticatedAuth("tesorero", "Treasurer User"));
+  it("redirects a role with no attendance access (e.g. representante) away", async () => {
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("representante", "Representante User"));
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
 
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/payments"));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/student"));
     expect(screen.queryByText("Seleccione el horario de entrenamiento:")).not.toBeInTheDocument();
   });
 
@@ -102,7 +103,7 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
     ]);
     mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
 
     fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
     fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
@@ -129,7 +130,7 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
     mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
     mockRegisterAttendance.mockResolvedValue({ createdCount: 1, failed: [] });
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
 
     fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
     fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
@@ -154,7 +155,7 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
     ]);
     mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
     fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
     fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
@@ -171,7 +172,7 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
     ]);
     mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
     fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
     fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
@@ -195,7 +196,7 @@ describe("TrainerAttendancePage — role gate (PR8)", () => {
     ]);
     mockFetchAlumnosPorHorario.mockResolvedValue([]);
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
     fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
     fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
@@ -221,7 +222,7 @@ describe("TrainerAttendancePage — schedule accordion grouped by day (Slice A)"
       { id: 3, diaSemana: "vie", horaInicio: "20:00", horaFin: "21:00", entrenadorId: 19, entrenadorNombre: "Coach Ruiz" },
     ]);
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
 
     const mondaySection = await screen.findByRole("button", { name: /^lunes/i });
     const wednesdaySection = screen.getByRole("button", { name: /^miércoles/i });
@@ -247,7 +248,7 @@ describe("TrainerAttendancePage — schedule accordion grouped by day (Slice A)"
       { id: 2, diaSemana: "mie", horaInicio: "09:00", horaFin: "10:00", entrenadorId: 18, entrenadorNombre: "Coach Diaz" },
     ]);
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
 
     const mondaySection = await screen.findByRole("button", { name: /^lunes/i });
     const wednesdaySection = screen.getByRole("button", { name: /^miércoles/i });
@@ -273,7 +274,7 @@ describe("TrainerAttendancePage — schedule accordion grouped by day (Slice A)"
       { id: 1, diaSemana: "lun", horaInicio: "18:00", horaFin: "19:00", entrenadorId: 17, entrenadorNombre: "Coach Torres" },
     ]);
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
 
     await screen.findByRole("button", { name: /^lunes/i });
     expect(screen.queryByRole("button", { name: /^martes/i })).not.toBeInTheDocument();
@@ -286,7 +287,7 @@ describe("TrainerAttendancePage — schedule accordion grouped by day (Slice A)"
     ]);
     mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
 
-    render(<TrainerAttendancePage />);
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
 
     fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
     fireEvent.click(await screen.findByRole("button", { name: /18:00/i }));

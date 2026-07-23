@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import SeleccionOficialPage from "@/app/ranking/seleccion-oficial/page";
 import type { MemberAccount } from "@/app/members/members-utils";
+import { ToastProvider } from "@/contexts/ToastContext";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -116,7 +117,7 @@ describe("SeleccionOficialPage", () => {
   });
 
   it("renders under its own AppShell with the Selección Oficial heading", async () => {
-    render(<SeleccionOficialPage />);
+    render(<ToastProvider><SeleccionOficialPage /></ToastProvider>);
     // AppShell's own <h1> title also reads "Selección Oficial" — assert on
     // the page-level heading specifically (level 1, the AppShell contract).
     expect(await screen.findByRole("heading", { name: /selección oficial/i, level: 1 })).toBeInTheDocument();
@@ -128,7 +129,7 @@ describe("SeleccionOficialPage", () => {
       estudianteId: "10",
     });
 
-    render(<SeleccionOficialPage />);
+    render(<ToastProvider><SeleccionOficialPage /></ToastProvider>);
 
     const studentSelect = await screen.findByLabelText(/estudiante/i);
     fireEvent.change(studentSelect, { target: { value: "10" } });

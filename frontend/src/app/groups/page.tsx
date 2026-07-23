@@ -20,6 +20,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useToast } from "@/contexts/ToastContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import {
@@ -122,6 +123,8 @@ export default function GroupsPage(): React.ReactElement {
   const [niveles, setNiveles] = useState<NivelConOcupacion[]>([]);
   const [allStudents, setAllStudents] = useState<StudentRef[]>([]);
   const [loading, setLoading] = useState(true);
+  const { showError } = useToast();
+
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Single accordion state replaces the old showForm/editingId/horarioSeleccionado

@@ -103,3 +103,10 @@ class PersonaServicio:
 
     def reporte_nuevos_por_periodo(self, fecha_inicio, fecha_fin) -> list[Persona]:
         return self.repo.listar_nuevas_por_periodo(fecha_inicio, fecha_fin)
+
+    def buscar_por_nombre(
+        self, q: str, rol: str | None = None, skip: int = 0, limit: int = 20
+    ) -> list[Persona]:
+        if len(q.strip()) < 2:
+            raise OperacionInvalida("La búsqueda requiere al menos 2 caracteres.")
+        return self.repo.buscar_por_nombre(q=q.strip(), rol=rol, skip=skip, limit=limit)

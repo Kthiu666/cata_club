@@ -24,7 +24,9 @@ import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ContextualHelp from "@/components/ContextualHelp";
+import StudentSearch from "@/components/StudentSearch";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastContext";
 import {
   Calendar,
   Clock,
@@ -93,6 +95,7 @@ const ATTENDANCE_ICONS: Record<EstadoAsistencia, React.ReactNode> = {
 
 export default function TrainerAttendancePage(): React.ReactElement {
   const { session } = useAuth();
+  const { showError } = useToast();
 
   const [step, setStep] = useState<WizardStep>("select-session");
 
@@ -106,6 +109,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
   const [rosterError, setRosterError] = useState<string | null>(null);
 
   const [students, setStudents] = useState<SessionStudent[]>([]);
+  const [searchFilter, setSearchFilter] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -128,6 +132,10 @@ export default function TrainerAttendancePage(): React.ReactElement {
   useEffect(() => {
     loadOptions();
   }, [loadOptions]);
+
+  useEffect(() => {
+    if (submitError) showError(submitError);
+  }, [submitError, showError]);
 
   const currentIndex = STEP_ORDER.indexOf(step);
   const isFirst = currentIndex === 0;
@@ -352,6 +360,13 @@ export default function TrainerAttendancePage(): React.ReactElement {
   function renderMarkAttendance(): React.ReactElement | null {
     if (!selectedSchedule) return null;
 
+    const filteredStudents = searchFilter.trim()
+      ? students.filter((s) => {
+          const q = searchFilter.toLowerCase();
+          return s.name.toLowerCase().includes(q);
+        })
+      : students;
+
     const presentCount = countByState(students, "present");
     const absentCount = countByState(students, "absent");
     const lateCount = countByState(students, "late");
@@ -404,48 +419,70 @@ export default function TrainerAttendancePage(): React.ReactElement {
             <p className="text-sm text-cata-text/50">Este horario no tiene alumnos asignados.</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {students.map((student, idx) => (
-              <div
-                key={student.id}
-                className="card-hover flex items-center justify-between gap-3 p-4"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cata-red/15">
-                    <UserCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                  </div>
-                  <span className="text-sm font-medium text-cata-text">
-                    {student.name}
-                  </span>
-                </div>
-
-                <fieldset>
-                  <legend className="sr-only">Estado de asistencia de {student.name}</legend>
-                  <div className="grid grid-cols-2 gap-1 sm:flex">
-                    {ATTENDANCE_STATES.map((state) => {
-                      const isActive = student.attendance === state;
-                      return (
-                        <button
-                          key={state}
-                          type="button"
-                          onClick={() => handleDirectAttendanceSet(idx, state)}
-                          aria-pressed={isActive}
-                          className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
-                            isActive
-                              ? `border-current/20 ${getAttendanceBadgeTokens(state).badgeClass}`
-                              : "border-transparent text-cata-text/45 hover:border-cata-border hover:text-cata-text/65"
-                          }`}
-                        >
-                          {ATTENDANCE_ICONS[state]}
-                          <span>{ATTENDANCE_LABELS[state]}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </fieldset>
+          <>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Filtrar alumnos por nombre..."
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                className="w-full rounded-lg border border-cata-border bg-white px-4 py-2.5 text-sm text-cata-text placeholder:text-cata-text/40 focus:border-cata-red focus:outline-none focus:ring-1 focus:ring-cata-red"
+                aria-label="Filtrar alumnos"
+              />
+            </div>
+            {filteredStudents.length === 0 ? (
+              <div className="card flex flex-col items-center py-10 text-center">
+                <Users size={28} strokeWidth={1.5} className="mb-2 text-cata-text/20" aria-hidden="true" />
+                <p className="text-sm text-cata-text/50">No se encontraron alumnos con ese nombre.</p>
               </div>
-            ))}
-          </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredStudents.map((student) => {
+                  const idx = students.findIndex((s) => s.id === student.id);
+                  return (
+                    <div
+                      key={student.id}
+                      className="card-hover flex items-center justify-between gap-3 p-4"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cata-red/15">
+                          <UserCheck size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                        </div>
+                        <span className="text-sm font-medium text-cata-text">
+                          {student.name}
+                        </span>
+                      </div>
+
+                      <fieldset>
+                        <legend className="sr-only">Estado de asistencia de {student.name}</legend>
+                        <div className="grid grid-cols-2 gap-1 sm:flex">
+                          {ATTENDANCE_STATES.map((state) => {
+                            const isActive = student.attendance === state;
+                            return (
+                              <button
+                                key={state}
+                                type="button"
+                                onClick={() => handleDirectAttendanceSet(idx, state)}
+                                aria-pressed={isActive}
+                                className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
+                                  isActive
+                                    ? `border-current/20 ${getAttendanceBadgeTokens(state).badgeClass}`
+                                    : "border-transparent text-cata-text/45 hover:border-cata-border hover:text-cata-text/65"
+                                }`}
+                              >
+                                {ATTENDANCE_ICONS[state]}
+                                <span>{ATTENDANCE_LABELS[state]}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </fieldset>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
 
         {/* Trainer attribution reminder */}
@@ -536,12 +573,6 @@ export default function TrainerAttendancePage(): React.ReactElement {
             de {students.length} estudiantes en esta sesión.
           </p>
         </div>
-
-        {submitError && (
-          <div className="alert-error" role="alert">
-            {submitError}
-          </div>
-        )}
       </div>
     );
   }

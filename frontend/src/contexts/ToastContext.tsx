@@ -31,7 +31,7 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-export type ToastVariant = "error" | "success";
+export type ToastVariant = "error" | "success" | "info" | "warning";
 
 export interface ToastItem {
   id: string;
@@ -50,6 +50,8 @@ export interface ToastContextValue {
   showToast: (options: ShowToastOptions) => void;
   showError: (message: string, duration?: number) => void;
   showSuccess: (message: string, duration?: number) => void;
+  showInfo: (message: string, duration?: number) => void;
+  showWarning: (message: string, duration?: number) => void;
 }
 
 export interface ToastStateValue {
@@ -114,6 +116,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [showToast],
   );
 
+  const showInfo = useCallback(
+    (message: string, duration?: number) => {
+      showToast({ variant: "info", message, duration });
+    },
+    [showToast],
+  );
+
+  const showWarning = useCallback(
+    (message: string, duration?: number) => {
+      showToast({ variant: "warning", message, duration });
+    },
+    [showToast],
+  );
+
   // Sweep all pending timers on unmount so no removeToast/setState fires
   // after the provider is gone.
   useEffect(() => {
@@ -124,7 +140,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const actions: ToastContextValue = { showToast, showError, showSuccess };
+  const actions: ToastContextValue = { showToast, showError, showSuccess, showInfo, showWarning };
   const state: ToastStateValue = { toasts, removeToast };
 
   return (

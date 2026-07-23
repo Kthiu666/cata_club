@@ -76,12 +76,6 @@ function buildStatCards(stats: DashboardStats): StatCardData[] {
       trend: "up",
     },
     {
-      icon: ShieldCheck,
-      label: "Membresías Activas",
-      value: stats.activeMemberships,
-      trend: "up",
-    },
-    {
       icon: Clock,
       label: "Pagos Pendientes de Validar",
       value: stats.pendingPayments,

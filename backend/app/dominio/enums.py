@@ -9,9 +9,7 @@ class TipoRol(str, enum.Enum):
     ALUMNO = "ALUMNO"
     ENTRENADOR = "ENTRENADOR"
     ADMINISTRADOR = "ADMINISTRADOR"
-    # "Representante" NO se agrega aquí a propósito: sigue siendo un hecho
-    # relacional (Persona.representante_id), no un rol -- ver justificación
-    # en persona_servicio.py y en el análisis de diseño ya acordado.
+    REPRESENTANTE = "REPRESENTANTE"
 
 
 class TipoManoDominante(str, enum.Enum):
@@ -145,3 +143,4 @@ class TipoNotificacion(str, enum.Enum):
     RANKING_REINGRESO_APROBADO = "RANKING_REINGRESO_APROBADO"
     JUSTIFICATIVO_APROBADO = "JUSTIFICATIVO_APROBADO"
     JUSTIFICATIVO_RECHAZADO = "JUSTIFICATIVO_RECHAZADO"
+    MIEMBRESIA_VENCIMIENTO_PROXIMO = "MIEMBRESIA_VENCIMIENTO_PROXIMO"

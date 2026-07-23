@@ -14,7 +14,8 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ContextualHelp from "@/components/ContextualHelp";
@@ -41,6 +42,8 @@ import {
   ToggleLeft,
   ToggleRight,
   Tag,
+  Pencil,
+  X,
 } from "lucide-react";
 import { fetchMembers, asignarRol, quitarRol, cambiarEstadoCuenta, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia, actualizarPersona } from "@/services/api";
 import type { TipoMembresiaCatalogo } from "@/services/api";
@@ -709,16 +712,16 @@ interface AccountRowProps {
   account: MemberAccount;
   defaultOpen: boolean;
   grupos: Grupo[];
-  rolesMenuOpen: boolean;
-  onToggleRolesMenu: () => void;
+  editModalOpen: boolean;
+  onToggleEditModal: () => void;
 }
 
-const ALL_BACKEND_ROLES: BackendTipoRol[] = ["ADMINISTRADOR", "ENTRENADOR", "TESORERO", "ALUMNO"];
+const ALL_BACKEND_ROLES: BackendTipoRol[] = ["ADMINISTRADOR", "ENTRENADOR", "REPRESENTANTE", "ALUMNO"];
 
 const ROLE_LABELS: Record<BackendTipoRol, string> = {
   ADMINISTRADOR: "Admin",
   ENTRENADOR: "Entrenador",
-  TESORERO: "Tesorero",
+  REPRESENTANTE: "Representante",
   ALUMNO: "Alumno",
 };
 
@@ -726,8 +729,8 @@ function AccountRow({
   account,
   defaultOpen,
   grupos,
-  rolesMenuOpen,
-  onToggleRolesMenu,
+  editModalOpen,
+  onToggleEditModal,
 }: AccountRowProps): React.ReactElement {
   const [expanded, setExpanded] = useState(defaultOpen);
   const [roles, setRoles] = useState<BackendTipoRol[]>([]);
@@ -782,6 +785,46 @@ function AccountRow({
       setStateLoading(false);
     }
   }
+
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const editTriggerRef = useRef<HTMLButtonElement>(null);
+
+  // Native <dialog> shown via showModal(): the browser traps Tab focus and
+  // renders the ::backdrop for us, so no manual focus trap is needed (unlike
+  // ConfirmDialog.tsx's older role="dialog" div convention). Escape is still
+  // wired manually (rather than relying solely on the dialog's native
+  // "cancel" event) so open/closed stays driven by `editModalOpen` alone —
+  // the dialog is conditionally rendered, not toggled via its `open`
+  // attribute, so the JSX onCancel handler only preventDefaults the native
+  // auto-close to avoid it and this listener double-toggling React state.
+  // The backdrop-click listener is attached imperatively (not as a JSX
+  // onClick on the <dialog>) since the element itself is non-interactive.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!editModalOpen || !dialog) return;
+
+    setRoleError(null);
+    setStateError(null);
+    if (!dialog.open) dialog.showModal();
+    closeButtonRef.current?.focus();
+
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") onToggleEditModal();
+    }
+    function handleBackdropClick(event: MouseEvent): void {
+      if (event.target === dialog) onToggleEditModal();
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    dialog.addEventListener("click", handleBackdropClick);
+    const triggerElement = editTriggerRef.current;
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      dialog.removeEventListener("click", handleBackdropClick);
+      triggerElement?.focus();
+    };
+  }, [editModalOpen, onToggleEditModal]);
 
   return (
     <>
@@ -854,26 +897,79 @@ function AccountRow({
             <span className={`badge ${statusBadge.className}`}>
               {statusBadge.label}
             </span>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={onToggleRolesMenu}
-                aria-haspopup="true"
-                aria-expanded={rolesMenuOpen}
-                className="inline-flex items-center gap-1 rounded-full border border-cata-border px-2 py-0.5 text-[11px] font-medium text-cata-text/65 transition-colors hover:bg-cata-bg"
-              >
-                <ShieldCheck size={10} strokeWidth={1.5} aria-hidden="true" />
-                Roles
-              </button>
-              {rolesMenuOpen && (
-                <div className="absolute left-0 top-full z-50 mt-1.5 w-40 rounded-xl border border-cata-border bg-cata-surface p-1.5 shadow-elevated">
+            <button
+              ref={editTriggerRef}
+              type="button"
+              onClick={onToggleEditModal}
+              className="inline-flex items-center gap-1 rounded-lg border border-cata-border p-1.5 text-cata-text/50 transition-colors hover:bg-cata-red/10 hover:text-cata-red"
+              aria-label="Editar"
+              title="Editar miembro"
+            >
+              <Pencil size={13} strokeWidth={1.5} aria-hidden="true" />
+            </button>
+          </div>
+        </td>
+      </tr>
+      {expanded &&
+        account.estudiantes.map((estudiante) => (
+          <StudentRow key={estudiante.id} student={estudiante} grupos={grupos} />
+        ))}
+      {editModalOpen &&
+        createPortal(
+          <dialog
+            ref={dialogRef}
+            aria-modal="true"
+            aria-labelledby={`edit-member-title-${account.id}`}
+            onCancel={(event) => event.preventDefault()}
+            className="card fixed inset-0 z-50 m-auto h-fit max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto p-6 backdrop:bg-cata-black/40"
+          >
+            <div className="mb-4 flex items-center justify-between">
+                <h2
+                  id={`edit-member-title-${account.id}`}
+                  className="text-base font-semibold text-cata-text"
+                >
+                  Editar miembro
+                </h2>
+                <button
+                  ref={closeButtonRef}
+                  type="button"
+                  onClick={onToggleEditModal}
+                  aria-label="Cerrar"
+                  className="rounded-lg p-1 text-cata-text/50 transition-colors hover:bg-cata-bg hover:text-cata-text"
+                >
+                  <X size={16} strokeWidth={1.5} aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="mb-4 space-y-1 text-sm text-cata-text/65">
+                <p className="font-medium text-cata-text">
+                  {account.nombres} {account.apellidos}
+                </p>
+                {account.email && (
+                  <p className="flex items-center gap-1.5">
+                    <Mail size={11} strokeWidth={1.5} aria-hidden="true" />
+                    {account.email}
+                  </p>
+                )}
+                <p className="flex items-center gap-1.5">
+                  <Phone size={11} strokeWidth={1.5} aria-hidden="true" />
+                  {account.telefono}
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <h3 className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-cata-text/50">
+                  <ShieldCheck size={12} strokeWidth={1.5} aria-hidden="true" />
+                  Roles
+                </h3>
+                <div className="space-y-1.5">
                   {ALL_BACKEND_ROLES.map((role) => {
                     const selected = roles.includes(role);
                     const isLoading = roleLoading === role;
                     return (
                       <label
                         key={role}
-                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-cata-text transition-colors hover:bg-cata-bg"
+                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-cata-text transition-colors hover:bg-cata-bg"
                       >
                         <input
                           type="checkbox"
@@ -882,45 +978,46 @@ function AccountRow({
                           disabled={roleLoading !== null}
                           className="h-3.5 w-3.5 rounded border-cata-border text-cata-red focus:ring-cata-red"
                         />
-                        {isLoading && <Loader2 size={10} className="animate-spin" aria-hidden="true" />}
+                        {isLoading && <Loader2 size={12} className="animate-spin" aria-hidden="true" />}
                         {ROLE_LABELS[role]}
                       </label>
                     );
                   })}
                 </div>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => void toggleEstado()}
-              disabled={stateLoading}
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-cata-text/65 transition-colors hover:text-cata-text disabled:opacity-50"
-              aria-pressed={activo}
-            >
-              {activo ? (
-                <ToggleRight size={14} className="text-cata-state-ok" aria-hidden="true" />
-              ) : (
-                <ToggleLeft size={14} className="text-cata-text/40" aria-hidden="true" />
-              )}
-              {stateLoading ? "Actualizando..." : activo ? "Activa" : "Inactiva"}
-            </button>
-            {roleError && (
-              <p className="w-full text-[10px] text-cata-red" role="alert">
-                {roleError}
-              </p>
-            )}
-            {stateError && (
-              <p className="w-full text-[10px] text-cata-red" role="alert">
-                {stateError}
-              </p>
-            )}
-          </div>
-        </td>
-      </tr>
-      {expanded &&
-        account.estudiantes.map((estudiante) => (
-          <StudentRow key={estudiante.id} student={estudiante} grupos={grupos} />
-        ))}
+                {roleError && (
+                  <p className="mt-2 text-xs text-cata-red" role="alert">
+                    {roleError}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-cata-text/50">
+                  Estado de la cuenta
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => void toggleEstado()}
+                  disabled={stateLoading}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-cata-border px-3 py-1.5 text-sm font-medium text-cata-text transition-colors hover:bg-cata-bg disabled:opacity-50"
+                  aria-pressed={activo}
+                >
+                  {activo ? (
+                    <ToggleRight size={16} className="text-cata-state-ok" aria-hidden="true" />
+                  ) : (
+                    <ToggleLeft size={16} className="text-cata-text/40" aria-hidden="true" />
+                  )}
+                  {stateLoading ? "Actualizando..." : activo ? "Activa" : "Inactiva"}
+                </button>
+                {stateError && (
+                  <p className="mt-2 text-xs text-cata-red" role="alert">
+                    {stateError}
+                  </p>
+                )}
+              </div>
+          </dialog>,
+          document.body,
+        )}
     </>
   );
 }
@@ -937,18 +1034,10 @@ export default function MembersPage(): React.ReactElement {
   const [personasCapped, setPersonasCapped] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [rolesMenuOpen, setRolesMenuOpen] = useState<Set<string>>(new Set());
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
 
-  const toggleRolesMenu = useCallback((accountId: string) => {
-    setRolesMenuOpen((prev) => {
-      const next = new Set(prev);
-      if (next.has(accountId)) {
-        next.delete(accountId);
-      } else {
-        next.add(accountId);
-      }
-      return next;
-    });
+  const toggleEditModal = useCallback((accountId: string) => {
+    setEditingAccountId((prev) => (prev === accountId ? null : accountId));
   }, []);
 
   const loadMembers = useCallback(async (): Promise<void> => {
@@ -1113,8 +1202,8 @@ export default function MembersPage(): React.ReactElement {
                       account={account}
                       defaultOpen={index === 0 && filteredAccounts.length === 1}
                       grupos={grupos}
-                      rolesMenuOpen={rolesMenuOpen.has(account.id)}
-                      onToggleRolesMenu={() => toggleRolesMenu(account.id)}
+                      editModalOpen={editingAccountId === account.id}
+                      onToggleEditModal={() => toggleEditModal(account.id)}
                     />
                   ))}
                 </tbody>

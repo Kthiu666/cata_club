@@ -143,7 +143,7 @@ describe("AppShell", (): void => {
     render(<AppShell title="Panel">{null}</AppShell>);
 
     expect(screen.getByRole("link", { name: /Dashboard/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Asistencia/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Asistencia" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Miembros/i })).not.toBeInTheDocument();
   });
 

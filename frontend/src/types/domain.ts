@@ -18,20 +18,19 @@
  * The actor roles in the Cata Club system.
  *
  * Backend alignment (2026-07): the backend models a single `Persona` entity
- * with a `role` field (`ADMINISTRADOR`, `ENTRENADOR`, `TESORERO`, `ALUMNO`)
- * and a self-referencing `representante_id` (a Persona pointing to the adult
- * who manages them — e.g. a parent). All four backend roles now map to a
- * frontend `UserRole` (see `mapBackendRoleToUserRole` in
+ * with a `role` field (`ADMINISTRADOR`, `ENTRENADOR`, `REPRESENTANTE`,
+ * `ALUMNO`) and a self-referencing `representante_id` (a Persona pointing to
+ * the adult who manages them — e.g. a parent). All four backend roles map
+ * to a frontend `UserRole` (see `mapBackendRoleToUserRole` in
  * src/lib/server/auth.ts): `ADMINISTRADOR` -> `"admin"`, `ENTRENADOR` ->
- * `"trainer"`, `TESORERO` -> `"tesorero"`, `ALUMNO` -> `"estudiante"`.
+ * `"trainer"`, `REPRESENTANTE` -> `"representante"`, `ALUMNO` ->
+ * `"estudiante"`.
  *
- * `"representante"` is NOT a role the backend sends as a literal string —
- * it is DERIVED at the data-adapter layer: a Persona with no
- * `representante_id` of its own, but that other Personas reference via
- * THEIR `representante_id`, and with no `ALUMNO` role itself. It's kept as
- * an explicit frontend `UserRole` value so switch-based routing/nav logic
- * stays exhaustive. It is a relationship, not an authenticated backend
- * role — never used as a fallback for unmapped/unknown backend roles.
+ * A representante is an authenticated backend role (REPRESENTANTE): a parent
+ * who enrolls a minor receives both REPRESENTANTE and ALUMNO roles at
+ * enrollment time, authenticates with their own credentials, and can view
+ * their children's data. Role precedence picks REPRESENTANTE over ALUMNO
+ * for the primary UI role (see `pickPrimaryRole`).
  *
  * `"unsupported"` is the explicit landing state for an authenticated user
  * whose backend `roles` array is empty or contains only strings this
@@ -39,7 +38,7 @@
  * silent redirect loop, not miscategorized as any of the roles above) —
  * `getDefaultRoute` sends it to `/unauthorized`, a dedicated page.
  */
-export type UserRole = "admin" | "trainer" | "tesorero" | "representante" | "estudiante" | "unsupported";
+export type UserRole = "admin" | "trainer" | "representante" | "estudiante" | "unsupported";
 
 interface UsuarioBase {
   id: string;
@@ -63,7 +62,7 @@ export interface UsuarioEstudiante extends UsuarioBase {
 
 /** Staff account, a pure representante account with no student profile of its own, or an authenticated-but-unsupported-role account. */
 export interface UsuarioStaff extends UsuarioBase {
-  role: "admin" | "trainer" | "tesorero" | "representante" | "unsupported";
+  role: "admin" | "trainer" | "representante" | "unsupported";
 }
 
 export type Usuario = UsuarioEstudiante | UsuarioStaff;
@@ -252,7 +251,7 @@ export type TipoSangre =
   | "DESCONOCIDO";
 
 /** Backend role enum values as sent/received by the personas router. */
-export type BackendTipoRol = "ADMINISTRADOR" | "ENTRENADOR" | "TESORERO" | "ALUMNO";
+export type BackendTipoRol = "ADMINISTRADOR" | "ENTRENADOR" | "REPRESENTANTE" | "ALUMNO";
 
 /** States of a personalized-membership extra-class request. */
 export type EstadoSolicitudExtra = "PENDIENTE" | "APROBADA" | "RECHAZADA";
@@ -315,6 +314,10 @@ export interface PerfilPropio {
   apellidos: string;
   roles: BackendTipoRol[];
   telefono: string;
+  /** Account creation date (ISO datetime) — `Usuario.fecha_creacion`. Used by `/profile`'s "Miembro desde" field. */
+  fechaCreacion: string;
+  /** Profile photo URL (Cloudinary), self-service upload via POST /api/auth/me/foto. Absent/null until the user uploads one. */
+  fotoUrl?: string | null;
 }
 
 /** Payload to update the logged-in user's own correo/teléfono — both optional (partial edit). */
@@ -489,6 +492,14 @@ export interface PersonaResponse {
   prioridadMunicipal: boolean;
   porcentajeBeca: number;
   motivoBeca?: string | null;
+}
+
+/** Lightweight persona shape for autocomplete / search results. */
+export interface PersonaBusqueda {
+  id: number;
+  nombres: string;
+  apellidos: string;
+  fotoUrl?: string | null;
 }
 
 // ---------------------------------------------------------------------------

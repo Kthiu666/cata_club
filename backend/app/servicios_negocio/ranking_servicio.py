@@ -495,6 +495,21 @@ class NotificacionServicio:
     def listar_propias(self, persona_id: int) -> list[Notificacion]:
         return self.repo.listar_por_persona(persona_id)
 
+    def listar_para_persona_y_hijos(self, persona_id: int) -> list[Notificacion]:
+        """Para representantes: incluye notificaciones propias y de sus hijos."""
+        from app.dominio.modelos import Persona
+        persona = self.db.get(Persona, persona_id)
+        if not persona:
+            return []
+        hijos_ids = [h.id for h in persona.representados]
+        todos_ids = [persona_id] + hijos_ids
+        return (
+            self.db.query(Notificacion)
+            .filter(Notificacion.persona_id.in_(todos_ids))
+            .order_by(Notificacion.fecha_creacion.desc())
+            .all()
+        )
+
     def marcar_leida(self, notificacion_id: int, persona_id: int) -> Notificacion:
         notificacion = self.db.get(Notificacion, notificacion_id)
         if notificacion is None:
