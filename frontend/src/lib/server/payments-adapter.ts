@@ -140,5 +140,7 @@ export function buildPaymentValidationRequest(
     proofPreviewUrl: pago.voucherUrl ?? undefined,
     validationStatus: VALIDATION_STATUS_BY_ESTADO_PAGO[pago.estadoPago],
     validatedAt: pago.fechaValidacion ?? undefined,
+    startDate: pago.fechaInicio,
+    endDate: pago.fechaFin,
   };
 }

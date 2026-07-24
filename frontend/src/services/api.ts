@@ -84,11 +84,18 @@ export interface PaymentValidationRequest {
   rejectionReason?: string;
   validatedAt?: string;
   validatedBy?: string;
+  /** Payment period start date (YYYY-MM-DD), editable by admin on approval. */
+  startDate: string;
+  /** Payment period end date (YYYY-MM-DD), editable by admin on approval. */
+  endDate: string;
 }
 
 /** DTO for approving a payment validation request. */
 export interface ApprovePaymentDTO {
   action: "approved";
+  /** Optional period override — when provided, the membership period is adjusted. */
+  startDate?: string;
+  endDate?: string;
 }
 
 /** DTO for rejecting a payment validation request. */
