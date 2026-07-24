@@ -684,6 +684,7 @@ export interface MembershipSummary {
   categoria: string | null;
   modalidad: string | null;
   franjaHoraria: string | null;
+  fechaFin: string | null;
 }
 
 /** A real `TipoMembresia` catalog entry (`GET /membresias/tipos`) — replaces the old hardcoded `membershipPlans` array. */
@@ -959,6 +960,29 @@ export async function fetchPagosDePersona(personaId: string): Promise<PagoPerson
   const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
   return request<PagoPersona[]>(apiEndpoint(`/membresias/pagos/persona/${personaId}`), {
     headers: mockHeaders,
+  });
+}
+
+/** Payload for registering a new pending payment — `POST /api/membresias/pagos`. */
+export interface RegistrarPagoInput {
+  monto: number;
+  tipoPago: "EFECTIVO" | "TRANSFERENCIA";
+  fechaInicio: string;
+  fechaFin: string;
+  personaId: number;
+  membresiaId: number;
+}
+
+/** Register a new pending payment (PENDIENTE_VALIDACION) — `POST /api/membresias/pagos`.
+ *  Works for both admin-created payments and student/representante renewals:
+ *  the backend enforces authorization at the service layer (owner, their
+ *  representative, or ADMINISTRADOR). */
+export async function registrarPago(data: RegistrarPagoInput): Promise<PagoPersona> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<PagoPersona>(apiEndpoint("/membresias/pagos"), {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: { "Content-Type": "application/json", ...mockHeaders },
   });
 }
 

@@ -717,8 +717,8 @@ describe("MembersPage — Registrar pago inline form", () => {
 
     const montoInput = await within(dialog).findByDisplayValue("85");
     expect(montoInput).toBeInTheDocument();
-    const fechasInputs = await within(dialog).findAllByDisplayValue(/2026-/);
-    expect(fechasInputs).toHaveLength(2);
+    expect(await within(dialog).findByText(/Inicio:/)).toBeInTheDocument();
+    expect(await within(dialog).findByText(/Fin:/)).toBeInTheDocument();
 
     const submitBtn = within(dialog).getByRole("button", { name: /registrar pago/i });
     fireEvent.click(submitBtn);

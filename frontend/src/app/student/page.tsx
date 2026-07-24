@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { fetchStudentPortal, fetchPagosDePersona, subirVoucherPago } from "@/services/api";
 import type { StudentPortalSummary, StudentProfileSummary, PagoPersona, MembershipSummary } from "@/services/api";
 import { ATTENDANCE_LABELS, ATTENDANCE_BADGE_TOKENS } from "@/app/attendance/attendance-utils";
-import { derivePortalMode, isRepresentative, describeRanking } from "./student-utils";
+import { derivePortalMode, isRepresentative, isMinor, describeRanking } from "./student-utils";
 import {
   Calendar,
   ShieldCheck,
@@ -488,7 +488,9 @@ function ActivePortalView({
   }, [managedProfiles.map((p) => p.personaId).join(",")]);
 
   const representative = isRepresentative(data.representados.length);
+  const selfIsMinor = isMinor(data.self?.fechaNacimiento);
   const selectedProfile = managedProfiles.find((p) => p.personaId === selectedId) ?? managedProfiles[0] ?? null;
+  const selectedIsMinor = isMinor(selectedProfile?.fechaNacimiento);
 
   return (
     <>
@@ -545,6 +547,14 @@ function ActivePortalView({
             <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
           </Link>
         )}
+        <Link
+          href="/student/payments"
+          className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
+        >
+          <CreditCard size={16} strokeWidth={1.5} aria-hidden="true" />
+          Ver pagos
+          <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+        </Link>
       </div>
 
       {selectedProfile === null ? (

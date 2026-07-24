@@ -137,6 +137,15 @@ describe("StudentPage — Agregar/Inscribir dependiente CTA", () => {
   });
 });
 
+describe("StudentPage — Pagos link", () => {
+  it("links to the dedicated payments page", async () => {
+    render(<StudentPage />);
+
+    const link = await screen.findByText("Ver pagos");
+    expect(link.closest("a")).toHaveAttribute("href", "/student/payments");
+  });
+});
+
 describe("StudentPage — Pagos section", () => {
   it("fetches and renders the persona's payment history from the service", async () => {
     mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_APROBADO]);

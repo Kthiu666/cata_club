@@ -44,9 +44,10 @@ import {
   ToggleRight,
   Pencil,
   X,
+  Upload,
 } from "lucide-react";
-import { fetchMembers, obtenerRolesDePersona, asignarRol, quitarRol, cambiarEstadoCuenta, actualizarPersona, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia } from "@/services/api";
-import type { TipoMembresiaCatalogo } from "@/services/api";
+import { fetchMembers, obtenerRolesDePersona, asignarRol, quitarRol, cambiarEstadoCuenta, actualizarPersona, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia, registrarPago } from "@/services/api";
+import type { TipoMembresiaCatalogo, RegistrarPagoInput } from "@/services/api";
 import { nivelToGrupo } from "@/app/groups/groups-page-utils";
 import { getUserInitials } from "@/lib/auth-utils";
 import {
@@ -164,6 +165,21 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
   const [membershipError, setMembershipError] = useState<string | null>(null);
   const [membershipSuccess, setMembershipSuccess] = useState(false);
 
+  // Payment registration state
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [paymentMonto, setPaymentMonto] = useState<string>(student.membresia?.monto != null ? String(student.membresia.monto) : "");
+  const [paymentTipoPago, setPaymentTipoPago] = useState<"EFECTIVO" | "TRANSFERENCIA">("TRANSFERENCIA");
+  const [paymentFechaInicio, setPaymentFechaInicio] = useState<string>(() => {
+    const hoy = new Date();
+    return hoy.toISOString().slice(0, 10);
+  });
+  const [paymentFechaFin, setPaymentFechaFin] = useState<string>("");
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const paymentFileInputRef = useRef<HTMLInputElement>(null);
+  const [paymentVoucherFile, setPaymentVoucherFile] = useState<File | null>(null);
+
   const membershipLabel = student.membresia
     ? MEMBERSHIP_STATUS_LABELS[student.membresia.estado]
     : "Sin membresía";
@@ -181,6 +197,7 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
   const nivelDisplay = getNivelLabelFromGrupo(student.grupoId, grupos);
   const personaId = Number(student.id);
   const age = calculateAge(student.fechaNacimiento);
+  const paymentMonthlyPrice = student.membresia?.monto != null ? Number(student.membresia.monto) : 0;
 
   async function handleOpenCreateMembership(): Promise<void> {
     setShowCreateMembership(true);
@@ -218,6 +235,83 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
       showError(message);
     } finally {
       setMembershipLoading(false);
+    }
+  }
+
+  function calcPaymentEndDate(baseDate: Date, amount: number): string {
+    if (paymentMonthlyPrice <= 0 || amount <= 0) return "";
+    const months = amount / paymentMonthlyPrice;
+    const fin = new Date(baseDate);
+    fin.setMonth(fin.getMonth() + months);
+    return fin.toISOString().slice(0, 10);
+  }
+
+  function handlePaymentMontoChange(value: string): void {
+    setPaymentMonto(value);
+    if (!paymentFechaInicio) return;
+    const amount = parseFloat(value.replace(/[^0-9.]/g, "")) || 0;
+    setPaymentFechaFin(amount > 0 ? calcPaymentEndDate(new Date(paymentFechaInicio + "T12:00:00"), amount) : "");
+  }
+
+  function handleOpenPaymentForm(): void {
+    setShowPaymentForm(true);
+    setPaymentError(null);
+    setPaymentSuccess(false);
+    setPaymentVoucherFile(null);
+    const hoy = new Date();
+    setPaymentFechaInicio(hoy.toISOString().slice(0, 10));
+    const amount = parseFloat(String(paymentMonto).replace(/[^0-9.]/g, "")) || 0;
+    setPaymentFechaFin(amount > 0 ? calcPaymentEndDate(hoy, amount) : "");
+  }
+
+  async function handleSubmitPayment(): Promise<void> {
+    const montoNum = Number(paymentMonto);
+    if (!montoNum || montoNum <= 0) {
+      setPaymentError("El monto debe ser mayor a 0.");
+      return;
+    }
+    if (paymentMonthlyPrice > 0 && montoNum % paymentMonthlyPrice !== 0) {
+      setPaymentError(`El monto debe ser múltiplo de $${paymentMonthlyPrice}.`);
+      return;
+    }
+    if (!paymentFechaInicio || !paymentFechaFin) {
+      setPaymentError("Las fechas son obligatorias.");
+      return;
+    }
+    if (paymentFechaInicio >= paymentFechaFin) {
+      setPaymentError("La fecha de inicio debe ser anterior a la fecha de fin.");
+      return;
+    }
+    if (!student.membresia?.id) {
+      setPaymentError("No se encontró la membresía.");
+      return;
+    }
+    setPaymentLoading(true);
+    setPaymentError(null);
+    try {
+      const input: RegistrarPagoInput = {
+        monto: montoNum,
+        tipoPago: paymentTipoPago,
+        fechaInicio: paymentFechaInicio,
+        fechaFin: paymentFechaFin,
+        personaId,
+        membresiaId: student.membresia.id,
+      };
+      const nuevoPago = await registrarPago(input);
+      if (paymentVoucherFile && nuevoPago?.id) {
+        const { subirVoucherPago } = await import("@/services/api");
+        await subirVoucherPago(nuevoPago.id, paymentVoucherFile);
+      }
+      setPaymentSuccess(true);
+      setShowPaymentForm(false);
+      setPaymentVoucherFile(null);
+      showSuccess("Pago registrado correctamente.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo registrar el pago.";
+      setPaymentError(msg);
+      showError(msg);
+    } finally {
+      setPaymentLoading(false);
     }
   }
 
@@ -348,6 +442,120 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
             Crear membresía
           </button>
         ))}
+
+      {/* Registrar pago — only when membership exists */}
+      {student.membresia && (
+        <div className="mt-2.5">
+          {paymentSuccess ? (
+            <p className="flex items-center gap-1 text-xs text-cata-state-ok">
+              <CheckCircle2 size={11} strokeWidth={2} aria-hidden="true" />
+              Pago registrado. Recarga para verlo.
+            </p>
+          ) : showPaymentForm ? (
+            <div className="space-y-2 rounded-lg bg-cata-bg/60 p-2.5">
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs font-medium text-cata-text/65">
+                  Monto
+                  <input
+                    type="number"
+                    step={paymentMonthlyPrice > 0 ? paymentMonthlyPrice : "0.01"}
+                    min="0"
+                    value={paymentMonto}
+                    onChange={(e) => handlePaymentMontoChange(e.target.value)}
+                    className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+                    placeholder="0.00"
+                  />
+                </label>
+                <label className="text-xs font-medium text-cata-text/65">
+                  Método
+                  <select
+                    value={paymentTipoPago}
+                    onChange={(e) => setPaymentTipoPago(e.target.value as "EFECTIVO" | "TRANSFERENCIA")}
+                    className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+                  >
+                    <option value="TRANSFERENCIA">Transferencia</option>
+                    <option value="EFECTIVO">Efectivo</option>
+                  </select>
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2 rounded-lg border border-cata-border/50 bg-cata-surface/50 px-2.5 py-2">
+                <div className="text-xs">
+                  <span className="text-cata-text/45">Inicio: </span>
+                  <span className="font-medium text-cata-text">{paymentFechaInicio || "—"}</span>
+                </div>
+                <div className="text-xs">
+                  <span className="text-cata-text/45">Fin: </span>
+                  <span className="font-medium text-cata-text">{paymentFechaFin || "—"}</span>
+                </div>
+              </div>
+              {paymentMonthlyPrice > 0 && Number(paymentMonto) > 0 && (
+                <p className="text-[10px] text-cata-text/45">
+                  {Number(paymentMonto) / paymentMonthlyPrice} meses de vigencia (precio mensual: ${paymentMonthlyPrice})
+                </p>
+              )}
+              {paymentTipoPago === "TRANSFERENCIA" && (
+                <label className="block text-xs font-medium text-cata-text/65">
+                  Comprobante
+                  <div className="mt-0.5 flex items-center gap-2">
+                    <input
+                      ref={paymentFileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,application/pdf"
+                      onChange={(e) => setPaymentVoucherFile(e.target.files?.[0] ?? null)}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => paymentFileInputRef.current?.click()}
+                      className="flex items-center gap-1.5 rounded-lg border border-dashed border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text/65 transition-colors hover:border-cata-red/30 hover:text-cata-text"
+                    >
+                      <Upload size={12} strokeWidth={1.5} aria-hidden="true" />
+                      {paymentVoucherFile ? paymentVoucherFile.name : "Seleccionar archivo"}
+                    </button>
+                    {paymentVoucherFile && (
+                      <button
+                        type="button"
+                        onClick={() => setPaymentVoucherFile(null)}
+                        className="text-[10px] text-cata-text/45 hover:text-cata-red"
+                      >
+                        Quitar
+                      </button>
+                    )}
+                  </div>
+                </label>
+              )}
+              {paymentError && <p className="text-xs text-cata-red">{paymentError}</p>}
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => void handleSubmitPayment()}
+                  disabled={paymentLoading || !paymentMonto || !paymentFechaInicio || !paymentFechaFin}
+                  className="inline-flex items-center gap-1 rounded-lg bg-cata-red px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-cata-red/80 disabled:opacity-50"
+                >
+                  {paymentLoading ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                  Registrar pago
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowPaymentForm(false); setPaymentVoucherFile(null); }}
+                  className="rounded-lg border border-cata-border px-2.5 py-1 text-xs text-cata-text/65 transition-colors hover:bg-cata-surface"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleOpenPaymentForm}
+              className="inline-flex items-center gap-1 rounded-lg bg-cata-red/15 px-2.5 py-1 text-xs font-medium text-cata-red transition-colors hover:bg-cata-red/25"
+            >
+              <Plus size={11} strokeWidth={2} aria-hidden="true" />
+              Registrar pago
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Actions */}
       <div className="mt-3 flex flex-wrap gap-2 border-t border-cata-border pt-3">
