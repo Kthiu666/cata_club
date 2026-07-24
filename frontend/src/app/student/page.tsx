@@ -94,11 +94,29 @@ function MembershipCard({ membership }: { membership: MembershipSummary | null }
         <p className="text-xs leading-relaxed text-cata-text/55">
           Tu membresía fue creada pero espera la validación del primer pago.
         </p>
-        {membership.categoria && (
-          <p className="mt-1 text-xs text-cata-text/65">
-            Plan: {membership.categoria} {membership.franjaHoraria ? `(${membership.franjaHoraria})` : ""}
-            {membership.montoAplicado ? ` — $${membership.montoAplicado}` : ""}
-          </p>
+        {(membership.categoria || membership.franjaHoraria || membership.modalidad) && (
+          <div className="mt-2 space-y-1 rounded-lg bg-cata-bg/60 px-3 py-2">
+            {membership.categoria && (
+              <div className="flex items-center gap-2 text-xs text-cata-text/65">
+                <span className="font-medium text-cata-text/80">Categoría:</span> {membership.categoria}
+              </div>
+            )}
+            {membership.franjaHoraria && (
+              <div className="flex items-center gap-2 text-xs text-cata-text/65">
+                <span className="font-medium text-cata-text/80">Horario:</span> {membership.franjaHoraria}
+              </div>
+            )}
+            {membership.modalidad && (
+              <div className="flex items-center gap-2 text-xs text-cata-text/65">
+                <span className="font-medium text-cata-text/80">Modalidad:</span> {membership.modalidad === "PERSONALIZADA" ? "Personalizada" : "Mensual"}
+              </div>
+            )}
+            {membership.montoAplicado && (
+              <div className="flex items-center gap-2 text-xs text-cata-text/65">
+                <span className="font-medium text-cata-text/80">Monto:</span> ${membership.montoAplicado}
+              </div>
+            )}
+          </div>
         )}
       </section>
     );
@@ -120,11 +138,28 @@ function MembershipCard({ membership }: { membership: MembershipSummary | null }
           {membership.estado === "ACTIVA" ? "Activa" : "Vencida"}
         </span>
       </div>
-      {membership.categoria && (
-        <div className="space-y-0.5 text-xs text-cata-text/65">
-          <p>Plan: {membership.categoria} {membership.franjaHoraria ? `(${membership.franjaHoraria})` : ""}</p>
-          <p>Modalidad: {membership.modalidad === "PERSONALIZADA" ? "Personalizada" : "Mensual"}</p>
-          {membership.montoAplicado && <p>Monto: ${membership.montoAplicado}</p>}
+      {(membership.categoria || membership.franjaHoraria || membership.modalidad) && (
+        <div className="mt-2 space-y-1 rounded-lg bg-cata-bg/60 px-3 py-2">
+          {membership.categoria && (
+            <div className="flex items-center gap-2 text-xs text-cata-text/65">
+              <span className="font-medium text-cata-text/80">Categoría:</span> {membership.categoria}
+            </div>
+          )}
+          {membership.franjaHoraria && (
+            <div className="flex items-center gap-2 text-xs text-cata-text/65">
+              <span className="font-medium text-cata-text/80">Horario:</span> {membership.franjaHoraria}
+            </div>
+          )}
+          {membership.modalidad && (
+            <div className="flex items-center gap-2 text-xs text-cata-text/65">
+              <span className="font-medium text-cata-text/80">Modalidad:</span> {membership.modalidad === "PERSONALIZADA" ? "Personalizada" : "Mensual"}
+            </div>
+          )}
+          {membership.montoAplicado && (
+            <div className="flex items-center gap-2 text-xs text-cata-text/65">
+              <span className="font-medium text-cata-text/80">Monto:</span> ${membership.montoAplicado}
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -329,15 +364,17 @@ function ActivePortalView({
       )}
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <Link
-          href={representative ? "/student/add-dependent" : "/student/enroll?type=child"}
-          className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
-        >
-          <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
-          {representative ? "Agregar hijo/dependiente" : "Inscribir hijo/dependiente"}
-          <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
-        </Link>
-        {!hasAlumnoRole && (
+        {!selfIsMinor && (
+          <Link
+            href={representative ? "/student/add-dependent" : "/student/enroll?type=child"}
+            className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
+          >
+            <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
+            {representative ? "Agregar hijo/dependiente" : "Inscribir hijo/dependiente"}
+            <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+          </Link>
+        )}
+        {!hasAlumnoRole && !selfIsMinor && (
           <Link
             href="/student/enroll?type=self"
             className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
@@ -347,14 +384,16 @@ function ActivePortalView({
             <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
           </Link>
         )}
-        <Link
-          href="/student/payments"
-          className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
-        >
-          <CreditCard size={16} strokeWidth={1.5} aria-hidden="true" />
-          Ver pagos
-          <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
-        </Link>
+        {!selfIsMinor && (
+          <Link
+            href="/student/payments"
+            className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
+          >
+            <CreditCard size={16} strokeWidth={1.5} aria-hidden="true" />
+            Registrar pago / Renovar membresía
+            <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+          </Link>
+        )}
       </div>
 
       {selectedProfile === null ? (

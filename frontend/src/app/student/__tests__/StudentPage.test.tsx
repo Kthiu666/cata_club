@@ -69,7 +69,7 @@ const PORTAL: StudentPortalSummary = {
     personaId: "9",
     nombres: "Alumno",
     apellidos: "Test",
-    fechaNacimiento: "2010-05-14",
+    fechaNacimiento: "2000-05-14",
     ranking: { status: "unavailable", reason: "error" },
     recentSessions: [],
     membership: null,
@@ -106,7 +106,7 @@ describe("StudentPage — Pagos link", () => {
   it("links to the dedicated payments page", async () => {
     render(<StudentPage />);
 
-    const link = await screen.findByText("Ver pagos");
+    const link = await screen.findByText(/Registrar pago|Renovar membresía/);
     expect(link.closest("a")).toHaveAttribute("href", "/student/payments");
   });
 });
