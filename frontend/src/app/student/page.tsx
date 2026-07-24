@@ -6,8 +6,8 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ContextualHelp from "@/components/ContextualHelp";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchStudentPortal, fetchPagosDePersona, subirVoucherPago } from "@/services/api";
-import type { StudentPortalSummary, StudentProfileSummary, PagoPersona, MembershipSummary } from "@/services/api";
+import { fetchStudentPortal } from "@/services/api";
+import type { StudentPortalSummary, StudentProfileSummary, MembershipSummary } from "@/services/api";
 import { ATTENDANCE_LABELS, ATTENDANCE_BADGE_TOKENS } from "@/app/attendance/attendance-utils";
 import { derivePortalMode, isRepresentative, isMinor, describeRanking } from "./student-utils";
 import {
@@ -23,11 +23,6 @@ import {
   Trophy,
   RefreshCw,
   Clock,
-  CheckCircle2,
-  XCircle,
-  Upload,
-  Paperclip,
-  Loader2,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -198,201 +193,6 @@ function RecentSessionsSection({ profile }: { profile: StudentProfileSummary }):
     </section>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Pagos section — read-only payment history (`GET
-// /membresias/pagos/persona/:personaId`), any status, so a student can see
-// every payment on record including a rejected one with the admin's
-// `motivoRechazo`. Uploading a new comprobante / registering a payment is a
-// separate, bigger feature not built here (see `POST /membresias/pagos` and
-// `.../voucher`, both already exist backend-side but have no student-facing
-// UI yet).
-// ---------------------------------------------------------------------------
-
-const TIPO_PAGO_LABEL: Record<PagoPersona["tipoPago"], string> = {
-  EFECTIVO: "Efectivo",
-  TRANSFERENCIA: "Transferencia",
-};
-
-function PagoEstadoBadge({ estado }: { estado: PagoPersona["estadoPago"] }): React.ReactElement {
-  if (estado === "APROBADO") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-        <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" /> Aprobado
-      </span>
-    );
-  }
-  if (estado === "RECHAZADO") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-cata-red">
-        <XCircle size={10} strokeWidth={2} aria-hidden="true" /> Rechazado
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 text-xs font-medium text-amber-400">
-      <Clock size={10} strokeWidth={2} aria-hidden="true" /> Pendiente
-    </span>
-  );
-}
-
-type PagosState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; pagos: PagoPersona[] };
-
-function PagosSection({ personaId }: { personaId: string }): React.ReactElement {
-  const [state, setState] = useState<PagosState>({ status: "loading" });
-  const [reloadToken, setReloadToken] = useState(0);
-  const [uploadingId, setUploadingId] = useState<number | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [pendingUploadPagoId, setPendingUploadPagoId] = useState<number | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setState({ status: "loading" });
-    fetchPagosDePersona(personaId)
-      .then((pagos) => {
-        if (!cancelled) setState({ status: "ready", pagos });
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        setState({
-          status: "error",
-          message: error instanceof Error ? error.message : "No se pudo cargar el historial de pagos.",
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [personaId, reloadToken]);
-
-  function handleSelectFile(pagoId: number): void {
-    setPendingUploadPagoId(pagoId);
-    fileInputRef.current?.click();
-  }
-
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
-    const file = e.target.files?.[0];
-    if (!file || !pendingUploadPagoId) return;
-
-    setUploadingId(pendingUploadPagoId);
-    setUploadError(null);
-    try {
-      await subirVoucherPago(pendingUploadPagoId, file);
-      setReloadToken((n) => n + 1);
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "No se pudo subir el comprobante.");
-    } finally {
-      setUploadingId(null);
-      setPendingUploadPagoId(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  }
-
-  return (
-    <section className="mb-8">
-      <div className="mb-4 flex items-center gap-2">
-        <CreditCard size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-        <h2 className="text-lg font-bold text-cata-text">Pagos</h2>
-      </div>
-      <p className="mb-4 text-xs text-cata-text/65">
-        Historial de pagos registrados. Adjuntá el comprobante de transferencia para validar tu pago.
-      </p>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,application/pdf"
-        className="hidden"
-        onChange={(e) => { void handleFileChange(e); }}
-      />
-
-      {uploadError && (
-        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-cata-red" role="alert">
-          {uploadError}
-          <button type="button" onClick={() => setUploadError(null)} className="ml-2 underline">Cerrar</button>
-        </div>
-      )}
-
-      {state.status === "loading" && (
-        <div className="card p-6 text-center">
-          <p className="text-sm text-cata-text/50">Cargando historial de pagos...</p>
-        </div>
-      )}
-
-      {state.status === "error" && (
-        <ErrorCard message={state.message} onRetry={() => setReloadToken((n) => n + 1)} />
-      )}
-
-      {state.status === "ready" &&
-        (state.pagos.length === 0 ? (
-          <div className="card p-6 text-center">
-            <p className="text-sm text-cata-text/50">Todavía no hay pagos registrados.</p>
-          </div>
-        ) : (
-          <div className="grid gap-3">
-            {state.pagos.map((pago) => (
-              <div
-                key={pago.id}
-                className="card-hover flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
-                    <CreditCard size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-cata-text">
-                      ${pago.monto} · {pago.fechaInicio} – {pago.fechaFin}
-                    </p>
-                    <p className="text-xs text-cata-text/65">{TIPO_PAGO_LABEL[pago.tipoPago]}</p>
-                    {pago.voucherUrl && (
-                      <a
-                        href={pago.voucherUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-1 inline-flex items-center gap-1 text-xs text-cata-red hover:underline"
-                      >
-                        <Paperclip size={10} strokeWidth={1.5} />
-                        Ver comprobante
-                      </a>
-                    )}
-                    {pago.estadoPago === "RECHAZADO" && pago.motivoRechazo && (
-                      <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
-                        <p className="text-xs font-semibold text-cata-red">Motivo de rechazo</p>
-                        <p className="text-xs text-cata-red/80">{pago.motivoRechazo}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {!pago.voucherUrl && pago.estadoPago !== "APROBADO" && (
-                    <button
-                      type="button"
-                      onClick={() => handleSelectFile(pago.id)}
-                      disabled={uploadingId === pago.id}
-                      className="inline-flex items-center gap-1 rounded-lg border border-cata-border px-2.5 py-1.5 text-xs font-medium text-cata-text transition-colors hover:border-cata-red/30 hover:text-cata-red disabled:opacity-50"
-                    >
-                      {uploadingId === pago.id ? (
-                        <Loader2 size={12} className="animate-spin" />
-                      ) : (
-                        <Upload size={12} strokeWidth={1.5} />
-                      )}
-                      {uploadingId === pago.id ? "Subiendo..." : "Subir comprobante"}
-                    </button>
-                  )}
-                  <PagoEstadoBadge estado={pago.estadoPago} />
-                </div>
-              </div>
-            ))}
-          </div>
-        ))}
-    </section>
-  );
-}
-
-
 
 function MembershipPlansGrid({ data }: { data: StudentPortalSummary }): React.ReactElement {
   if (data.membershipPlans.length === 0) {
@@ -570,7 +370,6 @@ function ActivePortalView({
           </div>
 
           <RecentSessionsSection profile={selectedProfile} />
-          <PagosSection personaId={selectedProfile.personaId} />
         </>
       )}
     </>

@@ -846,7 +846,7 @@ function PaymentsPageContent(): React.ReactElement {
   }, [personaId, reloadToken]);
 
   return (
-    <AppShell eyebrow="Área de Estudiantes" title="Pagos">
+    <AppShell eyebrow="Área de Estudiantes" title="Mis pagos">
       {state.status === "loading" && <LoadingCard />}
       {state.status === "error" && (
         <ErrorCard
