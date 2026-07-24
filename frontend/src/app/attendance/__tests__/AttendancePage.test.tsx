@@ -60,6 +60,7 @@ function buildRecords(count: number): AttendanceRecord[] {
     id: `att-${i + 1}`,
     fecha: "2026-07-01",
     horario: "Lunes 15:00",
+    personaId: i + 1,
     estudiante: `Estudiante ${i + 1}`,
     estado: "present" as const,
     entrenador: "Coach Martinez",
@@ -99,7 +100,7 @@ describe("AttendancePage — Horarios section removed, Tomar asistencia added (P
 describe("AttendancePage — visible records pagination (PR8b)", () => {
   beforeEach(() => {
     mockFetchTrainingSchedules.mockReset().mockResolvedValue(SCHEDULES);
-    mockFetchAttendanceRecords.mockReset().mockResolvedValue(buildRecords(30));
+    mockFetchAttendanceRecords.mockReset().mockResolvedValue(buildRecords(15));
   });
 
   it("shows labeled Anterior/Siguiente controls (visible text, not icon-only) and a prominent page count", async () => {

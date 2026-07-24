@@ -61,6 +61,7 @@ describe("buildAttendanceStats", () => {
         id: "a1",
         fecha: "2026-07-01",
         horario: "Test",
+        personaId: 1,
         estudiante: "Student A",
         estado: "present",
         entrenador: "Trainer X",
@@ -69,6 +70,7 @@ describe("buildAttendanceStats", () => {
         id: "a2",
         fecha: "2026-07-01",
         horario: "Test",
+        personaId: 2,
         estudiante: "Student B",
         estado: "present",
         entrenador: "Trainer X",
@@ -82,10 +84,10 @@ describe("buildAttendanceStats", () => {
 
   it("handles mixed states correctly", () => {
     const records: AttendanceRecord[] = [
-      { id: "a1", fecha: "2026-07-01", horario: "T1", estudiante: "S1", estado: "present", entrenador: "T" },
-      { id: "a2", fecha: "2026-07-01", horario: "T1", estudiante: "S2", estado: "absent", entrenador: "T" },
-      { id: "a3", fecha: "2026-07-01", horario: "T1", estudiante: "S3", estado: "late", entrenador: "T" },
-      { id: "a4", fecha: "2026-07-01", horario: "T1", estudiante: "S4", estado: "justified", entrenador: "T" },
+      { id: "a1", fecha: "2026-07-01", horario: "T1", personaId: 1, estudiante: "S1", estado: "present", entrenador: "T" },
+      { id: "a2", fecha: "2026-07-01", horario: "T1", personaId: 2, estudiante: "S2", estado: "absent", entrenador: "T" },
+      { id: "a3", fecha: "2026-07-01", horario: "T1", personaId: 3, estudiante: "S3", estado: "late", entrenador: "T" },
+      { id: "a4", fecha: "2026-07-01", horario: "T1", personaId: 4, estudiante: "S4", estado: "justified", entrenador: "T" },
     ];
     const stats = buildAttendanceStats(records);
     expect(stats.totalPresent).toBe(1);
@@ -98,9 +100,9 @@ describe("buildAttendanceStats", () => {
 
   it("counts unknown estados separately — defensive against bad runtime data", () => {
     const records: AttendanceRecord[] = [
-      { id: "u1", fecha: "2026-07-01", horario: "T1", estudiante: "S1", estado: "present" as EstadoAsistencia, entrenador: "T" },
-      { id: "u2", fecha: "2026-07-01", horario: "T1", estudiante: "S2", estado: "unknown_value" as EstadoAsistencia, entrenador: "T" },
-      { id: "u3", fecha: "2026-07-01", horario: "T1", estudiante: "S3", estado: "" as EstadoAsistencia, entrenador: "T" },
+      { id: "u1", fecha: "2026-07-01", horario: "T1", personaId: 1, estudiante: "S1", estado: "present" as EstadoAsistencia, entrenador: "T" },
+      { id: "u2", fecha: "2026-07-01", horario: "T1", personaId: 2, estudiante: "S2", estado: "unknown_value" as EstadoAsistencia, entrenador: "T" },
+      { id: "u3", fecha: "2026-07-01", horario: "T1", personaId: 3, estudiante: "S3", estado: "" as EstadoAsistencia, entrenador: "T" },
     ];
     const stats = buildAttendanceStats(records);
     expect(stats.totalPresent).toBe(1);
@@ -468,6 +470,7 @@ function buildRecords(count: number): AttendanceRecord[] {
     id: `rec-${i}`,
     fecha: "2026-07-01",
     horario: "Test",
+    personaId: i,
     estudiante: `Student ${i}`,
     estado: "present" as EstadoAsistencia,
     entrenador: "Trainer X",
@@ -476,15 +479,15 @@ function buildRecords(count: number): AttendanceRecord[] {
 
 describe("paginateRecords", () => {
   it("slices records to ATTENDANCE_PAGE_SIZE for page 1, and the remainder for a later page", () => {
-    expect(ATTENDANCE_PAGE_SIZE).toBe(25);
-    const records = buildRecords(60);
+    expect(ATTENDANCE_PAGE_SIZE).toBe(10);
+    const records = buildRecords(25);
     const page1 = paginateRecords(records, 1);
-    expect(page1).toHaveLength(25);
+    expect(page1).toHaveLength(10);
     expect(page1[0].id).toBe("rec-0");
-    expect(page1[24].id).toBe("rec-24");
+    expect(page1[9].id).toBe("rec-9");
     const page3 = paginateRecords(records, 3);
-    expect(page3).toHaveLength(10);
-    expect(page3[0].id).toBe("rec-50");
+    expect(page3).toHaveLength(5);
+    expect(page3[0].id).toBe("rec-20");
   });
 
   it("returns an empty array for a page beyond the data", () => {
@@ -501,9 +504,9 @@ describe("paginateRecords", () => {
 
 describe("getTotalPages", () => {
   it("rounds up to a whole page count, floored at 1 (never 0 pages)", () => {
-    expect(getTotalPages(288)).toBe(12);
-    expect(getTotalPages(26)).toBe(2);
-    expect(getTotalPages(25)).toBe(1);
+    expect(getTotalPages(288)).toBe(29);
+    expect(getTotalPages(11)).toBe(2);
+    expect(getTotalPages(10)).toBe(1);
     expect(getTotalPages(0)).toBe(1);
   });
 });

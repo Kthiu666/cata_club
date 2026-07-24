@@ -72,6 +72,49 @@ def test_representante_reflexivo(client):
     assert hijo["id"] in ids
 
 
+# --- GET /personas/{persona_id}/representados: ownership (issue #122 IDOR) --
+# Antes solo exigía un JWT válido, sin comparar `persona_id` contra el token
+# — cualquier autenticado podía enumerar cédula/teléfono/fecha_nacimiento/
+# foto_url de los dependientes de OTRO representante. Mismo patrón de
+# ownership que el POST hermano (`crear_representado`), con la excepción de
+# que ADMINISTRADOR/ENTRENADOR sí necesitan consultar representados de
+# cualquier persona (uso legítimo en el panel admin).
+
+def test_listar_representados_propio_da_200(client, db_session):
+    representante = _crear_persona_representante(db_session, cedula="1710034065")
+    _restaurar_override_token(persona_id=representante.id, roles=["REPRESENTANTE"])
+
+    resp = client.get(f"/api/v1/personas/{representante.id}/representados")
+    assert resp.status_code == 200
+
+
+def test_listar_representados_de_otra_persona_da_403_sin_filtrar_existencia(client, db_session):
+    representante = _crear_persona_representante(db_session, cedula="1710034065")
+    otro_representante = _crear_persona_representante(db_session, cedula="1710034073")
+    _restaurar_override_token(persona_id=representante.id, roles=["REPRESENTANTE"])
+
+    resp = client.get(f"/api/v1/personas/{otro_representante.id}/representados")
+    assert resp.status_code == 403
+    detalle = resp.json()["detail"].lower()
+    assert "no encontrad" not in detalle
+
+
+def test_listar_representados_administrador_puede_consultar_cualquier_persona(client, db_session):
+    representante = _crear_persona_representante(db_session, cedula="1710034065")
+    _restaurar_override_token(persona_id=999, roles=["ADMINISTRADOR"])
+
+    resp = client.get(f"/api/v1/personas/{representante.id}/representados")
+    assert resp.status_code == 200
+
+
+def test_listar_representados_entrenador_puede_consultar_cualquier_persona(client, db_session):
+    representante = _crear_persona_representante(db_session, cedula="1710034065")
+    _restaurar_override_token(persona_id=999, roles=["ENTRENADOR"])
+
+    resp = client.get(f"/api/v1/personas/{representante.id}/representados")
+    assert resp.status_code == 200
+
+
 def test_actualizar_y_eliminar_persona(client):
     persona = client.post("/api/v1/personas/", json=_payload_persona()).json()
 

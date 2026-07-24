@@ -29,10 +29,6 @@ class PersonaCreateDTO(BaseModel):
     representante_id: Optional[int] = None
     direccion_id: Optional[int] = None
     institucion_id: Optional[int] = None
-    # E01-RF009 / E01-RF011: permiten asignar etiquetas directamente en el alta.
-    prioridad_municipal: Optional[bool] = False
-    porcentaje_beca: Optional[int] = Field(default=0, ge=0, le=100)
-    motivo_beca: Optional[str] = Field(default=None, max_length=150)
 
 
 # --- Representado (portal autoservicio) -------------------------------------
@@ -40,8 +36,7 @@ class RepresentadoCreateDTO(BaseModel):
     """Payload minimal para que un representante autenticado agregue un
     dependiente desde el portal (POST /personas/{persona_id}/representados).
     Deliberadamente NO expone campos solo-admin de `PersonaCreateDTO`
-    (`representante_id`, `direccion_id`, `institucion_id`,
-    `prioridad_municipal`, `porcentaje_beca`, `motivo_beca`): el
+    (`representante_id`, `direccion_id`, `institucion_id`): el
     `representante_id` lo fuerza el servicio desde el token, nunca el cliente."""
     nombres: str = Field(..., max_length=100)
     apellidos: str = Field(..., max_length=100)
@@ -59,9 +54,6 @@ class PersonaUpdateDTO(BaseModel):
     foto_url: Optional[str] = None
     direccion_id: Optional[int] = None
     institucion_id: Optional[int] = None
-    prioridad_municipal: Optional[bool] = None
-    porcentaje_beca: Optional[int] = Field(default=None, ge=0, le=100)
-    motivo_beca: Optional[str] = Field(default=None, max_length=150)
 
 
 class PersonaResponseDTO(ResponseBase, BaseModel):
@@ -74,9 +66,6 @@ class PersonaResponseDTO(ResponseBase, BaseModel):
     telefono: str = Field(..., examples=["0991234567"])
     telefono_contacto: Optional[str] = Field(default=None, examples=["0998765432"])
     representante_id: Optional[int] = Field(default=None, examples=[None])
-    prioridad_municipal: bool = Field(default=False, examples=[False])
-    porcentaje_beca: int = Field(default=0, examples=[0])
-    motivo_beca: Optional[str] = Field(default=None, examples=[None])
     fecha_registro: Optional[datetime] = Field(default=None, examples=["2024-01-15T10:30:00Z"])
 
 

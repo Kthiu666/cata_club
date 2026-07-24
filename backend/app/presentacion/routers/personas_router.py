@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 from typing import List, Optional
 from datetime import date, datetime, time, timezone
 
 from app.infraestructura.db import obtener_sesion
+from app.infraestructura.generador_pdf import construir_respuesta_pdf, generar_reporte_pdf
 from app.presentacion.schemas.persona_schemas import (
     PersonaCreateDTO, PersonaResponseDTO, PersonaUpdateDTO,
     PersonaBusquedaDTO, RepresentadoCreateDTO,
@@ -21,6 +23,25 @@ from app.dominio.excepciones import PermisosInsuficientes
 from pydantic import BaseModel
 from app.presentacion.schemas.base import ResponseBase
 
+_COLUMNAS_PERSONAS_PDF = [
+    "Nombres", "Apellidos", "Cédula", "Teléfono", "Fecha de Registro",
+]
+
+
+def _personas_a_filas(personas) -> list[list[str]]:
+    """Convierte una lista de `Persona` (ORM) en filas de texto para el PDF
+    de reporte, en el mismo orden que `_COLUMNAS_PERSONAS_PDF`."""
+    filas: list[list[str]] = []
+    for p in personas:
+        filas.append([
+            p.nombres,
+            p.apellidos,
+            p.cedula,
+            p.telefono,
+            p.fecha_registro.strftime("%d/%m/%Y") if p.fecha_registro else "-",
+        ])
+    return filas
+
 router = APIRouter(prefix="/personas", tags=["Personas"])
 
 
@@ -32,39 +53,26 @@ async def registrar_persona(persona_in: PersonaCreateDTO, db: Session = Depends(
     return PersonaServicio(db).registrar_persona(persona_in)
 
 
-# --- GETs: requieren token válido (no rol específico) para no exponer
-# datos sensibles (cédula, teléfono, fecha de nacimiento) a cualquier cliente
-# sin autenticar. Lo protegemos en el router, no sólo en el servicio.
+# --- ADMINISTRADOR-only: PersonaResponseDTO expone cédula, teléfono y
+# fecha de nacimiento — PII real. Antes solo exigía un token válido (no un
+# rol específico), lo que dejaba pedir el roster completo del club a
+# cualquier sesión autenticada (alumno, entrenador, representante), no solo
+# a admins. Único consumidor real es la página admin de Miembros.
 @router.get(
     "/",
     response_model=PaginatedResponse[PersonaResponseDTO],
-    dependencies=[Depends(GestorAutenticacion.decodificar_token)],
+    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
 )
 def listar_personas(skip: int = 0, limit: int = 50, db: Session = Depends(obtener_sesion)):
     items, total = PersonaServicio(db).listar_personas(skip, limit)
     return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
-# --- Reportes (E01-RF010 / E04-RF014) ---------------------------------------
-# IMPORTANTE: deben declararse ANTES de `GET /{persona_id}` (más abajo), por
+# --- Reportes (E04-RF014) ----------------------------------------------------
+# IMPORTANTE: debe declararse ANTES de `GET /{persona_id}` (más abajo), por
 # la misma razón documentada en membresias_pagos_router.py: `/{persona_id}`
-# es un patrón de un solo segmento que capturaría "GET /personas/reportes"
+# es un patrón de un solo segmento que capturaría "GET /personas/reportes/..."
 # interpretando "reportes" como persona_id.
-@router.get(
-    "/reportes",
-    response_model=List[PersonaResponseDTO],
-    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
-)
-async def reporte_por_etiquetas(
-    prioridad_municipal: Optional[bool] = Query(default=None),
-    becado: Optional[bool] = Query(default=None),
-    db: Session = Depends(obtener_sesion),
-):
-    return PersonaServicio(db).reporte_por_etiquetas(
-        prioridad_municipal=prioridad_municipal, becado=becado
-    )
-
-
 @router.get(
     "/reportes/nuevos-por-periodo",
     response_model=List[PersonaResponseDTO],
@@ -83,6 +91,41 @@ async def reporte_nuevos_por_periodo(
     inicio = datetime.combine(fecha_inicio, time.min, tzinfo=timezone.utc)
     fin = datetime.combine(fecha_fin, time.max, tzinfo=timezone.utc)
     return PersonaServicio(db).reporte_nuevos_por_periodo(inicio, fin)
+
+
+# --- Exportación a PDF del reporte de arriba --------------------------------
+# Reejecuta exactamente la misma llamada de servicio que su hermano JSON
+# (nunca confía en filas enviadas por el cliente) y devuelve bytes de PDF
+# generados en memoria vía `generar_reporte_pdf`.
+# IMPORTANTE: `generar_reporte_pdf` es CPU-bound (renderizado ReportLab
+# síncrono). Se ejecuta vía `run_in_threadpool` para no bloquear el event loop
+# de asyncio (un solo worker uvicorn) — mismo motivo por el que
+# `generar_comprobante_pago_pdf` corre en una tarea de Celery, no inline.
+@router.get(
+    "/reportes/nuevos-por-periodo/pdf",
+    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
+)
+async def reporte_nuevos_por_periodo_pdf(
+    fecha_inicio: date = Query(...),
+    fecha_fin: date = Query(...),
+    db: Session = Depends(obtener_sesion),
+):
+    if fecha_inicio >= fecha_fin:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="La fecha de inicio debe ser anterior a la fecha de fin.",
+        )
+    inicio = datetime.combine(fecha_inicio, time.min, tzinfo=timezone.utc)
+    fin = datetime.combine(fecha_fin, time.max, tzinfo=timezone.utc)
+    personas = PersonaServicio(db).reporte_nuevos_por_periodo(inicio, fin)
+    pdf_bytes = await run_in_threadpool(
+        generar_reporte_pdf,
+        titulo="Reporte de Nuevos Miembros por Período",
+        columnas=_COLUMNAS_PERSONAS_PDF,
+        filas=_personas_a_filas(personas),
+    )
+    fecha_iso = date.today().isoformat()
+    return construir_respuesta_pdf(pdf_bytes, f"reporte-periodo_{fecha_iso}.pdf")
 
 
 # --- Selector de entrenador (dropdown al crear/editar un Horario) -----------
@@ -129,12 +172,27 @@ async def obtener_persona(persona_id: int, db: Session = Depends(obtener_sesion)
     return PersonaServicio(db).obtener_persona(persona_id)
 
 
+
+# --- GET /{persona_id}/representados: mismo chequeo de ownership que el POST
+# hermano `crear_representado` (línea ~153) — la identidad de quien consulta
+# se toma de `token_payload["persona_id"]`, nunca de la URL sola. ADMINISTRADOR
+# y ENTRENADOR quedan exceptuados porque legítimamente necesitan consultar
+# representados de cualquier persona (panel admin).
 @router.get(
     "/{persona_id}/representados",
     response_model=List[PersonaResponseDTO],
     dependencies=[Depends(GestorAutenticacion.decodificar_token)],
 )
-async def listar_representados(persona_id: int, db: Session = Depends(obtener_sesion)):
+async def listar_representados(
+    persona_id: int,
+    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
+    db: Session = Depends(obtener_sesion),
+):
+    roles_usuario = token_payload.get("roles", [])
+    es_propietario = persona_id == token_payload.get("persona_id")
+    tiene_rol_administrativo = any(rol in ("ADMINISTRADOR", "ENTRENADOR") for rol in roles_usuario)
+    if not es_propietario and not tiene_rol_administrativo:
+        raise PermisosInsuficientes("Permisos insuficientes para esta operación")
     return PersonaServicio(db).listar_representados(persona_id)
 
 
@@ -223,6 +281,20 @@ class RolesResponseDTO(ResponseBase, BaseModel):
 
 class EstadoCuentaDTO(BaseModel):
     activo: bool
+
+
+@router.get(
+    "/{persona_id}/roles", response_model=RolesResponseDTO,
+    dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
+)
+async def obtener_roles(persona_id: int, db: Session = Depends(obtener_sesion)):
+    """Lectura pura (no muta nada) del estado actual de roles/activo de una
+    persona. Existe para que el frontend pueda pre-cargar el estado real
+    antes de abrir el modal de edición de roles, en vez de asumir "sin
+    roles" / "activo" por defecto (bug: los checkboxes de rol arrancaban
+    todos destildados sin importar el estado real)."""
+    usuario = RolServicio(db).obtener_roles(persona_id)
+    return RolesResponseDTO(persona_id=persona_id, roles=[r.tipo_rol.value for r in usuario.roles], activo=usuario.activo)
 
 
 @router.post(

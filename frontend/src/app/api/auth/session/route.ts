@@ -28,7 +28,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const refreshCookie = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
 
   if (!accessCookie && !refreshCookie) {
-    return NextResponse.json({ authenticated: false }, { status: 401 });
+    // No cookies at all is the expected state for an anonymous visitor on a
+    // public page (landing, login, register) — every one of those calls this
+    // route on mount. Reporting it as a 401 error floods the console on every
+    // public-page load; there's no invalid/expired token here to complain
+    // about, so this is a normal 200 result, not an error.
+    return NextResponse.json({ authenticated: false }, { status: 200 });
   }
 
   let activeAccessToken = accessCookie;

@@ -68,7 +68,6 @@ export interface StudentProfileView {
   nombres: string;
   apellidos: string;
   fechaNacimiento: string;
-  representanteId: number | null;
   ranking: StudentRankingView;
   recentSessions: StudentSessionView[];
   membership: MembershipView | null;
@@ -116,17 +115,11 @@ export interface MembershipView {
   categoria: string | null;
   modalidad: string | null;
   franjaHoraria: string | null;
-  /** End of the last approved payment period — derived from the most
-   *  recent Pago.fecha_fin. Surfaced so the student can see when their
-   *  membership expires and proactively renew (`estado` alone lies when
-   *  no transition to VENCIDA has run yet). */
-  fechaFin: string | null;
 }
 
 export function buildMembershipView(
   mem: BackendMembresiaPropia,
   tiposById: Map<number, BackendTipoMembresiaCatalogo>,
-  fechaFin: string | null = null,
 ): MembershipView {
   const tipo = mem.tipoMembresiaId != null ? tiposById.get(mem.tipoMembresiaId) : undefined;
   return {
@@ -137,7 +130,6 @@ export function buildMembershipView(
     categoria: tipo?.categoria ?? null,
     modalidad: tipo?.modalidad ?? null,
     franjaHoraria: tipo?.franjaHoraria ?? null,
-    fechaFin,
   };
 }
 
@@ -155,7 +147,6 @@ export interface StudentPortalView {
   self: StudentProfileView | null;
   representados: StudentProfileView[];
   membershipPlans: MembershipPlanView[];
-  representanteNombre: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +184,6 @@ export function buildStudentProfileView(
     nombres: persona.nombres,
     apellidos: persona.apellidos,
     fechaNacimiento: persona.fechaNacimiento,
-    representanteId: persona.representanteId ?? null,
     ranking,
     recentSessions,
     membership,

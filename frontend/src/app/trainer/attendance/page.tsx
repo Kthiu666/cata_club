@@ -59,6 +59,7 @@ import type { DiaSemana } from "@/types/domain";
 import {
   fetchTrainingSchedules,
   fetchAlumnosPorHorario,
+  fetchAttendanceRecords,
   registerAttendance,
   type RegisterAttendanceResult,
 } from "@/services/api";
@@ -141,6 +142,10 @@ export default function TrainerAttendancePage(): React.ReactElement {
     if (submitError) showError(submitError);
   }, [submitError, showError]);
 
+  useEffect(() => {
+    if (rosterError) showError(rosterError);
+  }, [rosterError, showError]);
+
   // Reset student page when search filter changes.
   useEffect(() => {
     setStudentPage(1);
@@ -177,8 +182,30 @@ export default function TrainerAttendancePage(): React.ReactElement {
     setRosterLoading(true);
     setRosterError(null);
     try {
-      const alumnoHorarios = await fetchAlumnosPorHorario(selectedScheduleId);
-      setStudents(buildRosterFromAlumnoHorarios(alumnoHorarios));
+      // The wizard always registers attendance for "today" (the backend
+      // defaults fechaEntrenamiento to today's server date when omitted —
+      // see RegisterAttendanceRequest.fechaEntrenamiento). Re-opening the
+      // wizard for a session that already has today's attendance recorded
+      // must show those existing marks, not silently default everyone back
+      // to "absent" — otherwise resubmitting flips already-present students
+      // to absent (see backend upsert in registrar_asistencia, which now
+      // updates on this same persona+horario+fecha match instead of
+      // inserting a duplicate row).
+      const today = new Date().toISOString().slice(0, 10);
+      // The prefill fetch is a convenience, not a requirement: if it fails,
+      // fall back to an empty list rather than failing the whole roster load
+      // (buildRosterFromAlumnoHorarios already defaults to "absent" when a
+      // student has no matching existing record).
+      const [alumnoHorarios, existingRecords] = await Promise.all([
+        fetchAlumnosPorHorario(selectedScheduleId),
+        fetchAttendanceRecords({ fechaInicio: today, fechaFin: today, horarioId: selectedScheduleId }).catch(
+          (err: unknown) => {
+            console.error("[trainer/attendance] fetchAttendanceRecords prefill failed", err);
+            return [];
+          },
+        ),
+      ]);
+      setStudents(buildRosterFromAlumnoHorarios(alumnoHorarios, existingRecords));
       setStudentPage(1);
       setStep("mark-attendance");
     } catch (err) {

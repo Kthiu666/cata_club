@@ -58,8 +58,6 @@ const personaResponse = {
   fechaNacimiento: "2015-06-15",
   telefono: "0991234567",
   representanteId: 5,
-  prioridadMunicipal: false,
-  porcentajeBeca: 0,
 };
 
 beforeEach(() => {

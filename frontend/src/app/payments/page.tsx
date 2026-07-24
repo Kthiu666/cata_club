@@ -14,11 +14,12 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import BackLink from "@/components/BackLink";
 import {
   ShieldCheck,
   Clock,
@@ -40,6 +41,8 @@ import {
   Paperclip,
   Building2,
   Hash,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import type {
   PaymentValidationRequest,
@@ -49,6 +52,7 @@ import type {
 import { fetchPaymentValidations, updatePaymentValidation } from "@/services/api";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format-utils";
 import { useToast } from "@/contexts/ToastContext";
+import { paginatePaymentRequests, getTotalPages } from "@/app/payments/payments-utils";
 
 type FilterKey = "all" | "pendiente" | "validado" | "rechazado";
 
@@ -78,7 +82,7 @@ const validationStatusStyles: Record<ValidationStatus, string> = {
 };
 
 export default function PaymentsPage(): React.ReactElement {
-  const { showError } = useToast();
+  const { showSuccess, showError } = useToast();
   const [requests, setRequests] = useState<PaymentValidationRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +96,7 @@ export default function PaymentsPage(): React.ReactElement {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [confirmApproveOpen, setConfirmApproveOpen] = useState(false);
   const [previewUnavailable, setPreviewUnavailable] = useState(false);
+  const [page, setPage] = useState(1);
   const [editStartDate, setEditStartDate] = useState("");
   const [editMonths, setEditMonths] = useState<number>(1);
   const [voucherModalOpen, setVoucherModalOpen] = useState(false);
@@ -129,6 +134,18 @@ export default function PaymentsPage(): React.ReactElement {
     activeFilter === "all"
       ? requests
       : requests.filter((r) => r.validationStatus === activeFilter);
+
+  // Reset to page 1 whenever the filter changes, so the paginator never
+  // gets stuck on a stale/out-of-range page.
+  useEffect(() => {
+    setPage(1);
+  }, [activeFilter]);
+
+  const totalPages = useMemo(() => getTotalPages(filtered.length), [filtered]);
+  const paginatedRequests = useMemo(
+    () => paginatePaymentRequests(filtered, page),
+    [filtered, page],
+  );
 
   const counts = {
     total: requests.length,
@@ -181,6 +198,7 @@ export default function PaymentsPage(): React.ReactElement {
       );
       setSelectedRequest(updated);
       setSuccessMessage("Pago aprobado. La membresía ahora está activa.");
+      showSuccess("Pago aprobado. La membresía ahora está activa.");
     } catch (err) {
       console.error("[payments] approve failed", err);
       setActionError(
@@ -227,6 +245,7 @@ export default function PaymentsPage(): React.ReactElement {
       setSelectedRequest(updated);
       setShowRejectForm(false);
       setSuccessMessage("Pago rechazado. El estado de la membresía se mantiene sin cambios.");
+      showSuccess("Pago rechazado. El estado de la membresía se mantiene sin cambios.");
     } catch (err) {
       console.error("[payments] reject failed", err);
       setActionError(
@@ -243,6 +262,8 @@ export default function PaymentsPage(): React.ReactElement {
         eyebrow="Validación de Pagos"
         title="Membresías y Pagos"
       >
+        {!selectedRequest && <BackLink href="/dashboard" label="Volver al Panel" />}
+
         {/* Stats cards */}
         <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <div className="card-hover flex items-center gap-3 p-4 sm:p-5">
@@ -365,7 +386,7 @@ export default function PaymentsPage(): React.ReactElement {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-cata-border">
-                      {filtered.map((req) => (
+                      {paginatedRequests.map((req) => (
                         <tr
                           key={req.id}
                           onClick={() => handleSelect(req)}
@@ -413,6 +434,34 @@ export default function PaymentsPage(): React.ReactElement {
                     </tbody>
                   </table>
                 </div>
+
+                {totalPages > 1 && (
+                  <div className="flex flex-col items-center justify-between gap-3 border-t border-cata-border px-4 py-3 sm:flex-row">
+                    <p className="text-sm font-semibold text-cata-text">
+                      Página {page} de {totalPages}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={page <= 1}
+                        className="btn-secondary px-4 py-2 text-xs"
+                      >
+                        <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+                        Anterior
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={page >= totalPages}
+                        className="btn-secondary px-4 py-2 text-xs"
+                      >
+                        Siguiente
+                        <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -624,22 +673,28 @@ export default function PaymentsPage(): React.ReactElement {
                         </button>
                       </div>
                     ) : (
-                      <div className="mb-3 flex items-center justify-center">
-                        <div
-                          className={`flex h-16 w-16 items-center justify-center rounded-full ${
-                            selectedRequest.proofFileType === "pdf"
-                              ? "bg-cata-red/15"
-                              : "bg-cata-border/40"
-                          }`}
-                        >
-                          <FileText
-                            size={28}
-                            strokeWidth={1.5}
-                            className={selectedRequest.proofFileType === "pdf" ? "text-cata-red" : "text-cata-text/65"}
-                            aria-hidden="true"
-                          />
+                      <>
+                        <div className="mb-3 flex items-center justify-center">
+                          <div
+                            className={`flex h-16 w-16 items-center justify-center rounded-full ${
+                              selectedRequest.proofFileType === "pdf"
+                                ? "bg-cata-red/15"
+                                : "bg-cata-border/40"
+                            }`}
+                          >
+                            <FileText
+                              size={28}
+                              strokeWidth={1.5}
+                              className={selectedRequest.proofFileType === "pdf" ? "text-cata-red" : "text-cata-text/65"}
+                              aria-hidden="true"
+                            />
+                          </div>
                         </div>
-                      </div>
+                        <p className="mt-4 text-xs text-cata-text/40">
+                          <Eye size={12} strokeWidth={1.5} className="inline-block -mt-0.5 mr-1" aria-hidden="true" />
+                          Vista previa no disponible para este tipo de comprobante.
+                        </p>
+                      </>
                     )}
 
                     <div className="flex items-center justify-center gap-2">
@@ -651,7 +706,6 @@ export default function PaymentsPage(): React.ReactElement {
                     <p className="mt-1 text-xs text-cata-text/65">
                       {selectedRequest.proofFileType === "pdf" ? "Documento PDF" : "Archivo de imagen"}
                     </p>
-
                     {!selectedRequest.proofPreviewUrl && (
                       <p className="mt-4 text-xs text-cata-text/40">
                         <Eye size={12} strokeWidth={1.5} className="inline-block -mt-0.5 mr-1" aria-hidden="true" />

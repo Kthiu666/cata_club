@@ -1,8 +1,8 @@
 """
 Tests de los gaps reales identificados en E01/E04 frente al backend
-existente: asignación de roles, recuperación de contraseña, beca/gratuidad
-familiar, prioridad municipal, antecedentes de club (mano dominante),
-estado de cuenta, y solo-lectura financiera para menores.
+existente: asignación de roles, recuperación de contraseña, antecedentes
+de club (mano dominante), estado de cuenta, y solo-lectura financiera
+para menores.
 """
 import pytest
 from app.seguridad.gestor_auth import GestorAutenticacion
@@ -51,6 +51,36 @@ def test_asignar_y_quitar_rol(client):
     resp = client.delete(f"/api/v1/personas/{persona['id']}/roles/ENTRENADOR")
     assert resp.status_code == 200
     assert resp.json()["roles"] == []
+
+
+def test_obtener_roles_requiere_admin(client_sin_permisos):
+    resp = client_sin_permisos.get("/api/v1/personas/1/roles")
+    assert resp.status_code == 403
+
+
+def test_obtener_roles_refleja_estado_actual_sin_mutar(client):
+    persona = _crear_persona(client, "1740000004")
+    _registrar_credenciales(client, persona["cedula"], "u_roles@x.com")
+
+    # Sin roles asignados todavía: el GET debe reflejar eso, no un 404 ni un error.
+    resp = client.get(f"/api/v1/personas/{persona['id']}/roles")
+    assert resp.status_code == 200
+    assert resp.json()["roles"] == []
+    assert resp.json()["activo"] is True
+
+    client.post(f"/api/v1/personas/{persona['id']}/roles", json={"tipo_rol": "ENTRENADOR"})
+    client.post(f"/api/v1/personas/{persona['id']}/roles", json={"tipo_rol": "ALUMNO"})
+    client.patch(f"/api/v1/personas/{persona['id']}/cuenta/estado", json={"activo": False})
+
+    resp = client.get(f"/api/v1/personas/{persona['id']}/roles")
+    assert resp.status_code == 200
+    assert sorted(resp.json()["roles"]) == ["ALUMNO", "ENTRENADOR"]
+    assert resp.json()["activo"] is False
+
+    # Confirma que el GET no mutó nada: una segunda lectura da lo mismo.
+    resp = client.get(f"/api/v1/personas/{persona['id']}/roles")
+    assert sorted(resp.json()["roles"]) == ["ALUMNO", "ENTRENADOR"]
+    assert resp.json()["activo"] is False
 
 
 def test_login_real_funciona_tras_asignar_rol(client):
@@ -168,52 +198,6 @@ def test_restablecer_contrasenia_token_no_se_puede_reusar(client):
         json={"token": token, "nueva_contrasenia": "terceraclave123"},
     )
     assert resp.status_code == 401
-
-
-# --- Beca / Descuento (E01-RF011) --------------------------------------------
-def test_beca_reduce_automaticamente_el_monto_al_aprobar_pago(client):
-    persona = _crear_persona(client, "1777777777")
-    client.patch(f"/api/v1/personas/{persona['id']}", json={"porcentaje_beca": 50, "motivo_beca": "Deportista"})
-
-    tipo = client.post(
-        "/api/v1/membresias/tipos",
-        json={"categoria": "adulto", "franja_horaria": "mañana", "modalidad": "MENSUAL", "precio": "40.00"},
-    ).json()
-    membresia = client.post(
-        "/api/v1/membresias/",
-        json={"monto_aplicado": "40.00", "persona_id": persona["id"], "tipo_membresia_id": tipo["id"]},
-    ).json()
-    pago = client.post(
-        "/api/v1/membresias/pagos",
-        json={
-            "monto": "40.00", "tipo_pago": "EFECTIVO",
-            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
-            "persona_id": persona["id"], "membresia_id": membresia["id"],
-        },
-    ).json()
-    resp = client.patch(f"/api/v1/membresias/pagos/{pago['id']}/validar", json={"estado_pago": "APROBADO"})
-    assert resp.status_code == 200
-
-    membresia_actualizada = client.get(f"/api/v1/membresias/{membresia['id']}").json()
-    assert membresia_actualizada["montoAplicado"] == "20.00"
-
-
-# --- Prioridad municipal + reportes (E01-RF009/RF010) -----------------------
-def test_prioridad_municipal_y_reporte_por_etiquetas(client):
-    p1 = _crear_persona(client, "1788888881")
-    p2 = _crear_persona(client, "1788888882")
-    client.patch(f"/api/v1/personas/{p1['id']}", json={"prioridad_municipal": True})
-
-    resp = client.get("/api/v1/personas/reportes", params={"prioridad_municipal": True})
-    assert resp.status_code == 200
-    ids = [p["id"] for p in resp.json()]
-    assert p1["id"] in ids
-    assert p2["id"] not in ids
-
-
-def test_reporte_por_etiquetas_requiere_admin(client_sin_permisos):
-    resp = client_sin_permisos.get("/api/v1/personas/reportes", params={"prioridad_municipal": True})
-    assert resp.status_code == 403
 
 
 # --- Antecedentes de club / mano dominante (E01-RF008) -----------------------

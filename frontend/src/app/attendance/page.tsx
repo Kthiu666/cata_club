@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import BackLink from "@/components/BackLink";
 import {
   Calendar,
   Clock,
@@ -139,6 +140,8 @@ export default function AttendancePage(): React.ReactElement {
         eyebrow="Asistencias"
         title="Asistencias"
       >
+        <BackLink href="/dashboard" label="Volver al Panel" />
+
         {/* Loading state */}
         {loading && (
           <div className="flex items-center justify-center py-16">
@@ -162,6 +165,27 @@ export default function AttendancePage(): React.ReactElement {
 
         {!loading && !error && (
           <>
+            {/* Quick action: take attendance — replaces the removed
+                "Horarios de Entrenamiento" table (PR3), which added no
+                real value; admins can now register attendance too. */}
+            <div className="card-hover mb-8 flex flex-col items-start justify-between gap-4 p-4 sm:flex-row sm:items-center sm:p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                  <ClipboardCheck size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-cata-text">Tomar asistencia</h2>
+                  <p className="text-sm text-cata-text/65">
+                    Registra la asistencia de una sesión de entrenamiento.
+                  </p>
+                </div>
+              </div>
+              <Link href="/trainer/attendance" className="btn-primary w-full shadow-soft sm:w-auto">
+                Tomar asistencia
+                <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+              </Link>
+            </div>
+
             {/* Stats grid */}
             <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               <div className="card-hover flex items-center gap-3 p-4 sm:p-5">
@@ -212,27 +236,6 @@ export default function AttendancePage(): React.ReactElement {
                   {stats.totalAbsent + stats.totalLate}
                 </p>
               </div>
-            </div>
-
-            {/* Quick action: take attendance — replaces the removed
-                "Horarios de Entrenamiento" table (PR3), which added no
-                real value; admins can now register attendance too. */}
-            <div className="card-hover mb-8 flex flex-col items-start justify-between gap-4 p-4 sm:flex-row sm:items-center sm:p-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
-                  <ClipboardCheck size={20} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-cata-text">Tomar asistencia</h2>
-                  <p className="text-sm text-cata-text/65">
-                    Registra la asistencia de una sesión de entrenamiento.
-                  </p>
-                </div>
-              </div>
-              <Link href="/trainer/attendance" className="btn-primary w-full shadow-soft sm:w-auto">
-                Tomar asistencia
-                <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
-              </Link>
             </div>
 
             {/* Recent attendance section */}

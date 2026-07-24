@@ -27,11 +27,14 @@ import {
   Activity,
   AlertTriangle,
   UserPlus,
+  PieChart,
 } from "lucide-react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
-import { fetchDashboardStats, type DashboardStats } from "@/services/api";
+import { fetchDashboardStats, fetchAttendanceRecords, type DashboardStats } from "@/services/api";
+import { buildAttendanceStats, type AttendanceDayStats } from "@/app/attendance/attendance-utils";
+import AttendanceStatusChart from "./AttendanceStatusChart";
 
 const quickActions = [
   {
@@ -94,6 +97,7 @@ export default function DashboardPage(): React.ReactElement {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [attendanceStats, setAttendanceStats] = useState<AttendanceDayStats | null>(null);
 
   const loadStats = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -107,9 +111,20 @@ export default function DashboardPage(): React.ReactElement {
     }
   }, []);
 
+  // Best-effort: unrelated to the main stat cards' error/retry above — if
+  // this fails, the "Distribución de Asistencias" section just doesn't render.
+  const loadAttendance = useCallback(async (): Promise<void> => {
+    try {
+      setAttendanceStats(buildAttendanceStats(await fetchAttendanceRecords()));
+    } catch {
+      setAttendanceStats(null);
+    }
+  }, []);
+
   useEffect(() => {
     void loadStats();
-  }, [loadStats]);
+    void loadAttendance();
+  }, [loadStats, loadAttendance]);
 
   const statCards = stats ? buildStatCards(stats) : [];
 
@@ -187,8 +202,8 @@ export default function DashboardPage(): React.ReactElement {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {quickActions.map((action) => (
-            <Link key={action.href} href={action.href}>
-              <div className="card-hover group flex items-start gap-4 p-4 sm:p-5">
+            <Link key={action.href} href={action.href} className="h-full">
+              <div className="card-hover group flex h-full items-start gap-4 p-4 sm:p-5">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cata-red/15">
                   <action.icon
                     size={20}
@@ -213,6 +228,18 @@ export default function DashboardPage(): React.ReactElement {
             </Link>
           ))}
         </div>
+
+        {attendanceStats && attendanceStats.totalStudents > 0 && (
+          <div className="mt-8">
+            <div className="mb-6 flex items-center gap-2">
+              <PieChart size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+              <h2 className="text-lg font-bold text-cata-text">Distribución de Asistencias</h2>
+            </div>
+            <div className="card p-5 sm:p-6">
+              <AttendanceStatusChart stats={attendanceStats} />
+            </div>
+          </div>
+        )}
       </AppShell>
     </ProtectedRoute>
   );

@@ -1,5 +1,5 @@
-﻿/**
- * BackLink ΓÇö shared in-page "back" navigation control.
+/**
+ * BackLink — shared in-page "back" navigation control.
  *
  * Always navigates to a fixed, known parent route via next/link, matching
  * the visual style already used in payments/forgot-password/reset-password

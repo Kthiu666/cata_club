@@ -107,6 +107,7 @@ function validateChildData(data: AddDependentFormData): string[] {
   if (!data.apellidos.trim()) errors.push("Los apellidos son obligatorios.");
   if (!data.fechaNacimiento) errors.push("La fecha de nacimiento es obligatoria.");
   else if (!isValidDate(data.fechaNacimiento)) errors.push("La fecha de nacimiento ingresada no es válida.");
+  else if (isFutureDate(data.fechaNacimiento)) errors.push("La fecha de nacimiento no puede ser en el futuro.");
   if (!data.cedula.trim()) errors.push("La cédula de identidad es obligatoria.");
   else if (!/^\d{10}$/.test(data.cedula.trim())) errors.push("La cédula debe tener 10 dígitos.");
   if (!data.telefono.trim()) errors.push("El teléfono es obligatorio.");
@@ -141,9 +142,29 @@ function isValidDate(value: string): boolean {
   );
 }
 
+/** `value` is a valid "YYYY-MM-DD" already — compares by local calendar date, not UTC, to avoid off-by-one near midnight. */
+function isFutureDate(value: string): boolean {
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return parsed > today;
+}
+
 export function getAddDependentErrorMessage(error: unknown): string {
   if (typeof error === "object" && error !== null && "status" in error) {
     const status = (error as Record<string, unknown>).status;
+    // 400 = a domain business-rule violation (see backend's EntidadDuplicada/
+    // OperacionInvalida — e.g. "Ya existe una persona con la cédula ...").
+    // Those always carry a single clean, user-facing Spanish message, so
+    // surface it instead of a generic string that hides which field was
+    // wrong (previously always replaced, even for a duplicate cédula).
+    if (status === 400) {
+      const message = (error as Record<string, unknown>).message;
+      if (typeof message === "string" && message.trim()) return message.trim();
+    }
+    // 422 = raw FastAPI/pydantic validation errors (a list of field/loc/msg
+    // objects, not a single string) — not safe to show verbatim.
     if (status === 400 || status === 422) {
       return "No se pudo agregar el dependiente. Revise los datos ingresados e intente nuevamente.";
     }

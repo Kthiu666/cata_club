@@ -1,12 +1,12 @@
 /**
- * Route Handler Tests — POST/DELETE /api/personas/[id]/roles
+ * Route Handler Tests — GET/POST/DELETE /api/personas/[id]/roles
  *
  * @vitest-environment node
  */
 
 import { NextRequest } from "next/server";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { POST, DELETE } from "../route";
+import { GET, POST, DELETE } from "../route";
 import { ACCESS_TOKEN_COOKIE } from "@/lib/server/auth";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -35,6 +35,13 @@ function postRequest(id: string, body: unknown, cookie = ""): NextRequest {
   });
 }
 
+function getRequest(id: string, cookie = ""): NextRequest {
+  return new NextRequest(`http://localhost/api/personas/${id}/roles`, {
+    method: "GET",
+    headers: cookie ? { cookie } : {},
+  });
+}
+
 function deleteRequest(id: string, tipoRol: string | null, cookie = ""): NextRequest {
   const url = tipoRol ? `http://localhost/api/personas/${id}/roles?tipoRol=${tipoRol}` : `http://localhost/api/personas/${id}/roles`;
   return new NextRequest(url, {
@@ -57,6 +64,40 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   delete process.env.BACKEND_API_URL;
+});
+
+describe("GET /api/personas/[id]/roles", () => {
+  it("returns 401 without calling the backend when no auth cookie is present", async () => {
+    const response = await GET(getRequest("5"), { params: { id: "5" } });
+
+    expect(response.status).toBe(401);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("calls GET /personas/{id}/roles and returns the current roles + activo without mutating anything", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse(rolesResponse));
+
+    const access = makeJwt(3600);
+    const response = await GET(getRequest("5", `${ACCESS_TOKEN_COOKIE}=${access}`), { params: { id: "5" } });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual(rolesResponse);
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:8000/api/v1/personas/5/roles",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("propagates the backend's 403", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse({ detail: "No autorizado" }, 403));
+
+    const access = makeJwt(3600);
+    const response = await GET(getRequest("5", `${ACCESS_TOKEN_COOKIE}=${access}`), { params: { id: "5" } });
+
+    expect(response.status).toBe(403);
+  });
 });
 
 describe("POST /api/personas/[id]/roles", () => {

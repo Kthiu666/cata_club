@@ -22,7 +22,10 @@ import {
   normalizeText,
   accountMatchesFlag,
   countAccountsMatchingFlag,
+  paginateAccounts,
+  getTotalPages,
   MEMBERS_AGGREGATE_LIMIT,
+  MEMBERS_PAGE_SIZE,
   MEMBERSHIP_TYPE_LABELS,
   type MemberAccount,
 } from "../members-utils";
@@ -689,5 +692,50 @@ describe("countAccountsMatchingFlag", () => {
 
   it("returns 0 for an empty account list", () => {
     expect(countAccountsMatchingFlag([], "vencida")).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// paginateAccounts / getTotalPages (client-side members pagination)
+// ---------------------------------------------------------------------------
+
+function buildAccounts(count: number): MemberAccount[] {
+  return Array.from({ length: count }, (_, i) => ({
+    ...MOCK_MEMBER_ACCOUNTS[0],
+    id: `acc-${i}`,
+  }));
+}
+
+describe("paginateAccounts", () => {
+  it("slices accounts to MEMBERS_PAGE_SIZE for page 1, and the remainder for a later page", () => {
+    expect(MEMBERS_PAGE_SIZE).toBe(10);
+    const accounts = buildAccounts(25);
+    const page1 = paginateAccounts(accounts, 1);
+    expect(page1).toHaveLength(10);
+    expect(page1[0].id).toBe("acc-0");
+    expect(page1[9].id).toBe("acc-9");
+    const page3 = paginateAccounts(accounts, 3);
+    expect(page3).toHaveLength(5);
+    expect(page3[0].id).toBe("acc-20");
+  });
+
+  it("returns an empty array for a page beyond the data", () => {
+    expect(paginateAccounts(buildAccounts(4), 5)).toEqual([]);
+  });
+
+  it("reflects a filtered subset, not the unfiltered total", () => {
+    const accounts = buildAccounts(115);
+    const filtered = accounts.filter((a) => a.id === "acc-0" || a.id === "acc-1");
+    expect(paginateAccounts(filtered, 1)).toEqual(filtered);
+    expect(getTotalPages(filtered.length, MEMBERS_PAGE_SIZE)).toBe(1);
+  });
+});
+
+describe("getTotalPages", () => {
+  it("rounds up to a whole page count, floored at 1 (never 0 pages)", () => {
+    expect(getTotalPages(115, MEMBERS_PAGE_SIZE)).toBe(12);
+    expect(getTotalPages(11, MEMBERS_PAGE_SIZE)).toBe(2);
+    expect(getTotalPages(10, MEMBERS_PAGE_SIZE)).toBe(1);
+    expect(getTotalPages(0, MEMBERS_PAGE_SIZE)).toBe(1);
   });
 });

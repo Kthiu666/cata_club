@@ -39,31 +39,6 @@ async function fetchMemberships(
   return result.response.json() as Promise<BackendMembresiaPropia[]>;
 }
 
-/**
- * Fetch the persona's own pagos (any status) and find the latest APROBADO
- * pago's `fechaFin` for the given `membresiaId` — surfaces the real
- * expiration date to the student so they can proactively renew even
- * before the daily Celery task flips the Membresia.estado to VENCIDA.
- */
-async function fetchLatestApprovedFechaFin(
-  request: NextRequest,
-  personaId: number,
-  membresiaId: number,
-): Promise<string | null> {
-  const result = await backendFetchAuthed(request, `/membresias/pagos/persona/${personaId}`);
-  if (!result.ok || !result.response.ok) return null;
-  const pagos = (await result.response.json()) as Array<{
-    estadoPago: string;
-    fechaFin: string;
-    membresiaId: number;
-  }>;
-  const approved = pagos
-    .filter((p) => p.estadoPago === "APROBADO" && p.membresiaId === membresiaId)
-    .map((p) => p.fechaFin)
-    .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
-  return approved[0] ?? null;
-}
-
 async function fetchProfile(
   request: NextRequest,
   personaId: number,
@@ -85,13 +60,7 @@ async function fetchProfile(
   const recentSessions = buildRecentSessions(historial, horariosById);
 
   const activeMembership = memberships.find((m) => m.estado === "ACTIVA" || m.estado === "VENCIDA") ?? memberships[0] ?? null;
-  const membership = activeMembership
-    ? buildMembershipView(
-        activeMembership,
-        tiposById,
-        await fetchLatestApprovedFechaFin(request, personaId, activeMembership.id),
-      )
-    : null;
+  const membership = activeMembership ? buildMembershipView(activeMembership, tiposById) : null;
 
   return buildStudentProfileView(persona, rankingView, recentSessions, membership);
 }
@@ -130,22 +99,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     ...representadosPersonas.map((persona) => fetchProfile(request, persona.id, horariosById, tiposById)),
   ]);
 
-  const validRepresentados = representados.filter((profile): profile is StudentProfileView => profile !== null);
-
-  let representanteNombre: string | null = null;
-  if (self?.representanteId) {
-    const repResult = await backendFetchAuthed(request, `/personas/${self.representanteId}`);
-    if (repResult.ok && repResult.response.ok) {
-      const rep = (await repResult.response.json()) as { nombres: string; apellidos: string };
-      representanteNombre = `${rep.nombres} ${rep.apellidos}`;
-    }
-  }
-
   const portal: StudentPortalView = {
     self,
-    representados: validRepresentados,
+    representados: representados.filter((profile): profile is StudentProfileView => profile !== null),
     membershipPlans: buildMembershipPlans(tipos),
-    representanteNombre,
   };
 
   const response = NextResponse.json(portal);

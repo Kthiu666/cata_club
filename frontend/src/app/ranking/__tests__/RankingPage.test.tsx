@@ -184,6 +184,41 @@ describe("RankingPage — admin Niveles screen (copy of trainer's Nivel)", () =>
     expect(screen.queryByText("Sofía González")).not.toBeInTheDocument();
   });
 
+  it("paginates the student list at 10 per page, with prev/next controls", async () => {
+    const manyStudents: MemberAccount = {
+      id: "acc-many",
+      role: "representante",
+      nombres: "Ana",
+      apellidos: "Pérez",
+      telefono: "0999999999",
+      estudiantes: Array.from({ length: 15 }, (_, i) => ({
+        id: String(100 + i),
+        nombres: `Estudiante${i}`,
+        apellidos: "Test",
+        grupoId: null,
+        activo: true,
+        membresia: null,
+        ultimoPago: null,
+      })),
+    };
+    mockFetchMembers.mockResolvedValue({ accounts: [manyStudents], niveles: NIVELES });
+
+    render(<RankingPage />);
+    await screen.findByText("Estudiantes (15)");
+
+    expect(screen.getByText("Estudiante0 Test")).toBeInTheDocument();
+    expect(screen.queryByText("Estudiante10 Test")).not.toBeInTheDocument();
+    expect(screen.getByText(/Página 1 de 2/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Página siguiente/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Estudiante10 Test")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Estudiante0 Test")).not.toBeInTheDocument();
+    expect(screen.getByText(/Página 2 de 2/)).toBeInTheDocument();
+  });
+
   it("shows an empty-filter state distinct from the no-students state", async () => {
     render(<RankingPage />);
     await screen.findByText("Sofía González");

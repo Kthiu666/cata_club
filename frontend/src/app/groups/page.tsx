@@ -19,10 +19,11 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useToast } from "@/contexts/ToastContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import BackLink from "@/components/BackLink";
 import {
   Calendar,
   Plus,
@@ -37,6 +38,7 @@ import {
   UserMinus,
 } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import PaginationControls from "@/components/PaginationControls";
 import {
   fetchHorarios,
   crearHorario,
@@ -53,6 +55,7 @@ import {
 import type { Horario, CrearHorarioDTO, ActualizarHorarioDTO, NivelConOcupacion, AlumnoHorario, Entrenador } from "@/services/api";
 import { groupHorarios, diffGroupSave, type StudentRef, type HorarioGroup } from "@/lib/groups-utils";
 import { CATEGORIA_METADATA, CATEGORIA_OPTIONS, diasPermitidos, horarioDe, type Categoria } from "@/services/categorias";
+import { countUniqueAlumnos, paginateHorarioGroups, getHorarioGroupsTotalPages } from "./groups-page-utils";
 
 const DIA_LABELS: Record<string, string> = {
   LUNES: "Lunes",
@@ -123,7 +126,7 @@ export default function GroupsPage(): React.ReactElement {
   const [niveles, setNiveles] = useState<NivelConOcupacion[]>([]);
   const [allStudents, setAllStudents] = useState<StudentRef[]>([]);
   const [loading, setLoading] = useState(true);
-  const { showError } = useToast();
+  const { showSuccess, showError } = useToast();
 
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -172,6 +175,8 @@ export default function GroupsPage(): React.ReactElement {
   // horarios.
   const [entrenadores, setEntrenadores] = useState<Entrenador[]>([]);
   const [entrenadoresLoading, setEntrenadoresLoading] = useState(true);
+
+  const [page, setPage] = useState(1);
 
   const showNotification = useCallback((type: "success" | "error", message: string): void => {
     setNotification({ type, message });
@@ -229,21 +234,23 @@ export default function GroupsPage(): React.ReactElement {
         }
       }
       if (primerErrorReal !== null) {
-        showNotification("error", extractErrorMessage(primerErrorReal, "Error al asignar el alumno al horario."));
+        const message = extractErrorMessage(primerErrorReal, "Error al asignar el alumno al horario.");
+        showNotification("error", message);
+        showError(message);
       } else {
-        showNotification(
-          "success",
+        const message =
           asignados > 0
             ? "Alumno asignado correctamente al horario."
-            : "El alumno ya estaba asignado a este horario.",
-        );
+            : "El alumno ya estaba asignado a este horario.";
+        showNotification("success", message);
+        showSuccess(message);
         setAlumnoSeleccionado(null);
       }
       await cargarAlumnosDelGrupo(group);
     } finally {
       setAsignandoAlumno(false);
     }
-  }, [alumnoSeleccionado, cargarAlumnosDelGrupo, showNotification]);
+  }, [alumnoSeleccionado, cargarAlumnosDelGrupo, showNotification, showSuccess, showError]);
 
   /** Unassigns the student from EVERY día row of the group, same all-días
    * criterion as assignment. A per-row 404 ("no había asignación en esa
@@ -266,12 +273,15 @@ export default function GroupsPage(): React.ReactElement {
       }
     }
     if (primerErrorReal !== null) {
-      showNotification("error", extractErrorMessage(primerErrorReal, "Error al desasignar el alumno del horario."));
+      const message = extractErrorMessage(primerErrorReal, "Error al desasignar el alumno del horario.");
+      showNotification("error", message);
+      showError(message);
     } else {
       showNotification("success", "Alumno desasignado del horario.");
+      showSuccess("Alumno desasignado del horario.");
     }
     await cargarAlumnosDelGrupo(group);
-  }, [cargarAlumnosDelGrupo, showNotification]);
+  }, [cargarAlumnosDelGrupo, showNotification, showSuccess, showError]);
 
   const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -317,15 +327,30 @@ export default function GroupsPage(): React.ReactElement {
     } catch {
       setEntrenadores([]);
       showNotification("error", "No se pudieron cargar los entrenadores. Intente nuevamente.");
+      showError("No se pudieron cargar los entrenadores. Intente nuevamente.");
     } finally {
       setEntrenadoresLoading(false);
     }
-  }, [showNotification]);
+  }, [showNotification, showError]);
 
   useEffect(() => {
     void loadData();
     void cargarEntrenadores();
   }, [loadData, cargarEntrenadores]);
+
+  const horarioGroups = useMemo(() => groupHorarios(horarios), [horarios]);
+
+  // Reset to page 1 whenever the underlying list changes, so the paginator
+  // never gets stuck on a stale/out-of-range page.
+  useEffect(() => {
+    setPage(1);
+  }, [horarioGroups.length]);
+
+  const totalPages = useMemo(() => getHorarioGroupsTotalPages(horarioGroups.length), [horarioGroups]);
+  const paginatedHorarioGroups = useMemo(
+    () => paginateHorarioGroups(horarioGroups, page),
+    [horarioGroups, page],
+  );
 
   function openCreateForm(): void {
     setEditingGroup(null);
@@ -436,7 +461,9 @@ export default function GroupsPage(): React.ReactElement {
         return;
       }
 
-      showNotification("success", editingGroup ? "Horario actualizado correctamente." : "Horario creado correctamente.");
+      const message = editingGroup ? "Horario actualizado correctamente." : "Horario creado correctamente.";
+      showNotification("success", message);
+      showSuccess(message);
       closeExpanded();
       await loadData();
     } catch (err) {
@@ -448,7 +475,9 @@ export default function GroupsPage(): React.ReactElement {
       // data on a retry (which would re-create the row that already
       // succeeded). `loadData()` resyncs `horarios` with what's actually
       // persisted so any retry starts from a reopened, accurate group.
-      showNotification("error", extractErrorMessage(err, "Error al guardar el horario."));
+      const message = extractErrorMessage(err, "Error al guardar el horario.");
+      showNotification("error", message);
+      showError(message);
       closeExpanded();
       await loadData();
     } finally {
@@ -466,12 +495,14 @@ export default function GroupsPage(): React.ReactElement {
         }
         await eliminarHorario(pending.id);
       }
-      showNotification(
-        "success",
-        pendingDeletionScope === "group" ? "Horario eliminado correctamente." : "Horario actualizado correctamente.",
-      );
+      const message =
+        pendingDeletionScope === "group" ? "Horario eliminado correctamente." : "Horario actualizado correctamente.";
+      showNotification("success", message);
+      showSuccess(message);
     } catch (err) {
-      showNotification("error", extractErrorMessage(err, "Error al eliminar el horario."));
+      const message = extractErrorMessage(err, "Error al eliminar el horario.");
+      showNotification("error", message);
+      showError(message);
     } finally {
       setPendingDeletions(null);
       setPendingDeletionScope("days");
@@ -511,7 +542,9 @@ export default function GroupsPage(): React.ReactElement {
       setPendingDeletionScope("group");
       setPendingDeletions(nextPending);
     } catch (err) {
-      showNotification("error", extractErrorMessage(err, "Error al eliminar el horario."));
+      const message = extractErrorMessage(err, "Error al eliminar el horario.");
+      showNotification("error", message);
+      showError(message);
     } finally {
       setDeletingId(null);
     }
@@ -741,6 +774,8 @@ export default function GroupsPage(): React.ReactElement {
         eyebrow="Gestión Operativa"
         title="Gestión de Horarios"
       >
+        <BackLink href="/dashboard" label="Volver al Panel" />
+
         {loadError && (
           <div
             className="mb-4 flex items-center gap-2 rounded-xl border border-cata-red/30 bg-cata-red/10 px-4 py-3 text-sm text-cata-red"
@@ -802,7 +837,7 @@ export default function GroupsPage(): React.ReactElement {
           </div>
         ) : horarios.length > 0 ? (
           <div className="space-y-3">
-            {groupHorarios(horarios).map((group) => {
+            {paginatedHorarioGroups.map((group) => {
               // Asignar-alumnos opens the tab on the first día in the group
               // (per-día switching happens inside the tab via the día-pill
               // selector — PR3b). The trash icon, unlike that, deletes the
@@ -888,7 +923,13 @@ export default function GroupsPage(): React.ReactElement {
               );
             })}
           </div>
-        ) : (
+        ) : null}
+
+        {!loading && horarioGroups.length > 0 && totalPages > 1 && (
+          <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
+        )}
+
+        {!loading && horarios.length === 0 && (
           <div className="card flex flex-col items-center py-16 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-cata-red/10">
               <Calendar size={28} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
@@ -919,8 +960,8 @@ export default function GroupsPage(): React.ReactElement {
               ? pendingDeletionScope === "group"
                 ? `Se eliminará el horario completo (todos sus días: ${pendingDeletions
                     .map((p) => shortDiaLabel(p.diaSemana))
-                    .join(", ")}) y ${pendingDeletions.reduce((sum, p) => sum + p.alumnos.length, 0)} alumno(s) quedarán desasignados. Esta acción no se puede deshacer.`
-                : `${pendingDeletions.reduce((sum, p) => sum + p.alumnos.length, 0)} alumno(s) quedarán desasignados de: ${pendingDeletions
+                    .join(", ")}) y ${countUniqueAlumnos(pendingDeletions)} alumno(s) quedarán desasignados. Esta acción no se puede deshacer.`
+                : `${countUniqueAlumnos(pendingDeletions)} alumno(s) quedarán desasignados de: ${pendingDeletions
                     .map((p) => shortDiaLabel(p.diaSemana))
                     .join(", ")}. ¿Confirma la eliminación de esos días?`
               : ""

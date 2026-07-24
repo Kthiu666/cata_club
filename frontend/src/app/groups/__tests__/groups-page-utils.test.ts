@@ -17,8 +17,53 @@ import {
   getCapacityBarColor,
   nivelToGrupo,
   buildGroupCardsFromNiveles,
+  countUniqueAlumnos,
+  HORARIO_GROUPS_PAGE_SIZE,
+  paginateHorarioGroups,
+  getHorarioGroupsTotalPages,
 } from "../groups-page-utils";
-import type { NivelConOcupacion } from "@/services/api";
+import type { AlumnoHorario, NivelConOcupacion } from "@/services/api";
+import type { HorarioGroup } from "@/lib/groups-utils";
+
+function makeAlumno(personaId: number, horarioId: number): AlumnoHorario {
+  return {
+    id: personaId * 100 + horarioId,
+    personaId,
+    personaNombreCompleto: `Alumno ${personaId}`,
+    edad: 10,
+    horarioId,
+    horarioDia: "LUNES",
+    horarioHoraInicio: "15:00",
+    horarioHoraFin: "16:00",
+    fechaAsignacion: "2026-01-01",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// countUniqueAlumnos
+// ---------------------------------------------------------------------------
+
+describe("countUniqueAlumnos", () => {
+  it("counts each student once even when they appear in multiple día rows", () => {
+    const pendingDeletions = [1, 2, 3, 4, 5].map((horarioId) => ({
+      alumnos: [makeAlumno(101, horarioId), makeAlumno(102, horarioId), makeAlumno(103, horarioId)],
+    }));
+    expect(countUniqueAlumnos(pendingDeletions)).toBe(3);
+  });
+
+  it("counts students who only appear in some rows exactly once", () => {
+    const pendingDeletions = [
+      { alumnos: [makeAlumno(101, 1), makeAlumno(102, 1)] },
+      { alumnos: [makeAlumno(101, 2)] },
+    ];
+    expect(countUniqueAlumnos(pendingDeletions)).toBe(2);
+  });
+
+  it("returns 0 for no pending deletions or empty rosters", () => {
+    expect(countUniqueAlumnos([])).toBe(0);
+    expect(countUniqueAlumnos([{ alumnos: [] }, { alumnos: [] }])).toBe(0);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // findStudentGroupId
@@ -298,5 +343,51 @@ describe("buildGroupCardsFromNiveles", () => {
   it("returns 0% capacity when capacidadMaxima is 0 (avoids divide-by-zero)", () => {
     const [card] = buildGroupCardsFromNiveles([{ ...nivelFixture, capacidadMaxima: 0, personasActuales: 0 }]);
     expect(card.capacityPercent).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// paginateHorarioGroups / getHorarioGroupsTotalPages (client-side pagination)
+// ---------------------------------------------------------------------------
+
+function buildHorarioGroups(count: number): HorarioGroup[] {
+  return Array.from({ length: count }, (_, i) => ({
+    key: `group-${i}`,
+    categoria: "SUB10",
+    horaInicio: "15:00",
+    horaFin: "16:00",
+    entrenadorId: 1,
+    nivelRankingId: null,
+    rows: [{ id: i, diaSemana: "LUNES" }],
+  }));
+}
+
+describe("paginateHorarioGroups", () => {
+  it("uses a page size of 10", () => {
+    expect(HORARIO_GROUPS_PAGE_SIZE).toBe(10);
+  });
+
+  it("slices groups to the page size for page 1, and the remainder for a later page", () => {
+    const groups = buildHorarioGroups(25);
+    const page1 = paginateHorarioGroups(groups, 1);
+    expect(page1).toHaveLength(10);
+    expect(page1[0].key).toBe("group-0");
+    expect(page1[9].key).toBe("group-9");
+
+    const page3 = paginateHorarioGroups(groups, 3);
+    expect(page3).toHaveLength(5);
+    expect(page3[0].key).toBe("group-20");
+  });
+
+  it("returns an empty array for a page beyond the data", () => {
+    expect(paginateHorarioGroups(buildHorarioGroups(5), 5)).toEqual([]);
+  });
+});
+
+describe("getHorarioGroupsTotalPages", () => {
+  it("rounds up to a whole page count, floored at 1 (never 0 pages)", () => {
+    expect(getHorarioGroupsTotalPages(25)).toBe(3);
+    expect(getHorarioGroupsTotalPages(10)).toBe(1);
+    expect(getHorarioGroupsTotalPages(0)).toBe(1);
   });
 });

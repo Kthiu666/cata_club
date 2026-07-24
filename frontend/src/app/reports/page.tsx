@@ -1,10 +1,9 @@
 /**
  * Reports Page — admin-only analytics and filtered views.
  *
- * Three report types (each backed by a real backend endpoint):
- * 1. Por Etiquetas — filter personas by prioridad_municipal / becado tags
- * 2. Por Período — new members registered within a date range
- * 3. Asistencia — attendance records filtered by date range / horario
+ * Two report types (each backed by a real backend endpoint):
+ * 1. Por Período — new members registered within a date range
+ * 2. Asistencia — attendance records filtered by date range / horario
  *
  * Follows the dashboard/members page design patterns.
  */
@@ -16,19 +15,27 @@ import {
   Users,
   Calendar,
   Search,
-  Filter,
   AlertCircle,
-  Building2,
-  GraduationCap,
   CheckCircle,
+  Download,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  Wallet,
 } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import BackLink from "@/components/BackLink";
 import {
-  fetchPersonasPorEtiquetas,
   fetchNuevosPorPeriodo,
   fetchAttendanceRecords,
   fetchTrainingSchedules,
+  fetchPagosReporte,
+  exportNuevosPorPeriodoPdf,
+  exportAsistenciaReportePdf,
+  exportPagosReportePdf,
+  type PaymentValidationRequest,
+  type ValidationStatus,
 } from "@/services/api";
 import {
   ATTENDANCE_LABELS,
@@ -37,9 +44,40 @@ import {
   type AttendanceRecord,
   type TrainingSchedule,
 } from "@/app/attendance/attendance-utils";
+import {
+  paginatePersonaResults,
+  getPersonaReportTotalPages,
+  paginateAsistenciaResults,
+  getAsistenciaReportTotalPages,
+  paginatePagosResults,
+  getPagosReportTotalPages,
+} from "@/app/reports/reports-utils";
+import { formatCurrency, formatDate } from "@/lib/format-utils";
 import type { PersonaReporte } from "@/types/domain";
 
-type ReportTab = "etiquetas" | "periodo" | "asistencia";
+type ReportTab = "periodo" | "asistencia" | "pagos";
+
+/** Filter dropdown options — labels reused verbatim from `payments/page.tsx`'s
+ *  filter tabs, values match `EstadoPago` (empty = no filter). */
+const PAGOS_ESTADO_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Todas" },
+  { value: "PENDIENTE_VALIDACION", label: "Pendientes" },
+  { value: "APROBADO", label: "Validados" },
+  { value: "RECHAZADO", label: "Rechazados" },
+];
+
+/** Badge color scheme copied from `payments/page.tsx`'s `validationStatusStyles`. */
+const PAGOS_VALIDATION_STATUS_STYLES: Record<ValidationStatus, string> = {
+  pendiente: "badge-warning",
+  validado: "badge-success",
+  rechazado: "badge-error",
+};
+
+const PAGOS_VALIDATION_STATUS_LABELS: Record<ValidationStatus, string> = {
+  pendiente: "Pendiente",
+  validado: "Validado",
+  rechazado: "Rechazado",
+};
 
 export default function ReportsPage(): React.ReactElement {
   return (
@@ -50,10 +88,11 @@ export default function ReportsPage(): React.ReactElement {
 }
 
 function ReportsContent(): React.ReactElement {
-  const [tab, setTab] = useState<ReportTab>("etiquetas");
+  const [tab, setTab] = useState<ReportTab>("periodo");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   // Persona report results
   const [personaResults, setPersonaResults] = useState<PersonaReporte[]>([]);
@@ -62,10 +101,8 @@ function ReportsContent(): React.ReactElement {
   const [attendanceResults, setAttendanceResults] = useState<AttendanceRecord[]>([]);
   const [horarios, setHorarios] = useState<TrainingSchedule[]>([]);
 
-  // Etiquetas filters
-  const [prioridadMunicipal, setPrioridadMunicipal] = useState(false);
-  const [becado, setBecado] = useState(false);
-  const [useFilters, setUseFilters] = useState(false);
+  // Pagos report results
+  const [pagosResults, setPagosResults] = useState<PaymentValidationRequest[]>([]);
 
   // Periodo filters
   const [fechaInicio, setFechaInicio] = useState("");
@@ -76,20 +113,33 @@ function ReportsContent(): React.ReactElement {
   const [attFechaFin, setAttFechaFin] = useState("");
   const [attHorarioId, setAttHorarioId] = useState("");
 
+  // Pagos filters
+  const [pagosFechaInicio, setPagosFechaInicio] = useState("");
+  const [pagosFechaFin, setPagosFechaFin] = useState("");
+  const [pagosEstado, setPagosEstado] = useState("");
+
   // Local persona filters (applied client-side over results)
   const [searchTerm, setSearchTerm] = useState("");
   const [edadMin, setEdadMin] = useState("");
   const [edadMax, setEdadMax] = useState("");
 
+  const [personaPage, setPersonaPage] = useState(1);
+  const [asistenciaPage, setAsistenciaPage] = useState(1);
+  const [pagosPage, setPagosPage] = useState(1);
+
   function switchTab(next: ReportTab): void {
     setTab(next);
     setPersonaResults([]);
     setAttendanceResults([]);
+    setPagosResults([]);
     setError(null);
     setSearched(false);
     setSearchTerm("");
     setEdadMin("");
     setEdadMax("");
+    setPersonaPage(1);
+    setAsistenciaPage(1);
+    setPagosPage(1);
   }
 
   /** Calculate age in years from a birth date string. */
@@ -127,6 +177,47 @@ function ReportsContent(): React.ReactElement {
     return results;
   }, [personaResults, searchTerm, edadMin, edadMax]);
 
+  // Reset to page 1 whenever the underlying filtered list changes, so the
+  // paginator never gets stuck on a stale/out-of-range page.
+  useEffect(() => {
+    setPersonaPage(1);
+  }, [filteredPersonaResults.length]);
+
+  useEffect(() => {
+    setAsistenciaPage(1);
+  }, [attendanceResults.length]);
+
+  useEffect(() => {
+    setPagosPage(1);
+  }, [pagosResults.length]);
+
+  const personaTotalPages = useMemo(
+    () => getPersonaReportTotalPages(filteredPersonaResults.length),
+    [filteredPersonaResults],
+  );
+  const paginatedPersonaResults = useMemo(
+    () => paginatePersonaResults(filteredPersonaResults, personaPage),
+    [filteredPersonaResults, personaPage],
+  );
+
+  const asistenciaTotalPages = useMemo(
+    () => getAsistenciaReportTotalPages(attendanceResults.length),
+    [attendanceResults],
+  );
+  const paginatedAttendanceResults = useMemo(
+    () => paginateAsistenciaResults(attendanceResults, asistenciaPage),
+    [attendanceResults, asistenciaPage],
+  );
+
+  const pagosTotalPages = useMemo(
+    () => getPagosReportTotalPages(pagosResults.length),
+    [pagosResults],
+  );
+  const paginatedPagosResults = useMemo(
+    () => paginatePagosResults(pagosResults, pagosPage),
+    [pagosResults, pagosPage],
+  );
+
   // Fetch horarios for the attendance filter dropdown (once, on mount)
   useEffect(() => {
     void fetchTrainingSchedules()
@@ -134,36 +225,13 @@ function ReportsContent(): React.ReactElement {
       .catch(() => {});
   }, []);
 
-  async function handleEtiquetasSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSearched(true);
-
-    try {
-      const filtros: { prioridadMunicipal?: boolean; becado?: boolean } = {};
-      if (useFilters) {
-        if (prioridadMunicipal) filtros.prioridadMunicipal = true;
-        if (becado) filtros.becado = true;
-      }
-      const data = await fetchPersonasPorEtiquetas(filtros);
-      setPersonaResults(data);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Error al cargar reportes.";
-      setError(message);
-      setPersonaResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handlePeriodoSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
     if (!fechaInicio || !fechaFin) {
       setError("Seleccione ambas fechas.");
       return;
     }
-    if (fechaInicio > fechaFin) {
+    if (fechaInicio >= fechaFin) {
       setError("La fecha de inicio debe ser anterior a la fecha de fin.");
       return;
     }
@@ -187,6 +255,11 @@ function ReportsContent(): React.ReactElement {
   async function handleAsistenciaSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
 
+    if (attFechaInicio && attFechaFin && attFechaInicio > attFechaFin) {
+      setError("La fecha de inicio debe ser anterior a la fecha de fin.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setSearched(true);
@@ -207,24 +280,93 @@ function ReportsContent(): React.ReactElement {
     }
   }
 
+  /** Export the currently-displayed persona report (periodo tab) as a PDF. */
+  async function handleExportPersonasPdf(): Promise<void> {
+    setExportingPdf(true);
+    setError(null);
+    try {
+      await exportNuevosPorPeriodoPdf(fechaInicio, fechaFin);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "No se pudo generar el PDF del reporte.";
+      setError(message);
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
+  /** Export the currently-displayed attendance report as a PDF. */
+  async function handleExportAsistenciaPdf(): Promise<void> {
+    setExportingPdf(true);
+    setError(null);
+    try {
+      const params: { fechaInicio?: string; fechaFin?: string; horarioId?: number } = {};
+      if (attFechaInicio) params.fechaInicio = attFechaInicio;
+      if (attFechaFin) params.fechaFin = attFechaFin;
+      if (attHorarioId) params.horarioId = Number(attHorarioId);
+      await exportAsistenciaReportePdf(params);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "No se pudo generar el PDF del reporte.";
+      setError(message);
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
+  async function handlePagosSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
+    e.preventDefault();
+
+    if (pagosFechaInicio && pagosFechaFin && pagosFechaInicio > pagosFechaFin) {
+      setError("La fecha de inicio debe ser anterior a la fecha de fin.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setSearched(true);
+
+    try {
+      const params: { fechaInicio?: string; fechaFin?: string; estadoPago?: string } = {};
+      if (pagosFechaInicio) params.fechaInicio = pagosFechaInicio;
+      if (pagosFechaFin) params.fechaFin = pagosFechaFin;
+      if (pagosEstado) params.estadoPago = pagosEstado;
+      const data = await fetchPagosReporte(params);
+      setPagosResults(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error al cargar reporte de pagos.";
+      setError(message);
+      setPagosResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /** Export the currently-displayed payments report as a PDF. */
+  async function handleExportPagosPdf(): Promise<void> {
+    setExportingPdf(true);
+    setError(null);
+    try {
+      const params: { fechaInicio?: string; fechaFin?: string; estadoPago?: string } = {};
+      if (pagosFechaInicio) params.fechaInicio = pagosFechaInicio;
+      if (pagosFechaFin) params.fechaFin = pagosFechaFin;
+      if (pagosEstado) params.estadoPago = pagosEstado;
+      await exportPagosReportePdf(params);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "No se pudo generar el PDF del reporte.";
+      setError(message);
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
   return (
     <AppShell
       eyebrow="Reportes"
       title="Reportes y Analítica"
     >
+      <BackLink href="/dashboard" label="Volver al Panel" />
+
       {/* Tab selector */}
       <div className="mb-6 flex gap-1 rounded-xl bg-cata-bg p-1">
-        <button
-          onClick={() => switchTab("etiquetas")}
-          className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${
-            tab === "etiquetas"
-              ? "bg-white text-cata-text shadow-soft"
-              : "text-cata-text/65 hover:text-cata-text"
-          }`}
-        >
-          <Filter size={15} strokeWidth={1.5} />
-          Por Etiquetas
-        </button>
         <button
           onClick={() => switchTab("periodo")}
           className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${
@@ -247,57 +389,18 @@ function ReportsContent(): React.ReactElement {
           <CheckCircle size={15} strokeWidth={1.5} />
           Asistencia
         </button>
+        <button
+          onClick={() => switchTab("pagos")}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${
+            tab === "pagos"
+              ? "bg-white text-cata-text shadow-soft"
+              : "text-cata-text/65 hover:text-cata-text"
+          }`}
+        >
+          <Wallet size={15} strokeWidth={1.5} />
+          Pagos
+        </button>
       </div>
-
-      {/* ---- Etiquetas tab ---- */}
-      {tab === "etiquetas" && (
-        <form onSubmit={handleEtiquetasSubmit} className="card mb-6 p-6">
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-cata-text/45">
-            Filtrar por etiquetas
-          </h3>
-          <div className="flex flex-wrap items-end gap-6">
-            <label className="flex items-center gap-2.5 text-sm text-cata-text">
-              <input
-                type="checkbox"
-                checked={useFilters && prioridadMunicipal}
-                onChange={(e) => {
-                  setUseFilters(true);
-                  setPrioridadMunicipal(e.target.checked);
-                }}
-                className="h-4 w-4 rounded border-cata-border text-cata-red focus:ring-cata-red"
-              />
-              <Building2 size={15} strokeWidth={1.5} className="text-cata-text/50" />
-              Prioridad Municipal
-            </label>
-            <label className="flex items-center gap-2.5 text-sm text-cata-text">
-              <input
-                type="checkbox"
-                checked={useFilters && becado}
-                onChange={(e) => {
-                  setUseFilters(true);
-                  setBecado(e.target.checked);
-                }}
-                className="h-4 w-4 rounded border-cata-border text-cata-red focus:ring-cata-red"
-              />
-              <GraduationCap size={15} strokeWidth={1.5} className="text-cata-text/50" />
-              Becado
-            </label>
-            {!useFilters && (
-              <p className="text-xs text-cata-text/45">
-                Sin filtros: se listarán todas las personas
-              </p>
-            )}
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary ml-auto flex items-center gap-2"
-            >
-              <Search size={15} strokeWidth={1.5} />
-              {loading ? "Buscando..." : "Buscar"}
-            </button>
-          </div>
-        </form>
-      )}
 
       {/* ---- Periodo tab ---- */}
       {tab === "periodo" && (
@@ -408,6 +511,69 @@ function ReportsContent(): React.ReactElement {
         </form>
       )}
 
+      {/* ---- Pagos tab ---- */}
+      {tab === "pagos" && (
+        <form onSubmit={handlePagosSubmit} className="card mb-6 p-6">
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-cata-text/45">
+            Reporte de pagos
+          </h3>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label htmlFor="pagosFechaInicio" className="mb-1.5 block text-sm font-medium text-cata-text">
+                Fecha inicio
+              </label>
+              <input
+                type="date"
+                id="pagosFechaInicio"
+                value={pagosFechaInicio}
+                onChange={(e) => setPagosFechaInicio(e.target.value)}
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label htmlFor="pagosFechaFin" className="mb-1.5 block text-sm font-medium text-cata-text">
+                Fecha fin
+              </label>
+              <input
+                type="date"
+                id="pagosFechaFin"
+                value={pagosFechaFin}
+                onChange={(e) => setPagosFechaFin(e.target.value)}
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label htmlFor="pagosEstado" className="mb-1.5 block text-sm font-medium text-cata-text">
+                Estado
+              </label>
+              <select
+                id="pagosEstado"
+                value={pagosEstado}
+                onChange={(e) => setPagosEstado(e.target.value)}
+                className="input-field"
+              >
+                {PAGOS_ESTADO_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Search size={15} strokeWidth={1.5} />
+              {loading ? "Buscando..." : "Buscar"}
+            </button>
+          </div>
+          <p className="mt-3 text-xs text-cata-text/45">
+            Puede dejar los campos vacíos para ver todos los registros
+          </p>
+        </form>
+      )}
+
       {/* Error */}
       {error && (
         <div className="alert-error mb-6" role="alert">
@@ -416,144 +582,25 @@ function ReportsContent(): React.ReactElement {
         </div>
       )}
 
-      {/* ---- Persona results table (etiquetas / periodo) ---- */}
-      {searched && !loading && (tab === "etiquetas" || tab === "periodo") && (
-        <div className="card overflow-hidden">
-          <div className="flex items-center justify-between border-b border-cata-border px-6 py-4">
-            <h3 className="text-sm font-semibold text-cata-text">
-              {filteredPersonaResults.length} persona{filteredPersonaResults.length !== 1 ? "s" : ""} encontrada{filteredPersonaResults.length !== 1 ? "s" : ""}
-            </h3>
-          </div>
-
-          {/* Local filters */}
-          {personaResults.length > 0 && (
-            <div className="flex flex-wrap items-end gap-4 border-b border-cata-border bg-cata-bg/30 px-6 py-3">
-              <div>
-                <label htmlFor="localSearch" className="mb-1 block text-xs font-medium text-cata-text/65">
-                  Buscar
-                </label>
-                <div className="relative">
-                  <Search size={14} strokeWidth={1.5} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cata-text/40" />
-                  <input
-                    id="localSearch"
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Nombre, apellido o cédula..."
-                    className="input-field py-1.5 pl-8 text-xs"
-                  />
-                </div>
-              </div>
-              <div>
-                <label htmlFor="edadMin" className="mb-1 block text-xs font-medium text-cata-text/65">
-                  Edad mín
-                </label>
-                <input
-                  id="edadMin"
-                  type="number"
-                  min={0}
-                  max={120}
-                  value={edadMin}
-                  onChange={(e) => setEdadMin(e.target.value)}
-                  placeholder="0"
-                  className="input-field py-1.5 text-xs"
-                />
-              </div>
-              <div>
-                <label htmlFor="edadMax" className="mb-1 block text-xs font-medium text-cata-text/65">
-                  Edad máx
-                </label>
-                <input
-                  id="edadMax"
-                  type="number"
-                  min={0}
-                  max={120}
-                  value={edadMax}
-                  onChange={(e) => setEdadMax(e.target.value)}
-                  placeholder="120"
-                  className="input-field py-1.5 text-xs"
-                />
-              </div>
-              {(searchTerm || edadMin || edadMax) && (
-                <button
-                  type="button"
-                  onClick={() => { setSearchTerm(""); setEdadMin(""); setEdadMax(""); }}
-                  className="text-xs text-cata-red hover:underline"
-                >
-                  Limpiar filtros
-                </button>
-              )}
-            </div>
-          )}
-
-          {filteredPersonaResults.length === 0 ? (
-            <div className="px-6 py-12 text-center">
-              <Users size={32} className="mx-auto mb-3 text-cata-text/25" strokeWidth={1.5} />
-              <p className="text-sm text-cata-text/55">
-                {personaResults.length > 0
-                  ? "No se encontraron personas con los filtros locales aplicados."
-                  : "No se encontraron personas con los filtros seleccionados."}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-cata-border bg-cata-bg/50">
-                    <th className="px-6 py-3 font-medium text-cata-text/65">Nombre</th>
-                    <th className="px-6 py-3 font-medium text-cata-text/65">Cédula</th>
-                    <th className="px-6 py-3 font-medium text-cata-text/65">Fecha Nac.</th>
-                    <th className="px-6 py-3 font-medium text-cata-text/65">Edad</th>
-                    <th className="px-6 py-3 font-medium text-cata-text/65">Teléfono</th>
-                    <th className="px-6 py-3 font-medium text-cata-text/65">Prioridad Municipal</th>
-                    <th className="px-6 py-3 font-medium text-cata-text/65">Beca</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-cata-border">
-                  {filteredPersonaResults.map((persona) => (
-                    <tr key={persona.id} className="transition-colors hover:bg-cata-bg/30">
-                      <td className="px-6 py-3">
-                        <span className="font-medium text-cata-text">
-                          {persona.nombres} {persona.apellidos}
-                        </span>
-                      </td>
-                      <td className="px-6 py-3 text-cata-text/65">
-                        {persona.cedula}
-                      </td>
-                      <td className="px-6 py-3 text-cata-text/65">
-                        {persona.fechaNacimiento}
-                      </td>
-                      <td className="px-6 py-3 text-cata-text/65">
-                        {calcAge(persona.fechaNacimiento)} años
-                      </td>
-                      <td className="px-6 py-3 text-cata-text/65">
-                        {persona.telefono}
-                      </td>
-                      <td className="px-6 py-3">
-                        {persona.prioridadMunicipal ? (
-                          <span className="inline-flex items-center rounded-full bg-cata-state-ok/10 px-2.5 py-0.5 text-xs font-medium text-cata-state-ok">
-                            Sí
-                          </span>
-                        ) : (
-                          <span className="text-xs text-cata-text/40">No</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-3">
-                        {persona.porcentajeBeca > 0 ? (
-                          <span className="inline-flex items-center rounded-full bg-cata-navy/10 px-2.5 py-0.5 text-xs font-medium text-cata-navy">
-                            {persona.porcentajeBeca}%
-                          </span>
-                        ) : (
-                          <span className="text-xs text-cata-text/40">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+      {/* ---- Persona results table (periodo) ---- */}
+      {searched && !loading && tab === "periodo" && (
+        <PersonaReportTable
+          personaResults={personaResults}
+          filteredPersonaResults={filteredPersonaResults}
+          paginatedPersonaResults={paginatedPersonaResults}
+          page={personaPage}
+          totalPages={personaTotalPages}
+          onPageChange={setPersonaPage}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          edadMin={edadMin}
+          setEdadMin={setEdadMin}
+          edadMax={edadMax}
+          setEdadMax={setEdadMax}
+          exportingPdf={exportingPdf}
+          onExportPdf={() => void handleExportPersonasPdf()}
+          calcAge={calcAge}
+        />
       )}
 
       {/* ---- Attendance results table ---- */}
@@ -563,7 +610,28 @@ function ReportsContent(): React.ReactElement {
             <h3 className="text-sm font-semibold text-cata-text">
               {attendanceResults.length} registro{attendanceResults.length !== 1 ? "s" : ""} encontrado{attendanceResults.length !== 1 ? "s" : ""}
             </h3>
+            {attendanceResults.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void handleExportAsistenciaPdf()}
+                disabled={exportingPdf}
+                className="btn-secondary flex items-center gap-2 text-xs"
+              >
+                {exportingPdf ? (
+                  <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
+                ) : (
+                  <Download size={14} strokeWidth={1.5} />
+                )}
+                {exportingPdf ? "Generando..." : "Exportar PDF"}
+              </button>
+            )}
           </div>
+
+          {attendanceResults.length > 0 && asistenciaTotalPages > 1 && (
+            <p className="border-b border-cata-border bg-cata-bg/30 px-6 py-2 text-xs text-cata-text/55">
+              El PDF incluye los {attendanceResults.length} registros encontrados, no solo esta página.
+            </p>
+          )}
 
           {attendanceResults.length === 0 ? (
             <div className="px-6 py-12 text-center">
@@ -585,7 +653,7 @@ function ReportsContent(): React.ReactElement {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cata-border">
-                  {attendanceResults.map((record) => {
+                  {paginatedAttendanceResults.map((record) => {
                     const tokens = ATTENDANCE_BADGE_TOKENS[record.estado] ?? {
                       badgeClass: "bg-cata-border/40 text-cata-text/65",
                       iconClass: "text-cata-text/65",
@@ -610,8 +678,355 @@ function ReportsContent(): React.ReactElement {
               </table>
             </div>
           )}
+
+          {attendanceResults.length > 0 && asistenciaTotalPages > 1 && (
+            <div className="flex flex-col items-center justify-between gap-3 border-t border-cata-border px-6 py-4 sm:flex-row">
+              <p className="text-sm font-semibold text-cata-text">
+                Página {asistenciaPage} de {asistenciaTotalPages}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAsistenciaPage((p) => Math.max(1, p - 1))}
+                  disabled={asistenciaPage <= 1}
+                  className="btn-secondary px-4 py-2 text-xs"
+                >
+                  <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAsistenciaPage((p) => Math.min(asistenciaTotalPages, p + 1))}
+                  disabled={asistenciaPage >= asistenciaTotalPages}
+                  className="btn-secondary px-4 py-2 text-xs"
+                >
+                  Siguiente
+                  <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ---- Pagos results table ---- */}
+      {searched && !loading && tab === "pagos" && (
+        <div className="card overflow-hidden">
+          <div className="flex items-center justify-between border-b border-cata-border px-6 py-4">
+            <h3 className="text-sm font-semibold text-cata-text">
+              {pagosResults.length} pago{pagosResults.length !== 1 ? "s" : ""} encontrado{pagosResults.length !== 1 ? "s" : ""}
+            </h3>
+            {pagosResults.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void handleExportPagosPdf()}
+                disabled={exportingPdf}
+                className="btn-secondary flex items-center gap-2 text-xs"
+              >
+                {exportingPdf ? (
+                  <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
+                ) : (
+                  <Download size={14} strokeWidth={1.5} />
+                )}
+                {exportingPdf ? "Generando..." : "Exportar PDF"}
+              </button>
+            )}
+          </div>
+
+          {pagosResults.length > 0 && pagosTotalPages > 1 && (
+            <p className="border-b border-cata-border bg-cata-bg/30 px-6 py-2 text-xs text-cata-text/55">
+              El PDF incluye los {pagosResults.length} registros encontrados, no solo esta página.
+            </p>
+          )}
+
+          {pagosResults.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <Wallet size={32} className="mx-auto mb-3 text-cata-text/25" strokeWidth={1.5} />
+              <p className="text-sm text-cata-text/55">
+                No se encontraron pagos con los filtros seleccionados.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-cata-border bg-cata-bg/50">
+                    <th className="px-6 py-3 font-medium text-cata-text/65">Estudiante</th>
+                    <th className="px-6 py-3 font-medium text-cata-text/65">Responsable de Pago</th>
+                    <th className="px-6 py-3 font-medium text-cata-text/65">Período</th>
+                    <th className="px-6 py-3 font-medium text-cata-text/65">Monto</th>
+                    <th className="px-6 py-3 font-medium text-cata-text/65">Método</th>
+                    <th className="px-6 py-3 font-medium text-cata-text/65">Subido</th>
+                    <th className="px-6 py-3 font-medium text-cata-text/65">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-cata-border">
+                  {paginatedPagosResults.map((pago) => (
+                    <tr key={pago.id} className="transition-colors hover:bg-cata-bg/30">
+                      <td className="px-6 py-3">
+                        <span className="font-medium text-cata-text">{pago.studentName}</span>
+                      </td>
+                      <td className="px-6 py-3 text-cata-text/65">
+                        {pago.responsablePagoName ?? "-"}
+                      </td>
+                      <td className="px-6 py-3 text-cata-text/65">{pago.membershipPeriod}</td>
+                      <td className="px-6 py-3 text-cata-text/65">{formatCurrency(pago.expectedAmount)}</td>
+                      <td className="px-6 py-3 text-cata-text/65">{pago.paymentMethod}</td>
+                      <td className="px-6 py-3 text-cata-text/65">{formatDate(pago.uploadedAt)}</td>
+                      <td className="px-6 py-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PAGOS_VALIDATION_STATUS_STYLES[pago.validationStatus]}`}
+                        >
+                          {PAGOS_VALIDATION_STATUS_LABELS[pago.validationStatus]}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {pagosResults.length > 0 && pagosTotalPages > 1 && (
+            <div className="flex flex-col items-center justify-between gap-3 border-t border-cata-border px-6 py-4 sm:flex-row">
+              <p className="text-sm font-semibold text-cata-text">
+                Página {pagosPage} de {pagosTotalPages}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPagosPage((p) => Math.max(1, p - 1))}
+                  disabled={pagosPage <= 1}
+                  className="btn-secondary px-4 py-2 text-xs"
+                >
+                  <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPagosPage((p) => Math.min(pagosTotalPages, p + 1))}
+                  disabled={pagosPage >= pagosTotalPages}
+                  className="btn-secondary px-4 py-2 text-xs"
+                >
+                  Siguiente
+                  <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </AppShell>
+  );
+}
+
+/**
+ * "Por Período" results panel: header + export button, local filters
+ * (search/age range), and the results table itself.
+ *
+ * Extracted from `ReportsContent` to keep that component's cognitive
+ * complexity within the project's threshold — this panel bundles several
+ * independent conditionals (export button, filters, empty state, row map)
+ * that don't need to live inline in the parent.
+ */
+function PersonaReportTable({
+  personaResults,
+  filteredPersonaResults,
+  paginatedPersonaResults,
+  page,
+  totalPages,
+  onPageChange,
+  searchTerm,
+  setSearchTerm,
+  edadMin,
+  setEdadMin,
+  edadMax,
+  setEdadMax,
+  exportingPdf,
+  onExportPdf,
+  calcAge,
+}: {
+  personaResults: PersonaReporte[];
+  filteredPersonaResults: PersonaReporte[];
+  paginatedPersonaResults: PersonaReporte[];
+  page: number;
+  totalPages: number;
+  onPageChange: (updater: (page: number) => number) => void;
+  searchTerm: string;
+  setSearchTerm: (value: string) => void;
+  edadMin: string;
+  setEdadMin: (value: string) => void;
+  edadMax: string;
+  setEdadMax: (value: string) => void;
+  exportingPdf: boolean;
+  onExportPdf: () => void;
+  calcAge: (fechaNacimiento: string) => number;
+}): React.ReactElement {
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex items-center justify-between border-b border-cata-border px-6 py-4">
+        <h3 className="text-sm font-semibold text-cata-text">
+          {filteredPersonaResults.length} persona{filteredPersonaResults.length !== 1 ? "s" : ""} encontrada{filteredPersonaResults.length !== 1 ? "s" : ""}
+        </h3>
+        {personaResults.length > 0 && (
+          <button
+            type="button"
+            onClick={onExportPdf}
+            disabled={exportingPdf}
+            className="btn-secondary flex items-center gap-2 text-xs"
+          >
+            {exportingPdf ? (
+              <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
+            ) : (
+              <Download size={14} strokeWidth={1.5} />
+            )}
+            {exportingPdf ? "Generando..." : "Exportar PDF"}
+          </button>
+        )}
+      </div>
+
+      {personaResults.length > 0 && (totalPages > 1 || searchTerm || edadMin || edadMax) && (
+        <p className="border-b border-cata-border bg-cata-bg/30 px-6 py-2 text-xs text-cata-text/55">
+          El PDF incluye los {personaResults.length} resultados del rango de fechas seleccionado — no se limita a esta página ni aplica la búsqueda o el filtro de edad.
+        </p>
+      )}
+
+      {/* Local filters */}
+      {personaResults.length > 0 && (
+        <div className="flex flex-wrap items-end gap-4 border-b border-cata-border bg-cata-bg/30 px-6 py-3">
+          <div>
+            <label htmlFor="localSearch" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Buscar
+            </label>
+            <div className="relative">
+              <Search size={14} strokeWidth={1.5} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cata-text/40" />
+              <input
+                id="localSearch"
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Nombre, apellido o cédula..."
+                className="input-field py-1.5 pl-8 text-xs"
+              />
+            </div>
+          </div>
+          <div>
+            <label htmlFor="edadMin" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Edad mín
+            </label>
+            <input
+              id="edadMin"
+              type="number"
+              min={0}
+              max={120}
+              value={edadMin}
+              onChange={(e) => setEdadMin(e.target.value)}
+              placeholder="0"
+              className="input-field py-1.5 text-xs"
+            />
+          </div>
+          <div>
+            <label htmlFor="edadMax" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Edad máx
+            </label>
+            <input
+              id="edadMax"
+              type="number"
+              min={0}
+              max={120}
+              value={edadMax}
+              onChange={(e) => setEdadMax(e.target.value)}
+              placeholder="120"
+              className="input-field py-1.5 text-xs"
+            />
+          </div>
+          {(searchTerm || edadMin || edadMax) && (
+            <button
+              type="button"
+              onClick={() => { setSearchTerm(""); setEdadMin(""); setEdadMax(""); }}
+              className="text-xs text-cata-red hover:underline"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+      )}
+
+      {filteredPersonaResults.length === 0 ? (
+        <div className="px-6 py-12 text-center">
+          <Users size={32} className="mx-auto mb-3 text-cata-text/25" strokeWidth={1.5} />
+          <p className="text-sm text-cata-text/55">
+            {personaResults.length > 0
+              ? "No se encontraron personas con los filtros locales aplicados."
+              : "No se encontraron personas con los filtros seleccionados."}
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-cata-border bg-cata-bg/50">
+                <th className="px-6 py-3 font-medium text-cata-text/65">Nombre</th>
+                <th className="px-6 py-3 font-medium text-cata-text/65">Cédula</th>
+                <th className="px-6 py-3 font-medium text-cata-text/65">Fecha Nac.</th>
+                <th className="px-6 py-3 font-medium text-cata-text/65">Edad</th>
+                <th className="px-6 py-3 font-medium text-cata-text/65">Teléfono</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-cata-border">
+              {paginatedPersonaResults.map((persona) => (
+                <tr key={persona.id} className="transition-colors hover:bg-cata-bg/30">
+                  <td className="px-6 py-3">
+                    <span className="font-medium text-cata-text">
+                      {persona.nombres} {persona.apellidos}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3 text-cata-text/65">
+                    {persona.cedula}
+                  </td>
+                  <td className="px-6 py-3 text-cata-text/65">
+                    {persona.fechaNacimiento}
+                  </td>
+                  <td className="px-6 py-3 text-cata-text/65">
+                    {calcAge(persona.fechaNacimiento)} años
+                  </td>
+                  <td className="px-6 py-3 text-cata-text/65">
+                    {persona.telefono}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {filteredPersonaResults.length > 0 && totalPages > 1 && (
+        <div className="flex flex-col items-center justify-between gap-3 border-t border-cata-border px-6 py-4 sm:flex-row">
+          <p className="text-sm font-semibold text-cata-text">
+            Página {page} de {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onPageChange((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="btn-secondary px-4 py-2 text-xs"
+            >
+              <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+              Anterior
+            </button>
+            <button
+              type="button"
+              onClick={() => onPageChange((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="btn-secondary px-4 py-2 text-xs"
+            >
+              Siguiente
+              <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

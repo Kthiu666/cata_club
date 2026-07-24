@@ -158,17 +158,6 @@ class Persona(Base):
     # cuándo se dio de alta cada Persona -- no existía ningún timestamp.
     fecha_registro: Mapped[datetime] = mapped_column(DateTime, default=_ahora_utc)
 
-    # --- E01-RF009: etiqueta administrativa/informativa, sin efecto en
-    # facturación (a diferencia de la beca, que sí afecta el monto).
-    prioridad_municipal: Mapped[bool] = mapped_column(Boolean, default=False)
-
-    # --- E01-RF011: beca/descuento. Un solo par (porcentaje + motivo) cubre
-    # tanto "beca total" (100) como "descuento parcial" (1-99) -- son la
-    # misma mecánica de negocio (reducir el monto a cobrar), no ameritan dos
-    # campos ni una entidad aparte.
-    porcentaje_beca: Mapped[int] = mapped_column(default=0)
-    motivo_beca: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
-
     # --- Relación reflexiva: 1 adulto representa a 0..* personas ---
     representante_id: Mapped[Optional[int]] = mapped_column(ForeignKey("persona.id"), nullable=True)
     representante: Mapped[Optional["Persona"]] = relationship(

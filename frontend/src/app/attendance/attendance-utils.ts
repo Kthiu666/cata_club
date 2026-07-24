@@ -58,6 +58,10 @@ export interface AttendanceRecord {
   id: string;
   fecha: string;
   horario: string;
+  /** Raw persona id of the student — lets callers (e.g. the trainer
+   *  attendance wizard) match this record against a roster entry by id
+   *  instead of only having the display name to go on. */
+  personaId: number;
   estudiante: string;
   estado: EstadoAsistencia;
   entrenador: string;
@@ -273,7 +277,7 @@ export function buildScheduleGroupMap(
 // ---------------------------------------------------------------------------
 
 /** Records per page for the attendance records table. */
-export const ATTENDANCE_PAGE_SIZE = 25;
+export const ATTENDANCE_PAGE_SIZE = 10;
 
 /**
  * Slice a (possibly already filtered) records list to a single page.

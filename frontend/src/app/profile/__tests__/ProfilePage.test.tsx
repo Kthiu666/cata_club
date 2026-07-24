@@ -20,6 +20,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import ProfilePage from "@/app/profile/page";
 import type { PerfilPropio } from "@/types/domain";
+import { ToastProvider } from "@/contexts/ToastContext";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -160,7 +161,11 @@ describe("ProfilePage — staff view (ADMINISTRADOR/ENTRENADOR)", () => {
     mockUseAuth.mockReturnValue(sessionForRole("admin"));
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     // Full name and correo appear twice by design (hero card + "Información
     // personal" column) — assert both occurrences exist. Scoped to <main>
@@ -192,7 +197,11 @@ describe("ProfilePage — staff view (ADMINISTRADOR/ENTRENADOR)", () => {
       fechaCreacion: "2025-11-02T08:00:00",
     });
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     expect((await screen.findAllByText("Carla Entrenadora")).length).toBe(2);
     expect(screen.getAllByText("carla.entrenadora@cataclub.com").length).toBe(2);
@@ -206,7 +215,11 @@ describe("ProfilePage — staff view (ADMINISTRADOR/ENTRENADOR)", () => {
     mockUseAuth.mockReturnValue(sessionForRole("admin"));
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     await screen.findAllByText("Ana Admin");
     expect(screen.queryByDisplayValue("Ana")).not.toBeInTheDocument();
@@ -226,20 +239,21 @@ describe("ProfilePage — student/representante summary view", () => {
         fechaNacimiento: "2012-05-10",
         ranking: {
           status: "available",
-          posicionActual: 3,
-          puntajeAcumulado: 120,
           nivelNombre: "Nivel 3",
           estaEnRanking: true,
         },
         recentSessions: [],
-        membership: { id: 1, estado: "ACTIVA", personaId: 1, montoAplicado: null, categoria: null, modalidad: null, franjaHoraria: null, fechaFin: null },
+        membership: { id: 1, estado: "ACTIVA", personaId: 1, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: "Tarde" },
       },
       representados: [],
       membershipPlans: [],
-      memberships: [{ id: 1, estado: "ACTIVA", personaId: 1 }],
     });
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     // Full name appears twice by design (hero card + "Información personal"
     // column, same as the staff branch).
@@ -268,7 +282,11 @@ describe("ProfilePage — student/representante summary view", () => {
       memberships: [],
     });
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     expect((await screen.findAllByText("Sofía Alumna")).length).toBe(2);
     expect(screen.getAllByText("No disponible — consulte con administración").length).toBe(2);
@@ -286,6 +304,7 @@ describe("ProfilePage — student/representante summary view", () => {
           fechaNacimiento: "2014-02-01",
           ranking: { status: "unavailable", reason: "forbidden" },
           recentSessions: [],
+          membership: null,
         },
         {
           personaId: "21",
@@ -294,17 +313,17 @@ describe("ProfilePage — student/representante summary view", () => {
           fechaNacimiento: "2016-08-15",
           ranking: { status: "unavailable", reason: "forbidden" },
           recentSessions: [],
+          membership: null,
         },
       ],
       membershipPlans: [],
-      // Realistic shape: /membresias/mias only ever scopes to the caller
-      // (the representante), never to a represented dependent — so this
-      // array is always irrelevant for representado cards, whatever it
-      // contains.
-      memberships: [{ id: 5, estado: "VENCIDA", personaId: 999 }],
     });
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     expect(await screen.findByText("Juan Hijo")).toBeInTheDocument();
     expect(screen.getByText("Ana Hija")).toBeInTheDocument();
@@ -327,28 +346,29 @@ describe("ProfilePage — student/representante summary view", () => {
         nombres: "Rosa",
         apellidos: "Representante",
         fechaNacimiento: "1985-03-01",
-        ranking: { status: "unavailable", reason: "forbidden" },
-        recentSessions: [],
-        membership: { id: 9, estado: "ACTIVA", personaId: 1, montoAplicado: null, categoria: null, modalidad: null, franjaHoraria: null, fechaFin: null },
-      },
-      representados: [
-        {
-          personaId: "20",
-          nombres: "Juan",
-          apellidos: "Hijo",
-          fechaNacimiento: "2014-02-01",
           ranking: { status: "unavailable", reason: "forbidden" },
           recentSessions: [],
-          membership: null,
+          membership: { id: 9, estado: "ACTIVA", personaId: 1, montoAplicado: "85.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: null },
         },
-      ],
-      membershipPlans: [],
-      // Only the caller's (self, personaId "1") own membership is ever
-      // present — this is the real /membresias/mias contract.
-      memberships: [{ id: 9, estado: "ACTIVA", personaId: 1 }],
-    });
+        representados: [
+          {
+            personaId: "20",
+            nombres: "Juan",
+            apellidos: "Hijo",
+            fechaNacimiento: "2014-02-01",
+            ranking: { status: "unavailable", reason: "forbidden" },
+            recentSessions: [],
+            membership: null,
+          },
+        ],
+        membershipPlans: [],
+      });
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     expect((await screen.findAllByText("Rosa Representante")).length).toBe(2);
     expect(screen.getByText("Juan Hijo")).toBeInTheDocument();
@@ -375,7 +395,11 @@ describe("ProfilePage — student/representante summary view", () => {
       memberships: [],
     });
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     await screen.findAllByText("Sofía Alumna");
     const link = screen.getByRole("link", { name: /ver portal completo/i });
@@ -386,7 +410,11 @@ describe("ProfilePage — student/representante summary view", () => {
     mockUseAuth.mockReturnValue(sessionForRole("admin"));
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     await screen.findAllByText("Ana Admin");
     expect(screen.queryByRole("link", { name: /ver portal completo/i })).not.toBeInTheDocument();
@@ -396,7 +424,11 @@ describe("ProfilePage — student/representante summary view", () => {
     mockUseAuth.mockReturnValue(sessionForRole("estudiante"));
     mockFetchStudentPortal.mockRejectedValueOnce(new Error("No se pudo cargar su cuenta."));
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar su cuenta.");
     expect(screen.getByRole("button", { name: /reintentar/i })).toBeInTheDocument();
@@ -408,7 +440,11 @@ describe("ProfilePage — staff view loading/error (structurally distinct from t
     mockUseAuth.mockReturnValue(sessionForRole("admin"));
     mockFetchMiPerfil.mockRejectedValueOnce(new Error("No se pudo cargar su perfil."));
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar su perfil.");
     const retryButton = screen.getByRole("button", { name: /reintentar/i });
@@ -431,7 +467,11 @@ describe("ProfilePage — inline teléfono edit (correo is read-only)", () => {
       telefono: "099999000",
     });
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
     await screen.findAllByText("Ana Admin");
 
     fireEvent.click(screen.getByRole("button", { name: /editar información/i }));
@@ -451,7 +491,11 @@ describe("ProfilePage — inline teléfono edit (correo is read-only)", () => {
     mockUseAuth.mockReturnValue(sessionForRole("admin"));
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
     await screen.findAllByText("Ana Admin");
 
     fireEvent.click(screen.getByRole("button", { name: /editar información/i }));
@@ -465,7 +509,11 @@ describe("ProfilePage — inline teléfono edit (correo is read-only)", () => {
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
     mockActualizarMiPerfil.mockRejectedValueOnce(new Error("No se pudo guardar los cambios."));
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
     await screen.findAllByText("Ana Admin");
 
     fireEvent.click(screen.getByRole("button", { name: /editar información/i }));
@@ -494,7 +542,11 @@ describe("ProfilePage — inline teléfono edit (correo is read-only)", () => {
       memberships: [],
     });
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     await screen.findAllByText("Sofía Alumna");
     expect(screen.queryByRole("button", { name: /editar información/i })).not.toBeInTheDocument();
@@ -511,7 +563,11 @@ describe("ProfilePage — change password", () => {
       mensaje: "Si el correo está registrado, recibirá un enlace de recuperación.",
     });
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
     await screen.findAllByText("Ana Admin");
 
     fireEvent.click(screen.getByRole("button", { name: /cambiar contraseña/i }));
@@ -529,7 +585,11 @@ describe("ProfilePage — change password", () => {
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
     mockSolicitarRecuperacion.mockRejectedValueOnce(new Error("No se pudo enviar el correo."));
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
     await screen.findAllByText("Ana Admin");
 
     fireEvent.click(screen.getByRole("button", { name: /cambiar contraseña/i }));
@@ -543,7 +603,11 @@ describe("ProfilePage — unified layout structure", () => {
     mockUseAuth.mockReturnValue(sessionForRole("admin"));
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     await screen.findAllByText("Ana Admin");
     expect(screen.getByText("Mi cuenta")).toBeInTheDocument();
@@ -559,7 +623,11 @@ describe("ProfilePage — unified layout structure", () => {
     mockUseAuth.mockReturnValue(sessionForRole("admin"));
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     await screen.findAllByText("Ana Admin");
     expect(screen.queryByTestId("profile-column-links")).not.toBeInTheDocument();
@@ -572,7 +640,11 @@ describe("ProfilePage — profile photo upload (staff branch, own hero avatar)",
     mockUseAuth.mockReturnValue(sessionForRole("admin"));
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     await screen.findAllByText("Ana Admin");
     const hero = screen.getByTestId("profile-hero");
@@ -586,7 +658,11 @@ describe("ProfilePage — profile photo upload (staff branch, own hero avatar)",
       fotoUrl: "https://res.cloudinary.com/test/image/upload/perfil-ana.jpg",
     });
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     await screen.findAllByText("Ana Admin");
     const hero = screen.getByTestId("profile-hero");
@@ -598,7 +674,11 @@ describe("ProfilePage — profile photo upload (staff branch, own hero avatar)",
     mockUseAuth.mockReturnValue(sessionForRole("admin"));
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     await screen.findAllByText("Ana Admin");
     expect(screen.getByTestId("foto-perfil-input")).toHaveAttribute("accept", "image/jpeg,image/png");
@@ -612,7 +692,11 @@ describe("ProfilePage — profile photo upload (staff branch, own hero avatar)",
       fotoUrl: "https://res.cloudinary.com/test/image/upload/perfil-ana.jpg",
     });
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
     await screen.findAllByText("Ana Admin");
 
     const input = screen.getByTestId("foto-perfil-input");
@@ -637,7 +721,11 @@ describe("ProfilePage — profile photo upload (staff branch, own hero avatar)",
     mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
     mockSubirFotoPerfil.mockRejectedValueOnce(new Error("No se pudo actualizar la foto de perfil."));
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
     await screen.findAllByText("Ana Admin");
 
     const input = screen.getByTestId("foto-perfil-input");
@@ -666,7 +754,11 @@ describe("ProfilePage — profile photo upload (student/representante branch, ow
       memberships: [],
     });
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     await screen.findAllByText("Sofía Alumna");
     expect(screen.getByTestId("foto-perfil-input")).toHaveAttribute("accept", "image/jpeg,image/png");
@@ -693,7 +785,11 @@ describe("ProfilePage — profile photo upload (student/representante branch, ow
     mockFetchMiPerfil.mockReset();
     mockFetchMiPerfil.mockRejectedValueOnce(new Error("network error"));
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
 
     await screen.findAllByText("Sofía Alumna");
     // No alert/error surfaced — the failure is cosmetic-only (silent), and
@@ -729,7 +825,11 @@ describe("ProfilePage — profile photo upload (student/representante branch, ow
       fotoUrl: "https://res.cloudinary.com/test/image/upload/perfil-rosa.jpg",
     });
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
     await screen.findAllByText("Rosa Representante");
 
     const input = screen.getByTestId("foto-perfil-input");
@@ -766,7 +866,11 @@ describe("ProfilePage — profile photo upload (student/representante branch, ow
     });
     mockSubirFotoPerfil.mockRejectedValueOnce(new Error("No se pudo actualizar la foto de perfil."));
 
-    render(<ProfilePage />);
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
     await screen.findAllByText("Sofía Alumna");
 
     const input = screen.getByTestId("foto-perfil-input");

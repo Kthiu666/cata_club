@@ -84,16 +84,13 @@ export interface PaymentValidationRequest {
   rejectionReason?: string;
   validatedAt?: string;
   validatedBy?: string;
-  /** Payment period start date (YYYY-MM-DD), editable by admin on approval. */
   startDate: string;
-  /** Payment period end date (YYYY-MM-DD), editable by admin on approval. */
   endDate: string;
 }
 
 /** DTO for approving a payment validation request. */
 export interface ApprovePaymentDTO {
   action: "approved";
-  /** Optional period override — when provided, the membership period is adjusted. */
   startDate?: string;
   endDate?: string;
 }
@@ -674,7 +671,6 @@ export interface StudentProfileSummary {
   nombres: string;
   apellidos: string;
   fechaNacimiento: string;
-  representanteId: number | null;
   ranking: StudentRankingSummary;
   recentSessions: StudentSessionSummary[];
   membership: MembershipSummary | null;
@@ -688,13 +684,7 @@ export interface MembershipSummary {
   categoria: string | null;
   modalidad: string | null;
   franjaHoraria: string | null;
-  /** End of the last approved payment period — null when no APROBADO pago
-   *  exists yet (the membership is INACTIVA awaiting first approval). */
-  fechaFin: string | null;
 }
-
-/** Alias used by the profile page to refer to a membership row in a collection. */
-export type StudentMembershipSummary = MembershipSummary;
 
 /** A real `TipoMembresia` catalog entry (`GET /membresias/tipos`) — replaces the old hardcoded `membershipPlans` array. */
 export interface MembershipPlanSummary {
@@ -709,7 +699,6 @@ export interface StudentPortalSummary {
   self: StudentProfileSummary | null;
   representados: StudentProfileSummary[];
   membershipPlans: MembershipPlanSummary[];
-  representanteNombre: string | null;
 }
 
 /** Fetch the logged-in persona's own portal data — `GET /api/student`. */
@@ -767,15 +756,99 @@ export async function fetchNuevosPorPeriodo(
   return request<PersonaReporte[]>(apiEndpoint(`/personas/reportes/nuevos-por-periodo?${qs.toString()}`));
 }
 
-/** Filter personas by etiquetas (prioridad municipal / becado) — `GET /api/personas/reportes`. */
-export async function fetchPersonasPorEtiquetas(
-  filtros: { prioridadMunicipal?: boolean; becado?: boolean } = {},
-): Promise<PersonaReporte[]> {
+// ---------------------------------------------------------------------------
+// Report PDF exports
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch a binary PDF from a same-origin BFF route and trigger a browser
+ * download via a temporary `<a download>` click. Bypasses `request<T>`
+ * (which unconditionally calls `.json()`) since a PDF export needs the raw
+ * bytes, not a parsed JSON body. Reads the served filename from the
+ * `Content-Disposition` header when present, falling back to
+ * `fallbackFilename` otherwise.
+ */
+export async function downloadBlob(endpoint: string, fallbackFilename: string): Promise<void> {
+  const response = await fetch(endpoint);
+
+  if (!response.ok) {
+    let message = `No se pudo generar el PDF (status ${response.status}).`;
+    try {
+      const errorBody: unknown = await response.json();
+      if (isApiErrorBody(errorBody)) {
+        message = errorBody.detail ?? errorBody.message ?? message;
+      }
+    } catch {
+      // ignore parse errors — use default message
+    }
+    throw new ApiClientError(message, response.status);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const match = /filename="?([^"]+?)"?(?:;|$)/i.exec(disposition);
+  const filename = match?.[1] ?? fallbackFilename;
+
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Export the "nuevos por período" persona report as a PDF and trigger its download. */
+export async function exportNuevosPorPeriodoPdf(fechaInicio: string, fechaFin: string): Promise<void> {
+  const qs = new URLSearchParams({ fecha_inicio: fechaInicio, fecha_fin: fechaFin });
+  await downloadBlob(apiEndpoint(`/personas/reportes/nuevos-por-periodo/pdf?${qs.toString()}`), "reporte-periodo.pdf");
+}
+
+/** Export the attendance report as a PDF and trigger its download. */
+export async function exportAsistenciaReportePdf(params?: {
+  fechaInicio?: string;
+  fechaFin?: string;
+  horarioId?: number;
+  personaId?: number;
+}): Promise<void> {
   const qs = new URLSearchParams();
-  if (filtros.prioridadMunicipal) qs.set("prioridad_municipal", "true");
-  if (filtros.becado) qs.set("becado", "true");
+  if (params?.fechaInicio) qs.set("fechaInicio", params.fechaInicio);
+  if (params?.fechaFin) qs.set("fechaFin", params.fechaFin);
+  if (params?.horarioId !== undefined) qs.set("horarioId", String(params.horarioId));
+  if (params?.personaId !== undefined) qs.set("personaId", String(params.personaId));
   const query = qs.toString();
-  return request<PersonaReporte[]>(apiEndpoint(`/personas/reportes${query ? `?${query}` : ""}`));
+  const queryString = query ? `?${query}` : "";
+  await downloadBlob(apiEndpoint(`/asistencias/reportes/pdf${queryString}`), "reporte-asistencia.pdf");
+}
+
+/** Fetch the payments report (Reportes "Pagos" tab), optionally filtered by date range/status. */
+export async function fetchPagosReporte(params?: {
+  fechaInicio?: string;
+  fechaFin?: string;
+  estadoPago?: string;
+}): Promise<PaymentValidationRequest[]> {
+  const qs = new URLSearchParams();
+  if (params?.fechaInicio) qs.set("fechaInicio", params.fechaInicio);
+  if (params?.fechaFin) qs.set("fechaFin", params.fechaFin);
+  if (params?.estadoPago) qs.set("estadoPago", params.estadoPago);
+  const query = qs.toString();
+  return request<PaymentValidationRequest[]>(apiEndpoint(`/payments/reportes${query ? `?${query}` : ""}`));
+}
+
+/** Export the payments report as a PDF and trigger its download. */
+export async function exportPagosReportePdf(params?: {
+  fechaInicio?: string;
+  fechaFin?: string;
+  estadoPago?: string;
+}): Promise<void> {
+  const qs = new URLSearchParams();
+  if (params?.fechaInicio) qs.set("fechaInicio", params.fechaInicio);
+  if (params?.fechaFin) qs.set("fechaFin", params.fechaFin);
+  if (params?.estadoPago) qs.set("estadoPago", params.estadoPago);
+  const query = qs.toString();
+  const queryString = query ? `?${query}` : "";
+  await downloadBlob(apiEndpoint(`/payments/reportes/pdf${queryString}`), "reporte-pagos.pdf");
 }
 
 /** Search persons by name (autocomplete). */
@@ -889,29 +962,6 @@ export async function fetchPagosDePersona(personaId: string): Promise<PagoPerson
   });
 }
 
-/** Payload for registering a new pending payment — `POST /api/membresias/pagos`. */
-export interface RegistrarPagoInput {
-  monto: number;
-  tipoPago: "EFECTIVO" | "TRANSFERENCIA";
-  fechaInicio: string;
-  fechaFin: string;
-  personaId: number;
-  membresiaId: number;
-}
-
-/** Register a new pending payment (PENDIENTE_VALIDACION) — `POST /api/membresias/pagos`.
- *  Works for both admin-created payments and student/representante renewals:
- *  the backend enforces authorization at the service layer (owner, their
- *  representative, or ADMINISTRADOR). */
-export async function registrarPago(data: RegistrarPagoInput): Promise<PagoPersona> {
-  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
-  return request<PagoPersona>(apiEndpoint("/membresias/pagos"), {
-    method: "POST",
-    body: JSON.stringify(data),
-    headers: { "Content-Type": "application/json", ...mockHeaders },
-  });
-}
-
 /** Upload a payment voucher (comprobante) — `POST /api/membresias/pagos/{pagoId}/voucher`. */
 export async function subirVoucherPago(pagoId: number, archivo: File): Promise<PagoPersona> {
   const formData = new FormData();
@@ -954,6 +1004,13 @@ export async function crearMembresia(data: {
   });
 }
 
+/** Admin-only: read a persona's current roles + activo without mutating anything. */
+export async function obtenerRolesDePersona(personaId: number): Promise<RolesResponse> {
+  return request<RolesResponse>(apiEndpoint(`/personas/${personaId}/roles`), {
+    method: "GET",
+  });
+}
+
 /** Admin-only: assign a backend role to a persona. */
 export async function asignarRol(personaId: number, tipoRol: BackendTipoRol): Promise<RolesResponse> {
   return request<RolesResponse>(apiEndpoint(`/personas/${personaId}/roles`), {
@@ -964,7 +1021,7 @@ export async function asignarRol(personaId: number, tipoRol: BackendTipoRol): Pr
 
 /** Admin-only: remove a backend role from a persona. */
 export async function quitarRol(personaId: number, tipoRol: BackendTipoRol): Promise<RolesResponse> {
-  return request<RolesResponse>(apiEndpoint(`/personas/${personaId}/roles?tipoRol=${encodeURIComponent(tipoRol)}`), {
+  return request<RolesResponse>(apiEndpoint(`/personas/${personaId}/roles/${tipoRol}`), {
     method: "DELETE",
   });
 }
@@ -985,9 +1042,6 @@ export interface PersonaUpdatePayload {
   fotoUrl?: string;
   direccionId?: number;
   institucionId?: number;
-  prioridadMunicipal?: boolean;
-  porcentajeBeca?: number;
-  motivoBeca?: string;
 }
 
 /** Admin-only: update a person's basic data. */
@@ -1003,9 +1057,6 @@ export async function actualizarPersona(
   if (data.fotoUrl !== undefined) body.foto_url = data.fotoUrl;
   if (data.direccionId !== undefined) body.direccion_id = data.direccionId;
   if (data.institucionId !== undefined) body.institucion_id = data.institucionId;
-  if (data.prioridadMunicipal !== undefined) body.prioridad_municipal = data.prioridadMunicipal;
-  if (data.porcentajeBeca !== undefined) body.porcentaje_beca = data.porcentajeBeca;
-  if (data.motivoBeca !== undefined) body.motivo_beca = data.motivoBeca;
 
   return request<PersonaResponse>(apiEndpoint(`/personas/${personaId}`), {
     method: "PATCH",

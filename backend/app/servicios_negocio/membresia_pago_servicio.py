@@ -289,13 +289,19 @@ class PagoServicio:
         estado_pago: EstadoPago | None = None,
         skip: int = 0,
         limit: int = 50,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
     ) -> tuple[list[PagoListItemDTO], int]:
-        """Cola de validación (Administrador). Construye PagoListItemDTO a mano
-        (en vez de from_attributes directo) porque `persona_nombre_completo`
-        no es una columna de Pago: se arma a partir de la relación cargada
-        (ver joinedload en el repositorio, evita N+1 queries)."""
-        pagos = self.repo.listar(estado_pago=estado_pago, skip=skip, limit=limit)
-        total = self.repo.contar(estado_pago=estado_pago)
+        """Cola de validación (Administrador) y reporte de pagos. Construye
+        PagoListItemDTO a mano (en vez de from_attributes directo) porque
+        `persona_nombre_completo` no es una columna de Pago: se arma a partir
+        de la relación cargada (ver joinedload en el repositorio, evita N+1
+        queries)."""
+        pagos = self.repo.listar(
+            estado_pago=estado_pago, skip=skip, limit=limit,
+            fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+        )
+        total = self.repo.contar(estado_pago=estado_pago, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin)
         items = [
             PagoListItemDTO(
                 id=p.id,
@@ -424,6 +430,7 @@ class PagoServicio:
                 entidad_relacionada_id=pago.id,
             )
             self.repo_notificacion.crear(notif_rep)
+
 
     def adjuntar_comprobante(self, pago_id: int, datos: ComprobantePagoCreateDTO) -> ComprobantePago:
         pago = self.obtener_pago(pago_id)

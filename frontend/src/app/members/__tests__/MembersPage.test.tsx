@@ -70,6 +70,7 @@ vi.mock("@/contexts/ToastContext", () => ({
 }));
 
 const mockFetchMembers = vi.fn();
+const mockObtenerRolesDePersona = vi.fn();
 const mockAsignarRol = vi.fn();
 const mockQuitarRol = vi.fn();
 const mockCambiarEstadoCuenta = vi.fn();
@@ -93,6 +94,7 @@ vi.mock("@/services/api", () => {
   }
   return {
     fetchMembers: () => mockFetchMembers(),
+    obtenerRolesDePersona: (personaId: number) => mockObtenerRolesDePersona(personaId),
     asignarRol: (personaId: number, tipoRol: string) => mockAsignarRol(personaId, tipoRol),
     quitarRol: (personaId: number, tipoRol: string) => mockQuitarRol(personaId, tipoRol),
     cambiarEstadoCuenta: (personaId: number, activo: boolean) => mockCambiarEstadoCuenta(personaId, activo),
@@ -155,22 +157,45 @@ function getEditButton(container: HTMLElement): HTMLElement {
 describe("MembersPage — Editar member modal", () => {
   beforeEach(() => {
     mockFetchMembers.mockReset();
+    mockObtenerRolesDePersona.mockReset();
     mockAsignarRol.mockReset();
     mockQuitarRol.mockReset();
     mockCambiarEstadoCuenta.mockReset();
-    mockActualizarPersona.mockReset();
     mockFetchFichaMedica.mockReset();
     mockActualizarFichaMedica.mockReset();
     mockFetchTiposMembresia.mockReset().mockResolvedValue([]);
     mockCrearMembresia.mockReset();
     mockFetchMembers.mockResolvedValue({ accounts: [ACCOUNT], niveles: [] });
+    // Default: persona has no roles yet and is active — matches the old
+    // hardcoded placeholder so existing tests below don't need to change,
+    // while the real fetch-on-open behavior is exercised explicitly by the
+    // "seeds roles/activo from the real backend state" tests further down.
+    mockObtenerRolesDePersona.mockResolvedValue({ roles: [], activo: true });
     mockAsignarRol.mockResolvedValue({ roles: ["ADMINISTRADOR"] });
     mockQuitarRol.mockResolvedValue({ roles: [] });
     mockCambiarEstadoCuenta.mockResolvedValue({ activo: false });
+    mockActualizarPersona.mockReset();
+    mockActualizarPersona.mockResolvedValue({ id: 1, nombres: "María", apellidos: "González", telefono: "0999999999" });
   });
 
+  /** Opens the row's modal and waits for the roles/estado fetch to settle
+   * (checkboxes and the estado toggle are disabled until then), returning
+   * the dialog element ready for interaction. */
+  async function openModalAndWaitForRoles(row: HTMLElement): Promise<HTMLElement> {
+    fireEvent.click(getEditButton(row));
+    const dialog = screen.getByRole("dialog");
+    await waitFor(() => {
+      expect(within(dialog).getByRole("checkbox", { name: /admin/i })).not.toBeDisabled();
+    });
+    return dialog;
+  }
+
   it("renders an Editar trigger per account row (desktop + a mobile-visible duplicate) instead of inline role/status controls", async () => {
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
     // Two triggers exist by design — one in the desktop-only contact/status
@@ -185,7 +210,11 @@ describe("MembersPage — Editar member modal", () => {
   });
 
   it("never renders a row expand/collapse control — the table no longer expands", async () => {
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
     expect(within(row).queryByRole("button", { name: /^expandir$/i })).not.toBeInTheDocument();
@@ -197,8 +226,12 @@ describe("MembersPage — Editar member modal", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Sofía González");
   });
 
-  it("shows each student's editable etiquetas and ficha médica actions inside the modal", async () => {
-    render(<MembersPage />);
+  it("shows each student's editable ficha médica action inside the modal", async () => {
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
     fireEvent.click(getEditButton(row));
@@ -206,30 +239,7 @@ describe("MembersPage — Editar member modal", () => {
 
     expect(within(dialog).getByText("Estudiantes a cargo")).toBeInTheDocument();
     expect(within(dialog).getByText("Sofía González")).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: /^etiquetas$/i })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: /ficha médica/i })).toBeInTheDocument();
-  });
-
-  it("saves a student's etiquetas via actualizarPersona using the student's own personaId", async () => {
-    mockActualizarPersona.mockResolvedValueOnce({ id: 10 });
-    render(<MembersPage />);
-    const row = await findAccountRow();
-
-    fireEvent.click(getEditButton(row));
-    const dialog = screen.getByRole("dialog");
-
-    fireEvent.click(within(dialog).getByRole("button", { name: /^etiquetas$/i }));
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: /prioridad municipal/i }));
-    fireEvent.click(within(dialog).getByRole("button", { name: /guardar etiquetas/i }));
-
-    await waitFor(() => {
-      expect(mockActualizarPersona).toHaveBeenCalledWith(
-        10,
-        expect.objectContaining({ prioridadMunicipal: true }),
-      );
-    });
-    // Never confused with the account holder's own personaId (1).
-    expect(mockActualizarPersona).not.toHaveBeenCalledWith(1, expect.anything());
   });
 
   it("renders one edit panel per student when an account manages multiple students", async () => {
@@ -245,7 +255,11 @@ describe("MembersPage — Editar member modal", () => {
       ],
       niveles: [],
     });
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
     fireEvent.click(getEditButton(row));
@@ -253,11 +267,15 @@ describe("MembersPage — Editar member modal", () => {
 
     expect(within(dialog).getByText("Sofía González")).toBeInTheDocument();
     expect(within(dialog).getByText("Mateo González")).toBeInTheDocument();
-    expect(within(dialog).getAllByRole("button", { name: /^etiquetas$/i })).toHaveLength(2);
+    expect(within(dialog).getAllByRole("button", { name: /ficha médica/i })).toHaveLength(2);
   });
 
   it("opens a floating modal dialog with 4 checkable role rows when Editar is clicked", async () => {
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
     fireEvent.click(getEditButton(row));
@@ -271,7 +289,11 @@ describe("MembersPage — Editar member modal", () => {
   });
 
   it("shows the member's read-only name and telefono inside the modal", async () => {
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
     fireEvent.click(getEditButton(row));
@@ -281,12 +303,63 @@ describe("MembersPage — Editar member modal", () => {
     expect(dialog).toHaveTextContent("0999999999");
   });
 
-  it("selecting a role in the modal fires asignarRol, same as the old popover", async () => {
-    render(<MembersPage />);
+  it("Nombres/Apellidos/Teléfono are genuinely editable inputs (not read-only text), matching what the Editar trigger promises", async () => {
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
     fireEvent.click(getEditButton(row));
     const dialog = screen.getByRole("dialog");
+
+    const nombresInput = within(dialog).getByLabelText("Nombres") as HTMLInputElement;
+    const apellidosInput = within(dialog).getByLabelText("Apellidos") as HTMLInputElement;
+    const telefonoInput = within(dialog).getByLabelText("Teléfono") as HTMLInputElement;
+    expect(nombresInput.value).toBe("María");
+    expect(apellidosInput.value).toBe("González");
+    expect(telefonoInput.value).toBe("0999999999");
+
+    fireEvent.change(nombresInput, { target: { value: "María José" } });
+    fireEvent.change(telefonoInput, { target: { value: "0988888888" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /guardar datos/i }));
+
+    await waitFor(() => {
+      expect(mockActualizarPersona).toHaveBeenCalledWith(1, {
+        nombres: "María José",
+        apellidos: "González",
+        telefono: "0988888888",
+      });
+    });
+    expect(await within(dialog).findByRole("status")).toHaveTextContent("Guardado");
+  });
+
+  it("shows a clear error when saving Nombre/Teléfono fails", async () => {
+    mockActualizarPersona.mockRejectedValueOnce(new Error("No se pudo actualizar"));
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
+    const row = await findAccountRow();
+
+    fireEvent.click(getEditButton(row));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /guardar datos/i }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("No se pudo actualizar");
+  });
+
+  it("selecting a role in the modal fires asignarRol, same as the old popover", async () => {
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
+    const row = await findAccountRow();
+
+    const dialog = await openModalAndWaitForRoles(row);
     fireEvent.click(within(dialog).getByRole("checkbox", { name: /admin/i }));
 
     await waitFor(() => {
@@ -295,11 +368,14 @@ describe("MembersPage — Editar member modal", () => {
   });
 
   it("deselecting an already-selected role fires quitarRol", async () => {
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
-    fireEvent.click(getEditButton(row));
-    const dialog = screen.getByRole("dialog");
+    const dialog = await openModalAndWaitForRoles(row);
     const adminCheckbox = within(dialog).getByRole("checkbox", { name: /admin/i });
 
     fireEvent.click(adminCheckbox);
@@ -313,11 +389,14 @@ describe("MembersPage — Editar member modal", () => {
 
   it('reconciles local state when the backend reports "ya tiene el rol" on assign', async () => {
     mockAsignarRol.mockRejectedValueOnce(new Error("Esta persona ya tiene el rol ADMINISTRADOR"));
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
-    fireEvent.click(getEditButton(row));
-    const dialog = screen.getByRole("dialog");
+    const dialog = await openModalAndWaitForRoles(row);
     fireEvent.click(within(dialog).getByRole("checkbox", { name: /admin/i }));
 
     await waitFor(() => {
@@ -327,11 +406,14 @@ describe("MembersPage — Editar member modal", () => {
   });
 
   it('reconciles local state when the backend reports "no tiene el rol" on unassign', async () => {
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
-    fireEvent.click(getEditButton(row));
-    const dialog = screen.getByRole("dialog");
+    const dialog = await openModalAndWaitForRoles(row);
     const adminCheckbox = within(dialog).getByRole("checkbox", { name: /admin/i });
 
     // First click assigns (default mockAsignarRol success) so the checkbox
@@ -349,11 +431,14 @@ describe("MembersPage — Editar member modal", () => {
   });
 
   it("toggling the account activo/inactivo state inside the modal calls cambiarEstadoCuenta", async () => {
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
-    fireEvent.click(getEditButton(row));
-    const dialog = screen.getByRole("dialog");
+    const dialog = await openModalAndWaitForRoles(row);
     fireEvent.click(within(dialog).getByRole("button", { name: /^activa$/i }));
 
     await waitFor(() => {
@@ -361,8 +446,75 @@ describe("MembersPage — Editar member modal", () => {
     });
   });
 
+  it("seeds the role checkboxes from the persona's real current roles when the modal opens (not all unchecked)", async () => {
+    mockObtenerRolesDePersona.mockResolvedValue({ roles: ["ENTRENADOR", "ADMINISTRADOR"], activo: true });
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
+    const row = await findAccountRow();
+
+    fireEvent.click(getEditButton(row));
+    const dialog = screen.getByRole("dialog");
+
+    await waitFor(() => {
+      expect(mockObtenerRolesDePersona).toHaveBeenCalledWith(1);
+    });
+    await waitFor(() => {
+      expect(within(dialog).getByRole("checkbox", { name: /admin/i })).toBeChecked();
+    });
+    expect(within(dialog).getByRole("checkbox", { name: /entrenador/i })).toBeChecked();
+    expect(within(dialog).getByRole("checkbox", { name: /representante/i })).not.toBeChecked();
+    expect(within(dialog).getByRole("checkbox", { name: /alumno/i })).not.toBeChecked();
+  });
+
+  it("reflects the persona's real activo:false state when the modal opens, instead of the true placeholder", async () => {
+    mockObtenerRolesDePersona.mockResolvedValue({ roles: [], activo: false });
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
+    const row = await findAccountRow();
+
+    fireEvent.click(getEditButton(row));
+    const dialog = screen.getByRole("dialog");
+
+    await waitFor(() => {
+      expect(within(dialog).getByRole("button", { name: /^inactiva$/i })).toBeInTheDocument();
+    });
+  });
+
+  it("disables the role checkboxes and shows an error instead of silently keeping stale data when the roles fetch fails", async () => {
+    mockObtenerRolesDePersona.mockRejectedValue(new Error("No se pudo conectar"));
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
+    const row = await findAccountRow();
+
+    fireEvent.click(getEditButton(row));
+    const dialog = screen.getByRole("dialog");
+
+    // The fetch failure is surfaced in both the Estado and Roles sections
+    // (both controls are disabled by it), so two identical alerts is the
+    // expected — not accidental — result.
+    const alerts = await within(dialog).findAllByRole("alert");
+    expect(alerts.length).toBeGreaterThan(0);
+    for (const alert of alerts) {
+      expect(alert).toHaveTextContent("No se pudo conectar");
+    }
+    expect(within(dialog).getByRole("checkbox", { name: /admin/i })).toBeDisabled();
+  });
+
   it("closes the modal when the close (X) button is clicked", async () => {
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
     fireEvent.click(getEditButton(row));
@@ -373,7 +525,11 @@ describe("MembersPage — Editar member modal", () => {
   });
 
   it("returns focus to the Editar button when the modal closes", async () => {
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
     const editButton = getEditButton(row);
@@ -385,10 +541,17 @@ describe("MembersPage — Editar member modal", () => {
 
   it("does not carry a stale error into a freshly reopened modal", async () => {
     mockAsignarRol.mockRejectedValueOnce(new Error("Error de red"));
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
     fireEvent.click(getEditButton(row));
+    await waitFor(() => {
+      expect(screen.getByRole("checkbox", { name: /admin/i })).not.toBeDisabled();
+    });
     fireEvent.click(screen.getByRole("checkbox", { name: /admin/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Error de red");
 
@@ -399,7 +562,11 @@ describe("MembersPage — Editar member modal", () => {
   });
 
   it("closes the modal when clicking the backdrop", async () => {
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
     fireEvent.click(getEditButton(row));
@@ -409,7 +576,11 @@ describe("MembersPage — Editar member modal", () => {
   });
 
   it("closes the modal on Escape", async () => {
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
     fireEvent.click(getEditButton(row));
@@ -420,7 +591,11 @@ describe("MembersPage — Editar member modal", () => {
 
   it("opening a second row's modal closes any previously open modal (only one at a time)", async () => {
     mockFetchMembers.mockResolvedValue({ accounts: createAccounts(2), niveles: [] });
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
 
     const row1 = (await screen.findByText("Responsable 1 González")).closest("tr") as HTMLElement;
     const row2 = screen.getByText("Responsable 2 González").closest("tr") as HTMLElement;
@@ -443,7 +618,11 @@ describe("MembersPage — Crear membresía inline form", () => {
   });
 
   it("opens the create-membership form (type select + Crear/Cancelar) inside the student's card", async () => {
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     const row = await findAccountRow();
 
     // Membership creation lives inside the student's edit-panel card, only
@@ -576,7 +755,11 @@ describe("MembersPage — Registrar pago inline form", () => {
 
 describe("MembersPage — capped results help", () => {
   it("opens named help that truthfully describes the known 200-result cap", async () => {
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
     await findAccountRow();
 
     fireEvent.click(screen.getByRole("button", { name: "Ayuda sobre límite de resultados" }));
@@ -591,7 +774,11 @@ describe("MembersPage — honest aggregate coverage", () => {
   it("shows the incomplete-coverage notice when the upstream persona cap is reached after accounts collapse", async () => {
     mockFetchMembers.mockResolvedValue({ accounts: [ACCOUNT], niveles: [], personasCapped: true });
 
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
 
     expect(await screen.findByRole("status", { name: "Resultados mostrados" })).toHaveTextContent(
       "1 resultados mostrados",
@@ -606,7 +793,11 @@ describe("MembersPage — honest aggregate coverage", () => {
   it("hides the incomplete-coverage notice below the cap without adding pagination controls", async () => {
     mockFetchMembers.mockResolvedValue({ accounts: createAccounts(199), niveles: [], personasCapped: false });
 
-    render(<MembersPage />);
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
 
     expect(await screen.findByRole("status", { name: "Resultados mostrados" })).toHaveTextContent(
       "199 resultados mostrados",

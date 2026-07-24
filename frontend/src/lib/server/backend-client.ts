@@ -152,3 +152,34 @@ export async function proxyBackendGet(request: NextRequest, path: string, errorM
   }
   return response;
 }
+
+/**
+ * Shared `GET` proxy for binary PDF report exports: authenticate, relay
+ * backend/HTTP errors the same way `proxyBackendGet` does, then stream the
+ * raw PDF bytes back with `Content-Type: application/pdf` and whatever
+ * `Content-Disposition` FastAPI sent (falling back to `attachment` if
+ * absent). Extracted so the report PDF routes under `src/app/api/` don't
+ * each reimplement this same arrayBuffer-then-NextResponse tail.
+ */
+export async function proxyBackendPdfGet(request: NextRequest, path: string, errorMessage: string): Promise<NextResponse> {
+  const result = await backendFetchAuthed(request, path);
+  if (!result.ok) {
+    return NextResponse.json({ message: errorMessage }, { status: result.status });
+  }
+  if (!result.response.ok) {
+    return passthroughBackendError(result.response, errorMessage);
+  }
+
+  const bytes = await result.response.arrayBuffer();
+  const response = new NextResponse(bytes, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": result.response.headers.get("Content-Disposition") ?? "attachment",
+    },
+  });
+  if (result.refreshedAccessToken) {
+    setAuthCookies(response, { accessToken: result.refreshedAccessToken });
+  }
+  return response;
+}

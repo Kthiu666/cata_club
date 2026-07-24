@@ -20,6 +20,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ContextualHelp from "@/components/ContextualHelp";
 import BackLink from "@/components/BackLink";
+import PaginationControls from "@/components/PaginationControls";
 import { useToast } from "@/contexts/ToastContext";
 import {
   Users,
@@ -38,16 +39,13 @@ import {
   Stethoscope,
   Loader2,
   Plus,
-  CreditCard,
+  Save,
   ToggleLeft,
   ToggleRight,
   Pencil,
   X,
-  ChevronLeft,
-  ChevronRight,
-  Upload,
 } from "lucide-react";
-import { fetchMembers, asignarRol, quitarRol, cambiarEstadoCuenta, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia, registrarPago, subirVoucherPago, actualizarPersona } from "@/services/api";
+import { fetchMembers, obtenerRolesDePersona, asignarRol, quitarRol, cambiarEstadoCuenta, actualizarPersona, fetchFichaMedica, actualizarFichaMedica, fetchTiposMembresia, crearMembresia } from "@/services/api";
 import type { TipoMembresiaCatalogo } from "@/services/api";
 import { nivelToGrupo } from "@/app/groups/groups-page-utils";
 import { getUserInitials } from "@/lib/auth-utils";
@@ -166,32 +164,6 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
   const [membershipError, setMembershipError] = useState<string | null>(null);
   const [membershipSuccess, setMembershipSuccess] = useState(false);
 
-  const [showLabels, setShowLabels] = useState(false);
-  const [prioridadMunicipal, setPrioridadMunicipal] = useState(student.prioridadMunicipal ?? false);
-  const [porcentajeBeca, setPorcentajeBeca] = useState<string>(String(student.porcentajeBeca ?? 0));
-  const [motivoBeca, setMotivoBeca] = useState(student.motivoBeca ?? "");
-  const [labelsSaving, setLabelsSaving] = useState(false);
-  const [labelsError, setLabelsError] = useState<string | null>(null);
-  const [labelsSuccess, setLabelsSuccess] = useState(false);
-
-  // --- Payment registration state — shown when the student already has a
-  //     membership (initial payment or renewal). The backend requires a
-  //     valid `membresia_id` so this only renders when `student.membresia`
-  //     is non-null (we surface its `id` now — see members-adapter.ts). ---
-  const [showCreatePayment, setShowCreatePayment] = useState(false);
-  const [paymentMonto, setPaymentMonto] = useState<string>("");
-  const [paymentTipo, setPaymentTipo] = useState<"EFECTIVO" | "TRANSFERENCIA">("TRANSFERENCIA");
-  const [paymentFechaInicio, setPaymentFechaInicio] = useState<string>("");
-  const [paymentFechaFin, setPaymentFechaFin] = useState<string>("");
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [paymentVoucherFile, setPaymentVoucherFile] = useState<File | null>(null);
-
-  /** Monthly price from the current membership — used to auto-calc fechaFin. */
-  const paymentMonthlyPrice = student.membresia?.monto ?? 0;
-  const paymentFileInputRef = useRef<HTMLInputElement>(null);
-
   const membershipLabel = student.membresia
     ? MEMBERSHIP_STATUS_LABELS[student.membresia.estado]
     : "Sin membresía";
@@ -249,121 +221,6 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
     }
   }
 
-  async function handleSaveLabels(): Promise<void> {
-    setLabelsSaving(true);
-    setLabelsError(null);
-    setLabelsSuccess(false);
-    try {
-      const beca = Number(porcentajeBeca);
-      await actualizarPersona(personaId, {
-        prioridadMunicipal,
-        porcentajeBeca: Number.isFinite(beca) && beca >= 0 && beca <= 100 ? beca : 0,
-        motivoBeca: motivoBeca.trim() || undefined,
-      });
-      setLabelsSuccess(true);
-    } catch (err) {
-      setLabelsError(err instanceof Error ? err.message : "No se pudieron guardar las etiquetas.");
-    } finally {
-      setLabelsSaving(false);
-    }
-  }
-
-  /**
-   * Open the inline "register payment" form. Pre-fills sensible defaults:
-   * monto from current membership, fechaInicio = today (or the day after
-   * the previous period's fechaFin for renewals), fechaFin auto-calculated
-   * from monto / monthlyPrice. The admin can override dates before submitting.
-   */
-  function handleOpenCreatePayment(): void {
-    setShowCreatePayment(true);
-    setPaymentError(null);
-    setPaymentSuccess(false);
-    setPaymentVoucherFile(null);
-    setPaymentTipo("TRANSFERENCIA");
-    const monto = student.membresia?.monto ?? 0;
-    setPaymentMonto(monto > 0 ? String(monto) : "");
-
-    const hoy = new Date();
-    const inicio = student.membresia?.fechaFin
-      ? new Date(student.membresia.fechaFin + "T12:00:00")
-      : hoy;
-    const base = inicio.getTime() > hoy.getTime() ? inicio : hoy;
-    setPaymentFechaInicio(base.toISOString().slice(0, 10));
-
-    if (monto > 0 && paymentMonthlyPrice > 0) {
-      const months = monto / paymentMonthlyPrice;
-      const fin = new Date(base);
-      fin.setMonth(fin.getMonth() + months);
-      setPaymentFechaFin(fin.toISOString().slice(0, 10));
-    } else {
-      const fin = new Date(base);
-      fin.setMonth(fin.getMonth() + 1);
-      setPaymentFechaFin(fin.toISOString().slice(0, 10));
-    }
-  }
-
-  /** Recalculate paymentFechaFin when paymentMonto changes. */
-  function handlePaymentMontoChange(value: string): void {
-    setPaymentMonto(value);
-    if (!paymentFechaInicio || paymentMonthlyPrice <= 0) return;
-    const amount = parseFloat(value.replace(/[^0-9.]/g, "")) || 0;
-    if (amount > 0) {
-      const months = amount / paymentMonthlyPrice;
-      const fin = new Date(paymentFechaInicio + "T12:00:00");
-      fin.setMonth(fin.getMonth() + months);
-      setPaymentFechaFin(fin.toISOString().slice(0, 10));
-    }
-  }
-
-  async function handleCreatePayment(): Promise<void> {
-    if (!student.membresia || !personaId) return;
-    const monto = Number(paymentMonto);
-    if (!monto || monto <= 0) {
-      setPaymentError("El monto debe ser mayor a 0.");
-      return;
-    }
-    if (paymentMonthlyPrice > 0 && monto % paymentMonthlyPrice !== 0) {
-      setPaymentError(`El monto debe ser múltiplo de $${paymentMonthlyPrice}.`);
-      return;
-    }
-    if (!paymentFechaInicio || !paymentFechaFin) {
-      setPaymentError("Las fechas de inicio y fin son obligatorias.");
-      return;
-    }
-    if (paymentFechaInicio >= paymentFechaFin) {
-      setPaymentError("La fecha de inicio debe ser anterior a la fecha de fin.");
-      return;
-    }
-
-    setPaymentLoading(true);
-    setPaymentError(null);
-    try {
-      const nuevoPago = await registrarPago({
-        monto,
-        tipoPago: paymentTipo,
-        fechaInicio: paymentFechaInicio,
-        fechaFin: paymentFechaFin,
-        personaId,
-        membresiaId: student.membresia.id,
-      });
-
-      if (paymentVoucherFile && nuevoPago?.id) {
-        await subirVoucherPago(nuevoPago.id, paymentVoucherFile);
-      }
-
-      setPaymentSuccess(true);
-      setShowCreatePayment(false);
-      setPaymentVoucherFile(null);
-      showSuccess("Pago registrado. Quedó pendiente de validación.");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Error al registrar el pago.";
-      setPaymentError(message);
-      showError(message);
-    } finally {
-      setPaymentLoading(false);
-    }
-  }
-
   return (
     <div className="rounded-xl border border-cata-border bg-white p-4">
       {/* Identity */}
@@ -379,23 +236,6 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
             {age !== null && <p className="text-xs text-cata-text/55">{age} años</p>}
           </div>
         </div>
-        {(student.prioridadMunicipal || (student.porcentajeBeca ?? 0) > 0) && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {student.prioridadMunicipal && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
-                Prioridad municipal
-              </span>
-            )}
-            {(student.porcentajeBeca ?? 0) > 0 && (
-              <span
-                className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-700"
-                title={student.motivoBeca || undefined}
-              >
-                Beca {student.porcentajeBeca ?? 0}%
-              </span>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Ficha — full-width row (card is now the modal's full content width,
@@ -509,151 +349,8 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
           </button>
         ))}
 
-      {/* Register payment (only when the student already has a membership):
-          initial payment (Membresia INACTIVA) or a renewal (VENCIDA, or
-          APROBADO whose fecha_fin already passed). The backend endpoint
-          POST /membresias/pagos creates the Pago in PENDIENTE_VALIDACION,
-          after which the student can upload their transfer voucher. */}
-      {student.membresia &&
-        (paymentSuccess ? (
-          <p className="mt-2 flex items-center gap-1 text-xs text-cata-state-ok">
-            <CheckCircle2 size={11} strokeWidth={2} aria-hidden="true" />
-            Pago registrado. Quedó pendiente de validación.
-          </p>
-        ) : showCreatePayment ? (
-          <div className="mt-2.5 space-y-2 rounded-lg bg-cata-bg/60 p-2.5">
-            <div className="grid grid-cols-2 gap-2">
-              <label className="text-[11px] font-medium text-cata-text/65">
-                Monto
-                <input
-                  type="number"
-                  step={paymentMonthlyPrice > 0 ? paymentMonthlyPrice : "0.01"}
-                  min="0"
-                  value={paymentMonto}
-                  onChange={(e) => handlePaymentMontoChange(e.target.value)}
-                  className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
-                  placeholder="0.00"
-                />
-              </label>
-              <label className="text-[11px] font-medium text-cata-text/65">
-                Método
-                <select
-                  value={paymentTipo}
-                  onChange={(e) => {
-                    const val = e.target.value as "EFECTIVO" | "TRANSFERENCIA";
-                    setPaymentTipo(val);
-                    if (val !== "TRANSFERENCIA") setPaymentVoucherFile(null);
-                  }}
-                  className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
-                >
-                  <option value="TRANSFERENCIA">Transferencia</option>
-                  <option value="EFECTIVO">Efectivo</option>
-                </select>
-              </label>
-              <label className="text-[11px] font-medium text-cata-text/65">
-                Inicio
-                <input
-                  type="date"
-                  value={paymentFechaInicio}
-                  onChange={(e) => setPaymentFechaInicio(e.target.value)}
-                  className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
-                />
-              </label>
-              <label className="text-[11px] font-medium text-cata-text/65">
-                Fin
-                <input
-                  type="date"
-                  value={paymentFechaFin}
-                  onChange={(e) => setPaymentFechaFin(e.target.value)}
-                  className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
-                />
-              </label>
-            </div>
-            {paymentMonthlyPrice > 0 && Number(paymentMonto) > 0 && (
-              <p className="text-[10px] text-cata-text/45">
-                {(() => {
-                  const months = Number(paymentMonto) / paymentMonthlyPrice;
-                  return `${months === 1 ? "1 mes" : `${months} meses`} de vigencia (precio mensual: $${paymentMonthlyPrice})`;
-                })()}
-              </p>
-            )}
-            {paymentTipo === "TRANSFERENCIA" && (
-              <label className="block text-[11px] font-medium text-cata-text/65">
-                Comprobante de pago
-                <div className="mt-0.5 flex items-center gap-2">
-                  <input
-                    ref={paymentFileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,application/pdf"
-                    onChange={(e) => setPaymentVoucherFile(e.target.files?.[0] ?? null)}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => paymentFileInputRef.current?.click()}
-                    className="flex items-center gap-1.5 rounded-lg border border-dashed border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text/65 transition-colors hover:border-cata-red/30 hover:text-cata-text"
-                  >
-                    <Upload size={11} strokeWidth={1.5} aria-hidden="true" />
-                    {paymentVoucherFile ? paymentVoucherFile.name : "Seleccionar archivo"}
-                  </button>
-                  {paymentVoucherFile && (
-                    <button
-                      type="button"
-                      onClick={() => setPaymentVoucherFile(null)}
-                      className="text-[10px] text-cata-text/45 hover:text-cata-red"
-                    >
-                      Quitar
-                    </button>
-                  )}
-                </div>
-                <span className="mt-0.5 block text-[10px] text-cata-text/40">PDF, JPG o PNG</span>
-              </label>
-            )}
-            {paymentError && <p className="text-xs text-cata-red">{paymentError}</p>}
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() => void handleCreatePayment()}
-                disabled={paymentLoading || !paymentMonto || !paymentFechaInicio || !paymentFechaFin}
-                className="inline-flex items-center gap-1 rounded-lg bg-cata-red px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-cata-red/80 disabled:opacity-50"
-              >
-                {paymentLoading ? (
-                  <Loader2 size={11} className="animate-spin" />
-                ) : (
-                  <CreditCard size={11} strokeWidth={1.5} />
-                )}
-                Registrar pago
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowCreatePayment(false); setPaymentVoucherFile(null); }}
-                className="rounded-lg border border-cata-border px-2.5 py-1 text-xs text-cata-text/65 transition-colors hover:bg-cata-surface"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={handleOpenCreatePayment}
-            className="mt-2.5 inline-flex items-center gap-1 rounded-lg bg-cata-red/15 px-2.5 py-1 text-xs font-medium text-cata-red transition-colors hover:bg-cata-red/25"
-          >
-            <CreditCard size={11} strokeWidth={1.5} aria-hidden="true" />
-            Registrar pago
-          </button>
-        ))}
-
       {/* Actions */}
       <div className="mt-3 flex flex-wrap gap-2 border-t border-cata-border pt-3">
-        <button
-          type="button"
-          onClick={() => setShowLabels((v) => !v)}
-          className="inline-flex items-center gap-1 rounded-lg bg-cata-red/15 px-2.5 py-1 text-[11px] font-medium text-cata-red transition-colors hover:bg-cata-red/25"
-        >
-          <Pencil size={11} strokeWidth={1.5} aria-hidden="true" />
-          Etiquetas
-        </button>
         <button
           type="button"
           onClick={() => setShowMedical((v) => !v)}
@@ -663,63 +360,6 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
           Ficha médica
         </button>
       </div>
-
-      {showLabels && (
-        <div className="mt-2.5 space-y-2 rounded-lg bg-cata-bg/60 p-2.5">
-          <label className="flex items-center gap-2 text-xs text-cata-text">
-            <input
-              type="checkbox"
-              checked={prioridadMunicipal}
-              onChange={(e) => setPrioridadMunicipal(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-cata-border text-cata-red focus:ring-cata-red"
-            />
-            Prioridad municipal
-          </label>
-          <label className="block text-[11px] font-medium text-cata-text/65">
-            Porcentaje de beca (%)
-            <input
-              type="number"
-              min="0"
-              max="100"
-              step="1"
-              value={porcentajeBeca}
-              onChange={(e) => setPorcentajeBeca(e.target.value)}
-              className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
-            />
-          </label>
-          <label className="block text-[11px] font-medium text-cata-text/65">
-            Motivo de beca
-            <input
-              type="text"
-              value={motivoBeca}
-              onChange={(e) => setMotivoBeca(e.target.value)}
-              className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
-              placeholder="Opcional"
-            />
-          </label>
-          {labelsError && <p className="text-xs text-cata-red">{labelsError}</p>}
-          {labelsSuccess && (
-            <p className="text-xs text-cata-state-ok">Etiquetas guardadas.</p>
-          )}
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => void handleSaveLabels()}
-              disabled={labelsSaving}
-              className="inline-flex items-center gap-1 rounded-lg bg-cata-red px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-cata-red/80 disabled:opacity-50"
-            >
-              {labelsSaving ? "Guardando..." : "Guardar etiquetas"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowLabels(false)}
-              className="rounded-lg border border-cata-border px-2.5 py-1 text-xs text-cata-text/65 transition-colors hover:bg-cata-surface"
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
 
       {showMedical && <MedicalRecordEditor personaId={personaId} />}
     </div>
@@ -761,14 +401,56 @@ function AccountRow({
   onToggleEditModal,
 }: AccountRowProps): React.ReactElement {
   const { showSuccess, showError } = useToast();
+  // `roles`/`activo` start empty/true only as placeholders — they get
+  // overwritten by `obtenerRolesDePersona` as soon as the edit modal opens
+  // (see the `editModalOpen` effect below). Before that fetch resolves,
+  // `rolesReady` is false and the roles/estado controls stay disabled, so
+  // the checkboxes never render (or can be toggled) against a stale "no
+  // roles yet" placeholder — that mismatch was the original bug.
   const [roles, setRoles] = useState<BackendTipoRol[]>([]);
   const [activo, setActivo] = useState(true);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
   const [roleLoading, setRoleLoading] = useState<BackendTipoRol | null>(null);
   const [stateLoading, setStateLoading] = useState(false);
   const [roleError, setRoleError] = useState<string | null>(null);
   const [stateError, setStateError] = useState<string | null>(null);
+  const rolesReady = rolesLoaded && !rolesLoading;
   const statusBadge = getAccountStatusBadge(account);
   const personaId = Number(account.id);
+
+  // Nombre/Teléfono editing — `PATCH /personas/{id}` already exists in the
+  // backend (via PersonaUpdateDTO) and `actualizarPersona` already wraps it
+  // in the frontend (used by the student etiquetas editor elsewhere), it was
+  // just never wired into this modal even though its trigger is labeled
+  // "Editar". Same save-per-action pattern as roles/estado above, not a big
+  // form. Local edits don't retroactively update the row's `account` prop
+  // (same as `crearMembresia`'s "Recarga para verla." note) — a reload
+  // reflects the change everywhere else.
+  const [nombresInput, setNombresInput] = useState(account.nombres);
+  const [apellidosInput, setApellidosInput] = useState(account.apellidos);
+  const [telefonoInput, setTelefonoInput] = useState(account.telefono);
+  const [infoSaving, setInfoSaving] = useState(false);
+  const [infoError, setInfoError] = useState<string | null>(null);
+  const [infoSuccess, setInfoSuccess] = useState(false);
+
+  async function handleSaveInfo(): Promise<void> {
+    setInfoSaving(true);
+    setInfoError(null);
+    setInfoSuccess(false);
+    try {
+      await actualizarPersona(personaId, {
+        nombres: nombresInput.trim(),
+        apellidos: apellidosInput.trim(),
+        telefono: telefonoInput.trim(),
+      });
+      setInfoSuccess(true);
+    } catch (error: unknown) {
+      setInfoError(error instanceof Error ? error.message : "No se pudieron guardar los cambios.");
+    } finally {
+      setInfoSaving(false);
+    }
+  }
 
   async function toggleRole(role: BackendTipoRol): Promise<void> {
     setRoleLoading(role);
@@ -865,6 +547,48 @@ function AccountRow({
       previouslyFocused?.focus();
     };
   }, [editModalOpen, onToggleEditModal]);
+
+  // Seed `roles`/`activo` from the persona's real current state every time
+  // the modal opens — this is the actual bug fix. Before this fetch, both
+  // stayed at their `[]`/`true` placeholders forever (no code seeded them),
+  // so the role checkboxes always rendered as "nothing assigned" regardless
+  // of reality: toggling a role the person already had looked like turning
+  // it ON, then the backend correctly rejected it with 400 "ya tiene el rol
+  // ...". `rolesReady` gates the roles/estado controls so nothing can be
+  // toggled against that stale placeholder while the fetch is in flight or
+  // failed — reusing `roleError`/`stateError` (rather than a new error
+  // state) keeps the failure visible in the same spots those sections
+  // already render errors in.
+  useEffect(() => {
+    if (!editModalOpen) return;
+    let cancelled = false;
+
+    setRolesLoading(true);
+    setRolesLoaded(false);
+    void obtenerRolesDePersona(personaId)
+      .then((current) => {
+        if (cancelled) return;
+        setRoles(current.roles);
+        setActivo(current.activo);
+        setRolesLoaded(true);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const message =
+          error instanceof Error
+            ? error.message
+            : "No se pudieron cargar los roles y el estado actuales de esta cuenta.";
+        setRoleError(message);
+        setStateError(message);
+      })
+      .finally(() => {
+        if (!cancelled) setRolesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editModalOpen, personaId]);
 
   return (
     <>
@@ -990,20 +714,44 @@ function AccountRow({
                   <h3 className="mb-3 text-sm font-bold text-cata-text">Información general</h3>
                   <dl className="space-y-2 text-sm">
                     <div className="flex items-center justify-between gap-3">
-                      <dt className="text-cata-text/55">Nombre</dt>
-                      <dd className="truncate text-right font-medium text-cata-text">
-                        {account.nombres} {account.apellidos}
+                      <dt className="shrink-0 text-cata-text/55" id={`nombres-label-${account.id}`}>Nombres</dt>
+                      <dd className="min-w-0 flex-1">
+                        <input
+                          type="text"
+                          value={nombresInput}
+                          onChange={(e) => setNombresInput(e.target.value)}
+                          aria-labelledby={`nombres-label-${account.id}`}
+                          className="input-field w-full py-1 text-right text-sm"
+                        />
                       </dd>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <dt className="text-cata-text/55">Teléfono</dt>
-                      <dd className="flex items-center gap-1.5 font-medium text-cata-text">
-                        <Phone size={11} strokeWidth={1.5} aria-hidden="true" />
-                        {account.telefono}
+                      <dt className="shrink-0 text-cata-text/55" id={`apellidos-label-${account.id}`}>Apellidos</dt>
+                      <dd className="min-w-0 flex-1">
+                        <input
+                          type="text"
+                          value={apellidosInput}
+                          onChange={(e) => setApellidosInput(e.target.value)}
+                          aria-labelledby={`apellidos-label-${account.id}`}
+                          className="input-field w-full py-1 text-right text-sm"
+                        />
                       </dd>
                     </div>
-                    {/* Email deliberately read-only, no editable input: see the
-                        gap noted below the dl — no admin endpoint mutates it. */}
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="shrink-0 text-cata-text/55" id={`telefono-label-${account.id}`}>Teléfono</dt>
+                      <dd className="min-w-0 flex-1">
+                        <input
+                          type="text"
+                          value={telefonoInput}
+                          onChange={(e) => setTelefonoInput(e.target.value)}
+                          aria-labelledby={`telefono-label-${account.id}`}
+                          className="input-field w-full py-1 text-right text-sm"
+                        />
+                      </dd>
+                    </div>
+                    {/* Email deliberately read-only, no editable input: no
+                        admin endpoint mutates it (email lives on Usuario,
+                        not on the Persona that PATCH /personas/{id} edits). */}
                     {account.email && (
                       <div className="flex items-center justify-between gap-3">
                         <dt className="text-cata-text/55">Correo</dt>
@@ -1019,22 +767,48 @@ function AccountRow({
                         <button
                           type="button"
                           onClick={() => void toggleEstado()}
-                          disabled={stateLoading}
+                          disabled={stateLoading || !rolesReady}
                           className={`${activo ? "badge-success" : "badge-error"} cursor-pointer disabled:opacity-50`}
                           aria-pressed={activo}
                         >
-                          {stateLoading ? (
+                          {stateLoading || rolesLoading ? (
                             <Loader2 size={11} className="animate-spin" aria-hidden="true" />
                           ) : activo ? (
                             <ToggleRight size={12} aria-hidden="true" />
                           ) : (
                             <ToggleLeft size={12} aria-hidden="true" />
                           )}
-                          {stateLoading ? "Actualizando..." : activo ? "Activa" : "Inactiva"}
+                          {stateLoading ? "Actualizando..." : rolesLoading ? "Cargando..." : activo ? "Activa" : "Inactiva"}
                         </button>
                       </dd>
                     </div>
                   </dl>
+                  <div className="mt-3 flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveInfo()}
+                      disabled={infoSaving}
+                      className="btn-primary inline-flex items-center gap-1.5 py-1.5 text-xs disabled:opacity-50"
+                    >
+                      {infoSaving ? (
+                        <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Save size={12} strokeWidth={1.5} aria-hidden="true" />
+                      )}
+                      {infoSaving ? "Guardando..." : "Guardar datos"}
+                    </button>
+                    {infoSuccess && (
+                      <p className="flex items-center gap-1 text-xs text-cata-state-ok" role="status">
+                        <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
+                        Guardado.
+                      </p>
+                    )}
+                  </div>
+                  {infoError && (
+                    <p className="mt-2 text-xs text-cata-red" role="alert">
+                      {infoError}
+                    </p>
+                  )}
                   {stateError && (
                     <p className="mt-2 text-xs text-cata-red" role="alert">
                       {stateError}
@@ -1048,6 +822,12 @@ function AccountRow({
                     <ShieldCheck size={14} strokeWidth={1.5} className="text-cata-text/50" aria-hidden="true" />
                     Roles
                   </h3>
+                  {rolesLoading && (
+                    <p className="mb-2 flex items-center gap-1.5 text-xs text-cata-text/50" role="status">
+                      <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+                      Cargando roles actuales…
+                    </p>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     {ALL_BACKEND_ROLES.map((role) => {
                       const selected = roles.includes(role);
@@ -1071,7 +851,7 @@ function AccountRow({
                             type="checkbox"
                             checked={selected}
                             onChange={() => void toggleRole(role)}
-                            disabled={roleLoading !== null}
+                            disabled={roleLoading !== null || !rolesReady}
                             className="sr-only"
                           />
                           <span
@@ -1335,31 +1115,7 @@ export default function MembersPage(): React.ReactElement {
         ) : null}
 
         {!loading && filteredAccounts.length > 0 && totalPages > 1 && (
-          <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
-            <p className="text-sm font-semibold text-cata-text">
-              Página {page} de {totalPages}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="btn-secondary px-4 py-2 text-xs"
-              >
-                <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
-                Anterior
-              </button>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                className="btn-secondary px-4 py-2 text-xs"
-              >
-                Siguiente
-                <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
-              </button>
-            </div>
-          </div>
+          <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
         )}
 
         {!loading && filteredAccounts.length === 0 && (

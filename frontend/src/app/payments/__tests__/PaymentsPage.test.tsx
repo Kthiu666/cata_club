@@ -163,6 +163,23 @@ describe("PaymentsPage — voucher preview recovery", () => {
     expect(screen.getByRole("img", { name: /vista previa del comprobante/i })).toBeInTheDocument();
     expect(mockUpdatePaymentValidation).not.toHaveBeenCalled();
   });
+
+  it("does not claim the preview is unavailable while the voucher image is rendering successfully", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([{ ...PENDING_REQUEST, proofPreviewUrl: "https://files.example/voucher.png", proofFileType: "image" }]);
+
+    await renderAndSelectPending();
+
+    expect(screen.getByRole("img", { name: /vista previa del comprobante/i })).toBeInTheDocument();
+    expect(screen.queryByText(/vista previa no disponible/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the unavailable message only when there is no preview URL at all", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([{ ...PENDING_REQUEST, proofPreviewUrl: undefined }]); // no proofPreviewUrl
+
+    await renderAndSelectPending();
+
+    expect(screen.getAllByText(/vista previa no disponible/i).length).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe("PaymentsPage — unrelated happy path", () => {

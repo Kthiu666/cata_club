@@ -386,9 +386,6 @@ export interface PersonaReporte {
   fechaNacimiento: string;
   telefono: string;
   telefonoContacto?: string | null;
-  prioridadMunicipal: boolean;
-  porcentajeBeca: number;
-  motivoBeca?: string | null;
   fechaRegistro?: string | null;
 }
 
@@ -403,9 +400,6 @@ export interface PersonaResponse {
   telefonoContacto?: string | null;
   fotoUrl?: string | null;
   representanteId?: number | null;
-  prioridadMunicipal: boolean;
-  porcentajeBeca: number;
-  motivoBeca?: string | null;
 }
 
 /** Lightweight persona shape for autocomplete / search results. */

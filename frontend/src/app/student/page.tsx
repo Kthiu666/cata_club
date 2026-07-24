@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import ContextualHelp from "@/components/ContextualHelp";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchStudentPortal, fetchPagosDePersona } from "@/services/api";
-import type { StudentPortalSummary, StudentProfileSummary, MembershipSummary, PagoPersona } from "@/services/api";
+import { fetchStudentPortal, fetchPagosDePersona, subirVoucherPago } from "@/services/api";
+import type { StudentPortalSummary, StudentProfileSummary, PagoPersona, MembershipSummary } from "@/services/api";
 import { ATTENDANCE_LABELS, ATTENDANCE_BADGE_TOKENS } from "@/app/attendance/attendance-utils";
-import { derivePortalMode, isRepresentative, isMinor, describeRanking } from "./student-utils";
+import { derivePortalMode, isRepresentative, describeRanking } from "./student-utils";
 import {
   Calendar,
   ShieldCheck,
@@ -22,7 +23,11 @@ import {
   Trophy,
   RefreshCw,
   Clock,
-  Users,
+  CheckCircle2,
+  XCircle,
+  Upload,
+  Paperclip,
+  Loader2,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -59,31 +64,7 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void 
   );
 }
 
-function RepresentanteCard({ nombre }: { nombre: string | null }): React.ReactElement {
-  return (
-    <div className="mt-3 flex items-center gap-3 rounded-lg border border-cata-border bg-cata-bg/60 px-3 py-2.5">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cata-red/15">
-        <Users size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[10px] uppercase tracking-wide text-cata-text/45">Tu representante</p>
-        <p className="text-sm font-medium text-cata-text truncate">{nombre ?? "No disponible"}</p>
-      </div>
-    </div>
-  );
-}
-
-function MembershipCard({
-  membership,
-  hasPendingPago = false,
-  minor = false,
-  representanteNombre = null,
-}: {
-  membership: MembershipSummary | null;
-  hasPendingPago?: boolean;
-  minor?: boolean;
-  representanteNombre?: string | null;
-}): React.ReactElement {
+function MembershipCard({ membership }: { membership: MembershipSummary | null }): React.ReactElement {
   if (!membership) {
     return (
       <section className="card-hover p-4 sm:p-5" aria-labelledby="membership-unavailable-title">
@@ -97,11 +78,8 @@ function MembershipCard({
           </div>
         </div>
         <p className="text-xs leading-relaxed text-cata-text/55">
-          Aún no tenés una membresía registrada. Consultá con tu representante o con administración.
+          Aún no tenés una membresía registrada. Consulte con administración.
         </p>
-        {minor && representanteNombre && (
-          <RepresentanteCard nombre={representanteNombre} />
-        )}
       </section>
     );
   }
@@ -127,31 +105,9 @@ function MembershipCard({
             {membership.montoAplicado ? ` — $${membership.montoAplicado}` : ""}
           </p>
         )}
-        {hasPendingPago && (
-          <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
-            Ya tenés un pago pendiente de validación. Esperá a que sea aprobado para registrar uno nuevo.
-          </p>
-        )}
-        {minor ? (
-          <RepresentanteCard nombre={representanteNombre} />
-        ) : (
-          !hasPendingPago && (
-            <Link
-              href="/student/payments"
-              className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-cata-red px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-cata-red/85"
-            >
-              <CreditCard size={14} strokeWidth={1.5} aria-hidden="true" />
-              Registrar primer pago
-            </Link>
-          )
-        )}
       </section>
     );
   }
-
-  const hoyIso = new Date().toISOString().slice(0, 10);
-  const isExpired = membership.estado === "VENCIDA"
-    || (membership.fechaFin !== null && membership.fechaFin < hoyIso);
 
   return (
     <section className="card-hover p-4 sm:p-5" aria-labelledby="membership-status-title">
@@ -162,11 +118,11 @@ function MembershipCard({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-cata-text/65">Membresía</p>
           <h2 id="membership-status-title" className="text-lg font-bold tracking-tight text-cata-text">
-            {isExpired ? "Vencida" : "Activa"}
+            {membership.estado === "ACTIVA" ? "Activa" : "Vencida"}
           </h2>
         </div>
-        <span className={isExpired ? "badge-error" : "badge-success"}>
-          {isExpired ? "Vencida" : "Activa"}
+        <span className={membership.estado === "ACTIVA" ? "badge-success" : "badge-error"}>
+          {membership.estado === "ACTIVA" ? "Activa" : "Vencida"}
         </span>
       </div>
       {membership.categoria && (
@@ -174,26 +130,7 @@ function MembershipCard({
           <p>Plan: {membership.categoria} {membership.franjaHoraria ? `(${membership.franjaHoraria})` : ""}</p>
           <p>Modalidad: {membership.modalidad === "PERSONALIZADA" ? "Personalizada" : "Mensual"}</p>
           {membership.montoAplicado && <p>Monto: ${membership.montoAplicado}</p>}
-          {membership.fechaFin && <p>Vigencia hasta: {membership.fechaFin}</p>}
         </div>
-      )}
-      {hasPendingPago && (
-        <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
-          Ya tenés un pago pendiente de validación. Esperá a que sea aprobado.
-        </p>
-      )}
-      {minor ? (
-        <RepresentanteCard nombre={representanteNombre} />
-      ) : (
-        !hasPendingPago && (
-          <Link
-            href="/student/payments"
-            className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-cata-red px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-cata-red/85"
-          >
-            <CreditCard size={14} strokeWidth={1.5} aria-hidden="true" />
-            {isExpired ? "Renovar membresía" : "Gestionar pagos"}
-          </Link>
-        )
       )}
     </section>
   );
@@ -272,6 +209,191 @@ function RecentSessionsSection({ profile }: { profile: StudentProfileSummary }):
 // UI yet).
 // ---------------------------------------------------------------------------
 
+const TIPO_PAGO_LABEL: Record<PagoPersona["tipoPago"], string> = {
+  EFECTIVO: "Efectivo",
+  TRANSFERENCIA: "Transferencia",
+};
+
+function PagoEstadoBadge({ estado }: { estado: PagoPersona["estadoPago"] }): React.ReactElement {
+  if (estado === "APROBADO") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+        <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" /> Aprobado
+      </span>
+    );
+  }
+  if (estado === "RECHAZADO") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-cata-red">
+        <XCircle size={10} strokeWidth={2} aria-hidden="true" /> Rechazado
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 text-xs font-medium text-amber-400">
+      <Clock size={10} strokeWidth={2} aria-hidden="true" /> Pendiente
+    </span>
+  );
+}
+
+type PagosState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; pagos: PagoPersona[] };
+
+function PagosSection({ personaId }: { personaId: string }): React.ReactElement {
+  const [state, setState] = useState<PagosState>({ status: "loading" });
+  const [reloadToken, setReloadToken] = useState(0);
+  const [uploadingId, setUploadingId] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingUploadPagoId, setPendingUploadPagoId] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    fetchPagosDePersona(personaId)
+      .then((pagos) => {
+        if (!cancelled) setState({ status: "ready", pagos });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setState({
+          status: "error",
+          message: error instanceof Error ? error.message : "No se pudo cargar el historial de pagos.",
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [personaId, reloadToken]);
+
+  function handleSelectFile(pagoId: number): void {
+    setPendingUploadPagoId(pagoId);
+    fileInputRef.current?.click();
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = e.target.files?.[0];
+    if (!file || !pendingUploadPagoId) return;
+
+    setUploadingId(pendingUploadPagoId);
+    setUploadError(null);
+    try {
+      await subirVoucherPago(pendingUploadPagoId, file);
+      setReloadToken((n) => n + 1);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "No se pudo subir el comprobante.");
+    } finally {
+      setUploadingId(null);
+      setPendingUploadPagoId(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  return (
+    <section className="mb-8">
+      <div className="mb-4 flex items-center gap-2">
+        <CreditCard size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+        <h2 className="text-lg font-bold text-cata-text">Pagos</h2>
+      </div>
+      <p className="mb-4 text-xs text-cata-text/65">
+        Historial de pagos registrados. Adjuntá el comprobante de transferencia para validar tu pago.
+      </p>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,application/pdf"
+        className="hidden"
+        onChange={(e) => { void handleFileChange(e); }}
+      />
+
+      {uploadError && (
+        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-cata-red" role="alert">
+          {uploadError}
+          <button type="button" onClick={() => setUploadError(null)} className="ml-2 underline">Cerrar</button>
+        </div>
+      )}
+
+      {state.status === "loading" && (
+        <div className="card p-6 text-center">
+          <p className="text-sm text-cata-text/50">Cargando historial de pagos...</p>
+        </div>
+      )}
+
+      {state.status === "error" && (
+        <ErrorCard message={state.message} onRetry={() => setReloadToken((n) => n + 1)} />
+      )}
+
+      {state.status === "ready" &&
+        (state.pagos.length === 0 ? (
+          <div className="card p-6 text-center">
+            <p className="text-sm text-cata-text/50">Todavía no hay pagos registrados.</p>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {state.pagos.map((pago) => (
+              <div
+                key={pago.id}
+                className="card-hover flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+                    <CreditCard size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-cata-text">
+                      ${pago.monto} · {pago.fechaInicio} – {pago.fechaFin}
+                    </p>
+                    <p className="text-xs text-cata-text/65">{TIPO_PAGO_LABEL[pago.tipoPago]}</p>
+                    {pago.voucherUrl && (
+                      <a
+                        href={pago.voucherUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1 inline-flex items-center gap-1 text-xs text-cata-red hover:underline"
+                      >
+                        <Paperclip size={10} strokeWidth={1.5} />
+                        Ver comprobante
+                      </a>
+                    )}
+                    {pago.estadoPago === "RECHAZADO" && pago.motivoRechazo && (
+                      <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                        <p className="text-xs font-semibold text-cata-red">Motivo de rechazo</p>
+                        <p className="text-xs text-cata-red/80">{pago.motivoRechazo}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {!pago.voucherUrl && pago.estadoPago !== "APROBADO" && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectFile(pago.id)}
+                      disabled={uploadingId === pago.id}
+                      className="inline-flex items-center gap-1 rounded-lg border border-cata-border px-2.5 py-1.5 text-xs font-medium text-cata-text transition-colors hover:border-cata-red/30 hover:text-cata-red disabled:opacity-50"
+                    >
+                      {uploadingId === pago.id ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <Upload size={12} strokeWidth={1.5} />
+                      )}
+                      {uploadingId === pago.id ? "Subiendo..." : "Subir comprobante"}
+                    </button>
+                  )}
+                  <PagoEstadoBadge estado={pago.estadoPago} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+    </section>
+  );
+}
+
+
+
 function MembershipPlansGrid({ data }: { data: StudentPortalSummary }): React.ReactElement {
   if (data.membershipPlans.length === 0) {
     return (
@@ -305,8 +427,6 @@ function MembershipPlansGrid({ data }: { data: StudentPortalSummary }): React.Re
 // ---------------------------------------------------------------------------
 
 function PendingEnrollmentView({ data }: { data: StudentPortalSummary }): React.ReactElement {
-  const minor = isMinor(data.self?.fechaNacimiento);
-
   return (
     <div className="mb-8">
       <div className="mb-6 rounded-2xl border border-cata-border bg-cata-bg p-6">
@@ -314,49 +434,31 @@ function PendingEnrollmentView({ data }: { data: StudentPortalSummary }): React.
           <UserPlus size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
           <h2 className="text-lg font-bold text-cata-text">Bienvenido a Cata Club</h2>
         </div>
-        {minor ? (
-          <>
-            <p className="text-sm leading-relaxed text-cata-text/65">
-              Tu cuenta está creada pero todavía no tenés una membresía activa.
-              Consultá con tu representante para completar la inscripción.
-            </p>
-            {data.representanteNombre && (
-              <RepresentanteCard nombre={data.representanteNombre} />
-            )}
-          </>
-        ) : (
-          <>
-            <p className="text-sm leading-relaxed text-cata-text/65">
-              Su cuenta está creada pero todavía no tiene una matrícula activa. Elija el plan que mejor se
-              adapte a sus necesidades y complete su inscripción, o inscriba a un hijo/dependiente, para
-              comenzar a entrenar.
-            </p>
-            <p className="mt-3 text-xs leading-relaxed text-cata-text/45">
-              Una vez inscrito, desde su portal podrá agregar hijos o dependientes si necesita gestionar las
-              membresías de su familia.
-            </p>
-          </>
-        )}
+        <p className="text-sm leading-relaxed text-cata-text/65">
+          Su cuenta está creada pero todavía no tiene una matrícula activa. Elija el plan que mejor se
+          adapte a sus necesidades y complete su inscripción, o inscriba a un hijo/dependiente, para
+          comenzar a entrenar.
+        </p>
+        <p className="mt-3 text-xs leading-relaxed text-cata-text/45">
+          Una vez inscrito, desde su portal podrá agregar hijos o dependientes si necesita gestionar las
+          membresías de su familia.
+        </p>
       </div>
 
-      {!minor && (
-        <>
-          <MembershipPlansGrid data={data} />
+      <MembershipPlansGrid data={data} />
 
-          <div className="mt-8 flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-center">
-            <Link href="/student/enroll?type=self" className="btn-primary inline-flex items-center gap-2 shadow-soft">
-              <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
-              Inscribirme como Jugador
-              <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
-            </Link>
-            <Link href="/student/enroll?type=child" className="btn-secondary inline-flex items-center gap-2">
-              <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
-              Inscribir hijo/dependiente
-              <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
-            </Link>
-          </div>
-        </>
-      )}
+      <div className="mt-8 flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-center">
+        <Link href="/student/enroll?type=self" className="btn-primary inline-flex items-center gap-2 shadow-soft">
+          <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
+          Inscribirme como Jugador
+          <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+        </Link>
+        <Link href="/student/enroll?type=child" className="btn-secondary inline-flex items-center gap-2">
+          <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
+          Inscribir hijo/dependiente
+          <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+        </Link>
+      </div>
     </div>
   );
 }
@@ -368,23 +470,14 @@ function PendingEnrollmentView({ data }: { data: StudentPortalSummary }): React.
 function ActivePortalView({
   data,
   hasAlumnoRole,
-  onRenewed,
 }: {
   data: StudentPortalSummary;
   hasAlumnoRole: boolean;
-  onRenewed: () => void;
 }): React.ReactElement {
-  const selfIsMinor = isMinor(data.self?.fechaNacimiento);
-
   const managedProfiles: StudentProfileSummary[] =
     hasAlumnoRole && data.self ? [data.self, ...data.representados] : data.representados;
 
   const [selectedId, setSelectedId] = useState<string>(managedProfiles[0]?.personaId ?? "");
-  const [hasPendingPago, setHasPendingPago] = useState(false);
-
-  function handleRenewed(): void {
-    onRenewed();
-  }
 
   useEffect(() => {
     if (!managedProfiles.some((p) => p.personaId === selectedId)) {
@@ -394,25 +487,8 @@ function ActivePortalView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [managedProfiles.map((p) => p.personaId).join(",")]);
 
-  useEffect(() => {
-    if (!selectedId) return;
-    let cancelled = false;
-    fetchPagosDePersona(selectedId)
-      .then((pagos: PagoPersona[]) => {
-        if (!cancelled) {
-          setHasPendingPago(pagos.some((p) => p.estadoPago === "PENDIENTE_VALIDACION"));
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setHasPendingPago(false);
-      });
-    return () => { cancelled = true; };
-  }, [selectedId]);
-
   const representative = isRepresentative(data.representados.length);
   const selectedProfile = managedProfiles.find((p) => p.personaId === selectedId) ?? managedProfiles[0] ?? null;
-
-  const selectedIsMinor = isMinor(selectedProfile?.fechaNacimiento);
 
   return (
     <>
@@ -450,36 +526,26 @@ function ActivePortalView({
         </div>
       )}
 
-      {!selfIsMinor && (
-        <div className="mb-6 flex flex-wrap items-center gap-3">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <Link
+          href={representative ? "/student/add-dependent" : "/student/enroll?type=child"}
+          className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
+        >
+          <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
+          {representative ? "Agregar hijo/dependiente" : "Inscribir hijo/dependiente"}
+          <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+        </Link>
+        {!hasAlumnoRole && (
           <Link
-            href={representative ? "/student/add-dependent" : "/student/enroll?type=child"}
+            href="/student/enroll?type=self"
             className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
           >
-            <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />
-            {representative ? "Agregar hijo/dependiente" : "Inscribir hijo/dependiente"}
+            <GraduationCap size={16} strokeWidth={1.5} aria-hidden="true" />
+            Unirme como jugador
             <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
           </Link>
-          {!hasAlumnoRole && (
-            <Link
-              href="/student/enroll?type=self"
-              className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
-            >
-              <GraduationCap size={16} strokeWidth={1.5} aria-hidden="true" />
-              Unirme como jugador
-              <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
-            </Link>
-          )}
-          <Link
-            href="/student/payments"
-            className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
-          >
-            <CreditCard size={16} strokeWidth={1.5} aria-hidden="true" />
-            Ver pagos
-            <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
-          </Link>
-        </div>
-      )}
+        )}
+      </div>
 
       {selectedProfile === null ? (
         <div className="card p-6 text-center">
@@ -490,15 +556,11 @@ function ActivePortalView({
         <>
           <div className="mb-8 grid gap-4 sm:grid-cols-2">
             <RankingCard profile={selectedProfile} />
-            <MembershipCard
-              membership={selectedProfile.membership}
-              hasPendingPago={hasPendingPago}
-              minor={selectedIsMinor}
-              representanteNombre={data.representanteNombre}
-            />
+            <MembershipCard membership={selectedProfile.membership} />
           </div>
 
           <RecentSessionsSection profile={selectedProfile} />
+          <PagosSection personaId={selectedProfile.personaId} />
         </>
       )}
     </>
@@ -545,7 +607,7 @@ function StudentPortalContent(): React.ReactElement {
         (derivePortalMode(hasAlumnoRole, state.data.representados.length) === "pending" ? (
           <PendingEnrollmentView data={state.data} />
         ) : (
-          <ActivePortalView data={state.data} hasAlumnoRole={hasAlumnoRole} onRenewed={() => setReloadToken((n) => n + 1)} />
+          <ActivePortalView data={state.data} hasAlumnoRole={hasAlumnoRole} />
         ))}
     </AppShell>
   );

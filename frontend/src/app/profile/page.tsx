@@ -46,7 +46,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import BackLink from "@/components/BackLink";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastContext";
 import {
   fetchMiPerfil,
   actualizarMiPerfil,
@@ -55,7 +57,7 @@ import {
   subirFotoPerfil,
   ApiClientError,
 } from "@/services/api";
-import type { StudentPortalSummary, StudentProfileSummary, StudentMembershipSummary } from "@/services/api";
+import type { StudentPortalSummary, StudentProfileSummary, MembershipSummary } from "@/services/api";
 import type { PerfilPropio, UserRole } from "@/types/domain";
 import { describeRanking } from "@/app/student/student-utils";
 import { MEMBERSHIP_STATUS_LABELS, MEMBERSHIP_STATUS_BADGE } from "@/app/members/members-utils";
@@ -101,14 +103,9 @@ function firstNameOf(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] || fullName;
 }
 
-/** Membership display for a persona, looked up by id in the caller-scoped `memberships` list — reuses the same mapping/labels as members-utils.ts / membership-status.ts (no invented labels). Returns `null` when no membership row exists for that persona — the normal case for a representado (the backend never exposes a dependent's membership), rendered as an honest "no disponible" fallback, not a false "sin membresía" claim. */
-function describeMembership(
-  memberships: StudentMembershipSummary[],
-  personaId: string,
-): { label: string; badgeClass: string } | null {
-  const match = memberships.find((membership) => String(membership.personaId) === personaId);
-  if (!match) return null;
-  const estado = MEMBERSHIP_STATUS_BY_ESTADO[match.estado as keyof typeof MEMBERSHIP_STATUS_BY_ESTADO];
+function describeMembership(membership: MembershipSummary | null): { label: string; badgeClass: string } | null {
+  if (!membership) return null;
+  const estado = MEMBERSHIP_STATUS_BY_ESTADO[membership.estado as keyof typeof MEMBERSHIP_STATUS_BY_ESTADO];
   return { label: MEMBERSHIP_STATUS_LABELS[estado], badgeClass: MEMBERSHIP_STATUS_BADGE[estado] };
 }
 
@@ -174,12 +171,11 @@ function ErrorBlock({
 
 interface StudentSummaryCardProps {
   profile: StudentProfileSummary;
-  memberships: StudentMembershipSummary[];
 }
 
-function StudentSummaryCard({ profile, memberships }: StudentSummaryCardProps): React.ReactElement {
+function StudentSummaryCard({ profile }: StudentSummaryCardProps): React.ReactElement {
   const ranking = describeRanking(profile.ranking);
-  const membership = describeMembership(memberships, profile.personaId);
+  const membership = describeMembership(profile.membership);
   const fullName = `${profile.nombres} ${profile.apellidos}`.trim();
 
   return (
@@ -242,6 +238,7 @@ type ProfileLayoutProps =
     };
 
 function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
+  const { showSuccess, showError } = useToast();
   // ---- Staff-only inline edit / change-password state. Always declared
   // (hooks can't be conditional) — simply unused on the student branch. ----
   const [editing, setEditing] = useState(false);
@@ -291,8 +288,11 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
         props.onFotoUpdated(updated.fotoUrl);
       }
       setFotoSuccess(true);
+      showSuccess("Foto de perfil actualizada correctamente.");
     } catch (error: unknown) {
-      setFotoError(toErrorMessage(error, "No se pudo actualizar la foto de perfil."));
+      const message = toErrorMessage(error, "No se pudo actualizar la foto de perfil.");
+      setFotoError(message);
+      showError(message);
     } finally {
       setUploadingFoto(false);
     }
@@ -326,12 +326,15 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
       props.onSaved(updated);
       setEditing(false);
       setSaveSuccess(true);
+      showSuccess("Perfil actualizado correctamente.");
     } catch (error: unknown) {
       // Revert — a rejected edit must never be left displayed as if it were
       // persisted (no silent data loss, per spec).
       setTelefono(perfil.telefono);
       setEditing(false);
-      setSaveError(toErrorMessage(error, "No se pudo guardar los cambios."));
+      const message = toErrorMessage(error, "No se pudo guardar los cambios.");
+      setSaveError(message);
+      showError(message);
     } finally {
       setSaving(false);
     }
@@ -345,8 +348,11 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
     try {
       const result = await solicitarRecuperacion(props.accountEmail);
       setPasswordMessage(result.mensaje);
+      showSuccess(result.mensaje);
     } catch (error: unknown) {
-      setPasswordError(toErrorMessage(error, "No se pudo enviar el correo de recuperación."));
+      const message = toErrorMessage(error, "No se pudo enviar el correo de recuperación.");
+      setPasswordError(message);
+      showError(message);
     } finally {
       setRequestingPassword(false);
     }
@@ -371,9 +377,7 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
   // null` account (a representante with no own alumno profile) has no
   // personal status to report, so the hero deliberately shows nothing for
   // it instead of a misleading "no disponible" claim.
-  const membership = props.kind === "student" && self?.membership
-    ? describeMembership([self.membership], self.personaId)
-    : null;
+  const membership = props.kind === "student" && self ? describeMembership(self.membership) : null;
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
@@ -384,6 +388,13 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
             <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
           </Link>
         </div>
+      )}
+
+      {props.kind === "staff" && (
+        <BackLink
+          href={props.role === "admin" ? "/dashboard" : "/trainer"}
+          label="Volver al Panel"
+        />
       )}
 
       {/* Hero card */}
@@ -719,7 +730,7 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
               // owner's own persona — never a represented dependent's, so
               // this always passes [] to force the honest "no disponible"
               // fallback rather than falsely reporting "sin membresía".
-              <StudentSummaryCard key={profile.personaId} profile={profile} memberships={[]} />
+              <StudentSummaryCard key={profile.personaId} profile={profile} />
             ))}
           </div>
         </div>
