@@ -470,6 +470,14 @@ function ActivePortalView({
               <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
             </Link>
           )}
+          <Link
+            href="/student/payments"
+            className="inline-flex items-center gap-2 rounded-xl bg-cata-red/15 px-4 py-2.5 text-sm font-medium text-cata-red transition-all duration-200 hover:bg-cata-red/25"
+          >
+            <CreditCard size={16} strokeWidth={1.5} aria-hidden="true" />
+            Ver pagos
+            <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+          </Link>
         </div>
       )}
 
@@ -491,19 +499,6 @@ function ActivePortalView({
           </div>
 
           <RecentSessionsSection profile={selectedProfile} />
-
-          {!selfIsMinor && (
-            <div className="mt-6">
-              <Link
-                href="/student/payments"
-                className="inline-flex items-center gap-2 rounded-xl border border-cata-border bg-cata-surface px-4 py-3 text-sm font-medium text-cata-text transition-colors hover:border-cata-red/30 hover:text-cata-red"
-              >
-                <CreditCard size={16} strokeWidth={1.5} aria-hidden="true" />
-                Ver historial de pagos
-                <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
-              </Link>
-            </div>
-          )}
         </>
       )}
     </>

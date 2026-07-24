@@ -259,7 +259,7 @@ function RenewPaymentForm({
 
   function calcFechaFin(baseDate: Date, amount: number): string {
     if (monthlyPrice <= 0 || amount <= 0) return "";
-    const months = Math.ceil(amount / monthlyPrice);
+    const months = amount / monthlyPrice;
     const fin = new Date(baseDate);
     fin.setMonth(fin.getMonth() + months);
     return fin.toISOString().slice(0, 10);
@@ -292,6 +292,10 @@ function RenewPaymentForm({
     const montoNum = Number(monto);
     if (!montoNum || montoNum <= 0) {
       setError("El monto debe ser mayor a 0.");
+      return;
+    }
+    if (monthlyPrice > 0 && montoNum % monthlyPrice !== 0) {
+      setError(`El monto debe ser múltiplo de $${monthlyPrice}.`);
       return;
     }
     if (!fechaInicio || !fechaFin) {
@@ -352,7 +356,7 @@ function RenewPaymentForm({
   const durationLabel = (() => {
     const amount = parseFloat(String(monto).replace(/[^0-9.]/g, "")) || 0;
     if (monthlyPrice <= 0 || amount <= 0) return null;
-    const months = Math.ceil(amount / monthlyPrice);
+    const months = amount / monthlyPrice;
     return months === 1 ? "1 mes de vigencia" : `${months} meses de vigencia`;
   })();
 
@@ -363,7 +367,7 @@ function RenewPaymentForm({
           Monto
           <input
             type="number"
-            step="0.01"
+            step={monthlyPrice > 0 ? monthlyPrice : "0.01"}
             min="0"
             value={monto}
             onChange={(e) => handleMontoChange(e.target.value)}

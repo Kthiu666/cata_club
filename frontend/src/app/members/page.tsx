@@ -291,7 +291,7 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
     setPaymentFechaInicio(base.toISOString().slice(0, 10));
 
     if (monto > 0 && paymentMonthlyPrice > 0) {
-      const months = Math.ceil(monto / paymentMonthlyPrice);
+      const months = monto / paymentMonthlyPrice;
       const fin = new Date(base);
       fin.setMonth(fin.getMonth() + months);
       setPaymentFechaFin(fin.toISOString().slice(0, 10));
@@ -308,7 +308,7 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
     if (!paymentFechaInicio || paymentMonthlyPrice <= 0) return;
     const amount = parseFloat(value.replace(/[^0-9.]/g, "")) || 0;
     if (amount > 0) {
-      const months = Math.ceil(amount / paymentMonthlyPrice);
+      const months = amount / paymentMonthlyPrice;
       const fin = new Date(paymentFechaInicio + "T12:00:00");
       fin.setMonth(fin.getMonth() + months);
       setPaymentFechaFin(fin.toISOString().slice(0, 10));
@@ -320,6 +320,10 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
     const monto = Number(paymentMonto);
     if (!monto || monto <= 0) {
       setPaymentError("El monto debe ser mayor a 0.");
+      return;
+    }
+    if (paymentMonthlyPrice > 0 && monto % paymentMonthlyPrice !== 0) {
+      setPaymentError(`El monto debe ser múltiplo de $${paymentMonthlyPrice}.`);
       return;
     }
     if (!paymentFechaInicio || !paymentFechaFin) {
@@ -523,7 +527,7 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
                 Monto
                 <input
                   type="number"
-                  step="0.01"
+                  step={paymentMonthlyPrice > 0 ? paymentMonthlyPrice : "0.01"}
                   min="0"
                   value={paymentMonto}
                   onChange={(e) => handlePaymentMontoChange(e.target.value)}
@@ -568,7 +572,7 @@ function StudentEditPanel({ student, grupos }: StudentRowProps): React.ReactElem
             {paymentMonthlyPrice > 0 && Number(paymentMonto) > 0 && (
               <p className="text-[10px] text-cata-text/45">
                 {(() => {
-                  const months = Math.ceil(Number(paymentMonto) / paymentMonthlyPrice);
+                  const months = Number(paymentMonto) / paymentMonthlyPrice;
                   return `${months === 1 ? "1 mes" : `${months} meses`} de vigencia (precio mensual: $${paymentMonthlyPrice})`;
                 })()}
               </p>

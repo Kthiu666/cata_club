@@ -121,7 +121,7 @@ describe("StudentPage — Pagos link", () => {
   it("links to the dedicated payments page", async () => {
     render(<StudentPage />);
 
-    const link = await screen.findByText("Ver historial de pagos");
+    const link = await screen.findByText("Ver pagos");
     expect(link.closest("a")).toHaveAttribute("href", "/student/payments");
   });
 });
