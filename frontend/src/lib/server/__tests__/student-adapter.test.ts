@@ -95,7 +95,7 @@ describe("buildStudentProfileView", () => {
       nombres: "Sofia",
       apellidos: "Alumna",
       fechaNacimiento: "1995-01-01",
-      representanteId: null,
+      representante: null,
       ranking: { status: "unavailable", reason: "forbidden" },
       recentSessions: [],
       membership: null,

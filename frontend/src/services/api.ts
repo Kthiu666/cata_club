@@ -674,6 +674,7 @@ export interface StudentProfileSummary {
   ranking: StudentRankingSummary;
   recentSessions: StudentSessionSummary[];
   membership: MembershipSummary | null;
+  representante: { nombres: string; apellidos: string } | null;
 }
 
 export interface MembershipSummary {

@@ -73,6 +73,7 @@ const PORTAL: StudentPortalSummary = {
     ranking: { status: "unavailable", reason: "error" },
     recentSessions: [],
     membership: null,
+    representante: null,
   },
   representados: [],
   membershipPlans: [],

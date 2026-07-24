@@ -396,6 +396,22 @@ function ActivePortalView({
         )}
       </div>
 
+      {selectedIsMinor && selectedProfile.representante && (
+        <div className="mb-6 rounded-2xl border border-cata-border bg-cata-bg p-4 sm:p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cata-red/15">
+              <User size={18} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-cata-text/45">Tu representante</p>
+              <p className="text-sm font-semibold text-cata-text">
+                {selectedProfile.representante.nombres} {selectedProfile.representante.apellidos}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedProfile === null ? (
         <div className="card p-6 text-center">
           <User size={32} strokeWidth={1.5} className="mx-auto mb-3 text-cata-text/20" aria-hidden="true" />
