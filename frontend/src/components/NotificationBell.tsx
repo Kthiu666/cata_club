@@ -16,6 +16,8 @@ import { formatDateTime } from "@/lib/format-utils";
 
 const TIPO_LABELS: Record<TipoNotificacion, string> = {
   MIEMBRESIA_VENCIMIENTO_PROXIMO: "Membresía próxima a vencer",
+  PAGO_APROBADO: "Pago aprobado",
+  PAGO_RECHAZADO: "Pago rechazado",
 };
 
 export interface NotificationBellProps {

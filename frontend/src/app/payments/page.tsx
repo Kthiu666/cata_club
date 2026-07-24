@@ -15,6 +15,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -24,6 +25,7 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  X,
   Filter,
   User,
   Calendar,
@@ -95,6 +97,16 @@ export default function PaymentsPage(): React.ReactElement {
   const [confirmApproveOpen, setConfirmApproveOpen] = useState(false);
   const [previewUnavailable, setPreviewUnavailable] = useState(false);
   const [page, setPage] = useState(1);
+  const [editStartDate, setEditStartDate] = useState("");
+  const [editMonths, setEditMonths] = useState<number>(1);
+  const [voucherModalOpen, setVoucherModalOpen] = useState(false);
+
+  function calcEditEndDate(startDate: string, months: number): string {
+    if (!startDate || months <= 0) return "";
+    const d = new Date(startDate + "T12:00:00");
+    d.setMonth(d.getMonth() + months);
+    return d.toISOString().slice(0, 10);
+  }
 
   const loadRequests = useCallback(async (): Promise<void> => {
     try {
@@ -150,6 +162,15 @@ export default function PaymentsPage(): React.ReactElement {
     setActionError(null);
     setSuccessMessage(null);
     setPreviewUnavailable(false);
+    setEditStartDate(request.startDate);
+    if (request.startDate && request.endDate) {
+      const start = new Date(request.startDate + "T12:00:00");
+      const end = new Date(request.endDate + "T12:00:00");
+      const diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+      setEditMonths(Math.max(1, diffMonths));
+    } else {
+      setEditMonths(1);
+    }
   }
 
   function handleBack(): void {
@@ -169,6 +190,8 @@ export default function PaymentsPage(): React.ReactElement {
     try {
       const updated = await updatePaymentValidation(selectedRequest.id, {
         action: "approved",
+        startDate: editStartDate || selectedRequest.startDate,
+        endDate: calcEditEndDate(editStartDate || selectedRequest.startDate, editMonths),
       });
       setRequests((prev) =>
         prev.map((r) => (r.id === updated.id ? updated : r)),
@@ -615,13 +638,29 @@ export default function PaymentsPage(): React.ReactElement {
                   <div className="mb-4 rounded-xl border-2 border-dashed border-cata-border bg-cata-bg p-6 text-center">
                     {selectedRequest.proofPreviewUrl && !previewUnavailable ? (
                       <div className="relative mx-auto mb-3 h-48 w-full overflow-hidden rounded-lg bg-cata-border/40">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={selectedRequest.proofPreviewUrl}
-                           alt="Vista previa del comprobante de pago"
-                          onError={(): void => setPreviewUnavailable(true)}
-                          className="h-full w-full object-contain"
-                        />
+                        {selectedRequest.proofFileType === "pdf" ? (
+                          <iframe
+                            src={selectedRequest.proofPreviewUrl}
+                            title="Vista previa del comprobante"
+                            className="h-full w-full border-0"
+                          />
+                        ) : (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={selectedRequest.proofPreviewUrl}
+                            alt="Vista previa del comprobante de pago"
+                            onError={(): void => setPreviewUnavailable(true)}
+                            className="h-full w-full object-contain"
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={(): void => setVoucherModalOpen(true)}
+                          className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-lg bg-cata-red px-2.5 py-1.5 text-[11px] font-medium text-white shadow-sm transition-colors hover:bg-cata-red/85"
+                        >
+                          <Eye size={12} strokeWidth={1.5} aria-hidden="true" />
+                          Expandir
+                        </button>
                       </div>
                     ) : selectedRequest.proofPreviewUrl ? (
                       <div role="status" className="space-y-3 text-sm text-cata-text/65">
@@ -667,6 +706,12 @@ export default function PaymentsPage(): React.ReactElement {
                     <p className="mt-1 text-xs text-cata-text/65">
                       {selectedRequest.proofFileType === "pdf" ? "Documento PDF" : "Archivo de imagen"}
                     </p>
+                    {!selectedRequest.proofPreviewUrl && (
+                      <p className="mt-4 text-xs text-cata-text/40">
+                        <Eye size={12} strokeWidth={1.5} className="inline-block -mt-0.5 mr-1" aria-hidden="true" />
+                        Vista previa no disponible para este tipo de comprobante.
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -680,6 +725,43 @@ export default function PaymentsPage(): React.ReactElement {
 
                     {!showRejectForm ? (
                       <div className="space-y-3">
+                        {/* Period editing — admin can adjust dates before approving */}
+                        <div className="rounded-lg border border-cata-border/50 bg-cata-bg/60 p-3">
+                          <p className="mb-2 text-xs font-medium text-cata-text/65">
+                            Período de vigencia (editable antes de aprobar)
+                          </p>
+                          <div className="grid grid-cols-[1fr_100px] gap-2">
+                            <label className="text-xs text-cata-text/55">
+                              Fecha de inicio
+                              <input
+                                type="date"
+                                value={editStartDate}
+                                onChange={(e) => setEditStartDate(e.target.value)}
+                                className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+                              />
+                            </label>
+                            <label className="text-xs text-cata-text/55">
+                              Meses
+                              <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={editMonths}
+                                onChange={(e) => {
+                                  const v = parseInt(e.target.value, 10);
+                                  setEditMonths(isNaN(v) || v < 1 ? 1 : v);
+                                }}
+                                className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+                              />
+                            </label>
+                          </div>
+                          {editStartDate && editMonths > 0 && (
+                            <p className="mt-1.5 text-[10px] text-cata-text/50">
+                              Fin calculado: {calcEditEndDate(editStartDate, editMonths)}
+                            </p>
+                          )}
+                        </div>
+
                         <button
                           type="button"
                           onClick={() => setConfirmApproveOpen(true)}
@@ -793,6 +875,54 @@ export default function PaymentsPage(): React.ReactElement {
           }}
           onCancel={() => setConfirmApproveOpen(false)}
         />
+
+        {/* Fullscreen voucher viewer modal */}
+        {voucherModalOpen && selectedRequest?.proofPreviewUrl &&
+          createPortal(
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-cata-black/60 backdrop-blur-sm"
+              onClick={(): void => setVoucherModalOpen(false)}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Visor de comprobante"
+            >
+              <div
+                className="relative mx-4 flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-cata-border bg-white shadow-elevated"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex shrink-0 items-center justify-between border-b border-cata-border px-5 py-3">
+                  <p className="text-sm font-semibold text-cata-text truncate">
+                    {selectedRequest.proofFileName}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={(): void => setVoucherModalOpen(false)}
+                    aria-label="Cerrar"
+                    className="rounded-lg p-1.5 text-cata-text/50 transition-colors hover:bg-cata-bg hover:text-cata-text"
+                  >
+                    <X size={16} strokeWidth={1.5} aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-auto bg-cata-bg p-2">
+                  {selectedRequest.proofFileType === "pdf" ? (
+                    <iframe
+                      src={selectedRequest.proofPreviewUrl}
+                      title="Comprobante de pago"
+                      className="h-full w-full border-0"
+                    />
+                  ) : (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={selectedRequest.proofPreviewUrl}
+                      alt="Comprobante de pago"
+                      className="mx-auto h-full object-contain"
+                    />
+                  )}
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )}
       </AppShell>
     </ProtectedRoute>
   );

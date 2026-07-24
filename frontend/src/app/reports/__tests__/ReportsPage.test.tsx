@@ -99,6 +99,8 @@ const PAGO: PaymentValidationRequest = {
   proofFileName: "voucher.jpg",
   proofFileType: "image",
   validationStatus: "validado",
+  startDate: "2026-07-01",
+  endDate: "2026-07-31",
 };
 
 function exportButton(): HTMLElement | null {

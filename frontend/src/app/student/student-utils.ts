@@ -7,6 +7,31 @@
 
 import type { StudentRankingSummary } from "@/services/api";
 
+const MAJORITY_AGE = 18;
+
+// ---------------------------------------------------------------------------
+// Age gate
+// ---------------------------------------------------------------------------
+
+/**
+ * True when the persona is younger than 18 as of today. Uses the same
+ * component-wise calculation as `enroll-utils.ts::calculateAge` (avoids
+ * UTC midnight shifts in Ecuador timezone). Returns `false` for
+ * invalid/empty dates so the portal does not accidentally restrict access.
+ */
+export function isMinor(fechaNacimiento: string | null | undefined): boolean {
+  if (!fechaNacimiento) return false;
+  const parts = fechaNacimiento.split("-");
+  if (parts.length !== 3) return false;
+  const [y, m, d] = parts.map(Number);
+  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return false;
+  const today = new Date();
+  let age = today.getFullYear() - y;
+  const monthDiff = today.getMonth() - (m - 1);
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < d)) age--;
+  return age < MAJORITY_AGE;
+}
+
 // ---------------------------------------------------------------------------
 // Portal mode
 // ---------------------------------------------------------------------------

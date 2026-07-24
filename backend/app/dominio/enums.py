@@ -116,3 +116,5 @@ class TipoSangre(str, enum.Enum):
 class TipoNotificacion(str, enum.Enum):
     """Notificación in-app (no email/push)."""
     MIEMBRESIA_VENCIMIENTO_PROXIMO = "MIEMBRESIA_VENCIMIENTO_PROXIMO"
+    PAGO_APROBADO = "PAGO_APROBADO"
+    PAGO_RECHAZADO = "PAGO_RECHAZADO"

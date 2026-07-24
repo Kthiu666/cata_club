@@ -114,6 +114,8 @@ describe("GET /api/payments", () => {
         proofFileType: "pdf",
         proofPreviewUrl: "https://example.com/comprobante.pdf",
         validationStatus: "pendiente",
+        startDate: "2026-07-01",
+        endDate: "2026-07-31",
       },
     ]);
   });

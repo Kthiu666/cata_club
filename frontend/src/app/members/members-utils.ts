@@ -59,6 +59,9 @@ export interface MemberStudentSummary {
     fechaInicio: string;
     fechaFin: string;
     monto: number;
+    /** Backend `Membresia.id` — surfaced here so the admin can register
+     *  a new payment (renewal) against the right membership. */
+    id: number;
   } | null;
   ultimoPago: {
     estado: PaymentStatus;

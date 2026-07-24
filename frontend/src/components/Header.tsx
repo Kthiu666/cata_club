@@ -31,6 +31,7 @@ import {
   Calendar,
   Trophy,
   FileText,
+  CreditCard,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNavLinksForRole, type NavLinkDef } from "@/lib/auth-utils";
@@ -67,6 +68,7 @@ export const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
   "/trainer/nivel": Trophy,
   "/reports": FileText,
   "/student": GraduationCap,
+  "/student/payments": CreditCard,
 };
 
 /**
@@ -229,6 +231,9 @@ const APP_SHELL_ROUTES = new Set([
   "/trainer/nivel",
   "/reports",
   "/student",
+  "/student/payments",
+  "/student/enroll",
+  "/student/add-dependent",
   "/profile",
 ]);
 

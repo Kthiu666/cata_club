@@ -62,6 +62,17 @@ vi.mock("@/contexts/AuthContext", () => ({
   }),
 }));
 
+vi.mock("@/contexts/ToastContext", () => ({
+  ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useToast: () => ({
+    showToast: vi.fn(),
+    showError: vi.fn(),
+    showSuccess: vi.fn(),
+    showInfo: vi.fn(),
+    showWarning: vi.fn(),
+  }),
+}));
+
 const mockFetchMembers = vi.fn();
 const mockObtenerRolesDePersona = vi.fn();
 const mockAsignarRol = vi.fn();
@@ -72,6 +83,7 @@ const mockFetchFichaMedica = vi.fn();
 const mockActualizarFichaMedica = vi.fn();
 const mockFetchTiposMembresia = vi.fn().mockResolvedValue([]);
 const mockCrearMembresia = vi.fn();
+const mockRegistrarPago = vi.fn();
 const mockFetchNotificaciones = vi.fn().mockResolvedValue([]);
 const mockMarcarNotificacionLeida = vi.fn().mockResolvedValue(undefined);
 
@@ -95,6 +107,7 @@ vi.mock("@/services/api", () => {
     actualizarFichaMedica: (personaId: number, data: unknown) => mockActualizarFichaMedica(personaId, data),
     fetchTiposMembresia: () => mockFetchTiposMembresia(),
     crearMembresia: (data: unknown) => mockCrearMembresia(data),
+    registrarPago: (data: unknown) => mockRegistrarPago(data),
     fetchNotificaciones: () => mockFetchNotificaciones(),
     marcarNotificacionLeida: (id: number) => mockMarcarNotificacionLeida(id),
     ApiClientError: MockApiClientError,
@@ -632,6 +645,115 @@ describe("MembersPage — Crear membresía inline form", () => {
     const form = combobox.parentElement as HTMLElement;
     expect(within(form).getByRole("button", { name: /^crear$/i })).toBeInTheDocument();
     expect(within(form).getByRole("button", { name: /^cancelar$/i })).toBeInTheDocument();
+  });
+});
+
+describe("MembersPage — Registrar pago inline form", () => {
+  beforeEach(() => {
+    mockFetchMembers.mockReset();
+    mockFetchTiposMembresia.mockReset().mockResolvedValue([]);
+    mockRegistrarPago.mockReset();
+  });
+
+  it("renders a 'Registrar pago' button inside the student card when the student has a membership", async () => {
+    const cuentaConMembresia: MemberAccount = {
+      ...ACCOUNT,
+      estudiantes: [
+        {
+          ...ACCOUNT.estudiantes[0],
+          membresia: {
+            tipo: "Mensual (Tarde)",
+            estado: "activa",
+            fechaInicio: "2026-07-01",
+            fechaFin: "2026-07-31",
+            monto: 85,
+            id: 42,
+          },
+        },
+      ],
+    };
+    mockFetchMembers.mockResolvedValue({ accounts: [cuentaConMembresia], niveles: [] });
+
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
+    const row = await findAccountRow();
+    fireEvent.click(getEditButton(row));
+
+    const dialog = screen.getByRole("dialog");
+    const registrarBtn = await within(dialog).findByRole("button", { name: /registrar pago/i });
+    expect(registrarBtn).toBeInTheDocument();
+  });
+
+  it("opens the payment form with monto/tipo/fechas, calls registrarPago on submit, shows success", async () => {
+    const cuentaConMembresia: MemberAccount = {
+      ...ACCOUNT,
+      estudiantes: [
+        {
+          ...ACCOUNT.estudiantes[0],
+          membresia: {
+            tipo: "Mensual (Tarde)",
+            estado: "vencida",
+            fechaInicio: "2026-06-01",
+            fechaFin: "2026-06-30",
+            monto: 85,
+            id: 42,
+          },
+        },
+      ],
+    };
+    mockFetchMembers.mockResolvedValue({ accounts: [cuentaConMembresia], niveles: [] });
+    mockRegistrarPago.mockResolvedValueOnce({ id: 99, estadoPago: "PENDIENTE_VALIDACION" });
+
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
+    const row = await findAccountRow();
+    fireEvent.click(getEditButton(row));
+
+    const dialog = screen.getByRole("dialog");
+    const registrarBtn = await within(dialog).findByRole("button", { name: /registrar pago/i });
+    fireEvent.click(registrarBtn);
+
+    const montoInput = await within(dialog).findByDisplayValue("85");
+    expect(montoInput).toBeInTheDocument();
+    expect(await within(dialog).findByText(/Inicio:/)).toBeInTheDocument();
+    expect(await within(dialog).findByText(/Fin:/)).toBeInTheDocument();
+
+    const submitBtn = within(dialog).getByRole("button", { name: /registrar pago/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(mockRegistrarPago).toHaveBeenCalledTimes(1);
+    });
+    expect(mockRegistrarPago.mock.calls[0][0]).toMatchObject({
+      personaId: 10,
+      membresiaId: 42,
+      monto: 85,
+    });
+    await waitFor(() => {
+      expect(within(dialog).getByText(/pago registrado/i)).toBeInTheDocument();
+    });
+  });
+
+  it("does NOT render a 'Registrar pago' button when the student has no membership", async () => {
+    mockFetchMembers.mockResolvedValue({ accounts: [ACCOUNT], niveles: [] });
+
+    render(
+      <ToastProvider>
+        <MembersPage />
+      </ToastProvider>,
+    );
+    const row = await findAccountRow();
+    fireEvent.click(getEditButton(row));
+
+    const dialog = screen.getByRole("dialog");
+    await within(dialog).findByRole("button", { name: /crear membresía/i });
+    expect(within(dialog).queryByRole("button", { name: /^registrar pago$/i })).not.toBeInTheDocument();
   });
 });
 

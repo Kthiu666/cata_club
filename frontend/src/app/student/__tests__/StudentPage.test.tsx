@@ -12,7 +12,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import StudentPage from "@/app/student/page";
-import type { StudentPortalSummary, PagoPersona } from "@/services/api";
+import type { StudentPortalSummary } from "@/services/api";
+import type { PagoPersona } from "@/services/api";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -59,11 +60,9 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 
 const mockFetchStudentPortal = vi.fn();
-const mockFetchPagosDePersona = vi.fn();
 
 vi.mock("@/services/api", () => ({
   fetchStudentPortal: () => mockFetchStudentPortal(),
-  fetchPagosDePersona: (personaId: string) => mockFetchPagosDePersona(personaId),
 }));
 
 const PORTAL: StudentPortalSummary = {
@@ -71,10 +70,11 @@ const PORTAL: StudentPortalSummary = {
     personaId: "9",
     nombres: "Alumno",
     apellidos: "Test",
-    fechaNacimiento: "2010-05-14",
+    fechaNacimiento: "2000-05-14",
     ranking: { status: "unavailable", reason: "error" },
     recentSessions: [],
     membership: null,
+    representante: null,
   },
   representados: [],
   membershipPlans: [],
@@ -114,7 +114,6 @@ const PAGO_APROBADO: PagoPersona = {
 
 beforeEach(() => {
   mockFetchStudentPortal.mockReset().mockResolvedValue(PORTAL);
-  mockFetchPagosDePersona.mockReset().mockResolvedValue([]);
 });
 
 describe("StudentPage — Agregar/Inscribir dependiente CTA", () => {
@@ -137,33 +136,12 @@ describe("StudentPage — Agregar/Inscribir dependiente CTA", () => {
   });
 });
 
-describe("StudentPage — Pagos section", () => {
-  it("fetches and renders the persona's payment history from the service", async () => {
-    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_APROBADO]);
-
+describe("StudentPage — Pagos link", () => {
+  it("links to the dedicated payments page", async () => {
     render(<StudentPage />);
 
-    await waitFor(() => {
-      expect(mockFetchPagosDePersona).toHaveBeenCalledWith("9");
-    });
-    expect(await screen.findByText("Efectivo")).toBeInTheDocument();
-  });
-
-  it("shows the rejection reason for a RECHAZADO payment", async () => {
-    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_RECHAZADO]);
-
-    render(<StudentPage />);
-
-    expect(await screen.findByText("Comprobante ilegible")).toBeInTheDocument();
-  });
-
-  it("does not show a rejection-reason block for an APROBADO payment", async () => {
-    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_APROBADO]);
-
-    render(<StudentPage />);
-
-    await screen.findByText("Efectivo");
-    expect(screen.queryByText(/motivo de rechazo/i)).not.toBeInTheDocument();
+    const link = await screen.findByText(/Registrar pago|Renovar membresía/);
+    expect(link.closest("a")).toHaveAttribute("href", "/student/payments");
   });
 });
 

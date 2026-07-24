@@ -82,6 +82,8 @@ const PENDING_REQUEST: PaymentValidationRequest = {
   proofFileName: "comprobante.pdf",
   proofFileType: "pdf",
   validationStatus: "pendiente",
+  startDate: "2026-07-01",
+  endDate: "2026-07-31",
 };
 
 async function renderAndSelectPending(): Promise<void> {
@@ -124,6 +126,8 @@ describe("PaymentsPage — approve confirmation gating", () => {
     });
     expect(mockUpdatePaymentValidation).toHaveBeenCalledWith("req-1", {
       action: "approved",
+      startDate: "2026-07-01",
+      endDate: "2026-08-01",
     });
   });
 
@@ -140,7 +144,7 @@ describe("PaymentsPage — approve confirmation gating", () => {
 
 describe("PaymentsPage — voucher preview recovery", () => {
   it("replaces a failed voucher preview with a labeled download fallback", async () => {
-    mockFetchPaymentValidations.mockResolvedValue([{ ...PENDING_REQUEST, proofPreviewUrl: "https://files.example/voucher.png" }]);
+    mockFetchPaymentValidations.mockResolvedValue([{ ...PENDING_REQUEST, proofPreviewUrl: "https://files.example/voucher.png", proofFileType: "image" }]);
 
     await renderAndSelectPending();
     fireEvent.error(screen.getByRole("img", { name: /vista previa del comprobante/i }));
@@ -150,7 +154,7 @@ describe("PaymentsPage — voucher preview recovery", () => {
   });
 
   it("allows a reviewer to retry the preview without changing the payment", async () => {
-    mockFetchPaymentValidations.mockResolvedValue([{ ...PENDING_REQUEST, proofPreviewUrl: "https://files.example/voucher.png" }]);
+    mockFetchPaymentValidations.mockResolvedValue([{ ...PENDING_REQUEST, proofPreviewUrl: "https://files.example/voucher.png", proofFileType: "image" }]);
 
     await renderAndSelectPending();
     fireEvent.error(screen.getByRole("img", { name: /vista previa del comprobante/i }));
@@ -161,7 +165,7 @@ describe("PaymentsPage — voucher preview recovery", () => {
   });
 
   it("does not claim the preview is unavailable while the voucher image is rendering successfully", async () => {
-    mockFetchPaymentValidations.mockResolvedValue([{ ...PENDING_REQUEST, proofPreviewUrl: "https://files.example/voucher.png" }]);
+    mockFetchPaymentValidations.mockResolvedValue([{ ...PENDING_REQUEST, proofPreviewUrl: "https://files.example/voucher.png", proofFileType: "image" }]);
 
     await renderAndSelectPending();
 
@@ -170,11 +174,11 @@ describe("PaymentsPage — voucher preview recovery", () => {
   });
 
   it("shows the unavailable message only when there is no preview URL at all", async () => {
-    mockFetchPaymentValidations.mockResolvedValue([PENDING_REQUEST]); // no proofPreviewUrl
+    mockFetchPaymentValidations.mockResolvedValue([{ ...PENDING_REQUEST, proofPreviewUrl: undefined }]); // no proofPreviewUrl
 
     await renderAndSelectPending();
 
-    expect(screen.getByText(/vista previa no disponible/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/vista previa no disponible/i).length).toBeGreaterThanOrEqual(1);
   });
 });
 

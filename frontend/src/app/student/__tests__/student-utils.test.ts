@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { derivePortalMode, isRepresentative, describeRanking } from "../student-utils";
+import { derivePortalMode, isRepresentative, isMinor, describeRanking } from "../student-utils";
 import type { StudentRankingSummary } from "@/services/api";
 
 // ---------------------------------------------------------------------------
@@ -36,6 +36,37 @@ describe("isRepresentative", () => {
   it("is true with one or more representados", () => {
     expect(isRepresentative(1)).toBe(true);
     expect(isRepresentative(3)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isMinor
+// ---------------------------------------------------------------------------
+
+describe("isMinor", () => {
+  it("returns true for a birth date younger than 18", () => {
+    const today = new Date();
+    const birthYear = today.getFullYear() - 15;
+    expect(isMinor(`${birthYear}-06-15`)).toBe(true);
+  });
+
+  it("returns false for a birth date 18 or older", () => {
+    const today = new Date();
+    const birthYear = today.getFullYear() - 20;
+    expect(isMinor(`${birthYear}-06-15`)).toBe(false);
+  });
+
+  it("returns false for null/undefined", () => {
+    expect(isMinor(null)).toBe(false);
+    expect(isMinor(undefined)).toBe(false);
+  });
+
+  it("returns false for empty string", () => {
+    expect(isMinor("")).toBe(false);
+  });
+
+  it("returns false for invalid date format", () => {
+    expect(isMinor("not-a-date")).toBe(false);
   });
 });
 
