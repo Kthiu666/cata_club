@@ -431,7 +431,6 @@ class PagoServicio:
             )
             self.repo_notificacion.crear(notif_rep)
 
-
     def adjuntar_comprobante(self, pago_id: int, datos: ComprobantePagoCreateDTO) -> ComprobantePago:
         pago = self.obtener_pago(pago_id)
         if pago.comprobante:

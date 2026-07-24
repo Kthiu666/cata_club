@@ -67,6 +67,7 @@ class PagoRepositorio:
         fecha_fin: Optional[date] = None,
     ) -> int:
         """Cuenta el total de pagos (opcionalmente filtrados por estado y/o rango de fecha_registro)."""
+        from sqlalchemy import func
         stmt = select(func.count()).select_from(Pago)
         if estado_pago is not None:
             stmt = stmt.where(Pago.estado_pago == estado_pago)

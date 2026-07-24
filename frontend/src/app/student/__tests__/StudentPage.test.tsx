@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import StudentPage from "@/app/student/page";
 import type { StudentPortalSummary } from "@/services/api";
+import type { PagoPersona } from "@/services/api";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -77,6 +78,38 @@ const PORTAL: StudentPortalSummary = {
   },
   representados: [],
   membershipPlans: [],
+};
+
+const PAGO_RECHAZADO: PagoPersona = {
+  id: 1,
+  monto: "35.00",
+  motivoRechazo: "Comprobante ilegible",
+  estadoPago: "RECHAZADO",
+  tipoPago: "TRANSFERENCIA",
+  fechaRegistro: "2026-06-01T09:00:00Z",
+  fechaValidacion: "2026-06-02T14:30:00Z",
+  fechaInicio: "2026-06-01",
+  fechaFin: "2026-06-30",
+  personaId: 9,
+  membresiaId: 3,
+  voucherUrl: null,
+  voucherFormato: null,
+};
+
+const PAGO_APROBADO: PagoPersona = {
+  id: 2,
+  monto: "35.00",
+  motivoRechazo: null,
+  estadoPago: "APROBADO",
+  tipoPago: "EFECTIVO",
+  fechaRegistro: "2026-07-01T09:00:00Z",
+  fechaValidacion: "2026-07-01T10:00:00Z",
+  fechaInicio: "2026-07-01",
+  fechaFin: "2026-07-31",
+  personaId: 9,
+  membresiaId: 3,
+  voucherUrl: null,
+  voucherFormato: null,
 };
 
 beforeEach(() => {
