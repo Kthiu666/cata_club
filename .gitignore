@@ -29,6 +29,7 @@ node_modules/
 .next/
 out/
 *.tsbuildinfo
+coverage/
 
 # Docker
 *.log
