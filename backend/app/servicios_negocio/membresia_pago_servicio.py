@@ -222,13 +222,22 @@ class PagoServicio:
                     "deben registrar este pago"
                 )
 
-        if not self.repo_membresia.obtener_por_id(datos.membresia_id):
+        membresia = self.repo_membresia.obtener_por_id(datos.membresia_id)
+        if not membresia:
             raise EntidadNoEncontrada(f"Membresía con id {datos.membresia_id} no encontrada")
 
         if self.repo.existe_pendiente_para_membresia(datos.membresia_id):
             raise OperacionInvalida(
                 "Esta membresía ya tiene un pago pendiente de validación. "
                 "Espere a que sea validado antes de registrar uno nuevo."
+            )
+
+        # El monto debe ser un múltiplo exacto del precio mensual de la membresía.
+        precio_mensual = membresia.monto_aplicado
+        if precio_mensual > 0 and datos.monto % precio_mensual != 0:
+            raise OperacionInvalida(
+                f"El monto (${datos.monto}) debe ser múltiplo del precio mensual "
+                f"(${precio_mensual})."
             )
 
         pago = Pago(**datos.model_dump(), estado_pago=EstadoPago.PENDIENTE_VALIDACION)
@@ -326,9 +335,19 @@ class PagoServicio:
         pago.fecha_validacion = datetime.now(timezone.utc)
 
         if datos.estado_pago == EstadoPago.APROBADO:
+            # Si el admin corrigió las fechas, aplicarlas al pago.
+            if datos.fecha_inicio is not None and datos.fecha_fin is not None:
+                pago.fecha_inicio = datos.fecha_inicio
+                pago.fecha_fin = datos.fecha_fin
+
             membresia = pago.membresia
             membresia.estado = EstadoMembresia.ACTIVA
-            membresia.fecha_activacion = pago.fecha_validacion
+            membresia.fecha_activacion = datetime(
+                year=pago.fecha_inicio.year,
+                month=pago.fecha_inicio.month,
+                day=pago.fecha_inicio.day,
+                tzinfo=timezone.utc,
+            )
 
             # Flush pending changes before counting active family memberships.
             # With autoflush=False, the ACTIVA state set above is not visible
