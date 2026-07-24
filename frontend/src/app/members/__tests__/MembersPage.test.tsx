@@ -65,7 +65,11 @@ vi.mock("@/contexts/AuthContext", () => ({
 vi.mock("@/contexts/ToastContext", () => ({
   ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useToast: () => ({
-    addToast: vi.fn(),
+    showToast: vi.fn(),
+    showError: vi.fn(),
+    showSuccess: vi.fn(),
+    showInfo: vi.fn(),
+    showWarning: vi.fn(),
   }),
 }));
 
