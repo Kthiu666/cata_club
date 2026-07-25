@@ -6,8 +6,18 @@ import Image from "next/image";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchStudentPortal, fetchPagosDePersona, independizarPersona } from "@/services/api";
-import type { StudentPortalSummary, StudentProfileSummary, PagoPersona } from "@/services/api";
+import {
+  fetchStudentPortal,
+  fetchPagosDePersona,
+  fetchHorariosPorAlumno,
+  independizarPersona,
+} from "@/services/api";
+import type {
+  AlumnoHorario,
+  StudentPortalSummary,
+  StudentProfileSummary,
+  PagoPersona,
+} from "@/services/api";
 import { formatCurrency, formatDate } from "@/lib/format-utils";
 import { EmptyState, ErrorState, LoadingState, buttonClasses } from "@/components/ui";
 import AgeUpConfirmation from "@/components/AgeUpConfirmation";
@@ -17,14 +27,17 @@ import {
   derivePortalMode,
   isRepresentative,
   isMinor,
+  buildWeeklyTrainingSchedule,
   describeMembershipState,
   describePaymentSituation,
+  findNextTrainingSessions,
   firstNameOf,
   formatLevelName,
   resolveCoverageEnd,
   summarizeRecentAttendance,
+  type UpcomingTraining,
 } from "./student-utils";
-import { ShieldCheck, User, UserPlus, UserMinus, ArrowRight } from "lucide-react";
+import { CalendarDays, ShieldCheck, User, UserPlus, UserMinus, ArrowRight } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Load state
@@ -39,6 +52,11 @@ type PagosState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; pagos: PagoPersona[] };
+
+type HorariosState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "ready"; asignaciones: AlumnoHorario[] };
 
 // ---------------------------------------------------------------------------
 // The club membership card (`.carnet`, _sistema.css:291-304)
@@ -162,22 +180,23 @@ function Carnet({
 }
 
 // ---------------------------------------------------------------------------
-// "Entrenamientos" — the second of the two answers this page owes its reader
+// "Próximos entrenamientos" — the second of the two things this screen is for
 //
-// The audit's complaint about this screen ("el dashboard para el perfil no
-// dice nada") was that nothing on it answered either question a family opens
-// the portal with: am I up to date with the club, and has my child been going.
+// The screen used to answer this with the most recent RECORDED session under
+// the heading "Entrenamientos": a past fact where a family reads a future one.
+// It could not do better, because `Horario` carries no link to the persona it
+// serves.
 //
-// Those two answers used to share one divided card. They no longer do — the
-// first is now the coal `PaymentBand` above the carnet, which is where the
-// product puts "the one thing to do next" on `/dashboard` and `/trainer`. What
-// is left here is the second answer, and it is a plain card rather than half
-// of one, because it reports and does not ask.
+// `AlumnoHorario` does. The rows behind this panel are the assignment an admin
+// made in `/groups` — `buildWeeklyTrainingSchedule` merges the club's
+// consecutive one-hour blocks back into the window the student actually
+// attends, and `findNextTrainingSessions` walks the calendar forward from
+// today. Nothing here is projected: the schedule is the club's, and the dates
+// are its next occurrences.
 //
-// Every value is counted from the payload: the last session is the most recent
-// record received, and the ratio is the counted recap over the sessions the
-// portal was given. No attendance percentage — the backend has no source for
-// one over a capped window.
+// The panel says so in as many words, because the club records no
+// cancellations, holidays or one-off changes anywhere — a date printed with no
+// source would read as a confirmed appointment, which is not what it is.
 // ---------------------------------------------------------------------------
 
 /** A text action that reads as a destination, not as a button competing with the page's CTA. */
@@ -193,18 +212,58 @@ function SituationLink({ href, children }: { href: string; children: React.React
   );
 }
 
+/** One upcoming session, on the product's 56px detail row. */
+function TrainingRow({ session, first }: { session: UpcomingTraining; first: boolean }): React.ReactElement {
+  return (
+    <li className="flex min-h-drow flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-5 py-3 last:border-b-0">
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-2 text-[15px] font-bold tracking-tight text-ink">
+          {session.diaLabel}
+          {session.isToday && (
+            <span className="h-badge inline-flex items-center gap-1.5 rounded-full bg-coal px-[11px] text-[11.5px] font-bold text-white">
+              <span aria-hidden="true" className="h-1.5 w-1.5 flex-none rounded-full bg-ball" />
+              Hoy
+            </span>
+          )}
+        </p>
+        <p className="mt-0.5 text-[12.5px] tabular-nums text-ink-3-strong">
+          {formatDate(session.fecha)}
+        </p>
+      </div>
+      <span
+        className={
+          first
+            ? "flex-none text-[17px] font-extrabold tabular-nums tracking-[-0.02em] text-ink"
+            : "flex-none text-[15px] font-bold tabular-nums text-ink-2"
+        }
+      >
+        {session.horaInicio} — {session.horaFin}
+      </span>
+    </li>
+  );
+}
+
 function TrainingPanel({
   profile,
+  horariosState,
   /** Whose record this is — "sus asistencias" only when the reader is the student. */
   viewingOwnProfile,
   studentName,
 }: {
   profile: StudentProfileSummary;
+  horariosState: HorariosState;
   viewingOwnProfile: boolean;
   studentName: string;
 }): React.ReactElement {
+  const sessions = useMemo(
+    () =>
+      horariosState.status === "ready"
+        ? findNextTrainingSessions(buildWeeklyTrainingSchedule(horariosState.asignaciones), 3)
+        : [],
+    [horariosState],
+  );
+
   const recap = summarizeRecentAttendance(profile.recentSessions);
-  const lastSession = profile.recentSessions[0] ?? null;
   // A guardian reading "De sus últimas 2 sesiones asistió a 1" about their
   // child was being told about themselves. The subject is named instead.
   const scope = recap
@@ -220,26 +279,63 @@ function TrainingPanel({
   return (
     <section
       data-testid="student-situation"
-      aria-label="Entrenamientos"
-      className="card overflow-hidden"
+      aria-label="Próximos entrenamientos"
+      className="card flex h-full flex-col overflow-hidden"
     >
-      <div className="flex flex-col gap-1.5 px-5 py-[18px]">
-        <p className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3">
-          Entrenamientos
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 pb-3.5 pt-[18px]">
+        <h2 className="text-[17px] font-bold tracking-tight text-ink">Próximos entrenamientos</h2>
+        <p className="text-[12.5px] text-ink-3-strong">
+          {viewingOwnProfile
+            ? "El horario semanal que el club le asignó."
+            : `El horario semanal que el club le asignó a ${studentName}.`}
         </p>
-        <h2 className="text-[17px] font-bold leading-snug tracking-tight text-ink">
-          {lastSession ? (
-            <>
-              {lastSession.horario}
-              <span className="block text-[13px] font-semibold tabular-nums text-ink-3">
-                {formatDate(lastSession.fecha)}
-              </span>
-            </>
-          ) : (
-            <>Todavía no hay entrenamientos registrados</>
-          )}
-        </h2>
-        <p className="text-[13px] leading-relaxed text-ink-3">
+      </div>
+
+      {horariosState.status === "loading" && (
+        <div className="border-t border-line">
+          <LoadingState label="Consultando su horario…" />
+        </div>
+      )}
+
+      {horariosState.status === "error" && (
+        <div className="border-t border-line px-5 py-4">
+          <p className="text-[13px] leading-relaxed text-ink-3">
+            No se pudo consultar el horario en este momento. Vuelva a cargar la página o consulte
+            en administración del club.
+          </p>
+        </div>
+      )}
+
+      {horariosState.status === "ready" &&
+        (sessions.length > 0 ? (
+          <ul className="flex flex-1 flex-col border-t border-line">
+            {sessions.map((session, index) => (
+              <TrainingRow
+                key={`${session.fecha}-${session.horaInicio}`}
+                session={session}
+                first={index === 0}
+              />
+            ))}
+          </ul>
+        ) : (
+          <div className="flex-1 border-t border-line">
+            <EmptyState
+              icon={<CalendarDays size={21} strokeWidth={1.5} aria-hidden="true" />}
+              title={
+                viewingOwnProfile
+                  ? "Todavía no tiene un horario asignado"
+                  : `${studentName} todavía no tiene un horario asignado`
+              }
+              description="El club asigna los días y las horas de entrenamiento. Consulte en administración para que le asignen uno."
+            />
+          </div>
+        ))}
+
+      {/* One line, not a second panel: it is the same subject — training —
+          and it is the fact a family checks right after "when is the next
+          one". The record itself lives on `/student/attendance`. */}
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-x-5 gap-y-2 border-t border-line bg-sunken px-5 py-3.5">
+        <p className="text-[12.5px] leading-relaxed text-ink-3-strong">
           {recap ? (
             <>
               De {scope} asistió a{" "}
@@ -254,11 +350,9 @@ function TrainingPanel({
             `La asistencia de ${studentName} aparecerá aquí en cuanto el entrenador tome lista.`
           )}
         </p>
-        <div className="mt-1.5">
-          <SituationLink href="/student/attendance">
-            {viewingOwnProfile ? "Ver mis asistencias" : `Ver las asistencias de ${studentName}`}
-          </SituationLink>
-        </div>
+        <SituationLink href="/student/attendance">
+          {viewingOwnProfile ? "Ver mis asistencias" : `Ver las asistencias de ${studentName}`}
+        </SituationLink>
       </div>
     </section>
   );
@@ -281,7 +375,7 @@ function MembershipPlansGrid({ data }: { data: StudentPortalSummary }): React.Re
     );
   }
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {data.membershipPlans.map((plan) => (
         <div key={plan.id} className="card flex flex-col p-5">
           <h3 className="text-base font-bold text-ink">{plan.nombre}</h3>
@@ -303,10 +397,12 @@ function MembershipPlansGrid({ data }: { data: StudentPortalSummary }): React.Re
 
 function PendingEnrollmentView({ data }: { data: StudentPortalSummary }): React.ReactElement {
   return (
-    <div className="w-full max-w-[760px] space-y-5">
+    <div className="w-full space-y-5">
       <section className="card p-6">
         <h2 className="text-[17px] font-bold tracking-tight text-ink">Bienvenido a Cata Club</h2>
-        <p className="mt-2 text-[13px] leading-relaxed text-ink-3">
+        {/* Capped at a readable measure inside a full-width card, rather than
+            capping the card: a 110-character line is not a paragraph. */}
+        <p className="mt-2 max-w-[68ch] text-[13px] leading-relaxed text-ink-3">
           Su cuenta está creada pero todavía no tiene una matrícula activa. Complete su inscripción para
           empezar a entrenar.
         </p>
@@ -381,6 +477,28 @@ function ActivePortalView({
     };
   }, [selectedPersonaId, pagosReloadToken]);
 
+  // The student's REAL schedule assignments — the only source from which an
+  // upcoming session can be stated truthfully (see `TrainingPanel`).
+  const [horariosState, setHorariosState] = useState<HorariosState>({ status: "loading" });
+
+  useEffect(() => {
+    if (!selectedPersonaId) return;
+    let cancelled = false;
+    setHorariosState({ status: "loading" });
+    fetchHorariosPorAlumno(Number(selectedPersonaId))
+      .then((asignaciones) => {
+        if (!cancelled) setHorariosState({ status: "ready", asignaciones });
+      })
+      .catch(() => {
+        // No message to carry: the panel states the recovery itself, and a
+        // schedule lookup failing must never take the payment band with it.
+        if (!cancelled) setHorariosState({ status: "error" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPersonaId]);
+
   const coverageEnd = useMemo(
     () => (pagosState.status === "ready" ? resolveCoverageEnd(pagosState.pagos) : null),
     [pagosState],
@@ -434,14 +552,14 @@ function ActivePortalView({
     : null;
 
   return (
-    // Left-aligned, not centered: the approved prototypes for all three family
-    // screens (`docs/ux/prototipos/22-alumno-cuenta.html` and siblings) set
-    // `.canvas { max-width: 760px }` with no `margin: 0 auto`, so the column
-    // shares its left edge with the page title above it exactly the way every
-    // admin and trainer screen does. Centred, the cards started 196px to the
-    // right of their own `<h1>` at 1440×900 — the single loudest reason the
-    // family area did not read as the same product.
-    <div className="w-full max-w-[760px] space-y-5">
+    // Full content width, like `/dashboard`, `/members` and `/payments`. The
+    // 760px cap came from the prototype's `.canvas`, and at 1440×900 it left
+    // the right HALF of the content column empty on every family screen while
+    // every admin screen filled it — the loudest remaining reason the portal
+    // did not read as the same product. What was one 760px stack is now a
+    // band across the top, the training panel in the main column and the
+    // carnet in a rail beside it.
+    <div className="w-full space-y-5">
       {/* The greeting is NOT a heading here. It used to be a 26px h2 directly
           under `PageHeader`'s own 26px h1, which stacked "ÁREA DE ESTUDIANTES
           / Mi cuenta / Hola, Ana" — three title-weight lines before a single
@@ -459,26 +577,6 @@ function ActivePortalView({
         onChange={setSelectedId}
       />
 
-      {/* Only on the minor's OWN account. Shown to a guardian looking at their
-          dependent it read "Su representante: Laura Vera" to Laura Vera — the
-          card names the person the reader should turn to, and the reader was
-          that person. */}
-      {selectedIsMinor && viewingOwnProfile && selectedProfile?.representante && (
-        <section className="card flex items-center gap-3 p-5" aria-label="Su representante">
-          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-canvas">
-            <User size={18} strokeWidth={1.5} className="text-ink-3" aria-hidden="true" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3">
-              Su representante
-            </span>
-            <span className="block text-[13.5px] font-semibold text-ink">
-              {selectedProfile.representante.nombres} {selectedProfile.representante.apellidos}
-            </span>
-          </span>
-        </section>
-      )}
-
       {selectedProfile === null || paymentSituation === null ? (
         <div className="card">
           <EmptyState
@@ -489,9 +587,8 @@ function ActivePortalView({
         </div>
       ) : (
         <>
-          {/* First, above the carnet: the reader came to find out whether they
-              owe the club anything and to do something about it. The carnet is
-              the identity document they screenshot; it is not the errand. */}
+          {/* First, across the whole width: the reader came to find out whether
+              they owe the club anything and to do something about it. */}
           <PaymentBand
             situation={paymentSituation}
             action={
@@ -504,12 +601,46 @@ function ActivePortalView({
                 : { href: "/student/payments", label: "Ver los pagos" }
             }
           />
-          <Carnet profile={selectedProfile} coverageEnd={coverageEnd} />
-          <TrainingPanel
-            profile={selectedProfile}
-            viewingOwnProfile={viewingOwnProfile}
-            studentName={firstNameOf(selectedProfile.nombres)}
-          />
+
+          {/* The main column answers "when do I train next"; the rail carries
+              the identity the family screenshots. The carnet was NOT deleted —
+              it is the one thing on this screen a parent has reacted well to —
+              but it no longer sits between the band and the training panel at
+              full width, where it read as the screen's subject. At 340px it is
+              a card the size of a card. */}
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+            <TrainingPanel
+              profile={selectedProfile}
+              horariosState={horariosState}
+              viewingOwnProfile={viewingOwnProfile}
+              studentName={firstNameOf(selectedProfile.nombres)}
+            />
+
+            <div className="flex flex-col gap-5">
+              <Carnet profile={selectedProfile} coverageEnd={coverageEnd} />
+
+              {/* Only on the minor's OWN account. Shown to a guardian looking
+                  at their dependent it read "Su representante: Laura Vera" to
+                  Laura Vera — the card names the person the reader should turn
+                  to, and the reader was that person. */}
+              {selectedIsMinor && viewingOwnProfile && selectedProfile.representante && (
+                <section className="card flex items-center gap-3 p-5" aria-label="Su representante">
+                  <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-canvas">
+                    <User size={18} strokeWidth={1.5} className="text-ink-3" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3">
+                      Su representante
+                    </span>
+                    <span className="block text-[13.5px] font-semibold text-ink">
+                      {selectedProfile.representante.nombres}{" "}
+                      {selectedProfile.representante.apellidos}
+                    </span>
+                  </span>
+                </section>
+              )}
+            </div>
+          </div>
         </>
       )}
 

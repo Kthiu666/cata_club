@@ -62,6 +62,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 
 const mockFetchStudentPortal = vi.fn();
 const mockFetchPagosDePersona = vi.fn();
+const mockFetchHorariosPorAlumno = vi.fn();
 const mockIndependizarPersona = vi.fn();
 
 vi.mock("@/services/api", () => ({
@@ -69,8 +70,26 @@ vi.mock("@/services/api", () => ({
   // Still read here — the carnet's "Cobertura hasta" is the furthest
   // `fechaFin` among approved payments, the only real coverage date there is.
   fetchPagosDePersona: (...args: unknown[]) => mockFetchPagosDePersona(...args),
+  // The student's REAL schedule assignments — the only source the "Próximos
+  // entrenamientos" panel is allowed to state a future session from.
+  fetchHorariosPorAlumno: (...args: unknown[]) => mockFetchHorariosPorAlumno(...args),
   independizarPersona: (...args: unknown[]) => mockIndependizarPersona(...args),
 }));
+
+/** One `AlumnoHorario` row, in the camelCase shape the backend actually serializes. */
+function asignacion(dia: string, horaInicio: string, horaFin: string, id = 1) {
+  return {
+    id,
+    personaId: 9,
+    personaNombreCompleto: "Alumno Test",
+    edad: 26,
+    horarioId: id,
+    horarioDia: dia,
+    horarioHoraInicio: horaInicio,
+    horarioHoraFin: horaFin,
+    fechaAsignacion: "2026-07-01T09:00:00Z",
+  };
+}
 
 const PORTAL: StudentPortalSummary = {
   self: {
@@ -123,6 +142,7 @@ const PAGO_APROBADO: PagoPersona = {
 beforeEach(() => {
   mockFetchStudentPortal.mockReset().mockResolvedValue(PORTAL);
   mockFetchPagosDePersona.mockReset().mockResolvedValue([]);
+  mockFetchHorariosPorAlumno.mockReset().mockResolvedValue([]);
   mockIndependizarPersona.mockReset().mockResolvedValue(undefined);
 });
 
@@ -215,6 +235,104 @@ describe("StudentPage — the club membership card (carnet)", () => {
 
     const carnet = await screen.findByTestId("student-carnet");
     expect(within(carnet).getByText("Sin nivel asignado")).toBeInTheDocument();
+  });
+});
+
+/**
+ * The panel the user asked for: "que le diga los próximos entrenamientos".
+ *
+ * Every date on it is the next calendar occurrence of a slot the club actually
+ * assigned to this student (`AlumnoHorario`), never a projection off the
+ * membership's `franjaHoraria` — which is a time range with no weekday in it.
+ */
+describe("StudentPage — próximos entrenamientos", () => {
+  it("lists the next occurrences of the schedule the club assigned, soonest first", async () => {
+    // A Wednesday. The club's three consecutive one-hour blocks are one
+    // window to the family, so the panel says 15:00 — 18:00, not three rows.
+    // Only `Date` is faked — faking timers wholesale deadlocks `waitFor`.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-07-22T09:00:00-05:00"));
+    mockFetchHorariosPorAlumno.mockResolvedValue([
+      asignacion("MIERCOLES", "15:00:00", "16:00:00", 1),
+      asignacion("MIERCOLES", "16:00:00", "17:00:00", 2),
+      asignacion("MIERCOLES", "17:00:00", "18:00:00", 3),
+      asignacion("VIERNES", "15:00:00", "18:00:00", 4),
+    ]);
+
+    render(<StudentPage />);
+
+    const panel = await screen.findByTestId("student-situation");
+    await waitFor(() => {
+      expect(within(panel).getByText("Miércoles")).toBeInTheDocument();
+    });
+    expect(within(panel).getAllByText("15:00 — 18:00")).toHaveLength(2);
+    // Today's window has not closed at 09:00, so today IS the next session.
+    expect(within(panel).getByText("Hoy")).toBeInTheDocument();
+    expect(within(panel).getByText("22/07/2026")).toBeInTheDocument();
+    expect(within(panel).getByText("24/07/2026")).toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
+
+  it("moves past a window that has already closed today instead of calling it 'hoy'", async () => {
+    // Same Wednesday, 21:00 — the 15:00–18:00 session is over.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-07-22T21:00:00-05:00"));
+    mockFetchHorariosPorAlumno.mockResolvedValue([
+      asignacion("MIERCOLES", "15:00:00", "18:00:00", 1),
+    ]);
+
+    render(<StudentPage />);
+
+    const panel = await screen.findByTestId("student-situation");
+    await waitFor(() => {
+      expect(within(panel).getByText("29/07/2026")).toBeInTheDocument();
+    });
+    expect(within(panel).queryByText("Hoy")).not.toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
+
+  it("says the club has assigned no schedule rather than inventing one from the plan's franja", async () => {
+    mockFetchStudentPortal.mockReset().mockResolvedValue({
+      ...PORTAL,
+      self: {
+        ...PORTAL.self!,
+        membership: {
+          id: 4,
+          estado: "ACTIVA",
+          personaId: 9,
+          montoAplicado: "25.00",
+          categoria: "Mensual Infantil",
+          modalidad: "MENSUAL",
+          // A time range with no weekday in it — not a schedule.
+          franjaHoraria: "15:00-18:00",
+        },
+      },
+    });
+    mockFetchHorariosPorAlumno.mockResolvedValue([]);
+
+    render(<StudentPage />);
+
+    const panel = await screen.findByTestId("student-situation");
+    await waitFor(() => {
+      expect(
+        within(panel).getByText(/todavía no tiene un horario asignado/i),
+      ).toBeInTheDocument();
+    });
+    expect(within(panel).queryByText("15:00 — 18:00")).not.toBeInTheDocument();
+  });
+
+  it("keeps the payment band standing when the schedule lookup fails", async () => {
+    mockFetchHorariosPorAlumno.mockRejectedValue(new Error("boom"));
+
+    render(<StudentPage />);
+
+    const panel = await screen.findByTestId("student-situation");
+    await waitFor(() => {
+      expect(within(panel).getByText(/no se pudo consultar el horario/i)).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("student-payment-band")).toBeInTheDocument();
   });
 });
 

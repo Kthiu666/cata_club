@@ -163,14 +163,24 @@ export default function ChatWidget({
     >
       {/* `.chat > header` — coal, avatar disc, "Responde en segundos". */}
       <header className="flex flex-none items-center gap-[11px] bg-coal px-[15px] py-3 text-white">
-        {/* The 128px copy, not the 512px master: this renders at 32px. */}
-        <span className="relative block h-8 w-8 shrink-0 overflow-hidden rounded-full bg-white">
+        {/*
+          The 512px master with `sizes="96px"`, NOT the 128px copy at "32px".
+          `sizes` is CSS pixels: at "32px" Next serves a 32-pixel-wide file, so
+          a 2x or 3x display upscales it and the avatar reads as a smudge.
+          Asking for 96 lets the browser pick a source with real pixels at any
+          density; it still lays out at 32.
+
+          No `bg-white` behind it either — the PNG is transparent outside its
+          own coal disc, so a white fill bled through the antialiased rim as a
+          halo. The mark carries its own black edge against the coal header.
+        */}
+        <span className="relative block h-8 w-8 shrink-0 overflow-hidden rounded-full">
           <Image
-            src="/brand/cata-bot-128.png"
+            src="/brand/cata-bot.png"
             alt=""
             fill
-            sizes="32px"
-            className="object-cover"
+            sizes="96px"
+            className="object-contain"
           />
         </span>
         <span className="min-w-0 flex-1 leading-tight">

@@ -135,7 +135,12 @@ describe("ChatWidget — design system", () => {
     const { container } = render(<ChatWidget open onClose={vi.fn()} />);
 
     const avatar = container.querySelector("header img");
-    expect(avatar).toHaveAttribute("src", "/brand/cata-bot-128.png");
+    // The 512px master, not the 128px copy. `sizes` is in CSS pixels, so
+    // asking for a 32px source made Next serve 32 real pixels and every
+    // HiDPI display upscaled them — the avatar rendered as a smudge. The
+    // `sizes` value itself is not asserted here: the `next/image` mock in this
+    // suite drops that prop, so it can only be checked in the browser.
+    expect(avatar).toHaveAttribute("src", "/brand/cata-bot.png");
   });
 
   it("introduces itself by name in the opening bubble", () => {

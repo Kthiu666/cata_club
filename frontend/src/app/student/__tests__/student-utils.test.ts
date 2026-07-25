@@ -17,6 +17,8 @@ import {
   summarizeRecentAttendance,
   resolveCoverageEnd,
   describePaymentSituation,
+  buildWeeklyTrainingSchedule,
+  findNextTrainingSessions,
   COVERAGE_ENDING_SOON_DAYS,
 } from "../student-utils";
 import type { PaymentSituationInput } from "../student-utils";
@@ -568,5 +570,125 @@ describe("describePaymentSituation", () => {
     expect(describePaymentSituation(situation({ coverageEnd: "2026-08-02" }), TODAY).kind).toBe(
       "covered",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The weekly training schedule
+//
+// The one place the portal is allowed to state a FUTURE session from. The
+// rows are `AlumnoHorario` — the assignment an admin makes in `/groups` — so
+// nothing here is projected off the membership's `franjaHoraria`, which is a
+// time range with no weekday in it.
+// ---------------------------------------------------------------------------
+
+function asignacion(horarioDia: string, horarioHoraInicio: string, horarioHoraFin: string) {
+  return { horarioDia, horarioHoraInicio, horarioHoraFin };
+}
+
+describe("buildWeeklyTrainingSchedule", () => {
+  it("merges the club's consecutive one-hour blocks into the window the student attends", () => {
+    // Exactly what the seed creates for a "Mensual Infantil" child: three
+    // adjacent Horario rows per day, one per categoría.
+    const slots = buildWeeklyTrainingSchedule([
+      asignacion("LUNES", "15:00:00", "16:00:00"),
+      asignacion("LUNES", "16:00:00", "17:00:00"),
+      asignacion("LUNES", "17:00:00", "18:00:00"),
+    ]);
+
+    expect(slots).toEqual([
+      { dia: "LUNES", diaLabel: "Lunes", horaInicio: "15:00", horaFin: "18:00" },
+    ]);
+  });
+
+  it("keeps two windows separate when the day genuinely has a gap between them", () => {
+    const slots = buildWeeklyTrainingSchedule([
+      asignacion("SABADO", "18:00:00", "20:00:00"),
+      asignacion("SABADO", "09:00:00", "11:00:00"),
+    ]);
+
+    expect(slots.map((slot) => `${slot.horaInicio}-${slot.horaFin}`)).toEqual([
+      "09:00-11:00",
+      "18:00-20:00",
+    ]);
+  });
+
+  it("orders the week from Monday, whatever order the backend sent", () => {
+    const slots = buildWeeklyTrainingSchedule([
+      asignacion("SABADO", "18:00:00", "20:00:00"),
+      asignacion("MARTES", "15:00:00", "16:00:00"),
+      asignacion("LUNES", "15:00:00", "16:00:00"),
+    ]);
+
+    expect(slots.map((slot) => slot.dia)).toEqual(["LUNES", "MARTES", "SABADO"]);
+  });
+
+  it("drops a row it cannot read rather than rendering 'undefined' on a family's screen", () => {
+    const slots = buildWeeklyTrainingSchedule([
+      asignacion("FUNESDAY", "15:00:00", "16:00:00"),
+      asignacion("LUNES", "no-es-una-hora", "16:00:00"),
+      // An end at or before the start is not a session.
+      asignacion("LUNES", "16:00:00", "16:00:00"),
+      asignacion("LUNES", "15:00:00", "16:00:00"),
+    ]);
+
+    expect(slots).toEqual([
+      { dia: "LUNES", diaLabel: "Lunes", horaInicio: "15:00", horaFin: "16:00" },
+    ]);
+  });
+
+  it("returns nothing at all when the club has assigned nothing", () => {
+    expect(buildWeeklyTrainingSchedule([])).toEqual([]);
+  });
+});
+
+describe("findNextTrainingSessions", () => {
+  const SCHEDULE = buildWeeklyTrainingSchedule([
+    asignacion("LUNES", "15:00:00", "18:00:00"),
+    asignacion("MIERCOLES", "15:00:00", "18:00:00"),
+    asignacion("VIERNES", "15:00:00", "18:00:00"),
+  ]);
+
+  /** 2026-07-22 is a Wednesday. Noon-anchored, so no zone shifts the calendar day. */
+  const WEDNESDAY_MORNING = new Date("2026-07-22T09:00:00-05:00");
+
+  it("walks the calendar forward from today, soonest first", () => {
+    const next = findNextTrainingSessions(SCHEDULE, 3, WEDNESDAY_MORNING);
+
+    expect(next.map((session) => session.fecha)).toEqual([
+      "2026-07-22",
+      "2026-07-24",
+      "2026-07-27",
+    ]);
+    expect(next[0].diaLabel).toBe("Miércoles");
+  });
+
+  it("calls today's session 'hoy' only while its window is still open", () => {
+    const morning = findNextTrainingSessions(SCHEDULE, 1, WEDNESDAY_MORNING);
+    expect(morning[0].isToday).toBe(true);
+
+    // 21:00 — the 15:00-18:00 window closed three hours ago, so the next
+    // Wednesday session is next Wednesday's, and saying "hoy" would be the
+    // one reading a parent could act on and be wrong about.
+    const night = findNextTrainingSessions(SCHEDULE, 3, new Date("2026-07-22T21:00:00-05:00"));
+    expect(night.some((session) => session.isToday)).toBe(false);
+    expect(night[0].fecha).toBe("2026-07-24");
+    expect(night.map((session) => session.fecha)).toContain("2026-07-29");
+  });
+
+  it("sorts same-day windows by their start time", () => {
+    const twice = buildWeeklyTrainingSchedule([
+      asignacion("MIERCOLES", "18:00:00", "20:00:00"),
+      asignacion("MIERCOLES", "09:00:00", "11:00:00"),
+    ]);
+
+    expect(findNextTrainingSessions(twice, 2, WEDNESDAY_MORNING).map((s) => s.horaInicio)).toEqual([
+      "09:00",
+      "18:00",
+    ]);
+  });
+
+  it("returns nothing when there is no schedule to walk", () => {
+    expect(findNextTrainingSessions([], 3, WEDNESDAY_MORNING)).toEqual([]);
   });
 });

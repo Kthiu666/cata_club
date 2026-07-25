@@ -20,9 +20,12 @@
  *   excused absence is still an absence). The four-way breakdown below the
  *   ratio is what keeps that distinction visible instead of hidden in the
  *   arithmetic.
- * - There is no "próxima sesión" anywhere on this page. `attendance-adapter.ts`
- *   documents that `Horario` carries no link to the persona or nivel it
- *   serves, so a future session cannot be derived for a given student.
+ * - There is no "próxima sesión" on this page. This screen reports what was
+ *   RECORDED; the student's assigned weekly schedule is a different fact from
+ *   a different endpoint, and it is answered on `/student` (see the
+ *   "Próximos entrenamientos" block comment there). Mixing the two on one
+ *   screen is what made the old portal print a past session under a heading a
+ *   family reads as the next one.
  *
  * ## The window, and why it is stated on screen
  *
@@ -142,13 +145,15 @@ function AttendanceRecap({
       {/* The four states behind the ratio. `sunken` because this strip is an
           inset area inside the card, not a second card.
 
-          The hairlines are computed per index rather than written as `divide-x`
-          or `last:border-r-0`: the grid is 2-up on a phone and 4-up above `sm`,
-          so "is this cell at the end of its row" has two different answers and
-          a single utility gets one of them wrong. */}
+          A fixed 2×2, at every width: the card now lives in a 340px rail on
+          large screens, where a 4-up row gives "Justificada" 45px of content
+          box and breaks it across three lines. The hairlines are computed per
+          index rather than written as `divide-x` — a 2×2 needs a right border
+          on the even cells and a bottom border on the first row, and no single
+          utility says both. */}
       <div
         data-testid="attendance-breakdown"
-        className="grid grid-cols-2 border-t border-line bg-sunken sm:grid-cols-4"
+        className="grid grid-cols-2 border-t border-line bg-sunken"
       >
         {BREAKDOWN_ROWS.map(({ key, estado }, index) => (
           <div
@@ -156,12 +161,8 @@ function AttendanceRecap({
             data-testid={`breakdown-${getAttendanceLabel(estado).toLowerCase()}`}
             className={cn(
               "px-5 py-3.5",
-              // Row divider: only under the first row of the 2-up phone grid.
-              index < 2 ? "border-b border-line sm:border-b-0" : null,
-              // Column divider: not after the 2nd cell on a phone, not after
-              // the 4th anywhere.
-              index % 2 === 0 ? "border-r border-line" : "sm:border-r sm:border-line",
-              index === 3 ? "sm:border-r-0" : null,
+              index < 2 ? "border-b border-line" : null,
+              index % 2 === 0 ? "border-r border-line" : null,
             )}
           >
             <p className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3-strong">
@@ -309,10 +310,11 @@ function AttendanceView({
   const studentName = viewingOwnProfile ? null : firstNameOf(selectedProfile?.nombres ?? "");
 
   return (
-    // Left-aligned like every other screen in the product — the prototype
-    // (`docs/ux/prototipos/24-alumno-asistencia.html`) sets `max-width:760px`
-    // with no auto margin.
-    <div className="w-full max-w-[760px] space-y-5">
+    // Full content width, like every other screen in the product. The 760px
+    // cap came from the prototype's `.canvas` and left the right half of the
+    // column empty at 1440 — the record is the subject and takes the main
+    // column; the counted recap rides in the rail beside it.
+    <div className="w-full space-y-5">
       <ManagedStudentPicker
         id="student-select-attendance"
         profiles={managedProfiles}
@@ -334,17 +336,20 @@ function AttendanceView({
           />
         </div>
       ) : (
-        <>
-          <AttendanceRecap profile={selectedProfile} studentName={studentName} />
-          <SessionList profile={selectedProfile} />
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+          <div className="flex min-w-0 flex-col gap-3">
+            <SessionList profile={selectedProfile} />
 
-          {/* The scope, stated. Rows presented without this line read as "this
-              is the whole record". */}
-          <p className="text-[12.5px] leading-relaxed text-ink-3-strong">
-            Su portal recibe las {PORTAL_SESSION_WINDOW} sesiones más recientes que el club
-            registró. Si necesita un período anterior, pídalo al club.
-          </p>
-        </>
+            {/* The scope, stated. Rows presented without this line read as
+                "this is the whole record". */}
+            <p className="max-w-[68ch] text-[12.5px] leading-relaxed text-ink-3-strong">
+              Su portal recibe las {PORTAL_SESSION_WINDOW} sesiones más recientes que el club
+              registró. Si necesita un período anterior, pídalo al club.
+            </p>
+          </div>
+
+          <AttendanceRecap profile={selectedProfile} studentName={studentName} />
+        </div>
       )}
 
       {/* No back link and no "Ver mis pagos" button. The sidebar carries both

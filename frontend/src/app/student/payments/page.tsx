@@ -209,6 +209,154 @@ function MembershipCard({
 }
 
 // ---------------------------------------------------------------------------
+// "Cómo se registra un pago" — the procedure, stated where the reader is
+//
+// The complaint this answers is literal: "hasta ahora ni yo sé cómo probar ese
+// flujo porque nunca se muestra". The upload has always existed — it is the
+// file input the form reveals for a TRANSFERENCIA — but nothing on the screen
+// said the form existed, what it would ask for, or that the comprobante is
+// what the club validates. A reader who could pay saw one button; a reader who
+// could NOT pay (a minor on their own account) saw a sentence that ended the
+// conversation.
+//
+// So the rail says the procedure out loud, in the order the form asks for it,
+// and for a reader who cannot self-register it says what to do instead. Every
+// step describes something on THIS screen or something the club demonstrably
+// does — an ADMINISTRADOR can register a payment for a persona
+// (`membresia_pago_servicio.registrar_pago` authorizes owner, representative
+// or admin, and `/members` is where the club does it).
+// ---------------------------------------------------------------------------
+
+function HowToPay({
+  /** `null` when the reader is the student — "usted" instead of a name. */
+  studentName,
+  /** The minor-on-their-own-account case: the rail carries the alternative, not the steps. */
+  blocked,
+  /** True once the club has a `Membresia` to renew; without one the form cannot be reached at all. */
+  hasMembership,
+  monthlyPrice,
+}: {
+  studentName: string | null;
+  blocked: boolean;
+  hasMembership: boolean;
+  monthlyPrice: string | null;
+}): React.ReactElement {
+  const subject = studentName ? `de ${studentName}` : "suyo";
+
+  if (blocked) {
+    return (
+      <section className="card overflow-hidden" aria-labelledby="how-to-pay-title">
+        <div className="px-5 py-[18px]">
+          <h2 id="how-to-pay-title" className="text-[15px] font-bold tracking-tight text-ink">
+            Cómo se paga esta membresía
+          </h2>
+          {/* The card on the left already names WHO registers the payment,
+              from `describePaymentSituation`. Repeating that sentence here
+              printed it twice on one screen; this rail answers the next
+              question instead — what the reader actually does. */}
+          <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
+            Su cuenta no registra pagos, pero el pago sí se puede hacer. Estos son los pasos:
+          </p>
+        </div>
+        <ol className="flex flex-col border-t border-line">
+          <HowToPayStep index={1}>
+            Acérquese a administración del club con el valor del plan
+            {monthlyPrice ? ` (${formatCurrency(monthlyPrice)} al mes)` : ""}. También puede pagar
+            por transferencia y entregar el comprobante allí.
+          </HowToPayStep>
+          <HowToPayStep index={2}>
+            El club registra el pago a su nombre y elige el período que cubre.
+          </HowToPayStep>
+          <HowToPayStep index={3}>
+            El pago aparece en el historial de esta misma pantalla, con el período cubierto y su
+            estado.
+          </HowToPayStep>
+        </ol>
+      </section>
+    );
+  }
+
+  if (!hasMembership) {
+    return (
+      <section className="card overflow-hidden" aria-labelledby="how-to-pay-title">
+        <div className="px-5 py-[18px]">
+          <h2 id="how-to-pay-title" className="text-[15px] font-bold tracking-tight text-ink">
+            Cómo se registra un pago
+          </h2>
+          <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
+            El club crea la membresía al registrar el primer pago, así que ese primero se hace en
+            administración. Desde el segundo, la renovación se registra aquí: monto, forma de pago
+            y —si es transferencia— el comprobante.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="card overflow-hidden" aria-labelledby="how-to-pay-title">
+      <div className="px-5 py-[18px]">
+        <h2 id="how-to-pay-title" className="text-[15px] font-bold tracking-tight text-ink">
+          Cómo se registra un pago
+        </h2>
+        <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
+          Son tres pasos y terminan en el club, no en usted: lo último lo hace quien valida.
+        </p>
+      </div>
+      <ol className="flex flex-col border-t border-line">
+        <HowToPayStep index={1}>
+          Abra <b className="font-semibold text-ink">Registrar un pago</b> y escriba el monto{" "}
+          {subject === "suyo" ? "" : `${subject} `}y la forma de pago.
+          {monthlyPrice ? (
+            <>
+              {" "}
+              Cada {formatCurrency(monthlyPrice)} cubre un mes: el formulario muestra el período
+              exacto antes de que confirme.
+            </>
+          ) : null}
+        </HowToPayStep>
+        <HowToPayStep index={2}>
+          Si paga por <b className="font-semibold text-ink">transferencia</b>, adjunte el
+          comprobante — PDF, JPG o PNG, hasta 5 MB. Sin comprobante el club no tiene qué validar, y
+          el formulario no deja continuar.
+        </HowToPayStep>
+        <HowToPayStep index={3}>
+          El pago queda <b className="font-semibold text-ink">en revisión</b> en el historial hasta
+          que el club lo apruebe o lo rechace. Si lo rechaza, el motivo aparece en la misma fila.
+        </HowToPayStep>
+      </ol>
+    </section>
+  );
+}
+
+/**
+ * One step of the procedure.
+ *
+ * Numbered because the order is the information — this is the only numbered
+ * sequence in the product, and it is one because doing step 2 before step 1 is
+ * not possible.
+ */
+function HowToPayStep({
+  index,
+  children,
+}: {
+  index: number;
+  children: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <li className="flex gap-3 border-b border-line px-5 py-3.5 last:border-b-0">
+      <span
+        aria-hidden="true"
+        className="flex h-[22px] w-[22px] flex-none items-center justify-center rounded-full bg-coal text-[11.5px] font-bold tabular-nums text-white"
+      >
+        {index}
+      </span>
+      <p className="text-[13px] leading-relaxed text-ink-2">{children}</p>
+    </li>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Registering a payment
 // ---------------------------------------------------------------------------
 
@@ -692,7 +840,7 @@ function PaymentsContent({
 
   if (selectedProfile === null) {
     return (
-      <div className="w-full max-w-[760px]">
+      <div className="w-full">
         <div className="card">
           <EmptyState
             icon={<CreditCard size={21} strokeWidth={1.5} aria-hidden="true" />}
@@ -710,10 +858,11 @@ function PaymentsContent({
   }
 
   return (
-    // Left-aligned like `/student` and like every admin screen — the prototype
-    // (`docs/ux/prototipos/23-alumno-pagos.html`) sets `max-width:760px` with
-    // no auto margin.
-    <div className="w-full max-w-[760px] space-y-5">
+    // Full content width, like `/student` and like every admin screen. The
+    // 760px cap left the right half of the column empty at 1440; the width now
+    // buys a rail that says HOW a payment is made, which is the thing this
+    // screen was missing rather than a thing it was too narrow for.
+    <div className="w-full space-y-5">
       <ManagedStudentPicker
         id="student-select-payments"
         profiles={managedProfiles}
@@ -724,118 +873,146 @@ function PaymentsContent({
         }}
       />
 
-      <MembershipCard
-        membership={selectedProfile.membership}
-        coverageEnd={coverageEnd}
-        studentName={studentName}
-      >
-        {blockedAsMinor ? (
-          <p className="text-[13px] text-ink-2">
-            {/* The old copy sent EVERY minor to "su representante" — including
-                the ones whose `representanteId` is null, who were being pointed
-                at a person the backend does not have. `describePaymentSituation`
-                resolves that from the payload. */}
-            {situation.detail}
-          </p>
-        ) : selectedProfile.membership ? (
-          <RenewPaymentForm
+      {/* Three grid items, placed explicitly, so DOM order and reading order
+          agree at BOTH widths. Stacked on a phone the reader gets the
+          membership, then HOW a payment is made, then the history — the
+          instructions can't sit below the history there, which is the position
+          a plain rail would have put them in. Above `lg` the rail spans both
+          rows on the right and the history returns under the card. */}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        <div className="flex min-w-0 flex-col lg:col-start-1 lg:row-start-1">
+          <MembershipCard
             membership={selectedProfile.membership}
-            personaId={selectedProfile.personaId}
             coverageEnd={coverageEnd}
-            hasPendingPago={hasPendingPago}
-            autoOpen={wantsRegisterForm && pagosState.status === "ready"}
             studentName={studentName}
-            onRegistered={handleRegistered}
-          />
-        ) : (
-          <p className="text-[13px] text-ink-2">
-            El club crea la membresía al registrar el primer pago. Acérquese a administración para
-            activarla y después podrá renovarla desde aquí.
-          </p>
-        )}
-      </MembershipCard>
-
-      {/* Selection is coal plus the ball dot — `FilterPill` owns that rule. */}
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar pagos por estado">
-        {FILTERS.map((option) => (
-          <FilterPill
-            key={option}
-            label={PAGO_FILTER_LABELS[option]}
-            count={counts[option]}
-            active={filter === option}
-            onClick={() => setFilter(option)}
-          />
-        ))}
-      </div>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,application/pdf"
-        className="hidden"
-        data-testid="pago-voucher-input"
-        onChange={(e) => {
-          void handleFileChange(e);
-        }}
-      />
-
-      {uploadError && (
-        <p role="alert" className="text-[13px] font-semibold text-state-bad">
-          {uploadError}
-        </p>
-      )}
-
-      {pagosState.status === "loading" && (
-        <div className="card">
-          <LoadingState label="Cargando sus pagos…" />
-        </div>
-      )}
-      {pagosState.status === "error" && (
-        <ErrorState message={pagosState.message} onRetry={() => setReloadToken((n) => n + 1)} />
-      )}
-      {pagosState.status === "ready" && (
-        <section className="card overflow-hidden" aria-labelledby="pagos-title">
-          <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-            <h2 id="pagos-title" className="flex-1 text-[13px] font-bold text-ink">
-              Historial de pagos
-            </h2>
-            {filteredPagos.length > 0 && (
-              <span className="text-[12.5px] font-semibold tabular-nums text-ink-3">
-                {filteredPagos.length}
-              </span>
+          >
+            {blockedAsMinor ? (
+              <p className="text-[13px] text-ink-2">
+                {/* The old copy sent EVERY minor to "su representante" — including
+                    the ones whose `representanteId` is null, who were being pointed
+                    at a person the backend does not have. `describePaymentSituation`
+                    resolves that from the payload. */}
+                {situation.detail}
+              </p>
+            ) : selectedProfile.membership ? (
+              <RenewPaymentForm
+                membership={selectedProfile.membership}
+                personaId={selectedProfile.personaId}
+                coverageEnd={coverageEnd}
+                hasPendingPago={hasPendingPago}
+                autoOpen={wantsRegisterForm && pagosState.status === "ready"}
+                studentName={studentName}
+                onRegistered={handleRegistered}
+              />
+            ) : (
+              <p className="text-[13px] text-ink-2">
+                El club crea la membresía al registrar el primer pago. Acérquese a administración
+                para activarla y después podrá renovarla desde aquí.
+              </p>
             )}
+          </MembershipCard>
+        </div>
+
+        {/* `row-span-2`, not just `col-start-2`: without it the rail is the
+            tallest item in row 1 and its height becomes the row's, which left
+            a 170px hole between the membership card and the filters below it. */}
+        <div className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
+          <HowToPay
+            studentName={studentName}
+            blocked={blockedAsMinor}
+            hasMembership={selectedProfile.membership != null}
+            monthlyPrice={selectedProfile.membership?.montoAplicado ?? null}
+          />
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-5 lg:col-start-1 lg:row-start-2">
+          {/* Selection is coal plus the ball dot — `FilterPill` owns that rule. */}
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar pagos por estado">
+            {FILTERS.map((option) => (
+              <FilterPill
+                key={option}
+                label={PAGO_FILTER_LABELS[option]}
+                count={counts[option]}
+                active={filter === option}
+                onClick={() => setFilter(option)}
+              />
+            ))}
           </div>
-          {filteredPagos.length === 0 ? (
-            <EmptyState
-              icon={<CreditCard size={21} strokeWidth={1.5} aria-hidden="true" />}
-              title={getEmptyStateMessage(filter)}
-              description={
-                filter === "TODOS"
-                  ? "Cuando registre un pago aparecerá aquí, junto con el resultado de su validación."
-                  : "Pruebe con otro estado para ver el resto de su historial."
-              }
-              action={
-                filter === "TODOS" ? undefined : (
-                  <Button size="sm" onClick={() => setFilter("TODOS")}>
-                    Ver todos los pagos
-                  </Button>
-                )
-              }
-            />
-          ) : (
-            <ul className="flex flex-col">
-              {filteredPagos.map((pago) => (
-                <PagoRow
-                  key={pago.id}
-                  pago={pago}
-                  onUploadFile={handleSelectFile}
-                  uploadingId={uploadingId}
-                />
-              ))}
-            </ul>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,application/pdf"
+            className="hidden"
+            data-testid="pago-voucher-input"
+            onChange={(e) => {
+              void handleFileChange(e);
+            }}
+          />
+
+          {uploadError && (
+            <p role="alert" className="text-[13px] font-semibold text-state-bad">
+              {uploadError}
+            </p>
           )}
-        </section>
-      )}
+
+          {pagosState.status === "loading" && (
+            <div className="card">
+              <LoadingState label="Cargando sus pagos…" />
+            </div>
+          )}
+          {pagosState.status === "error" && (
+            <ErrorState message={pagosState.message} onRetry={() => setReloadToken((n) => n + 1)} />
+          )}
+          {pagosState.status === "ready" && (
+            <section className="card overflow-hidden" aria-labelledby="pagos-title">
+              <div className="flex items-center gap-3 border-b border-line px-5 py-4">
+                <h2 id="pagos-title" className="flex-1 text-[13px] font-bold text-ink">
+                  Historial de pagos
+                </h2>
+                {filteredPagos.length > 0 && (
+                  <span className="text-[12.5px] font-semibold tabular-nums text-ink-3">
+                    {filteredPagos.length}
+                  </span>
+                )}
+              </div>
+              {filteredPagos.length === 0 ? (
+                <EmptyState
+                  icon={<CreditCard size={21} strokeWidth={1.5} aria-hidden="true" />}
+                  title={getEmptyStateMessage(filter)}
+                  description={
+                    filter !== "TODOS"
+                      ? "Pruebe con otro estado para ver el resto de su historial."
+                      : blockedAsMinor
+                        ? // "Cuando registre un pago" is an instruction this
+                          // reader cannot follow — the club registers it.
+                          "Cuando el club registre un pago suyo aparecerá aquí, con el período que cubre."
+                        : "Cuando registre un pago aparecerá aquí, junto con el resultado de su validación."
+                  }
+                  action={
+                    filter === "TODOS" ? undefined : (
+                      <Button size="sm" onClick={() => setFilter("TODOS")}>
+                        Ver todos los pagos
+                      </Button>
+                    )
+                  }
+                />
+              ) : (
+                <ul className="flex flex-col">
+                  {filteredPagos.map((pago) => (
+                    <PagoRow
+                      key={pago.id}
+                      pago={pago}
+                      onUploadFile={handleSelectFile}
+                      uploadingId={uploadingId}
+                    />
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+        </div>
+      </div>
 
       {/* No "← Volver a mi cuenta" here. The sidebar's "Mi cuenta" row is one
           click away and is highlighted the whole time — the admin screens
@@ -881,6 +1058,17 @@ function PaymentsPageContent(): React.ReactElement {
     };
   }, [personaId, reloadToken]);
 
+  /**
+   * True when this ACCOUNT cannot register a payment anywhere on the screen:
+   * its own profile is a minor and it manages nobody else. The row-level gate
+   * still lives in `PaymentsContent` (it depends on which profile is
+   * selected); this is only the page's own promise to its reader.
+   */
+  const accountCannotRegister =
+    state.status === "ready" &&
+    state.data.representados.length === 0 &&
+    isMinor(state.data.self?.fechaNacimiento);
+
   return (
     <AppShell
       eyebrow="Área de estudiantes"
@@ -890,10 +1078,16 @@ function PaymentsPageContent(): React.ReactElement {
       // reader this screen most often serves — a representante paying for a
       // dependent, who has no membership of her own.
       title="Pagos"
+      // A minor with no dependants of their own cannot register anything from
+      // here — the gate below is deliberate and stays. Telling them to
+      // "registre un pago" in the page's own subtitle was an instruction the
+      // screen then refused to let them follow.
       subtitle={
-        hasAlumnoRole
-          ? "Registre un pago, siga su validación y consulte lo que ya pagó."
-          : "Registre el pago de un dependiente, siga su validación y consulte lo que ya pagó."
+        accountCannotRegister
+          ? "Consulte su membresía, vea cómo se paga y siga el historial de sus pagos."
+          : hasAlumnoRole
+            ? "Registre un pago, siga su validación y consulte lo que ya pagó."
+            : "Registre el pago de un dependiente, siga su validación y consulte lo que ya pagó."
       }
     >
       {state.status === "loading" && (

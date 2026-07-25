@@ -66,7 +66,12 @@ export default function PaymentBand({ situation, action }: PaymentBandProps): Re
         </p>
       )}
 
-      <div className="flex min-w-[220px] flex-1 flex-col gap-1.5">
+      {/* Capped, and the flex basis is the cap: the band spans the full content
+          column now, and an uncapped 13px detail line ran to ~95 characters
+          there — past the measure the rest of the product reads at. The CTA
+          takes the slack instead (`ml-auto` below), so the width buys
+          separation between the fact and the errand rather than long lines. */}
+      <div className="flex min-w-[220px] max-w-[62ch] flex-1 flex-col gap-1.5">
         <b className="text-[17px] font-bold tracking-[-0.015em]">{headline}</b>
         <span className="text-[13px] leading-relaxed text-white/60">{detail}</span>
         {priceNote && (
@@ -86,7 +91,7 @@ export default function PaymentBand({ situation, action }: PaymentBandProps): Re
             // the same destination in the quiet variant.
             urgent ? "primary" : "secondary",
             "md",
-            "flex-none",
+            "ml-auto flex-none",
           )}
         >
           {urgent ? (

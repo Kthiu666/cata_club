@@ -438,10 +438,13 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
 
   return (
     <ProfileShell actions={headerAction}>
-      {/* `.canvas` at `max-width: 820px` (`25-perfil.html`), not 760: at 1440
-          the shell leaves ~1137px of content area, and 820 is the measure the
-          prototype's own main column uses. */}
-      <div className="w-full max-w-[820px] space-y-5">
+      {/* Full content width, like `/dashboard` and like the rest of the family
+          area. The prototype's 820px `.canvas` left ~317px of the content
+          column empty at 1440 while every admin screen filled it. The identity
+          card spans the width it already wanted; below it the page splits into
+          the data the reader came to check and the two account controls, which
+          are a rail and never needed 820px of their own. */}
+      <div className="w-full space-y-5">
       {/* 1 — `.idcard`: the identity on the left, the account facts it can
           prove on the right. */}
       <section
@@ -556,6 +559,8 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
         </div>
       </section>
 
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+      <div className="flex min-w-0 flex-col gap-5">
       {/* 2 — Datos personales, one datum per 56px row. */}
       <CardSection title="Datos personales" testId="profile-column-info">
         <DetailRow label="Nombres">{fullName}</DetailRow>
@@ -596,6 +601,26 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
         )}
       </CardSection>
 
+      {/* 4 — Estudiantes a mi cargo. For a representante this is the reason to
+          open the page, so it stays — and it belongs beside the reader's own
+          data, not below the two account controls. */}
+      {props.kind === "student" && representados.length > 0 && (
+        <CardSection
+          title="Estudiantes a mi cargo"
+          action={
+            <Link href="/student/add-dependent" className={buttonClasses("secondary", "sm")}>
+              + Agregar
+            </Link>
+          }
+        >
+          {representados.map((dependant) => (
+            <DependantRow key={dependant.personaId} profile={dependant} />
+          ))}
+        </CardSection>
+      )}
+      </div>
+
+      <div className="flex flex-col gap-3">
       {/* 3 — Seguridad: the same 56px row shape as "Datos personales", label
           on the left and the action on the right. The two rows used to put
           "Contraseña" in the VALUE column with no label at all, which broke
@@ -643,23 +668,8 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
           {passwordError}
         </p>
       )}
-
-      {/* 4 — Estudiantes a mi cargo. For a representante this is the reason to
-          open the page, so it stays. */}
-      {props.kind === "student" && representados.length > 0 && (
-        <CardSection
-          title="Estudiantes a mi cargo"
-          action={
-            <Link href="/student/add-dependent" className={buttonClasses("secondary", "sm")}>
-              + Agregar
-            </Link>
-          }
-        >
-          {representados.map((dependant) => (
-            <DependantRow key={dependant.personaId} profile={dependant} />
-          ))}
-        </CardSection>
-      )}
+      </div>
+      </div>
       </div>
     </ProfileShell>
   );

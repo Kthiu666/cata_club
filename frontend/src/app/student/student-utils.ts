@@ -6,11 +6,13 @@
  */
 
 import type {
+  AlumnoHorario,
   MembershipSummary,
   PagoPersona,
   StudentRankingSummary,
   StudentSessionSummary,
 } from "@/services/api";
+import { CLUB_TIME_ZONE, calendarIsoDate, clubToday } from "@/lib/club-date";
 
 const MAJORITY_AGE = 18;
 
@@ -233,6 +235,208 @@ export function breakdownAttendance(sessions: StudentSessionSummary[]): Attendan
     absent: sessions.filter((s) => s.estado === "absent").length,
     total: sessions.length,
   };
+}
+
+// ---------------------------------------------------------------------------
+// The weekly training schedule — the one truthful source for "next session"
+//
+// `HorarioEntrenamiento` on its own carries no link to the persona it serves
+// (see the doc comment on src/lib/server/attendance-adapter.ts), which is why
+// the portal used to print the most recent RECORDED session under the heading
+// "Entrenamientos" — a past fact labelled as if it were the next one.
+//
+// `AlumnoHorario` DOES carry that link: it is the assignment an admin makes in
+// `/groups`, and `GET /asistencias/alumnos/{id}/horarios` returns exactly the
+// slots one student is enrolled in. So what the panel shows is not a
+// projection: it is the recurring weekly schedule the club assigned, and the
+// dates are the next calendar occurrences of it.
+//
+// ## What it still cannot say
+//
+// The club has no per-date session record ahead of time — no cancellations, no
+// holidays, no one-off changes exist anywhere in the backend. So the panel
+// names its own source out loud ("el horario semanal que el club le asignó")
+// rather than presenting a date as a scheduled, confirmed event.
+// ---------------------------------------------------------------------------
+
+/** Backend `DiaSemana` → the Spanish label the rest of the app already uses. */
+const DIA_LABELS: Record<string, string> = {
+  LUNES: "Lunes",
+  MARTES: "Martes",
+  MIERCOLES: "Miércoles",
+  JUEVES: "Jueves",
+  VIERNES: "Viernes",
+  SABADO: "Sábado",
+  DOMINGO: "Domingo",
+};
+
+/** Backend `DiaSemana` → `Date.getDay()`, so day arithmetic needs no lookup table of its own. */
+const DIA_JS_DAY: Record<string, number> = {
+  DOMINGO: 0,
+  LUNES: 1,
+  MARTES: 2,
+  MIERCOLES: 3,
+  JUEVES: 4,
+  VIERNES: 5,
+  SABADO: 6,
+};
+
+const WEEK_ORDER = ["LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", "SABADO", "DOMINGO"];
+
+/** One weekday's continuous training window — "Lunes 15:00 — 18:00". */
+export interface WeeklyTrainingSlot {
+  /** Backend weekday key, `"LUNES"` … `"DOMINGO"`. */
+  dia: string;
+  /** The Spanish label for `dia`. */
+  diaLabel: string;
+  /** `HH:MM`. */
+  horaInicio: string;
+  /** `HH:MM`. */
+  horaFin: string;
+}
+
+/** A `WeeklyTrainingSlot` plus the calendar date of its next occurrence. */
+export interface UpcomingTraining extends WeeklyTrainingSlot {
+  /** `YYYY-MM-DD` — the next date this slot falls on. */
+  fecha: string;
+  /** True when that date is today and the window has not closed yet. */
+  isToday: boolean;
+}
+
+/** `"15:00:00"` → `"15:00"`, or `null` when the backend sent something that is not a time. */
+function toHourMinute(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const match = /^(\d{2}):(\d{2})/.exec(value.trim());
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return `${match[1]}:${match[2]}`;
+}
+
+/** `"15:30"` → 930. Only ever called on a value `toHourMinute` already accepted. */
+function minutesOf(hourMinute: string): number {
+  return Number(hourMinute.slice(0, 2)) * 60 + Number(hourMinute.slice(3, 5));
+}
+
+/**
+ * Minutes since midnight AT THE CLUB, so "has today's session already ended"
+ * is not answered with the reader's device clock in another timezone.
+ *
+ * Falls back to the device reading rather than throwing inside a render — the
+ * cost of being wrong is one extra session shown as "hoy", not a crash.
+ */
+function clubMinutesOfDay(now: Date): number {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: CLUB_TIME_ZONE,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(now);
+    const hours = Number(parts.find((part) => part.type === "hour")?.value);
+    const minutes = Number(parts.find((part) => part.type === "minute")?.value);
+    if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
+      return now.getHours() * 60 + now.getMinutes();
+    }
+    // `hour12: false` reports midnight as "24" in some ICU builds.
+    return (hours % 24) * 60 + minutes;
+  } catch {
+    return now.getHours() * 60 + now.getMinutes();
+  }
+}
+
+/**
+ * The student's real weekly schedule, one entry per continuous window.
+ *
+ * The club models a three-hour afternoon as three consecutive one-hour
+ * `Horario` rows (FORMATIVO 15–16, INFANTIL 16–17, JUVENIL 17–18) and assigns a
+ * student to all three, which is why the seed hands one child fifteen
+ * assignments for five days. Listing them raw would tell a parent their
+ * daughter has three sessions on Monday; adjacent windows are therefore merged
+ * into the one block she actually attends — the same 15:00-18:00 her
+ * membership's `franjaHoraria` states.
+ *
+ * Rows whose weekday or times the backend sent in a shape this build does not
+ * recognise are dropped rather than rendered as "undefined".
+ */
+export function buildWeeklyTrainingSchedule(
+  rows: Pick<AlumnoHorario, "horarioDia" | "horarioHoraInicio" | "horarioHoraFin">[],
+): WeeklyTrainingSlot[] {
+  const byDia = new Map<string, { start: string; end: string }[]>();
+
+  for (const row of rows) {
+    const dia = row.horarioDia?.toUpperCase();
+    if (!dia || !(dia in DIA_JS_DAY)) continue;
+    const start = toHourMinute(row.horarioHoraInicio);
+    const end = toHourMinute(row.horarioHoraFin);
+    if (start === null || end === null || minutesOf(end) <= minutesOf(start)) continue;
+    const list = byDia.get(dia) ?? [];
+    list.push({ start, end });
+    byDia.set(dia, list);
+  }
+
+  const slots: WeeklyTrainingSlot[] = [];
+  for (const dia of WEEK_ORDER) {
+    const ranges = byDia.get(dia);
+    if (!ranges) continue;
+    ranges.sort((a, b) => minutesOf(a.start) - minutesOf(b.start));
+    const merged: { start: string; end: string }[] = [];
+    for (const range of ranges) {
+      const last = merged[merged.length - 1];
+      // `<=`, not `<`: 15:00-16:00 followed by 16:00-17:00 is one window, not
+      // two sessions with no gap between them.
+      if (last && minutesOf(range.start) <= minutesOf(last.end)) {
+        if (minutesOf(range.end) > minutesOf(last.end)) last.end = range.end;
+      } else {
+        merged.push({ ...range });
+      }
+    }
+    for (const range of merged) {
+      slots.push({
+        dia,
+        diaLabel: DIA_LABELS[dia] ?? dia,
+        horaInicio: range.start,
+        horaFin: range.end,
+      });
+    }
+  }
+  return slots;
+}
+
+/**
+ * The next `limit` occurrences of a weekly schedule, soonest first.
+ *
+ * A window whose day is today counts as today only while it is still open —
+ * at 21:00 on a Monday the next Monday session is next Monday's, and saying
+ * "hoy" would be the one reading a parent could act on and be wrong about.
+ */
+export function findNextTrainingSessions(
+  slots: WeeklyTrainingSlot[],
+  limit = 3,
+  now: Date = new Date(),
+): UpcomingTraining[] {
+  const today = clubToday(now);
+  const todayJsDay = today.getDay();
+  const nowMinutes = clubMinutesOfDay(now);
+
+  return slots
+    .map((slot) => {
+      const jsDay = DIA_JS_DAY[slot.dia];
+      let daysAhead = (jsDay - todayJsDay + 7) % 7;
+      const isToday = daysAhead === 0 && minutesOf(slot.horaFin) > nowMinutes;
+      if (daysAhead === 0 && !isToday) daysAhead = 7;
+      const date = new Date(today.getTime());
+      date.setDate(date.getDate() + daysAhead);
+      return { slot, daysAhead, isToday, fecha: calendarIsoDate(date) };
+    })
+    .sort((a, b) =>
+      a.daysAhead !== b.daysAhead
+        ? a.daysAhead - b.daysAhead
+        : minutesOf(a.slot.horaInicio) - minutesOf(b.slot.horaInicio),
+    )
+    .slice(0, Math.max(0, limit))
+    .map(({ slot, fecha, isToday }) => ({ ...slot, fecha, isToday }));
 }
 
 // ---------------------------------------------------------------------------
