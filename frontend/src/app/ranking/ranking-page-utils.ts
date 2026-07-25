@@ -56,3 +56,37 @@ export function unassignedStudents(
 ): NivelStudentRef[] {
   return sortStudentsByName(students.filter((student) => student.nivelRankingId === null));
 }
+
+/**
+ * The students already holding a level — one rung's roster.
+ *
+ * Derived from the SAME roster payload (`GET /ranking/alumnos-con-nivel`) that
+ * feeds `unassignedStudents` and the ladder's headcounts. The other candidate
+ * source, `personasActuales` on `GET /ranking/niveles`, disagrees with it by
+ * one student in live data, so the screen never reads that field: a rung that
+ * says "9 estudiantes" above eight names is a screen contradicting itself.
+ */
+export function studentsOnNivel(
+  students: readonly NivelStudentRef[],
+  nivelId: number,
+): NivelStudentRef[] {
+  return sortStudentsByName(students.filter((student) => student.nivelRankingId === nivelId));
+}
+
+/**
+ * A name filter for an already-scoped list, accent- and case-insensitive.
+ *
+ * Unlike `searchStudents`, an empty term matches EVERYBODY: this filters a
+ * column that exists whether or not anything was typed, rather than producing
+ * a result set that only exists because a search is running.
+ */
+export function filterStudentsByName(
+  students: readonly NivelStudentRef[],
+  term: string,
+): NivelStudentRef[] {
+  const needle = normalizeText(term.trim());
+  if (needle === "") return [...students];
+  return students.filter((student) =>
+    normalizeText(studentFullName(student)).includes(needle),
+  );
+}

@@ -35,7 +35,7 @@ describe("HelpChatLauncher", () => {
   it("keeps the panel closed until the visitor asks for it", () => {
     render(<HelpChatLauncher variant="quiet" />);
 
-    expect(screen.queryByRole("dialog", { name: "Chat de ayuda" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "CATA-BOT, asistente del club" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /asistente/i })).toHaveAttribute(
       "aria-expanded",
       "false",
@@ -46,10 +46,10 @@ describe("HelpChatLauncher", () => {
     render(<HelpChatLauncher variant="quiet" />);
 
     fireEvent.click(screen.getByRole("button", { name: /asistente/i }));
-    expect(screen.getByRole("dialog", { name: "Chat de ayuda" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "CATA-BOT, asistente del club" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Cerrar chat de ayuda" }));
-    expect(screen.queryByRole("dialog", { name: "Chat de ayuda" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar CATA-BOT" }));
+    expect(screen.queryByRole("dialog", { name: "CATA-BOT, asistente del club" })).not.toBeInTheDocument();
   });
 
   it("offers the logged-out visitor the two questions the FAQ answers without a role", () => {

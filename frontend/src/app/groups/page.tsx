@@ -73,7 +73,8 @@ import {
   UserMinus,
 } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { Badge, Button, EmptyState, ErrorState, LoadingState } from "@/components/ui";
+import { Badge, Button, EmptyState, ErrorState, LoadingState, Pagination } from "@/components/ui";
+import { getTotalPages, paginateRecords } from "@/app/attendance/attendance-utils";
 import {
   fetchHorarios,
   crearHorario,
@@ -232,6 +233,15 @@ interface ExpandedGroupState {
 /** Sentinel `expandedGroup.key` for "Nuevo Horario" — no existing card to nest under. */
 const NEW_GROUP_KEY = "__new__";
 
+/**
+ * Rows per page in the "Ver alumnos" roster.
+ *
+ * Ten, matching every other paged list in the product (attendance, nivel,
+ * reports). The biggest categoría carries 44 students, which is four pages —
+ * short enough that paging is navigation rather than a search substitute.
+ */
+const ALUMNOS_PAGE_SIZE = 10;
+
 const DEFAULT_CATEGORIA: Categoria = CATEGORIA_OPTIONS[0];
 
 const EMPTY_FORM: HorarioFormData = {
@@ -283,6 +293,8 @@ export default function GroupsPage(): React.ReactElement {
   const [cargandoAlumnos, setCargandoAlumnos] = useState(false);
   const [asignandoAlumno, setAsignandoAlumno] = useState(false);
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState<number | null>(null);
+  /** 1-indexed page of the "Ver alumnos" roster. Reset whenever a panel opens. */
+  const [alumnosPage, setAlumnosPage] = useState(1);
 
   // Real entrenadores (rol ENTRENADOR) — feeds the "Entrenador" dropdown in
   // the create/edit form. `entrenador_id` is a real, explicitly chosen
@@ -559,6 +571,7 @@ export default function GroupsPage(): React.ReactElement {
    * recurring grupo, not one día). */
   function openAlumnosTab(card: CategoriaCard): void {
     setExpandedGroup({ key: card.categoria, tab: "alumnos" });
+    setAlumnosPage(1);
     void cargarAlumnosDelGrupo(card.rows);
   }
 
@@ -571,6 +584,7 @@ export default function GroupsPage(): React.ReactElement {
     setFormError(null);
     setAlumnosPorHorario([]);
     setAlumnoSeleccionado(null);
+    setAlumnosPage(1);
   }
 
   function toggleDia(dia: string): void {
@@ -949,9 +963,29 @@ export default function GroupsPage(): React.ReactElement {
    * rendered inline (PR3a). Assignment/unassignment/roster act on the WHOLE
    * grupo (every underlying `horario_id` día row) at once — there is no
    * per-día selection anymore, since a student belongs to every día of the
-   * grupo, never to a single loose day. */
+   * grupo, never to a single loose day.
+   *
+   * TWO THINGS THE PRODUCT OWNER ASKED FOR, and both are about order and
+   * length rather than about enrolment itself:
+   *
+   *   - *"el asignar nuevo estudiante que se vea al inicio no al final"*. The
+   *     picker used to sit under the whole roster, so on `Formativo` — 44
+   *     students — adding somebody meant scrolling past every name already in
+   *     the group to reach the one control that adds another. It leads now.
+   *   - *"paginar el desplegable de ver estudiante en horarios"*. The roster
+   *     was printed whole. It pages ten at a time through the shared
+   *     `Pagination` primitive — the one pager in the product; the audit found
+   *     six and consolidated them, so this screen does not get a seventh.
+   */
   function renderAlumnosPanel(card: CategoriaCard): React.ReactElement {
     const rows = card.rows;
+    const totalPages = getTotalPages(alumnosPorHorario.length, ALUMNOS_PAGE_SIZE);
+    // Clamped rather than trusted: desasignar can shorten the roster past the
+    // page being read, and a page beyond the end would render an empty list
+    // with no way back to the rows that are still there.
+    const currentPage = Math.min(alumnosPage, totalPages);
+    const alumnosVisibles = paginateRecords(alumnosPorHorario, currentPage, ALUMNOS_PAGE_SIZE);
+
     return (
       <>
         <div className="mb-4 flex items-center justify-between">
@@ -966,69 +1000,78 @@ export default function GroupsPage(): React.ReactElement {
           </Button>
         </div>
 
+        {/* Asignar first — before the roster, not after it. */}
+        <div className="mb-4 flex items-end gap-3">
+          <div className="flex-1">
+            <label htmlFor="alumno-select" className="mb-1 block text-xs font-medium text-cata-text/65">
+              Seleccionar alumno
+            </label>
+            <select
+              id="alumno-select"
+              className="input-field w-full"
+              value={alumnoSeleccionado ?? ""}
+              onChange={(e) => setAlumnoSeleccionado(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">Seleccionar alumno…</option>
+              {allStudents
+                .filter((s) => s.activo && !alumnosPorHorario.some((a) => a.personaId === Number(s.id)))
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombres} {s.apellidos}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleAsignarAlumno(rows)}
+            disabled={!alumnoSeleccionado || asignandoAlumno}
+            className="btn-primary inline-flex items-center gap-1.5 text-xs"
+          >
+            {asignandoAlumno ? (
+              <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+            ) : (
+              <UserPlus size={12} strokeWidth={2} aria-hidden="true" />
+            )}
+            Asignar
+          </button>
+        </div>
+
         {cargandoAlumnos ? (
           <LoadingState label="Cargando alumnos…" />
         ) : (
-          <>
-            {alumnosPorHorario.length > 0 && (
-              <div className="mb-4">
-                <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-cata-text/40">
-                  Alumnos asignados ({alumnosPorHorario.length})
-                </p>
-                <div className="space-y-2">
-                  {alumnosPorHorario.map((a) => (
-                    <div key={a.id} className="flex items-center justify-between rounded-lg bg-cata-bg px-3 py-2">
-                      <span className="text-sm text-cata-text">{a.personaNombreCompleto} · {a.edad} años</span>
-                      <button
-                        type="button"
-                        onClick={() => void handleDesasignarAlumno(rows, a.personaId)}
-                        className="rounded-lg border border-cata-border p-1 text-cata-text/50 transition-colors hover:bg-red-50 hover:text-cata-red"
-                        title="Desasignar alumno"
-                      >
-                        <UserMinus size={12} strokeWidth={1.5} aria-hidden="true" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+          alumnosPorHorario.length > 0 && (
+            <div className="border-t border-line pt-4">
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-cata-text/40">
+                Alumnos asignados ({alumnosPorHorario.length})
+              </p>
+              <div className="space-y-2">
+                {alumnosVisibles.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between rounded-lg bg-cata-bg px-3 py-2">
+                    <span className="text-sm text-cata-text">{a.personaNombreCompleto} · {a.edad} años</span>
+                    <button
+                      type="button"
+                      onClick={() => void handleDesasignarAlumno(rows, a.personaId)}
+                      className="rounded-lg border border-cata-border p-1 text-cata-text/50 transition-colors hover:bg-red-50 hover:text-cata-red"
+                      title="Desasignar alumno"
+                    >
+                      <UserMinus size={12} strokeWidth={1.5} aria-hidden="true" />
+                    </button>
+                  </div>
+                ))}
               </div>
-            )}
-
-            <div className="flex items-end gap-3">
-              <div className="flex-1">
-                <label htmlFor="alumno-select" className="mb-1 block text-xs font-medium text-cata-text/65">
-                  Seleccionar alumno
-                </label>
-                <select
-                  id="alumno-select"
-                  className="input-field w-full"
-                  value={alumnoSeleccionado ?? ""}
-                  onChange={(e) => setAlumnoSeleccionado(e.target.value ? Number(e.target.value) : null)}
-                >
-                  <option value="">Seleccionar alumno…</option>
-                  {allStudents
-                    .filter((s) => s.activo && !alumnosPorHorario.some((a) => a.personaId === Number(s.id)))
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nombres} {s.apellidos}
-                      </option>
-                    ))}
-                </select>
-              </div>
-              <button
-                type="button"
-                onClick={() => void handleAsignarAlumno(rows)}
-                disabled={!alumnoSeleccionado || asignandoAlumno}
-                className="btn-primary inline-flex items-center gap-1.5 text-xs"
-              >
-                {asignandoAlumno ? (
-                  <Loader2 size={12} className="animate-spin" aria-hidden="true" />
-                ) : (
-                  <UserPlus size={12} strokeWidth={2} aria-hidden="true" />
-                )}
-                Asignar
-              </button>
+              {alumnosPorHorario.length > ALUMNOS_PAGE_SIZE && (
+                <Pagination
+                  page={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setAlumnosPage}
+                  totalItems={alumnosPorHorario.length}
+                  pageSize={ALUMNOS_PAGE_SIZE}
+                  itemNoun="alumno"
+                />
+              )}
             </div>
-          </>
+          )
         )}
       </>
     );

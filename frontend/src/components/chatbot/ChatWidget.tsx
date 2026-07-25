@@ -1,5 +1,17 @@
 /**
- * ChatWidget — the club's help assistant panel.
+ * ChatWidget — CATA-BOT, the club's help assistant panel.
+ *
+ * ## The assistant has a name and a face
+ *
+ * It used to introduce itself as "Cata Club" behind the club's own JPEG
+ * wordmark, which is wrong twice: it made the bot indistinguishable from the
+ * human channel one row below it ("Hablar con el club"), and the wordmark
+ * rendered at 32px is an unreadable red smudge — that mark carries three
+ * lines of type inside a wreath and needs ~100px to resolve. The assistant is
+ * now CATA-BOT everywhere it identifies itself (header, greeting, ARIA
+ * labels, failure copy), drawn as `/brand/cata-bot-128.png`, a purpose-made
+ * circular avatar that survives 32px. "Hablar con el club" keeps the club's
+ * name on purpose: that link hands off to a person.
  *
  * Talks to the backend's FAQ chatbot (no RAG, no persistence) via the BFF
  * proxy at POST /api/chatbot (see src/app/api/chatbot/route.ts), which itself
@@ -34,6 +46,9 @@ import type { UserRole } from "@/types/domain";
 
 /** How many prior turns to send as `historial` on each request — mirrors the backend's own cap. */
 const MAX_TURNOS_HISTORIAL = 6;
+
+/** The assistant's name, in the one place it is spelled. */
+export const BOT_NAME = "CATA-BOT";
 
 /**
  * The club's real WhatsApp, from the same config the landing's contact block
@@ -121,7 +136,7 @@ export default function ChatWidget({
       const { reply } = await consultarChatbot(limpio, historial);
       setMensajes((prev) => [...prev, { id: proximoId++, rol: "asistente", texto: reply }]);
     } catch {
-      setError("No se pudo contactar al asistente. Inténtalo de nuevo en un momento.");
+      setError(`No se pudo contactar a ${BOT_NAME}. Inténtalo de nuevo en un momento.`);
     } finally {
       setEnviando(false);
     }
@@ -138,7 +153,7 @@ export default function ChatWidget({
     <div
       role="dialog"
       aria-modal="false"
-      aria-label="Chat de ayuda"
+      aria-label={`${BOT_NAME}, asistente del club`}
       /* Lifted clear of the phone tab bar (62px + breathing room); back to the
          corner from `lg` up, where the tab bar is not rendered. */
       /* `text-left` is not decoration: the panel is rendered as a sibling of
@@ -146,11 +161,12 @@ export default function ChatWidget({
          print) was centring every message bubble inside it. */
       className="fixed bottom-[74px] right-3 z-40 flex max-h-[min(34rem,72vh)] w-[min(340px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-card border border-line bg-paper text-left shadow-[0_14px_40px_rgba(0,0,0,0.12)] lg:bottom-5 lg:right-5 lg:max-h-[min(34rem,80vh)]"
     >
-      {/* `.chat > header` — coal, logo disc, "Responde en segundos". */}
+      {/* `.chat > header` — coal, avatar disc, "Responde en segundos". */}
       <header className="flex flex-none items-center gap-[11px] bg-coal px-[15px] py-3 text-white">
+        {/* The 128px copy, not the 512px master: this renders at 32px. */}
         <span className="relative block h-8 w-8 shrink-0 overflow-hidden rounded-full bg-white">
           <Image
-            src="/brand/cata-club-logo.jpeg"
+            src="/brand/cata-bot-128.png"
             alt=""
             fill
             sizes="32px"
@@ -158,13 +174,13 @@ export default function ChatWidget({
           />
         </span>
         <span className="min-w-0 flex-1 leading-tight">
-          <span className="block truncate text-[13.5px] font-bold">Cata Club</span>
+          <span className="block truncate text-[13.5px] font-bold">{BOT_NAME}</span>
           <span className="block truncate text-[11px] text-white/55">Responde en segundos</span>
         </span>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Cerrar chat de ayuda"
+          aria-label={`Cerrar ${BOT_NAME}`}
           className="shrink-0 rounded-lg p-1 text-white/55 transition-colors hover:bg-white/10 hover:text-white"
         >
           <X size={16} strokeWidth={2} aria-hidden="true" />
@@ -178,7 +194,7 @@ export default function ChatWidget({
       >
         {mensajes.length === 0 && (
           <p className={`${BUBBLE_BASE} self-start rounded-bl-[4px] bg-state-neutral-bg text-ink-2`}>
-            Hola 👋 Soy el asistente del club. Pregúntame cómo usar la app — o toca
+            Hola 👋 Soy {BOT_NAME}, el asistente del club. Pregúntame cómo usar la app — o toca
             «{TALK_TO_CLUB_LABEL}» si prefieres hablar con una persona.
           </p>
         )}
@@ -207,7 +223,7 @@ export default function ChatWidget({
            */
           <span
             role="status"
-            aria-label="El asistente está escribiendo"
+            aria-label={`${BOT_NAME} está escribiendo`}
             className="inline-flex items-center gap-1 self-start rounded-xl bg-state-neutral-bg px-[13px] py-[11px]"
           >
             {[0, 180, 360].map((delay) => (
@@ -262,7 +278,7 @@ export default function ChatWidget({
           value={borrador}
           onChange={(e): void => setBorrador(e.target.value)}
           placeholder="Escribe tu pregunta…"
-          aria-label="Mensaje para el asistente"
+          aria-label={`Mensaje para ${BOT_NAME}`}
           disabled={enviando}
           className="h-ctl min-w-0 flex-1 rounded-ctl border border-line-2 bg-paper px-[13px] text-[13.5px] text-ink transition-colors placeholder:text-ink-3 focus:border-cata-red focus:outline-none focus:ring-[3px] focus:ring-cata-red/10 disabled:cursor-not-allowed disabled:opacity-50"
         />

@@ -14,19 +14,38 @@
  *
  * ## Data-integrity guarantees this screen must never lose
  *
- * The roster starts on the `UNMARKED` sentinel, the "Sin marcar" counter spans
- * the FULL roster (not the visible page), and both the advance and the submit
- * are blocked while anyone is undecided. Before that, a trainer could tap
- * Continuar → Siguiente → Confirmar and file a whole session as a no-show,
- * including students they never scrolled to.
+ * The roster starts on `DEFAULT_ATTENDANCE` ("present"), because a session is
+ * overwhelmingly "everyone showed up" and starting from nothing turned 40
+ * students into 40 obligatory taps.
  *
- * The redesign is layered ON TOP of that, and every piece of it is subordinate
- * to it:
+ * That default does NOT remove the risk it replaced, it turns it around: the
+ * old `absent` default let a trainer file a whole session as a no-show by
+ * tapping straight through, and a `present` default lets them file students as
+ * having attended without ever looking at them — including students on roster
+ * page 2 they never scrolled to. So the roll call separates the VALUE from the
+ * DECISION and never conflates the two:
+ *   - `SessionStudent.reviewed` says whether a human touched the row. Every
+ *     path that sets a state sets it: the fiche tap, the four controls,
+ *     "Marcar restantes presentes", a record already saved for this session,
+ *     and a restored draft entry.
+ *   - `countUnreviewed` spans the FULL roster, never the visible page or the
+ *     name filter, and both the roll call and the confirmation step show it.
+ *   - An unreviewed fiche is visibly provisional (dashed outline, dashed state
+ *     chip, "sin revisar" in its accessible name), and "Ver solo sin revisar"
+ *     turns the count into a way to actually go clear it.
+ *   - The confirmation step says "N de M siguen en Presente porque nadie los
+ *     revisó" instead of reporting "45 presentes" identically either way, and
+ *     offers to go back. It informs; it does not block — the trainer asked for
+ *     a default, and a default that blocks is not one.
  *   - Tapping a fiche cycles the state, but `cycleWizardAttendance` can never
  *     return to `UNMARKED`, and the four explicit 44px controls stay present
  *     and stay a `radiogroup` — the tap is an accelerator, not a replacement.
- *   - The draft in `sessionStorage` only ever persists the four REAL states,
- *     keyed by horario + date; see the rules block in `attendance-utils.ts`.
+ *   - The draft in `sessionStorage` only ever persists REVIEWED rows in one of
+ *     the four REAL states, keyed by horario + date, so a refresh can never
+ *     launder "nobody looked" into "confirmed"; see the rules block in
+ *     `attendance-utils.ts`.
+ *   - The `UNMARKED` sentinel still never reaches the API: `toAttendanceMarks`
+ *     strips it and the submit refuses while `countUnmarked` is non-zero.
  *
  * ## What the audit found, and where it is answered
  *
@@ -71,10 +90,12 @@ import {
   clearAttendanceDraft,
   countByState,
   countUnmarked,
-  cycleWizardAttendance,
+  countUnreviewed,
+  isReviewed,
   loadAttendanceDraft,
-  markUnmarkedAsPresent,
+  markRemainingPresent,
   resolveFailedStudentNames,
+  tapWizardAttendance,
   saveAttendanceDraft,
   toAttendanceMarks,
   buildAttendanceSummary,
@@ -176,6 +197,8 @@ export default function TrainerAttendancePage(): React.ReactElement {
   const [sessionDate, setSessionDate] = useState<string | null>(null);
   const [restoredFromDraft, setRestoredFromDraft] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
+  /** Narrows the roll call to the rows nobody has touched yet. */
+  const [onlyUnreviewed, setOnlyUnreviewed] = useState(false);
   const [studentPage, setStudentPage] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -238,10 +261,10 @@ export default function TrainerAttendancePage(): React.ReactElement {
     if (submitError) showError(submitError);
   }, [submitError, showError]);
 
-  // Reset student page when search filter changes.
+  // Reset student page when either filter changes.
   useEffect(() => {
     setStudentPage(1);
-  }, [searchFilter]);
+  }, [searchFilter, onlyUnreviewed]);
 
   const currentIndex = STEP_ORDER.indexOf(step);
   const isFirst = currentIndex === 0;
@@ -308,9 +331,12 @@ export default function TrainerAttendancePage(): React.ReactElement {
       const withDraft = applyAttendanceDraft(roster, draft);
 
       setSessionDate(today);
-      setRestoredFromDraft(withDraft !== roster && countUnmarked(withDraft) < countUnmarked(roster));
+      setRestoredFromDraft(
+        withDraft !== roster && countUnreviewed(withDraft) < countUnreviewed(roster),
+      );
       setStudents(withDraft);
       setStudentPage(1);
+      setOnlyUnreviewed(false);
       setStep("mark-attendance");
     } catch (err) {
       console.error("[trainer/attendance] fetchAlumnosPorHorario failed", err);
@@ -356,9 +382,15 @@ export default function TrainerAttendancePage(): React.ReactElement {
     [draftKey],
   );
 
+  /**
+   * Every mark the trainer makes is also a REVIEW of that student — including
+   * setting a row to the state it already had. Tapping "Presente" on a student
+   * who was already present by default is the trainer saying "yes, that one is
+   * here", and the roll call has to stop asking about them.
+   */
   function handleDirectAttendanceSet(studentIndex: number, state: EstadoAsistencia): void {
     commitStudents(
-      students.map((s, i) => (i === studentIndex ? { ...s, attendance: state } : s)),
+      students.map((s, i) => (i === studentIndex ? { ...s, attendance: state, reviewed: true } : s)),
     );
   }
 
@@ -366,25 +398,31 @@ export default function TrainerAttendancePage(): React.ReactElement {
   function handleCycleAttendance(studentIndex: number): void {
     commitStudents(
       students.map((s, i) =>
-        i === studentIndex ? { ...s, attendance: cycleWizardAttendance(s.attendance) } : s,
+        i === studentIndex ? { ...s, attendance: tapWizardAttendance(s), reviewed: true } : s,
       ),
     );
   }
 
   /**
-   * Bulk action for the common case (near-full attendance): everyone still
-   * undecided becomes "present". Explicit marks the trainer already made are
-   * preserved. Applies to the whole roster, not just the visible page.
+   * Bulk action for the common case (near-full attendance): the trainer states
+   * in one tap that everyone they have not touched is present. Marks the
+   * trainer already made are preserved. Applies to the whole roster, not just
+   * the visible page or the current filter.
    */
   function handleMarkRemainingPresent(): void {
-    commitStudents(markUnmarkedAsPresent(students));
+    commitStudents(markRemainingPresent(students));
   }
 
   async function handleConfirm(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
     if (!selectedScheduleId || entrenadorPersonaId === null) return;
-    // Never file a session while anyone is still undecided — the wizard
-    // already disables the button, this is the belt-and-braces guard.
+    // Only the confirmation step files a session. Without this, a submit that
+    // reached the form from anywhere else would file one straight from the
+    // roll call — see the `key` on the advance/submit buttons for the way that
+    // actually happened.
+    if (step !== "confirm") return;
+    // Never file a session carrying the sentinel — `toAttendanceMarks` strips
+    // it, and this refuses the batch rather than filing a short roster.
     if (countUnmarked(students) > 0) return;
     setSubmitting(true);
     setSubmitError(null);
@@ -416,6 +454,8 @@ export default function TrainerAttendancePage(): React.ReactElement {
     setSessionDate(null);
     setRestoredFromDraft(false);
     setStudents([]);
+    setSearchFilter("");
+    setOnlyUnreviewed(false);
     setConfirmed(false);
     setSubmitting(false);
     setSubmitError(null);
@@ -425,10 +465,13 @@ export default function TrainerAttendancePage(): React.ReactElement {
   // ---- Student list pagination (attendance wizard) ----
 
   const filteredStudents = useMemo(() => {
-    if (!searchFilter.trim()) return students;
-    const q = searchFilter.toLowerCase();
-    return students.filter((s) => s.name.toLowerCase().includes(q));
-  }, [students, searchFilter]);
+    const q = searchFilter.trim().toLowerCase();
+    if (!q && !onlyUnreviewed) return students;
+    return students.filter(
+      (s) =>
+        (!q || s.name.toLowerCase().includes(q)) && (!onlyUnreviewed || !isReviewed(s)),
+    );
+  }, [students, searchFilter, onlyUnreviewed]);
 
   const totalStudentPages = useMemo(
     () => getTotalPages(filteredStudents.length, WIZARD_PAGE_SIZE),
@@ -442,8 +485,10 @@ export default function TrainerAttendancePage(): React.ReactElement {
   // Deliberately computed over `students` (the FULL roster) rather than
   // `filteredStudents`/`paginatedStudents`: the wizard paginates at 10 and
   // the search box filters, so a page- or filter-scoped count would report
-  // "0 sin marcar" while off-screen students were still undecided — the exact
-  // silent-data-loss path this guard exists to close.
+  // "0 sin revisar" while a whole second page of students was about to be
+  // filed present sight unseen — the exact silent-data-loss path this counter
+  // exists to close.
+  const unreviewedCount = useMemo(() => countUnreviewed(students), [students]);
   const unmarkedCount = useMemo(() => countUnmarked(students), [students]);
   const presentCount = useMemo(() => countByState(students, "present"), [students]);
   const unmarkedReasonId = "attendance-unmarked-reason";
@@ -616,8 +661,19 @@ export default function TrainerAttendancePage(): React.ReactElement {
                 {selectedSchedule.horaInicio} — {selectedSchedule.horaFin}
               </span>
             </span>
+            {/* The counter that keeps the default honest: the big number reads
+                45/45 from the first second, and this says how much of it
+                anybody has actually looked at. */}
+            {unreviewedCount > 0 && (
+              <span className="flex items-center gap-1.5 text-[12.5px] font-bold text-ball">
+                <AlertTriangle size={12} strokeWidth={2.5} aria-hidden="true" />
+                {unreviewedCount === 1
+                  ? "1 alumno sin revisar"
+                  : `${unreviewedCount} alumnos sin revisar`}
+              </span>
+            )}
           </span>
-          {unmarkedCount > 0 && (
+          {unreviewedCount > 0 && (
             <button
               type="button"
               onClick={handleMarkRemainingPresent}
@@ -631,7 +687,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
 
         {restoredFromDraft && (
           <p className="rounded-ctl border border-line bg-canvas px-3.5 py-2.5 text-xs text-ink-2">
-            Recuperamos las marcas que habías hecho en esta sesión. Revisalas antes de continuar.
+            Recuperamos las marcas que ya había hecho en esta sesión. Revíselas antes de continuar.
           </p>
         )}
 
@@ -649,23 +705,61 @@ export default function TrainerAttendancePage(): React.ReactElement {
                   {ATTENDANCE_LABELS[state]}
                 </Badge>
               ))}
-              <span className="text-xs text-ink-3">Toque la ficha para cambiar el estado</span>
+              <span className="h-badge inline-flex items-center rounded-full border border-dashed border-line-2 px-[11px] text-[11.5px] font-bold text-ink-3">
+                Sin revisar
+              </span>
+              <span className="text-xs text-ink-3">Toque la ficha para confirmar o cambiar</span>
             </div>
 
-            <input
-              type="text"
-              placeholder="Filtrar alumnos por nombre…"
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              aria-label="Filtrar alumnos"
-              className="h-ctl w-full rounded-ctl border border-line-2 bg-paper px-[13px] text-[13.5px] text-ink placeholder:text-ink-3 focus:border-cata-red focus:outline-none focus:ring-[3px] focus:ring-cata-red/10"
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                placeholder="Filtrar alumnos por nombre…"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                aria-label="Filtrar alumnos"
+                className="h-ctl min-w-[180px] flex-1 rounded-ctl border border-line-2 bg-paper px-[13px] text-[13.5px] text-ink placeholder:text-ink-3 focus:border-cata-red focus:outline-none focus:ring-[3px] focus:ring-cata-red/10"
+              />
+              {/* Turns the count into something the trainer can act on: the
+                  point of knowing 12 are unreviewed is being able to go
+                  through those 12. Selection is coal, never a red fill. */}
+              {(unreviewedCount > 0 || onlyUnreviewed) && (
+                <button
+                  type="button"
+                  onClick={() => setOnlyUnreviewed((prev) => !prev)}
+                  aria-pressed={onlyUnreviewed}
+                  className={`inline-flex h-ctl shrink-0 items-center gap-2 rounded-ctl border px-4 text-[13px] font-semibold transition-colors ${
+                    onlyUnreviewed
+                      ? "border-coal bg-coal text-white"
+                      : "border-line-2 bg-paper text-ink-2 hover:border-ink-3 hover:text-ink"
+                  }`}
+                >
+                  Ver solo sin revisar
+                  <span className="tabular-nums">({unreviewedCount})</span>
+                </button>
+              )}
+            </div>
 
             {filteredStudents.length === 0 ? (
               <EmptyState
                 icon={<Users size={21} strokeWidth={1.5} aria-hidden="true" />}
-                title="No se encontraron alumnos con ese nombre."
-                description="Revise el filtro o bórrelo para volver a ver la lista completa."
+                title={
+                  onlyUnreviewed && unreviewedCount === 0
+                    ? "Ya revisó a todos los alumnos de este horario."
+                    : "No se encontraron alumnos con ese nombre."
+                }
+                description={
+                  onlyUnreviewed && unreviewedCount === 0
+                    ? "Quite el filtro para volver a ver la lista completa antes de continuar."
+                    : "Revise el filtro o bórrelo para volver a ver la lista completa."
+                }
+                action={
+                  onlyUnreviewed ? (
+                    <Button type="button" onClick={() => setOnlyUnreviewed(false)}>
+                      Ver la lista completa
+                    </Button>
+                  ) : undefined
+                }
               />
             ) : (
               <>
@@ -673,6 +767,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
                   {paginatedStudents.map((student) => {
                     const idx = students.findIndex((s) => s.id === student.id);
                     const isUnmarked = student.attendance === UNMARKED;
+                    const reviewed = isReviewed(student);
                     const nameId = `student-name-${student.id}`;
                     const groupLabelId = `attendance-label-${student.id}`;
                     const stateLabel = isUnmarked
@@ -682,8 +777,9 @@ export default function TrainerAttendancePage(): React.ReactElement {
                       <li
                         key={student.id}
                         data-attendance={student.attendance}
+                        data-reviewed={reviewed}
                         className={`flex flex-col overflow-hidden rounded-ctl border bg-paper sm:h-12 sm:flex-row sm:items-center ${
-                          isUnmarked ? "border-dashed border-ink-3/50" : "border-line-2"
+                          reviewed ? "border-line-2" : "border-dashed border-ink-3/50"
                         }`}
                       >
                         {/*
@@ -695,7 +791,14 @@ export default function TrainerAttendancePage(): React.ReactElement {
                         <button
                           type="button"
                           onClick={() => handleCycleAttendance(idx)}
-                          aria-label={`${student.name}: ${stateLabel}. Cambiar estado`}
+                          // The name says which of the two things a tap does
+                          // here: an unreviewed row is a proposal, and the
+                          // first tap accepts it.
+                          aria-label={
+                            reviewed
+                              ? `${student.name}: ${stateLabel}. Cambiar estado`
+                              : `${student.name}: ${stateLabel}, sin revisar. Confirmar o cambiar estado`
+                          }
                           // `shrink-0` + `w-full`, and `flex-1` only from `sm`:
                           // on a phone the row is a COLUMN, where a bare
                           // `flex-1` (flex-basis 0) collapsed the 48px fiche to
@@ -715,17 +818,22 @@ export default function TrainerAttendancePage(): React.ReactElement {
                           >
                             {student.name}
                           </span>
-                          {isUnmarked ? (
-                            <span className="h-badge inline-flex flex-none items-center rounded-full border border-dashed border-line-2 px-[11px] text-[11.5px] font-bold text-ink-3">
-                              Sin marcar
-                            </span>
-                          ) : (
+                          {/* Same chip, two weights. A reviewed row wears the
+                              state's own colour; an unreviewed one wears the
+                              state in a dashed outline — the value is there
+                              and readable, and it reads as provisional
+                              because it is. */}
+                          {reviewed && !isUnmarked ? (
                             <Badge
                               tone={getAttendanceBadgeTone(student.attendance)}
                               className="flex-none"
                             >
                               {stateLabel}
                             </Badge>
+                          ) : (
+                            <span className="h-badge inline-flex flex-none items-center rounded-full border border-dashed border-line-2 px-[11px] text-[11.5px] font-bold text-ink-3">
+                              {stateLabel}
+                            </span>
                           )}
                         </button>
 
@@ -830,9 +938,58 @@ export default function TrainerAttendancePage(): React.ReactElement {
                   {countByState(students, state)} {ATTENDANCE_LABELS[state].toLowerCase()}
                 </Badge>
               ))}
+              {/* Without this, "45 presentes" reads the same whether the
+                  trainer went through the roster or never looked at it. */}
+              {unreviewedCount > 0 && (
+                <Badge tone="warn">{unreviewedCount} sin revisar</Badge>
+              )}
             </dd>
           </div>
         </dl>
+
+        {unreviewedCount > 0 && (
+          /*
+           * Names the risk in the trainer's own terms and hands back the way
+           * to fix it. It does NOT block: the trainer asked for a default, and
+           * a default you cannot submit is not a default. What it must never
+           * do is let the summary above read as a reviewed roster.
+           */
+          <div
+            role="status"
+            className="flex flex-col gap-3 rounded-ctl border border-state-warn/25 bg-state-warn-bg p-3.5"
+          >
+            <p className="flex items-start gap-2 text-[13px] font-semibold text-state-warn">
+              <AlertTriangle
+                size={14}
+                strokeWidth={2}
+                className="mt-0.5 flex-none"
+                aria-hidden="true"
+              />
+              <span>
+                {unreviewedCount === 1
+                  ? `1 de ${students.length} alumnos sigue en "Presente" porque nadie lo revisó.`
+                  : `${unreviewedCount} de ${students.length} alumnos siguen en "Presente" porque nadie los revisó.`}
+              </span>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                onClick={() => {
+                  setOnlyUnreviewed(true);
+                  setSearchFilter("");
+                  setStudentPage(1);
+                  setStep("mark-attendance");
+                }}
+              >
+                {unreviewedCount === 1 ? "Revisar a ese alumno" : `Revisar a esos ${unreviewedCount}`}
+              </Button>
+              <Button type="button" variant="ghost" onClick={handleMarkRemainingPresent}>
+                <UserCheck size={14} strokeWidth={2} aria-hidden="true" />
+                Confirmar que están presentes
+              </Button>
+            </div>
+          </div>
+        )}
 
         <p className="text-xs text-ink-3">
           Se registrará la asistencia de {students.length}{" "}
@@ -856,10 +1013,10 @@ export default function TrainerAttendancePage(): React.ReactElement {
             </span>
           );
         })}
-        {unmarkedCount > 0 && (
+        {unreviewedCount > 0 && (
           <>
             {" · "}
-            <span className="font-bold text-state-warn">{`${unmarkedCount} Sin marcar`}</span>
+            <span className="font-bold text-state-warn">{`${unreviewedCount} sin revisar`}</span>
           </>
         )}
       </span>
@@ -987,9 +1144,13 @@ export default function TrainerAttendancePage(): React.ReactElement {
                         {step === "mark-attendance" && renderTotals()}
 
                         <div className="ml-auto flex flex-col items-end gap-1.5">
-                          {/* Visible, announced reason the advance button is
-                              disabled — a disabled control with no explanation
-                              reads as a broken wizard. */}
+                          {/* The `UNMARKED` invariant, and its explanation.
+                              No path the wizard can take produces the sentinel
+                              any more, so in practice neither renders — but a
+                              button disabled by an invariant still has to say
+                              why, or it reads as a broken wizard. Being
+                              unreviewed does NOT gate the advance: it is a
+                              warning, not a blocker. */}
                           {unmarkedCount > 0 && (
                             <p
                               id={unmarkedReasonId}
@@ -1001,8 +1162,23 @@ export default function TrainerAttendancePage(): React.ReactElement {
                                 : `Faltan ${unmarkedCount} alumnos por marcar`}
                             </p>
                           )}
+                          {/*
+                           * The `key`s are load-bearing, not decoration.
+                           *
+                           * Both branches render a `Button` in the same slot,
+                           * so React reconciled them into ONE `<button>` node
+                           * and merely swapped its `type` from "button" to
+                           * "submit". React flushes the state update inside the
+                           * click handler, so by the time the browser ran that
+                           * click's DEFAULT ACTION the node under the finger
+                           * was already a submit button: one tap on "Siguiente"
+                           * advanced the wizard AND filed the session, skipping
+                           * the confirmation step entirely. Distinct keys make
+                           * React replace the node instead of mutating it.
+                           */}
                           {!isLast ? (
                             <Button
+                              key="advance"
                               type="button"
                               variant="primary"
                               onClick={handleNext}
@@ -1014,6 +1190,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
                             </Button>
                           ) : (
                             <Button
+                              key="file-session"
                               type="submit"
                               variant="primary"
                               disabled={

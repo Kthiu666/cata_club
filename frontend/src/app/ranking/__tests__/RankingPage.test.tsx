@@ -2,15 +2,16 @@
  * Component tests for RankingPage (admin) — "la escalera".
  *
  * The screen used to be a per-student table with a nivel `<select>` per row.
- * It is now the ladder itself: one rung per nivel, ordered by rank, with the
- * roster shown as NAMES and a single action that opens an assignment panel
- * scoped to that rung — plus a page-level person finder and a block for the
- * students who have no level yet.
+ * It is now the ladder itself: one rung per nivel, ordered by rank, each
+ * stating how many students hold it, with a single action that opens a
+ * TWO-COLUMN panel — unassigned LEFT, that level's roster RIGHT — plus a
+ * page-level person finder for "where is Juan, and move him".
  *
  * These tests exist mostly to keep settled product rules from silently
- * regressing: no occupancy indicator of any kind, no "Promover", one number
- * per rung (the club's name, never the rank beside it), and the unassigned
- * students reachable.
+ * regressing: no occupancy indicator of any kind, no "Promover", one LEVEL
+ * number per rung (the club's name, never the rank beside it), the headcount
+ * derived from the roster rather than from the API's own occupancy field, and
+ * the unassigned students reachable from every rung.
  *
  * @vitest-environment jsdom
  */
@@ -189,16 +190,33 @@ describe("RankingPage — la escalera", () => {
     expect(within(rungs()[2]).getByTitle("Puesto 3 de la escalera")).toBeInTheDocument();
   });
 
-  it("shows each rung's roster as real names, not two-letter initials", async () => {
+  it("states exactly how many students hold each level", async () => {
     render(<RankingPage />);
     await waitForLadder();
 
-    // Pedro Ramírez sits on nivel 1, Carla Vera on nivel 3.
-    expect(within(rungs()[0]).getByTitle("Pedro Ramírez")).toHaveTextContent("Pedro Ramírez");
-    expect(within(rungs()[2]).getByTitle("Carla Vera")).toHaveTextContent("Carla Vera");
+    // Pedro Ramírez sits on nivel 1, Carla Vera on nivel 3, nobody on nivel 2.
     expect(within(rungs()[0]).getByText("1 estudiante")).toBeInTheDocument();
-    expect(within(rungs()[1]).getByText("0 estudiantes")).toBeInTheDocument();
     expect(within(rungs()[1]).getByText("Sin estudiantes")).toBeInTheDocument();
+    expect(within(rungs()[2]).getByText("1 estudiante")).toBeInTheDocument();
+  });
+
+  it("counts from the roster, never from the API's own occupancy figure", async () => {
+    // The two backend sources disagree in live data. `personasActuales` says
+    // 2 for "Nivel Base"; the roster names exactly one student on it, and the
+    // roster is what the panel prints — so the roster is what the rung counts.
+    render(<RankingPage />);
+    await waitForLadder();
+
+    expect(within(rungs()[2]).getByText("1 estudiante")).toBeInTheDocument();
+    expect(within(rungs()[2]).queryByText("2 estudiantes")).not.toBeInTheDocument();
+  });
+
+  it("keeps the roster off the rung itself — names live in the panel", async () => {
+    render(<RankingPage />);
+    await waitForLadder();
+
+    expect(within(rungs()[0]).queryByText("Pedro Ramírez")).not.toBeInTheDocument();
+    expect(within(rungs()[2]).queryByText("Carla Vera")).not.toBeInTheDocument();
   });
 
   it("renders ONE number per rung — the club's name, never the rank beside it", async () => {
@@ -280,31 +298,54 @@ describe("RankingPage — la escalera", () => {
     expect(mockShowSuccess).toHaveBeenCalled();
   });
 
-  it("moves an already-assigned student via mover-de-nivel, under the same 'Asignar' label", async () => {
-    render(<RankingPage />);
-    await waitForLadder();
-
-    fireEvent.click(screen.getByRole("button", { name: "Asignar estudiantes al nivel Nivel Medio" }));
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Asignar Pedro Ramírez al nivel Nivel Medio" }),
-    );
-
-    await waitFor(() => {
-      expect(mockMoveStudentToNivel).toHaveBeenCalledWith(11, 2);
-    });
-    expect(mockAssignStudentToNivel).not.toHaveBeenCalled();
-  });
-
-  it("marks a student already on the open rung as such instead of offering to re-assign them", async () => {
+  it("splits the open rung into unassigned LEFT and this level's roster RIGHT", async () => {
     render(<RankingPage />);
     await waitForLadder();
 
     fireEvent.click(screen.getByRole("button", { name: "Asignar estudiantes al nivel Nivel Cima" }));
 
-    expect(await screen.findByText("Ya está aquí")).toBeInTheDocument();
+    const izquierda = (await screen.findByRole("heading", { name: "Sin nivel asignado (1)" }))
+      .closest("section") as HTMLElement;
+    const derecha = screen
+      .getByRole("heading", { name: "En el nivel Nivel Cima (1)" })
+      .closest("section") as HTMLElement;
+
+    // Sofía has no level; Pedro holds this one. Each is in exactly one column.
+    expect(within(izquierda).getByText("Sofía González")).toBeInTheDocument();
+    expect(within(izquierda).queryByText("Pedro Ramírez")).not.toBeInTheDocument();
+    expect(within(derecha).getByText("Pedro Ramírez")).toBeInTheDocument();
+    expect(within(derecha).queryByText("Sofía González")).not.toBeInTheDocument();
+
+    // Left comes first in the DOM, which is what makes it left on a wide
+    // screen AND first in the stacked reading order on a phone.
+    expect(izquierda.compareDocumentPosition(derecha) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("offers no assign action for a student already on the open rung", async () => {
+    render(<RankingPage />);
+    await waitForLadder();
+
+    fireEvent.click(screen.getByRole("button", { name: "Asignar estudiantes al nivel Nivel Cima" }));
+    await screen.findByRole("heading", { name: "En el nivel Nivel Cima (1)" });
+
     expect(
       screen.queryByRole("button", { name: "Asignar Pedro Ramírez al nivel Nivel Cima" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("never offers an already-assigned student in another rung's left column", async () => {
+    // The left column is the unassigned, and only them: moving somebody who
+    // already holds a level is the page finder's job, not the rung panel's.
+    render(<RankingPage />);
+    await waitForLadder();
+
+    fireEvent.click(screen.getByRole("button", { name: "Asignar estudiantes al nivel Nivel Medio" }));
+    await screen.findByRole("heading", { name: "Sin nivel asignado (1)" });
+
+    expect(
+      screen.queryByRole("button", { name: "Asignar Pedro Ramírez al nivel Nivel Medio" }),
+    ).not.toBeInTheDocument();
+    expect(mockMoveStudentToNivel).not.toHaveBeenCalled();
   });
 
   it("filters the assignment panel by name", async () => {
@@ -324,7 +365,7 @@ describe("RankingPage — la escalera", () => {
     expect(within(rungs()[1]).getByText("Sofía González")).toBeInTheDocument();
   });
 
-  it("moves the student's avatar onto the target rung after a successful assignment", async () => {
+  it("moves the student from the left column to the right one, and the rung's count with her", async () => {
     render(<RankingPage />);
     await waitForLadder();
 
@@ -334,8 +375,13 @@ describe("RankingPage — la escalera", () => {
     );
 
     await waitFor(() => {
-        expect(within(rungs()[1]).getByTitle("Sofía González")).toBeInTheDocument();
+      expect(within(rungs()[1]).getByText("1 estudiante")).toBeInTheDocument();
     });
+    const derecha = screen
+      .getByRole("heading", { name: "En el nivel Nivel Medio (1)" })
+      .closest("section") as HTMLElement;
+    expect(within(derecha).getByText("Sofía González")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sin nivel asignado (0)" })).toBeInTheDocument();
   });
 
   it("surfaces a real backend failure instead of a false success", async () => {
@@ -398,43 +444,56 @@ describe("RankingPage — finding a student and placing the unassigned", () => {
     });
   }
 
-  it("lists the students who have no level, instead of only counting them", async () => {
+  it("lists the students who have no level inside every rung's panel", async () => {
     render(<RankingPage />);
     await waitForLadder();
 
-    const block = screen.getByRole("heading", { name: "Sin nivel asignado (1)" });
-    const section = block.closest("section") as HTMLElement;
+    fireEvent.click(screen.getByRole("button", { name: "Asignar estudiantes al nivel Nivel Base" }));
+
+    const section = (await screen.findByRole("heading", { name: "Sin nivel asignado (1)" }))
+      .closest("section") as HTMLElement;
     expect(within(section).getByText("Sofía González")).toBeInTheDocument();
   });
 
-  it("announces the unassigned count at the top and jumps straight to them", async () => {
-    // The old level select carried a "Sin asignar" option purely so an admin
-    // could enumerate these students. The block below the ladder does that and
-    // more, but it sits a full ladder-scroll away — so the gap has to be
-    // visible, and clickable, from the stat row.
+  it("keeps no second unassigned block below the ladder", async () => {
+    // The list used to appear twice on this screen once a rung was open: once
+    // beside a level picker at the foot of the page, once beside the level
+    // itself. One of the two had to go, and the one attached to the
+    // destination is the one that survives.
     render(<RankingPage />);
     await waitForLadder();
 
-    const link = screen.getByRole("link", { name: "1 sin asignar" });
-    expect(link).toHaveAttribute("href", "#sin-nivel");
+    expect(
+      screen.queryByRole("heading", { name: /^Sin nivel asignado/ }),
+    ).not.toBeInTheDocument();
 
-    const target = screen.getByRole("heading", { name: "Sin nivel asignado (1)" }).closest("section");
-    expect(target).toHaveAttribute("id", "sin-nivel");
+    fireEvent.click(screen.getByRole("button", { name: "Asignar estudiantes al nivel Nivel Base" }));
+    expect(
+      await screen.findAllByRole("heading", { name: "Sin nivel asignado (1)" }),
+    ).toHaveLength(1);
   });
 
-  it("drops the jump link while searching, since its target is hidden then", async () => {
+  it("announces the unassigned count at the top, as a figure and not as a jump link", async () => {
+    render(<RankingPage />);
+    await waitForLadder();
+
+    expect(screen.getByText("de 3 estudiantes · 1 sin asignar")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /sin asignar/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps the unassigned count stable while searching", async () => {
     render(<RankingPage />);
     await waitForLadder();
     search("Sofía");
 
-    expect(screen.queryByRole("link", { name: /sin asignar/ })).not.toBeInTheDocument();
-    expect(screen.getByText("de 3 estudiantes")).toBeInTheDocument();
+    expect(screen.getByText("de 3 estudiantes · 1 sin asignar")).toBeInTheDocument();
   });
 
-  it("places an unassigned student on the level picked in their own row", async () => {
+  it("places an unassigned student on the level picked in their search-result row", async () => {
     render(<RankingPage />);
     await waitForLadder();
 
+    search("Sofía");
     fireEvent.change(screen.getByLabelText("Nivel de destino para Sofía González"), {
       target: { value: "2" },
     });
@@ -450,6 +509,7 @@ describe("RankingPage — finding a student and placing the unassigned", () => {
     render(<RankingPage />);
     await waitForLadder();
 
+    search("Sofía");
     expect(screen.getByRole("button", { name: "Asignar a Sofía González" })).toBeDisabled();
   });
 

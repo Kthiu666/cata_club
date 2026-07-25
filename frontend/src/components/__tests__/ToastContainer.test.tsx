@@ -21,6 +21,16 @@ function Harness(): React.ReactElement {
       <button type="button" onClick={() => toast.showSuccess("Todo bien")}>
         Trigger success
       </button>
+      <button
+        type="button"
+        onClick={() =>
+          toast.showSuccess("Hola, Ana", {
+            description: "Su sesión quedó iniciada. Le llevamos a su panel.",
+          })
+        }
+      >
+        Trigger detailed
+      </button>
       <ToastContainer />
     </div>
   );
@@ -149,5 +159,67 @@ describe("ToastContainer — announcement and placement", () => {
     expect(container).toHaveClass("bottom-4");
     expect(container).not.toHaveClass("top-4");
     expect(container).toHaveClass("sm:top-4");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The clarity rework: a toast has to say what happened AND what it means.
+// ---------------------------------------------------------------------------
+
+describe("ToastContainer — a toast that explains itself", () => {
+  it("renders the supporting line under the message when one was given", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("Trigger detailed"));
+
+    const toast = screen.getByRole("status");
+    expect(within(toast).getByText("Hola, Ana")).toBeInTheDocument();
+    expect(
+      within(toast).getByText("Su sesión quedó iniciada. Le llevamos a su panel."),
+    ).toBeInTheDocument();
+  });
+
+  it("weights the message above its supporting line", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("Trigger detailed"));
+
+    const toast = screen.getByRole("status");
+    expect(within(toast).getByText("Hola, Ana").className).toContain("font-semibold");
+    expect(
+      within(toast).getByText("Su sesión quedó iniciada. Le llevamos a su panel.").className,
+    ).toContain("font-normal");
+  });
+
+  it("renders no second line when the caller passed one clause", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("Trigger success"));
+
+    const toast = screen.getByRole("status");
+    expect(toast.querySelectorAll("p")).toHaveLength(1);
+  });
+
+  it("carries a decorative variant icon so colour is not the only signal", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("Trigger error"));
+
+    const icon = screen.getByRole("alert").querySelector("svg[aria-hidden='true']");
+    expect(icon).toBeInTheDocument();
+  });
+
+  it("keeps the supporting line at full opacity, since dimming it fails AA on the fills", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("Trigger detailed"));
+
+    // White at 85% on `.toast-success`'s #15803D measures 4.09:1. The two
+    // tiers are separated by weight and size, never by opacity.
+    const detail = within(screen.getByRole("status")).getByText(
+      "Su sesión quedó iniciada. Le llevamos a su panel.",
+    );
+    expect(detail.className).not.toMatch(/text-(current|white)\/\d/);
+    expect(detail.className).not.toMatch(/\bopacity-\d/);
   });
 });

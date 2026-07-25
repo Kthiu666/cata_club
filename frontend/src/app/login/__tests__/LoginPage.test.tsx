@@ -161,16 +161,40 @@ describe("LoginPage", () => {
       submitLoginForm();
 
       await waitFor(() => {
-        expect(mockShowError).toHaveBeenCalledWith(
-          "Credenciales inválidas. Verifique su correo y contraseña.",
-        );
+        expect(mockShowError).toHaveBeenCalledWith("Credenciales incorrectas", {
+          description: "Revise su correo y su contraseña, e intente nuevamente.",
+        });
       });
       expect(document.querySelector(".alert-error")).not.toBeInTheDocument();
+    });
+
+    it("names the problem in the message and the recovery in the supporting line", async () => {
+      const mockLogin = vi.fn().mockResolvedValue({ ok: false, error: "backend_unavailable" });
+      mockUseAuth.mockReturnValue({
+        ...createUnauthenticatedAuth(false),
+        login: mockLogin,
+      });
+
+      render(<LoginPage />);
+      submitLoginForm();
+
+      await waitFor(() => {
+        expect(mockShowError).toHaveBeenCalledWith("No se pudo conectar con el servidor", {
+          description: "El servicio no está disponible. Intente nuevamente en unos minutos.",
+        });
+      });
     });
   });
 
   describe("successful submission", () => {
-    it("shows a centered welcome overlay instead of a toast, then redirects to the role's default route", async () => {
+    /**
+     * The full-screen confirmation panel this replaces was rejected as *"muy
+     * tosco, como que te impone el mensaje"* — modal weight for an event the
+     * user just caused. The confirmation is now a toast with two tiers: the
+     * greeting names who signed in, the supporting line says what happens
+     * next, which the old panel never did.
+     */
+    it("confirms with a two-line success toast, not a full-screen panel", async () => {
       vi.useFakeTimers();
       const session = createMockSession();
       const mockLogin = vi.fn().mockResolvedValue({ ok: true, session });
@@ -183,10 +207,28 @@ describe("LoginPage", () => {
       submitLoginForm();
       await vi.advanceTimersByTimeAsync(0);
 
-      const overlay = screen.getByRole("status");
-      expect(overlay).toHaveTextContent("Inicio de sesión exitoso");
-      expect(overlay).toHaveTextContent(session.user.name);
-      expect(mockShowSuccess).not.toHaveBeenCalled();
+      const firstName = session.user.name.trim().split(/\s+/)[0];
+      expect(mockShowSuccess).toHaveBeenCalledWith(`Hola, ${firstName}`, {
+        description: "Su sesión quedó iniciada. Le llevamos a su panel.",
+      });
+      // Nothing paints over the page any more.
+      expect(screen.queryByText(/inicio de sesión exitoso/i)).not.toBeInTheDocument();
+
+      vi.useRealTimers();
+    });
+
+    it("holds the form for one beat so the toast is seen, then redirects to the role's default route", async () => {
+      vi.useFakeTimers();
+      const mockLogin = vi.fn().mockResolvedValue({ ok: true, session: createMockSession() });
+      mockUseAuth.mockReturnValue({
+        ...createUnauthenticatedAuth(false),
+        login: mockLogin,
+      });
+
+      render(<LoginPage />);
+      submitLoginForm();
+      await vi.advanceTimersByTimeAsync(0);
+
       expect(mockReplace).not.toHaveBeenCalled();
 
       await vi.advanceTimersByTimeAsync(2000);

@@ -23,29 +23,60 @@ import { useToast } from "@/contexts/ToastContext";
 import { getDefaultRoute } from "@/lib/auth-utils";
 import type { AuthErrorKind } from "@/services/auth";
 import AuthShell, { AUTH_INPUT_CLASSES, AUTH_LABEL_CLASSES } from "@/components/auth/AuthShell";
-import LoginSuccessOverlay from "@/components/auth/LoginSuccessOverlay";
 import { Button } from "@/components/ui";
 
-/** How long the welcome overlay stays on screen before redirecting. */
-const WELCOME_OVERLAY_MS = 1400;
+/**
+ * How long the form stays up, with its button in its "Iniciando sesión…"
+ * state and the confirmation toast already visible, before the redirect
+ * fires. The toast itself outlives the navigation — `ToastProvider` is
+ * mounted in the root layout, above the router — so this is only the beat
+ * that lets the user connect the toast to the button they just pressed.
+ */
+const WELCOME_HOLD_MS = 900;
+
+/** First name only — a toast is not the place for four surnames. */
+function firstNameOf(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] ?? "";
+}
 
 /** Permissive client-side format check — the backend is the real source of truth for validity. */
 const EMAIL_FORMAT_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Distinct, user-readable message per login failure kind. */
-function loginErrorMessage(error: AuthErrorKind): string {
+/**
+ * Distinct, user-readable feedback per login failure kind, split the way the
+ * toast renders it: `message` names what went wrong, `description` names the
+ * way out. Crammed into one sentence, every one of these read as a wall the
+ * user had to parse before knowing whether to retype a password or wait for
+ * the server to come back.
+ */
+function loginErrorFeedback(error: AuthErrorKind): { message: string; description: string } {
   switch (error) {
     case "invalid_credentials":
-      return "Credenciales inválidas. Verifique su correo y contraseña.";
+      return {
+        message: "Credenciales incorrectas",
+        description: "Revise su correo y su contraseña, e intente nuevamente.",
+      };
     case "session_validation_failed":
-      return "No se pudo validar la sesión luego de iniciar sesión. Intente nuevamente.";
+      return {
+        message: "No se pudo validar su sesión",
+        description: "Sus datos son correctos, pero la sesión no quedó activa. Intente nuevamente.",
+      };
     case "timeout":
-      return "La solicitud tardó demasiado en responder. Verifique su conexión e intente nuevamente.";
+      return {
+        message: "El servidor tardó demasiado en responder",
+        description: "Revise su conexión e intente nuevamente.",
+      };
     case "backend_unavailable":
-      return "No se pudo conectar con el servidor. Intente nuevamente en unos minutos.";
+      return {
+        message: "No se pudo conectar con el servidor",
+        description: "El servicio no está disponible. Intente nuevamente en unos minutos.",
+      };
     case "unknown":
     default:
-      return "Ocurrió un error inesperado al iniciar sesión. Intente nuevamente.";
+      return {
+        message: "No se pudo iniciar sesión",
+        description: "Ocurrió un error inesperado. Intente nuevamente.",
+      };
   }
 }
 
@@ -58,22 +89,22 @@ export default function LoginPage(): React.ReactElement {
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({ email: "", password: "" });
-  const [welcome, setWelcome] = useState<{ name: string; route: string } | null>(null);
+  const [welcome, setWelcome] = useState<{ route: string } | null>(null);
 
   // Redirect to role-appropriate page if already authenticated. Skipped
-  // while the welcome overlay is up — a login just completed, and that
-  // effect below owns the (delayed) redirect instead.
+  // while a welcome is pending — a login just completed, and that effect
+  // below owns the (delayed) redirect instead.
   useEffect((): void => {
     if (!isLoading && isAuthenticated && session && !welcome) {
       router.replace(getDefaultRoute(session.user.role));
     }
   }, [isLoading, isAuthenticated, session, welcome, router]);
 
-  // Hold the welcome overlay on screen briefly before navigating away, so a
-  // successful login is actually seen instead of flashing past.
+  // Hold the form on screen for one beat after the confirmation toast fires,
+  // so a successful login is actually seen instead of flashing past.
   useEffect((): (() => void) | void => {
     if (!welcome) return;
-    const timer = setTimeout((): void => router.replace(welcome.route), WELCOME_OVERLAY_MS);
+    const timer = setTimeout((): void => router.replace(welcome.route), WELCOME_HOLD_MS);
     return (): void => clearTimeout(timer);
   }, [welcome, router]);
 
@@ -96,24 +127,33 @@ export default function LoginPage(): React.ReactElement {
     const result = await login(trimmedEmail, trimmedPassword);
 
     if (!result.ok) {
-      toast.showError(loginErrorMessage(result.error));
+      const { message, description } = loginErrorFeedback(result.error);
+      toast.showError(message, { description });
       setSubmitting(false);
       return;
     }
 
-    setWelcome({
-      name: result.session.user.name,
-      route: getDefaultRoute(result.session.user.role),
+    // The confirmation is a toast, not the full-screen panel this used to
+    // paint. The product owner's words on that panel — *"se ve muy tosco,
+    // como que te impone el mensaje"* — were about a modal-weight
+    // interruption for an event the user just caused and already expects.
+    // A toast confirms without blocking, and carries the one thing the old
+    // panel never said: where they are about to land.
+    const firstName = firstNameOf(result.session.user.name);
+    toast.showSuccess(firstName ? `Hola, ${firstName}` : "Sesión iniciada", {
+      description: "Su sesión quedó iniciada. Le llevamos a su panel.",
     });
+
+    setWelcome({ route: getDefaultRoute(result.session.user.role) });
   }
 
   // Show loading during session hydration, and keep showing it while an
   // already-authenticated user is mid-redirect — otherwise the form paints
   // for one frame between hydration resolving and the effect above firing.
-  // Skipped while the welcome overlay is up: `isAuthenticated`/`session`
-  // flip true around the same time as a successful login, and without this
-  // guard that would replace the page (and the overlay's backdrop) with
-  // this plain "Cargando sesión…" div instead.
+  // Skipped while a welcome is pending: `isAuthenticated`/`session` flip
+  // true around the same time as a successful login, and without this guard
+  // the form the toast is confirming would be swapped for this plain
+  // "Cargando sesión…" div for the length of the hold.
   if (!welcome && (isLoading || (isAuthenticated && session))) {
     return (
       <div className="auth-shell flex min-h-screen items-center justify-center">
@@ -123,8 +163,6 @@ export default function LoginPage(): React.ReactElement {
   }
 
   return (
-    <>
-    {welcome && <LoginSuccessOverlay name={welcome.name} />}
     <AuthShell
       title="Bienvenido de nuevo"
       subtitle="Inicie sesión para continuar"
@@ -235,6 +273,5 @@ export default function LoginPage(): React.ReactElement {
         </Link>
       </p>
     </AuthShell>
-    </>
   );
 }

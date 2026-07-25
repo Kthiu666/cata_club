@@ -379,7 +379,14 @@ function AsignarNivelTab({ students, niveles, loading, onOptimisticAssign, onBac
           description="Revise el nombre o cambie el filtro de nivel para ver más estudiantes."
         />
       ) : (
-        <div className="overflow-x-auto">
+        // `relative` is load-bearing, not decoration. The "Acción" column's
+        // header is an `sr-only` span, and `sr-only` is `position:absolute`.
+        // With no positioned ancestor its containing block was the initial
+        // one, so it escaped BOTH this scroller and the card's
+        // `overflow-hidden` and sat at x=513 on a 375px viewport — 139px of
+        // page-level horizontal scroll on a phone, from a 1px invisible span.
+        // Making the scroller its containing block clips it where it belongs.
+        <div className="relative overflow-x-auto">
           <Table>
             <TableHead>
               <TableRow>

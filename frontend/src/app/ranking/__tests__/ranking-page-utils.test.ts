@@ -5,9 +5,11 @@
 import { describe, it, expect } from "vitest";
 import type { NivelStudentRef } from "@/app/trainer/nivel/nivel-utils";
 import {
+  filterStudentsByName,
   searchStudents,
   sortStudentsByName,
   studentFullName,
+  studentsOnNivel,
   unassignedStudents,
 } from "../ranking-page-utils";
 
@@ -98,5 +100,46 @@ describe("unassignedStudents", () => {
 
   it("returns an empty list when everyone is placed", () => {
     expect(unassignedStudents(ROSTER.filter((s) => s.nivelRankingId !== null))).toEqual([]);
+  });
+});
+
+describe("studentsOnNivel", () => {
+  it("returns the rung's roster, surname-ordered", () => {
+    expect(studentsOnNivel(ROSTER, 3).map(studentFullName)).toEqual([
+      "Luis Álvarez",
+      "Juan Pérez",
+    ]);
+  });
+
+  it("counts what it lists — the length IS the rung's headcount", () => {
+    // The whole point of deriving the count here: it cannot drift from the
+    // names, the way `personasActuales` does in live data.
+    expect(studentsOnNivel(ROSTER, 1)).toHaveLength(1);
+    expect(studentsOnNivel(ROSTER, 99)).toEqual([]);
+  });
+
+  it("never counts an unassigned student toward a level", () => {
+    expect(studentsOnNivel(ROSTER, 0)).toEqual([]);
+  });
+});
+
+describe("filterStudentsByName", () => {
+  it("matches everybody on an empty term — it filters a column, not a search", () => {
+    expect(filterStudentsByName(ROSTER, "  ")).toHaveLength(ROSTER.length);
+  });
+
+  it("matches ignoring case and accents", () => {
+    expect(filterStudentsByName(ROSTER, "bermudez").map(studentFullName)).toEqual([
+      "Elena Bermúdez",
+    ]);
+  });
+
+  it("returns an empty list when nobody matches", () => {
+    expect(filterStudentsByName(ROSTER, "zzz")).toEqual([]);
+  });
+
+  it("preserves the order it was handed", () => {
+    const ordered = sortStudentsByName(ROSTER);
+    expect(filterStudentsByName(ordered, "")).toEqual(ordered);
   });
 });

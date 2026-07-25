@@ -21,6 +21,13 @@
  *     place with no way back. The detail header now states "Pendiente N de M"
  *     and carries prev/next, and a decision auto-advances to the next pending
  *     item.
+ *   · "Detalle de la solicitud" was eight full-width 56px rows — label hard
+ *     left, value hard right — so a ~500px card carried eight short facts and
+ *     a gutter of nothing down its middle, while the voucher and the decision
+ *     controls it competes with are what the admin came for. The two facts the
+ *     decision turns on (monto esperado, período) now lead the card, and the
+ *     other six are paired two-up. Nothing was dropped; the card lost ~45% of
+ *     its height.
  *   · The "Lista de Verificación" was static prose the admin had to hold in
  *     memory while looking at the proof in the other column — so a payment
  *     could be approved without ever checking the amount. It is now real
@@ -136,12 +143,30 @@ function actionLabel(request: PaymentValidationRequest): string {
 // Detail sub-views
 // ---------------------------------------------------------------------------
 
-/** One row of the 56px detail list (`_sistema.css` `.drow`). */
-function DetailRow({ label, children }: { label: string; children: React.ReactNode }): React.ReactElement {
+/** The one label style the detail card uses, in both of its shapes. */
+function DetailLabel({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
-    <div className="flex min-h-drow flex-wrap items-center justify-between gap-2 border-b border-line px-[18px] py-3 last:border-b-0">
-      <span className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3">{label}</span>
-      <span className="text-[13.5px] font-semibold text-ink">{children}</span>
+    <span className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3">{children}</span>
+  );
+}
+
+/**
+ * One fact of the detail card — a 56px cell (`_sistema.css` `.drow`).
+ *
+ * Two shapes, and the breakpoint is the whole point. From `sm` the card is wide
+ * enough for two of these side by side, so the label sits over the value and
+ * the empty gutter that used to run down the middle of a full-width row
+ * disappears. Below `sm` there is no gutter to reclaim — a 343px card is all
+ * content — so it stays the compact label-left/value-right row, which is
+ * shorter there than a stacked one would be.
+ */
+function DetailCell({ label, children }: { label: string; children: React.ReactNode }): React.ReactElement {
+  return (
+    <div className="flex min-h-drow flex-wrap items-center justify-between gap-x-3 gap-y-1 bg-paper px-[18px] py-3 sm:flex-col sm:items-start sm:justify-center sm:gap-y-0.5 sm:py-1.5">
+      <dt>
+        <DetailLabel>{label}</DetailLabel>
+      </dt>
+      <dd className="text-[13.5px] font-semibold text-ink">{children}</dd>
     </div>
   );
 }
@@ -718,18 +743,39 @@ export default function PaymentsPage(): React.ReactElement {
               >
                 Detalle de la solicitud
               </h2>
-              <DetailRow label="Estudiante">{request.studentName}</DetailRow>
-              <DetailRow label="Responsable de pago">{payer}</DetailRow>
-              <DetailRow label="Período">{humanizePaymentPeriod(request.membershipPeriod)}</DetailRow>
-              <DetailRow label="Monto esperado">{formatCurrency(request.expectedAmount)}</DetailRow>
-              <DetailRow label="Método">{request.paymentMethod}</DetailRow>
-              <DetailRow label="Subido el">{formatDateTime(request.uploadedAt)}</DetailRow>
-              <DetailRow label="Membresía">
-                <Badge tone={MEMBERSHIP_STATUS_TONES[request.currentMembershipStatus]}>
-                  {MEMBERSHIP_STATUS_LABELS[request.currentMembershipStatus]}
-                </Badge>
-              </DetailRow>
-              <DetailRow label="Tipo">{request.membershipType}</DetailRow>
+              {/* The two facts the decision actually turns on: the admin is
+                  here to read a number and a period off the voucher and see
+                  whether they match. They lead, at a size you can check
+                  against the proof without hunting for them. */}
+              <div className="grid grid-cols-2 gap-px border-b border-line bg-line">
+                <div className="flex min-h-drow flex-col justify-center gap-1.5 bg-canvas px-[18px] py-3">
+                  <DetailLabel>Monto esperado</DetailLabel>
+                  <span className="text-[24px] font-extrabold leading-none tracking-[-0.03em] tabular-nums text-ink sm:text-[27px]">
+                    {formatCurrency(request.expectedAmount)}
+                  </span>
+                </div>
+                <div className="flex min-h-drow flex-col justify-center gap-1.5 bg-canvas px-[18px] py-3">
+                  <DetailLabel>Período</DetailLabel>
+                  <span className="text-[15px] font-bold leading-tight text-ink sm:text-[17px]">
+                    {humanizePaymentPeriod(request.membershipPeriod)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Everything else, paired two-up: still every field, at a third
+                  of the height and with no gutter to read across. */}
+              <dl className="grid gap-px bg-line sm:grid-cols-2">
+                <DetailCell label="Estudiante">{request.studentName}</DetailCell>
+                <DetailCell label="Responsable de pago">{payer}</DetailCell>
+                <DetailCell label="Método">{request.paymentMethod}</DetailCell>
+                <DetailCell label="Subido el">{formatDateTime(request.uploadedAt)}</DetailCell>
+                <DetailCell label="Membresía">
+                  <Badge tone={MEMBERSHIP_STATUS_TONES[request.currentMembershipStatus]}>
+                    {MEMBERSHIP_STATUS_LABELS[request.currentMembershipStatus]}
+                  </Badge>
+                </DetailCell>
+                <DetailCell label="Tipo">{request.membershipType}</DetailCell>
+              </dl>
             </section>
 
             {isPending && (

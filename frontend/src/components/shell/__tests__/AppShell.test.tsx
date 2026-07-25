@@ -638,18 +638,18 @@ describe("AppShell — Ayuda y soporte", (): void => {
     render(<AppShell title="Panel de Control">{null}</AppShell>);
 
     expect(screen.getByRole("button", { name: "Ayuda y soporte" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /abrir chat de ayuda/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: /chat de ayuda/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /abrir cata-bot/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /cata-bot/i })).not.toBeInTheDocument();
   });
 
   it("opens the chat panel from that entry and closes it again", (): void => {
     render(<AppShell title="Panel de Control">{null}</AppShell>);
 
     fireEvent.click(screen.getByRole("button", { name: "Ayuda y soporte" }));
-    expect(screen.getByRole("dialog", { name: /chat de ayuda/i })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: /cata-bot/i })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /cerrar chat de ayuda/i }));
-    expect(screen.queryByRole("dialog", { name: /chat de ayuda/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /cerrar cata-bot/i }));
+    expect(screen.queryByRole("dialog", { name: /cata-bot/i })).not.toBeInTheDocument();
   });
 
   it("does not mount the chat at all without a session", (): void => {
@@ -658,7 +658,7 @@ describe("AppShell — Ayuda y soporte", (): void => {
     render(<AppShell title="Panel de Control">{null}</AppShell>);
 
     fireEvent.click(screen.getByRole("button", { name: "Ayuda y soporte" }));
-    expect(screen.queryByRole("dialog", { name: /chat de ayuda/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /cata-bot/i })).not.toBeInTheDocument();
   });
 });
 

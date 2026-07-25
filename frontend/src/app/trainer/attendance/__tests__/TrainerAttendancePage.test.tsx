@@ -57,7 +57,7 @@ function trainerAuthWithPersonaId(id = "17"): ReturnType<typeof createAuthentica
  * The wizard keeps an in-progress draft in `sessionStorage`, keyed by horario
  * + date — which jsdom shares across every test in this file. Without this,
  * one test's marks would be restored into the next one's roster and the
- * "starts unmarked" guarantee would look broken when it is not.
+ * "nobody starts reviewed" guarantee would look broken when it is not.
  */
 beforeEach(() => {
   window.sessionStorage.clear();
@@ -444,7 +444,21 @@ async function openRoster(): Promise<void> {
   fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
 }
 
-describe("TrainerAttendancePage — unmarked students block submission", () => {
+// ---------------------------------------------------------------------------
+// The roster starts on "present" — the trainer asked for it, and a session is
+// overwhelmingly "everyone showed up".
+//
+// The silent-data-loss risk that the old `unmarked` default guarded against
+// did not go away, it INVERTED: instead of filing a whole session as a no-show
+// by tapping through, a distracted trainer now files students as having
+// attended without ever looking at them. So these tests moved from "the wizard
+// refuses to advance" to "the wizard never lets an untouched roster look like
+// a reviewed one" — the count spans the full roster, the fiche says which rows
+// are provisional, and the confirmation step names them instead of reporting
+// "N presentes" either way.
+// ---------------------------------------------------------------------------
+
+describe("TrainerAttendancePage — the present default never passes for a reviewed roster", () => {
   beforeEach(() => {
     mockReplace.mockReset();
     mockFetchTrainingSchedules.mockReset().mockResolvedValue([SCHEDULE]);
@@ -454,22 +468,28 @@ describe("TrainerAttendancePage — unmarked students block submission", () => {
     mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
   });
 
-  it("starts every student unmarked rather than pre-marking the roster absent", async () => {
+  it("starts every student on Presente, and marks nobody as reviewed", async () => {
     mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
 
     render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
     await openRoster();
 
     const group = await screen.findByRole("radiogroup", { name: /Ana López/ });
-    // No state is pre-selected — in particular "Ausente" is NOT checked, so a
-    // real absence stays distinguishable from an undecided one.
-    for (const label of ["Presente", "Ausente", "Tardanza", "Justificado"]) {
+    // The state IS present — that is what will be filed if nobody touches it,
+    // and the control has to say so rather than hide it.
+    expect(within(group).getByRole("radio", { name: "Presente" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    for (const label of ["Ausente", "Tardanza", "Justificado"]) {
       expect(within(group).getByRole("radio", { name: label })).toHaveAttribute("aria-checked", "false");
     }
-    expect(screen.getByText("1 Sin marcar")).toBeInTheDocument();
+    // …and the value being present must not read as a decision anybody made.
+    expect(screen.getByText("1 sin revisar")).toBeInTheDocument();
+    expect(group.closest("[data-reviewed]")).toHaveAttribute("data-reviewed", "false");
   });
 
-  it("counts unmarked students across the FULL roster, not just the visible page", async () => {
+  it("counts unreviewed students across the FULL roster, not just the visible page", async () => {
     // 25 students → 3 pages of 10. Page 1 shows Student 01..10 only.
     mockFetchAlumnosPorHorario.mockResolvedValue(buildAlumnoHorarios(25));
 
@@ -478,11 +498,13 @@ describe("TrainerAttendancePage — unmarked students block submission", () => {
 
     await screen.findByText("Student 01");
     expect(screen.queryByText("Student 11")).not.toBeInTheDocument();
-    // The counter must span all 25, not the 10 rendered rows.
-    expect(screen.getByText("25 Sin marcar")).toBeInTheDocument();
+    // The counter must span all 25, not the 10 rendered rows — an off-page
+    // student is exactly the one about to be filed present sight unseen.
+    expect(screen.getByText("25 sin revisar")).toBeInTheDocument();
+    expect(screen.getByText("25 alumnos sin revisar")).toBeInTheDocument();
   });
 
-  it("keeps Siguiente disabled while off-page students are still unmarked", async () => {
+  it("carries the off-page unreviewed count into the confirmation summary", async () => {
     mockFetchAlumnosPorHorario.mockResolvedValue(buildAlumnoHorarios(25));
 
     render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
@@ -494,39 +516,82 @@ describe("TrainerAttendancePage — unmarked students block submission", () => {
       const group = screen.getByRole("radiogroup", { name: new RegExp(`Student ${String(i).padStart(2, "0")}`) });
       fireEvent.click(within(group).getByRole("radio", { name: "Presente" }));
     }
+    expect(screen.getByText("15 sin revisar")).toBeInTheDocument();
 
-    expect(screen.getByText("15 Sin marcar")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Siguiente/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /Siguiente/ }));
+
+    // "25 presentes" on its own would read identically whether the trainer
+    // went through the roster or never scrolled past page 1.
+    expect(await screen.findByText("25 presente")).toBeInTheDocument();
+    expect(screen.getByText("15 sin revisar")).toBeInTheDocument();
+    expect(
+      screen.getByText(/15 de 25 alumnos siguen en "Presente" porque nadie los revisó/),
+    ).toBeInTheDocument();
   });
 
-  it("names the outstanding count as the visible reason Siguiente is disabled", async () => {
+  it("warns about unreviewed students instead of blocking the advance", async () => {
     mockFetchAlumnosPorHorario.mockResolvedValue(buildAlumnoHorarios(3));
 
     render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
     await openRoster();
     await screen.findByText("Student 01");
 
+    // The trainer asked for a default; a default that cannot be submitted is
+    // not a default. The count is a warning, not a gate.
     const next = screen.getByRole("button", { name: /Siguiente/ });
-    expect(next).toBeDisabled();
-    const reason = screen.getByRole("status");
-    expect(reason).toHaveTextContent("Faltan 3 alumnos por marcar");
-    // The reason is programmatically tied to the button, not just nearby text.
-    expect(next.getAttribute("aria-describedby")).toBe(reason.id);
+    expect(next).toBeEnabled();
+    expect(next).not.toHaveAttribute("aria-describedby");
+    expect(screen.getByText("3 alumnos sin revisar")).toBeInTheDocument();
   });
 
-  it("enables Siguiente once every student across every page carries a real state", async () => {
+  it("stops flagging a student the moment the trainer decides on them", async () => {
     mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
 
     render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
     await openRoster();
 
     const group = await screen.findByRole("radiogroup", { name: /Ana López/ });
-    expect(screen.getByRole("button", { name: /Siguiente/ })).toBeDisabled();
+    expect(screen.getByText("1 sin revisar")).toBeInTheDocument();
 
     fireEvent.click(within(group).getByRole("radio", { name: "Ausente" }));
 
-    expect(screen.queryByText(/Sin marcar/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sin revisar/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Siguiente/ })).toBeEnabled();
+  });
+
+  // Setting a row to the state it already had is still a decision: the trainer
+  // looked at that student and said "yes, that one is here".
+  it("counts confirming the default as a review", async () => {
+    mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+
+    const group = await screen.findByRole("radiogroup", { name: /Ana López/ });
+    fireEvent.click(within(group).getByRole("radio", { name: "Presente" }));
+
+    expect(screen.queryByText(/sin revisar/)).not.toBeInTheDocument();
+    expect(group.closest("[data-reviewed]")).toHaveAttribute("data-reviewed", "true");
+  });
+
+  it("lets the trainer narrow the roll call down to the students nobody touched", async () => {
+    mockFetchAlumnosPorHorario.mockResolvedValue(buildAlumnoHorarios(3));
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+    await screen.findByText("Student 01");
+
+    fireEvent.click(
+      within(screen.getByRole("radiogroup", { name: /Student 01/ })).getByRole("radio", {
+        name: "Ausente",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Ver solo sin revisar/ }));
+
+    // Knowing 2 are unreviewed is only useful if it is a way to reach those 2.
+    expect(screen.queryByText("Student 01")).not.toBeInTheDocument();
+    expect(screen.getByText("Student 02")).toBeInTheDocument();
+    expect(screen.getByText("Student 03")).toBeInTheDocument();
   });
 
   it("marks every remaining student present across all pages via the bulk action", async () => {
@@ -543,7 +608,9 @@ describe("TrainerAttendancePage — unmarked students block submission", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Marcar restantes presentes" }));
 
-    expect(screen.queryByText(/Sin marcar/)).not.toBeInTheDocument();
+    // The button is how a trainer says "I looked, the rest are here", so it
+    // has to clear the flag as well as set the state.
+    expect(screen.queryByText(/sin revisar/)).not.toBeInTheDocument();
     expect(screen.getByText("24 Presentes")).toBeInTheDocument();
     expect(within(first).getByRole("radio", { name: "Justificado" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("button", { name: /Siguiente/ })).toBeEnabled();
@@ -587,7 +654,7 @@ describe("TrainerAttendancePage — unmarked students block submission", () => {
     expect(screen.queryByRole("button", { name: "Marcar restantes presentes" })).not.toBeInTheDocument();
   });
 
-  it("renders an unmarked row with a neutral dashed outline that a marked row does not have", async () => {
+  it("renders an unreviewed row with a neutral dashed outline that a reviewed row does not have", async () => {
     mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
 
     render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
@@ -596,12 +663,16 @@ describe("TrainerAttendancePage — unmarked students block submission", () => {
     const group = await screen.findByRole("radiogroup", { name: /Ana López/ });
     const row = group.closest("[data-attendance]");
     expect(row).not.toBeNull();
-    expect(row).toHaveAttribute("data-attendance", "unmarked");
+    // Present, and visibly provisional: the outline is what says "this value
+    // is the default, not somebody's answer".
+    expect(row).toHaveAttribute("data-attendance", "present");
+    expect(row).toHaveAttribute("data-reviewed", "false");
     expect(row).toHaveClass("border-dashed");
 
     fireEvent.click(within(group).getByRole("radio", { name: "Ausente" }));
 
     expect(row).toHaveAttribute("data-attendance", "absent");
+    expect(row).toHaveAttribute("data-reviewed", "true");
     expect(row).not.toHaveClass("border-dashed");
   });
 });
@@ -736,8 +807,17 @@ describe("TrainerAttendancePage — the fiche is the target", () => {
     const row = group.closest("[data-attendance]") as HTMLElement;
     const fiche = within(row).getByRole("button", { name: /Ana López/ });
 
-    expect(row).toHaveAttribute("data-attendance", "unmarked");
-    for (const expected of ["present", "late", "justified", "absent", "present"]) {
+    expect(row).toHaveAttribute("data-attendance", "present");
+    expect(row).toHaveAttribute("data-reviewed", "false");
+
+    // The FIRST tap confirms the default rather than moving off it: tapping
+    // the row of a student standing right there means "yes, that one", and
+    // sending them to Tardanza for saying so is the opposite of what they did.
+    fireEvent.click(fiche);
+    expect(row).toHaveAttribute("data-attendance", "present");
+    expect(row).toHaveAttribute("data-reviewed", "true");
+
+    for (const expected of ["late", "justified", "absent", "present"]) {
       fireEvent.click(fiche);
       expect(row).toHaveAttribute("data-attendance", expected);
     }
@@ -783,13 +863,23 @@ describe("TrainerAttendancePage — the fiche is the target", () => {
     );
   });
 
-  it("names the tap target with the student and their current state", async () => {
+  it("names the tap target with the student, their current state, and whether it is anybody's answer", async () => {
     render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
     await openRoster();
 
-    await screen.findByRole("radiogroup", { name: /Ana López/ });
+    const group = await screen.findByRole("radiogroup", { name: /Ana López/ });
+    // A screen-reader user gets the same two facts a sighted one gets from
+    // the dashed outline: the state, and that nobody has confirmed it.
     expect(
-      screen.getByRole("button", { name: "Ana López: Sin marcar. Cambiar estado" }),
+      screen.getByRole("button", {
+        name: "Ana López: Presente, sin revisar. Confirmar o cambiar estado",
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(within(group).getByRole("radio", { name: "Tardanza" }));
+
+    expect(
+      screen.getByRole("button", { name: "Ana López: Tardanza. Cambiar estado" }),
     ).toBeInTheDocument();
   });
 });
@@ -809,12 +899,59 @@ describe("TrainerAttendancePage — live marker and sticky commit bar", () => {
     await openRoster();
     await screen.findByText("Student 01");
 
-    const marker = screen.getByText("0", { selector: "[aria-live]" });
-    expect(marker).toHaveTextContent("0/12");
+    // 12, not 10: the marker spans every page, like the unreviewed counter.
+    // It reads 12/12 from the first second because that IS what would be
+    // filed — which is exactly why the unreviewed count sits beside it.
+    const marker = screen.getByText("12", { selector: "[aria-live]" });
+    expect(marker).toHaveTextContent("12/12");
+    expect(screen.getByText("12 alumnos sin revisar")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Marcar restantes presentes" }));
-    // 12, not 10: the marker spans every page, like the "Sin marcar" counter.
+
     expect(marker).toHaveTextContent("12/12");
+    expect(screen.queryByText(/sin revisar/)).not.toBeInTheDocument();
+  });
+
+  // Regression (accidental submission): the advance button and the submit
+  // button are the same JSX position, so React reused ONE `<button>` node and
+  // only swapped its `type` from "button" to "submit". React flushes the state
+  // update inside the click handler, so by the time the browser ran the click's
+  // DEFAULT ACTION the node it was standing on was a submit button — one tap on
+  // "Siguiente" advanced the wizard AND filed the session, skipping the
+  // confirmation step entirely.
+  it("does not file the session when the trainer only asked to advance", async () => {
+    // A session id that resolves to a real persona id, or `handleConfirm`
+    // bails out on its own and the test proves nothing.
+    mockUseAuth.mockReturnValue(trainerAuthWithPersonaId());
+    mockRegisterAttendance.mockResolvedValue({ createdCount: 12, failed: [] });
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+    await screen.findByText("Student 01");
+
+    fireEvent.click(screen.getByRole("button", { name: /Siguiente/ }));
+
+    expect(await screen.findByRole("button", { name: /Confirmar Asistencia/ })).toBeInTheDocument();
+    expect(mockRegisterAttendance).not.toHaveBeenCalled();
+  });
+
+  // The other half of the same defect: whatever route a submit takes to the
+  // form, only the confirmation step may file a session. jsdom does not
+  // reproduce the browser's activation-behaviour timing, so this drives the
+  // form directly — which is exactly the state the browser ended up in.
+  it("refuses a submit that did not come from the confirmation step", async () => {
+    mockUseAuth.mockReturnValue(trainerAuthWithPersonaId());
+    mockRegisterAttendance.mockResolvedValue({ createdCount: 12, failed: [] });
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+    const roster = await screen.findByText("Student 01");
+
+    const form = roster.closest("form");
+    expect(form).not.toBeNull();
+    fireEvent.submit(form as HTMLFormElement);
+
+    await waitFor(() => expect(screen.getByText("Student 01")).toBeInTheDocument());
+    expect(mockRegisterAttendance).not.toHaveBeenCalled();
+    expect(screen.queryByText("Asistencia Registrada")).not.toBeInTheDocument();
   });
 
   it("keeps the commit bar reachable without scrolling the card", async () => {
@@ -832,10 +969,11 @@ describe("TrainerAttendancePage — live marker and sticky commit bar", () => {
     await openRoster();
     await screen.findByText("Student 01");
 
-    expect(screen.getByText("12 Sin marcar")).toBeInTheDocument();
+    expect(screen.getByText("12 Presentes")).toBeInTheDocument();
+    expect(screen.getByText("12 sin revisar")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Marcar restantes presentes" }));
     expect(screen.getByText("12 Presentes")).toBeInTheDocument();
-    expect(screen.queryByText(/Sin marcar/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sin revisar/)).not.toBeInTheDocument();
   });
 });
 
@@ -856,7 +994,7 @@ describe("TrainerAttendancePage — draft persistence", () => {
 
     const group = screen.getByRole("radiogroup", { name: /Student 01/ });
     fireEvent.click(within(group).getByRole("radio", { name: "Tardanza" }));
-    expect(screen.getByText("2 Sin marcar")).toBeInTheDocument();
+    expect(screen.getByText("2 sin revisar")).toBeInTheDocument();
 
     // A phone call: the component goes away entirely.
     first.unmount();
@@ -873,7 +1011,7 @@ describe("TrainerAttendancePage — draft persistence", () => {
     expect(screen.getByText(/Recuperamos las marcas/)).toBeInTheDocument();
   });
 
-  it("leaves every other student undecided — a draft only ever narrows", async () => {
+  it("leaves every other student unreviewed — a draft only ever narrows", async () => {
     const first = render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
     await openRoster();
     await screen.findByText("Student 01");
@@ -888,9 +1026,16 @@ describe("TrainerAttendancePage — draft persistence", () => {
     await openRoster();
     await screen.findByText("Student 01");
 
-    // The other two are still unmarked, and the wizard is still blocked.
-    expect(screen.getByText("2 Sin marcar")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Siguiente/ })).toBeDisabled();
+    // The restored student counts as reviewed — a drafted entry only got there
+    // because a human made it — and the other two do NOT: a refresh must never
+    // launder "nobody looked" into "confirmed present".
+    expect(screen.getByText("2 sin revisar")).toBeInTheDocument();
+    expect(
+      screen.getByRole("radiogroup", { name: /Student 01/ }).closest("[data-reviewed]"),
+    ).toHaveAttribute("data-reviewed", "true");
+    expect(
+      screen.getByRole("radiogroup", { name: /Student 02/ }).closest("[data-reviewed]"),
+    ).toHaveAttribute("data-reviewed", "false");
   });
 
   it("never replays one horario's draft onto another", async () => {
@@ -915,7 +1060,7 @@ describe("TrainerAttendancePage — draft persistence", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
     await screen.findByText("Student 01");
 
-    expect(screen.getByText("3 Sin marcar")).toBeInTheDocument();
+    expect(screen.getByText("3 sin revisar")).toBeInTheDocument();
     expect(screen.queryByText(/Recuperamos las marcas/)).not.toBeInTheDocument();
   });
 
@@ -933,7 +1078,7 @@ describe("TrainerAttendancePage — draft persistence", () => {
     await openRoster();
     await screen.findByText("Student 01");
 
-    expect(screen.getByText("3 Sin marcar")).toBeInTheDocument();
+    expect(screen.getByText("3 sin revisar")).toBeInTheDocument();
   });
 
   it("keeps the draft when some records failed, so a retry starts from the marks", async () => {
@@ -955,7 +1100,7 @@ describe("TrainerAttendancePage — draft persistence", () => {
     await openRoster();
     await screen.findByText("Student 01");
 
-    expect(screen.queryByText(/Sin marcar/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sin revisar/)).not.toBeInTheDocument();
   });
 });
 

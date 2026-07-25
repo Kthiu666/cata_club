@@ -16,10 +16,12 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 import ChatWidget from "@/components/chatbot/ChatWidget";
 import { getQuickReplies } from "@/components/chatbot/chat-quick-replies";
 
+// `src` is forwarded, not dropped: which asset the header avatar points at is
+// a behaviour these tests assert (the club wordmark is unreadable at 32px).
 vi.mock("next/image", () => ({
   __esModule: true,
   // eslint-disable-next-line @next/next/no-img-element
-  default: ({ alt }: { alt: string }) => <img alt={alt} />,
+  default: ({ alt, src }: { alt: string; src: string }) => <img alt={alt} src={src} />,
 }));
 
 /** Never resolves — holds the widget in its "enviando" state for inspection. */
@@ -53,27 +55,27 @@ describe("ChatWidget", () => {
   it("renders nothing while the host reports it closed", () => {
     const { container } = render(<ChatWidget open={false} onClose={vi.fn()} />);
 
-    expect(screen.queryByRole("dialog", { name: /chat de ayuda/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /cata-bot/i })).not.toBeInTheDocument();
     expect(container).toBeEmptyDOMElement();
   });
 
   it("shows the panel when the host opens it", () => {
     render(<ChatWidget open onClose={vi.fn()} />);
 
-    expect(screen.getByRole("dialog", { name: /chat de ayuda/i })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: /cata-bot/i })).toBeInTheDocument();
   });
 
   it("never renders a floating action button of its own", () => {
     render(<ChatWidget open onClose={vi.fn()} />);
 
-    expect(screen.queryByRole("button", { name: /abrir chat de ayuda/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /abrir cata-bot/i })).not.toBeInTheDocument();
   });
 
   it("asks the host to close when the close button is clicked", () => {
     const onClose = vi.fn();
     render(<ChatWidget open onClose={onClose} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /cerrar chat de ayuda/i }));
+    fireEvent.click(screen.getByRole("button", { name: /cerrar cata-bot/i }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -83,7 +85,7 @@ describe("ChatWidget", () => {
 
     render(<ChatWidget open onClose={vi.fn()} />);
 
-    const input = screen.getByLabelText(/mensaje para el asistente/i);
+    const input = screen.getByLabelText(/mensaje para cata-bot/i);
     fireEvent.change(input, { target: { value: "¿Cómo veo mis pagos?" } });
     fireEvent.click(screen.getByRole("button", { name: /enviar mensaje/i }));
 
@@ -105,11 +107,11 @@ describe("ChatWidget", () => {
 
     render(<ChatWidget open onClose={vi.fn()} />);
 
-    fireEvent.change(screen.getByLabelText(/mensaje para el asistente/i), { target: { value: "hola" } });
+    fireEvent.change(screen.getByLabelText(/mensaje para cata-bot/i), { target: { value: "hola" } });
     fireEvent.click(screen.getByRole("button", { name: /enviar mensaje/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/no se pudo contactar al asistente/i)).toBeInTheDocument();
+      expect(screen.getByText(/no se pudo contactar a cata-bot/i)).toBeInTheDocument();
     });
   });
 });
@@ -119,18 +121,42 @@ describe("ChatWidget", () => {
 // ---------------------------------------------------------------------------
 
 describe("ChatWidget — design system", () => {
-  it("heads the panel with the club identity and the response promise", () => {
+  it("heads the panel with the assistant's own identity and the response promise", () => {
     render(<ChatWidget open onClose={vi.fn()} />);
 
-    expect(screen.getByText("Cata Club")).toBeInTheDocument();
+    // The assistant is CATA-BOT, not "Cata Club": named after the club it
+    // was indistinguishable from the human channel one row below it.
+    expect(screen.getByText("CATA-BOT")).toBeInTheDocument();
+    expect(screen.queryByText("Cata Club")).not.toBeInTheDocument();
     expect(screen.getByText("Responde en segundos")).toBeInTheDocument();
+  });
+
+  it("wears the purpose-made bot avatar, not the club wordmark that smudges at 32px", () => {
+    const { container } = render(<ChatWidget open onClose={vi.fn()} />);
+
+    const avatar = container.querySelector("header img");
+    expect(avatar).toHaveAttribute("src", "/brand/cata-bot-128.png");
+  });
+
+  it("introduces itself by name in the opening bubble", () => {
+    render(<ChatWidget open onClose={vi.fn()} />);
+
+    expect(screen.getByText(/Soy CATA-BOT, el asistente del club/)).toBeInTheDocument();
+  });
+
+  it("keeps the human escape hatch named after the club, not the bot", () => {
+    render(<ChatWidget open onClose={vi.fn()} />);
+
+    // "Hablar con el club" hands off to a person on WhatsApp — renaming it
+    // after the assistant would promise a human and deliver the same bot.
+    expect(screen.getByRole("link", { name: "Hablar con el club" })).toBeInTheDocument();
   });
 
   it("paints the user's turn coal and the bot's grey — never red", async () => {
     vi.mocked(global.fetch).mockResolvedValue(okResponse({ reply: "Claro que sí." }));
 
     render(<ChatWidget open onClose={vi.fn()} />);
-    fireEvent.change(screen.getByLabelText(/mensaje para el asistente/i), {
+    fireEvent.change(screen.getByLabelText(/mensaje para cata-bot/i), {
       target: { value: "¿Cómo veo mis pagos?" },
     });
     fireEvent.click(screen.getByRole("button", { name: /enviar mensaje/i }));
@@ -149,7 +175,7 @@ describe("ChatWidget — design system", () => {
     vi.mocked(global.fetch).mockImplementation(pendingResponse);
 
     render(<ChatWidget open onClose={vi.fn()} />);
-    fireEvent.change(screen.getByLabelText(/mensaje para el asistente/i), { target: { value: "hola" } });
+    fireEvent.change(screen.getByLabelText(/mensaje para cata-bot/i), { target: { value: "hola" } });
     fireEvent.click(screen.getByRole("button", { name: /enviar mensaje/i }));
 
     const indicator = screen.getByRole("status", { name: /escribiendo/i });
@@ -219,7 +245,7 @@ describe("ChatWidget — quick replies", () => {
       />,
     );
 
-    expect(screen.getByLabelText(/mensaje para el asistente/i)).toHaveValue(
+    expect(screen.getByLabelText(/mensaje para cata-bot/i)).toHaveValue(
       "Luis Lopez suma 3 ausencias este mes.",
     );
     expect(screen.getByRole("button", { name: /enviar mensaje/i })).toBeEnabled();
@@ -229,10 +255,10 @@ describe("ChatWidget — quick replies", () => {
     const { rerender } = render(
       <ChatWidget open={false} role="trainer" initialDraft="algo" onClose={vi.fn()} />,
     );
-    expect(screen.queryByLabelText(/mensaje para el asistente/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/mensaje para cata-bot/i)).not.toBeInTheDocument();
 
     rerender(<ChatWidget open role="trainer" initialDraft="algo" onClose={vi.fn()} />);
-    expect(screen.getByLabelText(/mensaje para el asistente/i)).toHaveValue("algo");
+    expect(screen.getByLabelText(/mensaje para cata-bot/i)).toHaveValue("algo");
   });
 });
 

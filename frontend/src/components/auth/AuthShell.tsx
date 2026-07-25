@@ -33,25 +33,32 @@
  * line-height:1.12; max-width:15ch; text-wrap:balance`, dropping to 30px on
  * phones (line 417).
  *
- * ## How the coal panel earns a full viewport instead of becoming a void
+ * ## Both halves are centred on ONE axis — the viewport's own middle
  *
- * At 660px the prototype's `justify-content:space-between` (link top, cluster
- * centred, copyright bottom) was enough. At 900px+ it is not: the same three
- * items in twice the height leave the brand cluster floating with nothing
- * under it, which is the "panel vacío" complaint the bounded version was
- * introduced to answer. Two changes make the height deliberate:
+ * The first full-viewport revision hung each half off its own leftover space,
+ * and the product owner read the result as two unrelated compositions: *"el
+ * login y la parte izquierda no están bien centradas, se ven desalineadas"*.
+ * Measured at 1440x900 it was exactly that — the brand cluster centred at
+ * y=414, the form card at y=398, neither on the page's 450 — with a 194px
+ * hole between the subtitle and the closing hairline.
  *
- *   1. The panel is a `auto / 1fr / auto` GRID, not a space-between flex. The
- *      exit link and the closing rail hug the edges at their natural heights
- *      and the brand cluster is centred in what is left — so the cluster is
- *      optically centred no matter how unequal the two rails are, which
- *      `space-between` cannot do.
- *   2. The figure row moves OUT of the centre cluster and pairs with the
- *      copyright as the closing rail. It stays the same INLINE baseline row
- *      over a `--coal-3` hairline (`display:flex; align-items:baseline;
- *      gap:10px`) — a number and its caption on one line, never a stacked
- *      divider/number/caption — it just anchors the bottom third instead of
- *      leaving it empty. Centre = who we are; bottom = how long we have been.
+ * Both panels now use the SAME three-row grid: `1fr / auto / 1fr`. The middle
+ * row holds the one object that matters (brand cluster left, form card right)
+ * and the two `1fr` rails are forced equal, so that object's centre lands on
+ * the panel's exact vertical middle — 450 on both sides, whatever the edge
+ * chrome weighs. `1fr` resolves to `minmax(auto, 1fr)`, so a rail that cannot
+ * fit its own content stops flexing instead of clipping it: on a short
+ * viewport the composition degrades to top-weighted rather than overflowing.
+ *
+ * Two moves pay for that on the coal side:
+ *
+ *   1. The figure row rejoins the centre cluster. It stays the same INLINE
+ *      baseline row over a `--coal-3` hairline (`display:flex;
+ *      align-items:baseline; gap:10px`) — a number and its caption on one
+ *      line, never a stacked divider/number/caption — but as the cluster's
+ *      closing tier it gives the centre real mass and deletes the hole.
+ *   2. Only the copyright is left pinned to the floor, which makes the two
+ *      rails near-identical in weight: a 20px link above, an 18px line below.
  *
  * A single soft radial behind the brand mark gives the dark field depth, so
  * the air around the logo reads as a lit stage rather than as unpainted space.
@@ -144,13 +151,14 @@ export default function AuthShell({
     >
       {/*
        * `.auth .dark` — `flex:1.1`, i.e. WIDER than the form panel. Laid out
-       * as `auto / 1fr / auto`: the exit link and the closing rail take their
-       * natural heights at the edges and the brand cluster centres in what is
-       * left, which is what keeps a full-height panel from reading as empty.
+       * as `1fr / auto / 1fr`: the exit link hugs the top of an elastic rail,
+       * the copyright hugs the bottom of an identical one, and the brand
+       * cluster sits in the auto row between them — on the panel's exact
+       * vertical middle, which is the same axis the form card uses.
        */}
       <div
         data-testid="auth-panel-dark"
-        className="relative grid grid-rows-[auto_1fr_auto] gap-8 overflow-hidden bg-coal px-6 py-8 text-center text-white min-[980px]:flex-[1.1_1_0%] min-[980px]:gap-10 min-[980px]:px-14 min-[980px]:py-12"
+        className="relative grid grid-rows-[1fr_auto_1fr] gap-8 overflow-hidden bg-coal px-6 py-8 text-center text-white min-[980px]:flex-[1.1_1_0%] min-[980px]:gap-10 min-[980px]:px-14 min-[980px]:py-12"
       >
         {/*
          * The lit stage. One soft radial centred on the brand mark so the dark
@@ -173,14 +181,17 @@ export default function AuthShell({
 
         <Link
           href="/"
-          className={`relative z-[1] inline-flex items-center gap-1.5 justify-self-start text-[13px] transition-colors hover:text-white ${ON_COAL_MUTED}`}
+          className={`relative z-[1] inline-flex items-center gap-1.5 self-start justify-self-start text-[13px] transition-colors hover:text-white ${ON_COAL_MUTED}`}
         >
           <ArrowLeft size={14} strokeWidth={2} aria-hidden="true" />
           Volver al sitio
         </Link>
 
         {/* The centred cluster — `gap:22px`, `max-width:44ch` (line 792). */}
-        <div className="relative z-[1] flex flex-col items-center justify-center gap-[22px] justify-self-center [max-width:44ch]">
+        <div
+          data-testid="auth-brand-cluster"
+          className="relative z-[1] flex flex-col items-center justify-center gap-[22px] self-center justify-self-center [max-width:44ch]"
+        >
           {/* 104px, `border:4px solid rgba(255,255,255,.12)` + drop shadow. */}
           <span className="relative block h-[104px] w-[104px] shrink-0 overflow-hidden rounded-full border-4 border-white/[0.12] shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
             <Image
@@ -217,34 +228,54 @@ export default function AuthShell({
           <p className={`-mt-1.5 text-[14.5px] ${ON_COAL_SUPPORT}`}>
             Cada entrenamiento es una oportunidad para superarte.
           </p>
-        </div>
 
-        {/*
-         * The closing rail. The figure and the copyright together, so the
-         * bottom third of a full-height panel carries weight.
-         */}
-        <div className="relative z-[1] flex flex-col items-center gap-4">
           {/*
            * The ONE figure — an inline baseline row over a `--coal-3`
-           * hairline, not a stacked divider/number/caption.
+           * hairline, not a stacked divider/number/caption. It closes the
+           * cluster instead of floating at the panel's foot: the extra 12px
+           * above the hairline marks it as the next tier down, and its mass
+           * is what keeps the centred group from looking like it is falling
+           * out of the top of the panel.
            */}
-          <p className="flex min-w-[240px] items-baseline justify-center gap-2.5 border-t border-coal-3 pt-[18px]">
+          <p className="mt-3 flex min-w-[240px] items-baseline justify-center gap-2.5 border-t border-coal-3 pt-[18px]">
             <b data-testid="auth-figure" className="text-[26px] font-extrabold tabular-nums">
               {years}
             </b>
             <small className={`text-[12.5px] ${ON_COAL_MUTED}`}>años formando deportistas</small>
           </p>
-
-          {/* `.copy` — 12px, pinned to the bottom of the panel. */}
-          <p className={`text-[12px] ${ON_COAL_MUTED}`}>© 2026 Cata Club — Tenis de Mesa</p>
         </div>
+
+        {/* `.copy` — 12px, alone at the foot so it weighs the same as the
+            exit link above and the middle row stays on the page's axis. */}
+        <p className={`relative z-[1] self-end text-[12px] ${ON_COAL_MUTED}`}>
+          © 2026 Cata Club — Tenis de Mesa
+        </p>
       </div>
 
-      {/* `.auth .light` — `flex:1`, contents centred in the full column. */}
-      <div className="flex flex-1 flex-col justify-center bg-canvas px-6 py-10 text-ink min-[980px]:flex-1 min-[980px]:px-14 min-[980px]:py-12">
+      {/*
+       * `.auth .light` — `flex:1`, and the SAME `1fr / auto / 1fr` grid as the
+       * coal panel. Centring the whole column (card + small print) is what put
+       * the card 52px above the page's middle while the brand cluster sat
+       * elsewhere; centring the CARD and letting the small print hang into the
+       * lower rail puts both halves on one axis. No row gap here: the card's
+       * distance from its footnotes is the 16px margin below, not a grid gap.
+       *
+       * Only from 980px up, where this panel is a full-height column with an
+       * axis to share. Below that the two panels are stacked and the page
+       * scrolls anyway, so the same rails would just push the form further
+       * under the fold — measured at 390x844, 144px of dead air above a card
+       * that already starts below it. The phone keeps the plain centred
+       * column. `row-start-*` is inert under `display:flex`, so the children
+       * need no breakpoint of their own.
+       */}
+      <div
+        data-testid="auth-panel-light"
+        className="flex flex-1 flex-col justify-center bg-canvas px-6 py-10 text-ink min-[980px]:grid min-[980px]:flex-1 min-[980px]:grid-rows-[1fr_auto_1fr] min-[980px]:px-14 min-[980px]:py-12"
+      >
         {/* `.fcard` — 360px, 18px radius, `padding:30px 28px`, elevated. */}
         <div
-          className={`mx-auto flex w-full flex-col gap-3.5 rounded-[18px] border border-line bg-paper px-7 py-[30px] shadow-[0_12px_44px_rgba(0,0,0,0.07)] ${CARD_WIDTH}`}
+          data-testid="auth-card"
+          className={`row-start-2 mx-auto flex w-full flex-col gap-3.5 rounded-[18px] border border-line bg-paper px-7 py-[30px] shadow-[0_12px_44px_rgba(0,0,0,0.07)] ${CARD_WIDTH}`}
         >
           {/* The red eyebrow — 10px/700, `letter-spacing:2px`, uppercase. */}
           <p className="text-[10px] font-bold uppercase tracking-[2px] text-cata-red">
@@ -255,26 +286,39 @@ export default function AuthShell({
           {children}
         </div>
 
-        {/* The note — outside the card, on purpose. `margin:16px auto 0`. */}
-        {note && (
-          <p
-            className={`mx-auto mt-4 text-center text-[11.5px] leading-[1.5] text-ink-3 ${CARD_WIDTH}`}
-          >
-            {note}
-          </p>
-        )}
-
         {/*
-         * The assistant, reachable BEFORE signing in — it answers "¿cómo
-         * inicio sesión?" and "¿cuáles son los horarios?" without an account,
-         * and `POST /chatbot` is public. It lives in the small print rather
-         * than as the floating button it used to be, which covered this very
-         * form. One placement here covers /login, /forgot-password and
-         * /reset-password, since all three inherit this shell.
+         * The small print rides in the lower rail, hugging its top edge so it
+         * still reads as belonging to the card 16px above it.
          */}
-        <p className={`mx-auto mt-3 text-center ${CARD_WIDTH}`}>
-          <HelpChatLauncher variant="quiet" label="¿Necesita ayuda para entrar?" />
-        </p>
+        <div className="row-start-3 self-start">
+          {/* The note — outside the card, on purpose. `margin:16px auto 0`. */}
+          {note && (
+            <p
+              className={`mx-auto mt-4 text-center text-[11.5px] leading-[1.5] text-ink-3 ${CARD_WIDTH}`}
+            >
+              {note}
+            </p>
+          )}
+
+          {/*
+           * The assistant, reachable BEFORE signing in — it answers "¿cómo
+           * inicio sesión?" and "¿cuáles son los horarios?" without an
+           * account, and `POST /chatbot` is public. It lives in the small
+           * print rather than as the floating button it used to be, which
+           * covered this very form. One placement here covers /login,
+           * /forgot-password and /reset-password, since all three inherit
+           * this shell.
+           */}
+          {/*
+           * A DIV, not a P. The launcher renders the panel as a sibling of
+           * its own trigger, and a `<header>` inside a `<p>` is invalid HTML:
+           * opening the assistant from any auth screen logged a React
+           * hydration error and let the browser close the paragraph early.
+           */}
+          <div className={`mx-auto mt-3 text-center ${CARD_WIDTH}`}>
+            <HelpChatLauncher variant="quiet" label="¿Necesita ayuda para entrar?" />
+          </div>
+        </div>
       </div>
     </div>
   );

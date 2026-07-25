@@ -25,32 +25,46 @@
  *      picking Juan out on his own rung, and the second by offering the move
  *      right there in the result row.
  *   4. THE UNASSIGNED WERE INVISIBLE. "59 de 67" named eight students it gave
- *      no way to see or act on. They now have their own block, each with the
- *      one control that places them.
+ *      no way to see or act on. They are listed and actionable now — since v4,
+ *      in the left column of every rung's panel (see B below).
  *
- * v3 answers two things the product owner said after using v2:
+ * v3 answered the ORDER question — *"en nivel los paneles al revés, primero lo
+ * que ya están asignados, y abajo los que no están asignados"* — by putting the
+ * ladder first and a separate "Sin nivel asignado" block under it.
  *
- *   A. ORDER. *"en nivel los paneles al revés, primero lo que ya están
- *      asignados, y abajo los que no están asignados"*. The ladder is the
- *      subject of the screen and now leads; the unassigned block is the
- *      exception list and follows it. Both carry a heading so the pair reads
- *      as "here is the ladder / here is who is not on it yet".
- *   B. THE EMPTY HALF. *"hay mucho espacio vacío dentro del panel"*, and
- *      measured at 1440px it was exactly that: the unassigned block ran 1137px
- *      wide with the name at the left edge and the picker + button pinned to
- *      the right, leaving ~700px of nothing per row, over eight full-width
- *      rows (548px tall — very nearly half the ladder's 670px, which is the
- *      "mitad y mitad" being questioned). The student rows are now a TWO-COLUMN
- *      grid: each cell is ~545px, which is what a name plus a 168px picker plus
- *      the action actually needs, so the horizontal void closes and the block
- *      halves in height instead of competing with the ladder for the page.
- *      Three columns were measured and rejected — at ~379px the name truncates,
- *      and the name is the only thing the row is about.
+ * v4 answers two more, and the second one absorbs that block:
+ *
+ *   A. THE HEADCOUNT. *"en nivel que también me salgan cuántos alumnos
+ *      exactamente tienen ese nivel"*. Every rung states its count. It is a
+ *      PLAIN COUNT — no denominator, no bar, no warning — see the occupancy
+ *      rule below, which it does not breach.
+ *   B. TWO COLUMNS ON EXPAND. *"no me convence la idea de mostrarlo directo en
+ *      la barra horizontal, me gustaría que al desplegar se vean a la derecha
+ *      los que están en el nivel y a la izquierda los que no tienen asignado
+ *      ningún nivel"*. The roster left the rung; expanding a rung opens a
+ *      two-column panel — unassigned LEFT, this level's roster RIGHT — so the
+ *      assignment gesture is literally left-to-right.
+ *
+ *      That LEFT column is the v3 unassigned block, moved to where it is acted
+ *      on. Keeping both would print the same nine students twice on one screen,
+ *      once next to a level picker and once next to the level itself, so the
+ *      standalone block is gone. The count survives in the stat hint; the
+ *      students themselves are one rung-expand away, beside the rung that would
+ *      receive them.
+ *
+ * WHICH COUNT IS TRUE. Two backend sources disagree: `GET /ranking/niveles`
+ * reports `personasActuales` summing to 59, while `GET
+ * /ranking/alumnos-con-nivel` returns 68 students of whom 58 hold a level (the
+ * gap is one student on the rung named "2"). This screen reads the ROSTER and
+ * only the roster — it is the source that NAMES the students, so a rung's
+ * headcount is the length of the list the panel prints. `personasActuales`
+ * would put "9 estudiantes" above eight names.
  *
  * Non-negotiable product rules baked in here:
  *   - NO occupancy. `NivelConOcupacion` carries `personasActuales`,
  *     `cuposDisponibles` and `necesitaRevision`; none of the three reaches the
- *     UI. The backend still computes them to validate capacity server-side.
+ *     UI. The backend still computes them to validate capacity server-side. A
+ *     headcount with no maximum beside it is not an occupancy indicator.
  *   - NO "Promover". A student with no level yet is "Asignar"
  *     (`POST /ranking/asignar-nivel-inicial`); one already on a rung is
  *     "Mover" (`PATCH /ranking/mover-de-nivel`). Two endpoints, and the word
@@ -73,7 +87,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Trophy, UserPlus, Users } from "lucide-react";
+import { ArrowRight, Trophy, Users } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import BackLink from "@/components/BackLink";
@@ -101,9 +115,10 @@ import {
   type NivelStudentRef,
 } from "@/app/trainer/nivel/nivel-utils";
 import {
+  filterStudentsByName,
   searchStudents,
-  sortStudentsByName,
   studentFullName,
+  studentsOnNivel,
   unassignedStudents,
 } from "./ranking-page-utils";
 
@@ -215,9 +230,13 @@ function RankingContent(): React.ReactElement {
         id: nivel.id,
         numeroNivel: nivel.numeroNivel,
         nombre: nivelNombre(nivel),
-        students: sortStudentsByName(
-          students.filter((student) => student.nivelRankingId === nivel.id),
-        ).map((student) => ({ id: student.id, nombre: studentFullName(student) })),
+        // ONE source for every number on this screen: the rung's headcount is
+        // the length of the roster the panel lists by name, so the count and
+        // the names cannot disagree. `personasActuales` is never read.
+        students: studentsOnNivel(students, nivel.id).map((student) => ({
+          id: student.id,
+          nombre: studentFullName(student),
+        })),
       })),
     [niveles, students],
   );
@@ -289,19 +308,19 @@ function RankingContent(): React.ReactElement {
   }
 
   /**
-   * A student row that carries its own destination: the name, where they are
+   * A search result that carries its own destination: the name, where they are
    * now, a level picker and the one button that places them.
    *
-   * This is the control the screen was missing. Both blocks that need it — the
-   * unassigned students and the search results — are lists of "this person,
-   * that level", so they share one row rather than two dialects of it.
+   * This is the row that answers "where is Juan, and move him" — including
+   * moving a student who ALREADY holds a level, which the rung panel
+   * deliberately does not offer (its left column is the unassigned only).
    */
-  function renderStudentRow(student: NivelStudentRef, scope: string): React.ReactElement {
+  function renderStudentRow(student: NivelStudentRef): React.ReactElement {
     const nombre = studentFullName(student);
     const actual = niveles.find((nivel) => nivel.id === student.nivelRankingId) ?? null;
     const destino = targetNivelIds[student.id];
     const verbo = student.nivelRankingId === null ? "Asignar" : "Mover";
-    const selectId = `nivel-destino-${scope}-${student.id}`;
+    const selectId = `nivel-destino-busqueda-${student.id}`;
 
     return (
       <li key={student.id} className="flex min-h-drow flex-wrap items-center gap-3 py-1.5">
@@ -312,14 +331,11 @@ function RankingContent(): React.ReactElement {
           {nombre}
         </span>
 
-        {/* Where they are now. Suppressed inside the unassigned block, whose
-            heading already says it — eight rows repeating "Sin nivel" is noise,
-            not information. */}
-        {scope === "sin-nivel" ? null : (
-          <span className="flex-none text-[12.5px] text-ink-3">
-            {actual ? `Nivel ${nivelNombre(actual)}` : "Sin nivel"}
-          </span>
-        )}
+        {/* Where they are now — the half of "move Juan up" the admin has to
+            know before picking a destination. */}
+        <span className="flex-none text-[12.5px] text-ink-3">
+          {actual ? `Nivel ${nivelNombre(actual)}` : "Sin nivel"}
+        </span>
 
         <label htmlFor={selectId} className="sr-only">
           Nivel de destino para {nombre}
@@ -370,18 +386,49 @@ function RankingContent(): React.ReactElement {
     );
   }
 
-  /** The rung's own panel: who do I add to THIS level. */
+  /** The overflow note a panel column shows when it is longer than it renders. */
+  function renderHiddenNote(hiddenCount: number): React.ReactElement | null {
+    if (hiddenCount <= 0) return null;
+    return (
+      <p className="mt-2 text-[12px] text-ink-3">
+        {hiddenCount} estudiante{hiddenCount === 1 ? "" : "s"} más. Use la búsqueda para
+        encontrarlos.
+      </p>
+    );
+  }
+
+  /**
+   * The rung's own panel — TWO COLUMNS, and the geometry is the instruction.
+   *
+   * *"al desplegar se vean a la derecha los que están en el nivel y a la
+   * izquierda los que no tienen asignado ningún nivel"*. Left is the students
+   * with no level at all, each carrying the one button that places them; right
+   * is the rung's roster. So the gesture the screen teaches is literal — you
+   * move a name from the left column to the right one — and the arrow on the
+   * button points the way it will travel.
+   *
+   * Below `md` the two columns stack in that same reading order: the
+   * unassigned first (they are what you act on), the rung's roster under them.
+   * Each column keeps its own heading, so a stacked panel still says which
+   * list is which instead of running two rosters together.
+   *
+   * The left column is deliberately NOT "every student": moving someone who
+   * already holds a level is a different question ("where is Juan, and move
+   * him"), and the page-level finder above the ladder answers it with a
+   * destination picker per result. Mixing both into one list is what produced
+   * the old flat panel this replaced.
+   */
   function renderPanel(): React.ReactElement | null {
     if (!openNivel) return null;
     const nombre = nivelNombre(openNivel);
-    const term = panelSearch.trim().toLowerCase();
-    const panelStudents = sortStudentsByName(
-      students.filter(
-        (student) => term === "" || studentFullName(student).toLowerCase().includes(term),
-      ),
+
+    const sinNivelFiltrados = filterStudentsByName(sinNivel, panelSearch);
+    const enElNivel = filterStudentsByName(
+      studentsOnNivel(students, openNivel.id),
+      panelSearch,
     );
-    const visibleStudents = panelStudents.slice(0, PANEL_VISIBLE_LIMIT);
-    const hiddenCount = panelStudents.length - visibleStudents.length;
+    const sinNivelVisibles = sinNivelFiltrados.slice(0, PANEL_VISIBLE_LIMIT);
+    const enElNivelVisibles = enElNivel.slice(0, PANEL_VISIBLE_LIMIT);
 
     return (
       <div className="border-t border-line bg-canvas px-5 py-4">
@@ -408,34 +455,31 @@ function RankingContent(): React.ReactElement {
           </p>
         ) : null}
 
-        {panelStudents.length === 0 ? (
-          <EmptyState
-            icon={<Users size={21} strokeWidth={1.5} aria-hidden="true" />}
-            title="No se encontraron estudiantes"
-            description="Ningún estudiante coincide con la búsqueda."
-          />
-        ) : (
-          <ul className="grid gap-x-8 rounded-ctl border border-line bg-paper px-4 py-2 sm:grid-cols-2">
-            {visibleStudents.map((student) => {
-              const alreadyHere = student.nivelRankingId === openNivel.id;
-              const currentNivel = niveles.find((n) => n.id === student.nivelRankingId);
-
-              return (
-                <li
-                  key={student.id}
-                  className="flex min-h-drow flex-wrap items-center gap-3 py-1.5"
-                >
-                  <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">
-                    {studentFullName(student)}
-                  </span>
-                  <span className="flex-none text-[12.5px] text-ink-3">
-                    {currentNivel ? `Nivel ${nivelNombre(currentNivel)}` : "Sin nivel"}
-                  </span>
-                  {alreadyHere ? (
-                    <span className="flex-none text-[11.5px] font-semibold text-ink-3">
-                      Ya está aquí
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* LEFT — who has no level yet. The column you act from. */}
+          <section aria-labelledby={`panel-sin-nivel-${openNivel.id}`}>
+            <h4
+              id={`panel-sin-nivel-${openNivel.id}`}
+              className="mb-2 text-[12.5px] font-bold text-ink"
+            >
+              Sin nivel asignado ({sinNivelFiltrados.length})
+            </h4>
+            {sinNivelFiltrados.length === 0 ? (
+              <p className="rounded-ctl border border-dashed border-line-2 px-4 py-3 text-[12.5px] text-ink-3">
+                {sinNivel.length === 0
+                  ? "Todos los estudiantes tienen un nivel."
+                  : "Ningún estudiante sin nivel coincide con la búsqueda."}
+              </p>
+            ) : (
+              <ul className="rounded-ctl border border-line bg-paper px-4 py-2">
+                {sinNivelVisibles.map((student) => (
+                  <li
+                    key={student.id}
+                    className="flex min-h-drow flex-wrap items-center gap-3 py-1.5"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">
+                      {studentFullName(student)}
                     </span>
-                  ) : (
                     <Button
                       size="sm"
                       className="flex-none"
@@ -443,25 +487,55 @@ function RankingContent(): React.ReactElement {
                       onClick={() => void handleAssign(student, openNivel.id)}
                       aria-label={`Asignar ${studentFullName(student)} al nivel ${nombre}`}
                     >
-                      {savingId === student.id
-                        ? "Guardando…"
-                        : successIds.has(student.id)
-                          ? "Asignado"
-                          : "Asignar"}
+                      {savingId === student.id ? (
+                        "Guardando…"
+                      ) : successIds.has(student.id) ? (
+                        "Asignado"
+                      ) : (
+                        <>
+                          Asignar
+                          <ArrowRight size={12} strokeWidth={2} aria-hidden="true" />
+                        </>
+                      )}
                     </Button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {renderHiddenNote(sinNivelFiltrados.length - sinNivelVisibles.length)}
+          </section>
 
-        {hiddenCount > 0 ? (
-          <p className="mt-2 text-[12px] text-ink-3">
-            {hiddenCount} estudiante{hiddenCount === 1 ? "" : "s"} más. Use la búsqueda para
-            encontrarlos.
-          </p>
-        ) : null}
+          {/* RIGHT — who already holds this level. */}
+          <section aria-labelledby={`panel-en-nivel-${openNivel.id}`}>
+            <h4
+              id={`panel-en-nivel-${openNivel.id}`}
+              className="mb-2 text-[12.5px] font-bold text-ink"
+            >
+              En el nivel {nombre} ({enElNivel.length})
+            </h4>
+            {enElNivel.length === 0 ? (
+              <p className="rounded-ctl border border-dashed border-line-2 px-4 py-3 text-[12.5px] text-ink-3">
+                {studentsOnNivel(students, openNivel.id).length === 0
+                  ? "Todavía no hay estudiantes en este nivel."
+                  : "Ningún estudiante de este nivel coincide con la búsqueda."}
+              </p>
+            ) : (
+              <ul className="rounded-ctl border border-line bg-paper px-4 py-2">
+                {enElNivelVisibles.map((student) => (
+                  <li
+                    key={student.id}
+                    className="flex min-h-drow flex-wrap items-center gap-3 py-1.5"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">
+                      {studentFullName(student)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {renderHiddenNote(enElNivel.length - enElNivelVisibles.length)}
+          </section>
+        </div>
       </div>
     );
   }
@@ -480,31 +554,19 @@ function RankingContent(): React.ReactElement {
           reads as a pair rather than as a dashboard. */}
       <div className="mb-5 grid max-w-[520px] grid-cols-2 gap-3.5">
         {/*
-            The gap is the actionable half of this figure, so it is a LINK, not
-            a subtraction the admin has to do. The old level select carried a
-            "Sin asignar" option purely to enumerate these students; the block
-            at the foot of the page does that better — it lists them AND places
-            them — it was just a scroll past eleven rungs away with nothing at
-            the top pointing to it. The link is suppressed while searching,
-            because the block it jumps to is hidden then.
+            The gap is stated rather than left as a subtraction, but it is no
+            longer a jump link: the students it counts are now listed inside
+            EVERY rung's panel, in its left column, next to the rung that would
+            receive them. There is no single block at the foot of the page to
+            jump to anymore, and pointing at an arbitrary rung would be a guess.
         */}
         <StatCard
           label="Estudiantes asignados"
           value={assignedCount}
           hint={
-            sinNivel.length > 0 && !buscando ? (
-              <>
-                de {students.length} estudiantes ·{" "}
-                <a
-                  href="#sin-nivel"
-                  className="font-semibold text-ink-2 underline decoration-line-2 underline-offset-2 transition-colors hover:text-cata-red hover:decoration-cata-red"
-                >
-                  {sinNivel.length} sin asignar
-                </a>
-              </>
-            ) : (
-              `de ${students.length} estudiantes`
-            )
+            sinNivel.length > 0
+              ? `de ${students.length} estudiantes · ${sinNivel.length} sin asignar`
+              : `de ${students.length} estudiantes`
           }
         />
         <StatCard
@@ -539,7 +601,7 @@ function RankingContent(): React.ReactElement {
             />
           ) : (
             <ul className={STUDENT_ROW_GRID}>
-              {resultados.map((student) => renderStudentRow(student, "busqueda"))}
+              {resultados.map((student) => renderStudentRow(student))}
             </ul>
           )}
         </section>
@@ -579,33 +641,6 @@ function RankingContent(): React.ReactElement {
         )}
       </section>
 
-      {/* …and the students who are not on it yet follow, as the exception the
-          ladder implies. Hidden while searching, because the results block
-          above is already answering a narrower question. */}
-      {!buscando && sinNivel.length > 0 ? (
-        <section
-          id="sin-nivel"
-          className="scroll-mt-6 overflow-hidden rounded-card border border-line bg-paper"
-        >
-          <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3">
-            <UserPlus
-              size={16}
-              strokeWidth={1.5}
-              className="flex-none text-ink-2"
-              aria-hidden="true"
-            />
-            <h2 className="flex-1 text-[13px] font-bold text-ink">
-              Sin nivel asignado ({sinNivel.length})
-            </h2>
-          </div>
-          <p className="px-5 pt-3 text-[12.5px] text-ink-3">
-            Elija el nivel donde entra cada estudiante y confirme la asignación.
-          </p>
-          <ul className={STUDENT_ROW_GRID}>
-            {sinNivel.map((student) => renderStudentRow(student, "sin-nivel"))}
-          </ul>
-        </section>
-      ) : null}
     </AppShell>
   );
 }

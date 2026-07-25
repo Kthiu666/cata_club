@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import GroupsPage from "@/app/groups/page";
 import { ApiClientError } from "@/services/api";
-import type { NivelConOcupacion } from "@/services/api";
+import type { AlumnoHorario, NivelConOcupacion } from "@/services/api";
 import type { MemberAccount } from "@/app/members/members-utils";
 import { ToastProvider } from "@/contexts/ToastContext";
 
@@ -907,6 +907,80 @@ describe("GroupsPage — grupo-level roster: union across días, assign/unassign
     expect(await screen.findByText("Alumnos asignados (2)")).toBeInTheDocument();
     expect(screen.getAllByText("Ana Pérez · 12 años")).toHaveLength(1);
     expect(screen.getByText("Bruno Díaz · 15 años")).toBeInTheDocument();
+  });
+
+  /** A roster of `size` distinct students on the LUNES row of Formativo. */
+  function rosterOf(size: number): AlumnoHorario[] {
+    return Array.from({ length: size }, (_, i) => ({
+      id: 1000 + i,
+      personaId: 1000 + i,
+      personaNombreCompleto: `Alumno ${String(i + 1).padStart(2, "0")}`,
+      edad: 10,
+      horarioId: 601,
+      horarioDia: "LUNES",
+      horarioHoraInicio: "15:00",
+      horarioHoraFin: "16:00",
+      fechaAsignacion: "2026-01-01",
+    }));
+  }
+
+  async function openFormativoAlumnos(): Promise<void> {
+    render(<ToastProvider><GroupsPage /></ToastProvider>);
+    await waitForHorarios();
+    const [multiDiaCard] = cards();
+    fireEvent.click(within(multiDiaCard).getByRole("button", { name: /ver alumnos/i }));
+    await screen.findByRole("heading", { name: "Alumnos de Formativo" });
+  }
+
+  it("puts 'Asignar nuevo estudiante' before the roster, not after it", async () => {
+    // On the 44-student categoría the picker sat under every enrolled name, so
+    // adding somebody meant scrolling the whole roster to reach it.
+    await openFormativoAlumnos();
+    const roster = await screen.findByText("Alumnos asignados (2)");
+    const picker = screen.getByLabelText("Seleccionar alumno");
+
+    expect(picker.compareDocumentPosition(roster) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("pages the roster instead of printing all 25 names at once", async () => {
+    mockFetchAlumnosPorHorario.mockImplementation((horarioId: number) =>
+      Promise.resolve(horarioId === 601 ? rosterOf(25) : []),
+    );
+    await openFormativoAlumnos();
+
+    expect(await screen.findByText("Alumnos asignados (25)")).toBeInTheDocument();
+    expect(screen.getByText(/1–10 de 25 alumnos/)).toBeInTheDocument();
+    expect(screen.getByText("Alumno 01 · 10 años")).toBeInTheDocument();
+    expect(screen.queryByText("Alumno 11 · 10 años")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+
+    expect(await screen.findByText("Alumno 11 · 10 años")).toBeInTheDocument();
+    expect(screen.queryByText("Alumno 01 · 10 años")).not.toBeInTheDocument();
+    expect(screen.getByText(/11–20 de 25 alumnos/)).toBeInTheDocument();
+  });
+
+  it("shows no pager for a roster that fits on one page", async () => {
+    await openFormativoAlumnos();
+
+    expect(await screen.findByText("Alumnos asignados (2)")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /siguiente/i })).not.toBeInTheDocument();
+  });
+
+  it("re-opens the roster on page 1 after having paged another group", async () => {
+    mockFetchAlumnosPorHorario.mockImplementation((horarioId: number) =>
+      Promise.resolve(horarioId === 601 ? rosterOf(25) : []),
+    );
+    await openFormativoAlumnos();
+    await screen.findByText(/1–10 de 25 alumnos/);
+    fireEvent.click(screen.getByRole("button", { name: /siguiente/i }));
+    await screen.findByText(/11–20 de 25 alumnos/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar" }));
+    const [multiDiaCard] = cards();
+    fireEvent.click(within(multiDiaCard).getByRole("button", { name: /ver alumnos/i }));
+
+    expect(await screen.findByText(/1–10 de 25 alumnos/)).toBeInTheDocument();
   });
 
   it("no longer renders a día-pill selector — assignment acts on the whole grupo now", async () => {

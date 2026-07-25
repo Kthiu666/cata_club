@@ -119,3 +119,46 @@ describe("AuthShell", () => {
     expect(screen.getByText("Nota")).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// The alignment defect: *"el login y la parte izquierda no están bien
+// centradas, se ven desalineadas"*. Measured at 1440x900, the brand cluster
+// centred at y=414 and the form card at y=398 — neither on the page's own
+// 450 — because each half was centred inside its own leftover space. Both
+// panels now run the same `1fr / auto / 1fr` grid, which puts the one object
+// that matters in the auto row and forces the two rails equal, so both
+// objects land on the viewport's middle. Geometry cannot be asserted in
+// jsdom (no layout), so what is pinned here is the structure that produces
+// it — the part a later edit could quietly undo.
+// ---------------------------------------------------------------------------
+
+describe("AuthShell — the two halves share one vertical axis", () => {
+  it("centres the brand cluster with an elastic rail above and below it", () => {
+    renderShell();
+
+    const dark = screen.getByTestId("auth-panel-dark");
+    expect(dark.className).toContain("grid-rows-[1fr_auto_1fr]");
+    expect(screen.getByTestId("auth-brand-cluster").className).toContain("self-center");
+  });
+
+  it("centres the form card on the same axis, with its small print in the lower rail", () => {
+    renderShell();
+
+    const light = screen.getByTestId("auth-panel-light");
+    expect(light.className).toContain("grid-rows-[1fr_auto_1fr]");
+    // The card owns the auto row; the note and the assistant trigger hang
+    // below it instead of dragging the card off-centre by their own height.
+    expect(screen.getByTestId("auth-card").className).toContain("row-start-2");
+    expect(screen.getByText("Nota").parentElement?.className).toContain("row-start-3");
+  });
+
+  it("closes the brand cluster with the figure rail instead of stranding it at the floor", () => {
+    renderShell();
+
+    // The figure used to pair with the copyright as a bottom rail, which left
+    // a 194px hole between the subtitle and the hairline above it.
+    const cluster = screen.getByTestId("auth-brand-cluster");
+    expect(cluster).toContainElement(screen.getByTestId("auth-figure"));
+    expect(cluster).not.toContainElement(screen.getByText(/© 2026 Cata Club/));
+  });
+});
