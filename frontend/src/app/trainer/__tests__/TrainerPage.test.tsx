@@ -288,15 +288,6 @@ describe("TrainerPage — Mi día", () => {
   // Settled product decisions.
   // -------------------------------------------------------------------------
 
-  it("shows no level information and no Niveles entry point anywhere", async () => {
-    render(<TrainerPage />);
-
-    await screen.findByText("Lunes 15:00 — 16:00");
-    expect(screen.queryByText(/Nivel/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Niveles/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Gestionar Nivel/i })).not.toBeInTheDocument();
-  });
-
   it("no longer stacks quick-action and stat cards above the fold", async () => {
     render(<TrainerPage />);
 

@@ -70,11 +70,11 @@ describe("buildMemberAccounts", () => {
     expect(carlos?.estudiantes[0].grupoId).toBe("7");
   });
 
-  it("treats a root persona with no representados as a self-managed estudiante account", () => {
+  it("treats a root persona with no representados as a representante account (all root personas are adults)", () => {
     const accounts = buildMemberAccounts([admin], new Map(), new Map(), new Map(), new Map());
 
     const account = accounts.find((a) => a.id === "1");
-    expect(account?.role).toBe("estudiante");
+    expect(account?.role).toBe("representante");
     expect(account?.estudiantes).toHaveLength(1);
     expect(account?.estudiantes[0].id).toBe("1");
   });
@@ -90,6 +90,7 @@ describe("buildMemberAccounts", () => {
 
     const student = accounts.find((a) => a.id === "2")?.estudiantes[0];
     expect(student?.membresia).toEqual({
+      id: 100,
       tipo: "Mensual Adultos (18:00-20:00)",
       estado: "activa",
       fechaInicio: "2026-07-01",

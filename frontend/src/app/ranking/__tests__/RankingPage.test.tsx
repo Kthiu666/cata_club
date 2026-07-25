@@ -18,7 +18,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within, act } from "@testing-library/react";
 import RankingPage from "@/app/ranking/page";
-import type { AlumnoParaNivel, NivelConOcupacion } from "@/services/api";
+import type { AlumnoConNivel, NivelConOcupacion } from "@/services/api";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -68,7 +68,7 @@ vi.mock("@/contexts/ToastContext", () => ({
   }),
 }));
 
-const mockFetchAlumnosParaNivel = vi.fn();
+const mockFetchAlumnosConNivel = vi.fn();
 const mockFetchNivelesConOcupacion = vi.fn();
 const mockAssignStudentToNivel = vi.fn();
 const mockMoveStudentToNivel = vi.fn();
@@ -83,7 +83,7 @@ vi.mock("@/services/api", () => {
     }
   }
   return {
-    fetchAlumnosParaNivel: () => mockFetchAlumnosParaNivel(),
+    fetchAlumnosConNivel: () => mockFetchAlumnosConNivel(),
     fetchNivelesConOcupacion: () => mockFetchNivelesConOcupacion(),
     assignStudentToNivel: (personaId: number, nivelId: number) => mockAssignStudentToNivel(personaId, nivelId),
     moveStudentToNivel: (personaId: number, nivelId: number) => mockMoveStudentToNivel(personaId, nivelId),
@@ -134,10 +134,10 @@ const NIVELES: NivelConOcupacion[] = [
   },
 ];
 
-const ROSTER: AlumnoParaNivel[] = [
-  { personaId: 10, nombres: "Sofía", apellidos: "González", activo: true, representanteId: null, nivelRankingId: null },
-  { personaId: 11, nombres: "Pedro", apellidos: "Ramírez", activo: true, representanteId: null, nivelRankingId: 1 },
-  { personaId: 12, nombres: "Carla", apellidos: "Vera", activo: true, representanteId: null, nivelRankingId: 3 },
+const ROSTER: AlumnoConNivel[] = [
+  { personaId: 10, nombres: "Sofía", apellidos: "González", nivelRankingId: null },
+  { personaId: 11, nombres: "Pedro", apellidos: "Ramírez", nivelRankingId: 1 },
+  { personaId: 12, nombres: "Carla", apellidos: "Vera", nivelRankingId: 3 },
 ];
 
 /**
@@ -158,7 +158,7 @@ async function waitForLadder(): Promise<void> {
 
 describe("RankingPage — la escalera", () => {
   beforeEach(() => {
-    mockFetchAlumnosParaNivel.mockReset().mockResolvedValue(ROSTER);
+    mockFetchAlumnosConNivel.mockReset().mockResolvedValue(ROSTER);
     mockFetchNivelesConOcupacion.mockReset().mockResolvedValue(NIVELES);
     mockAssignStudentToNivel.mockReset().mockResolvedValue(undefined);
     mockMoveStudentToNivel.mockReset().mockResolvedValue(undefined);
@@ -382,7 +382,7 @@ describe("RankingPage — la escalera", () => {
 
 describe("RankingPage — finding a student and placing the unassigned", () => {
   beforeEach(() => {
-    mockFetchAlumnosParaNivel.mockReset().mockResolvedValue(ROSTER);
+    mockFetchAlumnosConNivel.mockReset().mockResolvedValue(ROSTER);
     mockFetchNivelesConOcupacion.mockReset().mockResolvedValue(NIVELES);
     mockAssignStudentToNivel.mockReset().mockResolvedValue(undefined);
     mockMoveStudentToNivel.mockReset().mockResolvedValue(undefined);
@@ -485,7 +485,7 @@ describe("RankingPage — finding a student and placing the unassigned", () => {
 
 describe("RankingPage — empty ladder", () => {
   beforeEach(() => {
-    mockFetchAlumnosParaNivel.mockReset().mockResolvedValue([]);
+    mockFetchAlumnosConNivel.mockReset().mockResolvedValue([]);
     mockFetchNivelesConOcupacion.mockReset().mockResolvedValue([]);
   });
 

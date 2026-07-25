@@ -57,6 +57,8 @@ function buildPagos(count: number): PaymentValidationRequest[] {
     proofFileName: "voucher.jpg",
     proofFileType: "image",
     validationStatus: "pendiente",
+    startDate: "2026-07-01",
+    endDate: "2026-07-31",
   }));
 }
 

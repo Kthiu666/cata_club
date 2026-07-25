@@ -71,13 +71,16 @@ import { useToast } from "@/contexts/ToastContext";
 import {
   ApiClientError,
   assignStudentToNivel,
-  fetchAlumnosParaNivel,
+  fetchAlumnosConNivel,
   fetchNivelesConOcupacion,
   moveStudentToNivel,
-  type AlumnoParaNivel,
+  type AlumnoConNivel,
   type NivelConOcupacion,
 } from "@/services/api";
-import { buildNivelStudents, type NivelStudentRef } from "@/app/trainer/nivel/nivel-utils";
+import {
+  buildNivelStudentsFromAlumnos,
+  type NivelStudentRef,
+} from "@/app/trainer/nivel/nivel-utils";
 import {
   searchStudents,
   sortStudentsByName,
@@ -107,7 +110,7 @@ export default function RankingPage(): React.ReactElement {
 function RankingContent(): React.ReactElement {
   const { showSuccess, showError } = useToast();
 
-  const [roster, setRoster] = useState<AlumnoParaNivel[]>([]);
+  const [roster, setRoster] = useState<AlumnoConNivel[]>([]);
   const [niveles, setNiveles] = useState<NivelConOcupacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -136,7 +139,7 @@ function RankingContent(): React.ReactElement {
 
   const fetchLadderData = useCallback(async (): Promise<void> => {
     const [rosterData, nivelesData] = await Promise.all([
-      fetchAlumnosParaNivel(),
+      fetchAlumnosConNivel(),
       fetchNivelesConOcupacion(),
     ]);
     setRoster(rosterData);
@@ -159,7 +162,7 @@ function RankingContent(): React.ReactElement {
     void loadData();
   }, [loadData]);
 
-  const students = useMemo(() => buildNivelStudents(roster), [roster]);
+  const students = useMemo(() => buildNivelStudentsFromAlumnos(roster), [roster]);
   const assignedCount = students.filter((student) => student.nivelRankingId !== null).length;
 
   /** Rank order — the ladder's order, and the order every level picker uses. */
@@ -283,9 +286,6 @@ function RankingContent(): React.ReactElement {
             the same row loses the only thing the row is about. */}
         <span className="min-w-0 flex-1 basis-full truncate text-[13.5px] text-ink sm:basis-auto">
           {nombre}
-          {!student.activo ? (
-            <span className="ml-2 text-[11.5px] text-ink-3">Inactivo</span>
-          ) : null}
         </span>
 
         {/* Where they are now. Suppressed inside the unassigned block, whose
@@ -403,9 +403,6 @@ function RankingContent(): React.ReactElement {
                 >
                   <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">
                     {studentFullName(student)}
-                    {!student.activo ? (
-                      <span className="ml-2 text-[11.5px] text-ink-3">Inactivo</span>
-                    ) : null}
                   </span>
                   <span className="flex-none text-[12.5px] text-ink-3">
                     {currentNivel ? `Nivel ${nivelNombre(currentNivel)}` : "Sin nivel"}

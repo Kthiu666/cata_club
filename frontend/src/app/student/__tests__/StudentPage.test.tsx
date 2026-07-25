@@ -12,7 +12,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import StudentPage from "@/app/student/page";
-import type { StudentPortalSummary, PagoPersona } from "@/services/api";
+import type { StudentPortalSummary } from "@/services/api";
+import type { PagoPersona } from "@/services/api";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -55,15 +56,20 @@ vi.mock("@/contexts/AuthContext", () => ({
     isLoading: false,
     login: vi.fn(),
     logout: vi.fn(),
+    refreshSession: vi.fn(),
   }),
 }));
 
 const mockFetchStudentPortal = vi.fn();
 const mockFetchPagosDePersona = vi.fn();
+const mockIndependizarPersona = vi.fn();
 
 vi.mock("@/services/api", () => ({
   fetchStudentPortal: () => mockFetchStudentPortal(),
-  fetchPagosDePersona: (personaId: string) => mockFetchPagosDePersona(personaId),
+  // Still read here — the carnet's "Cobertura hasta" is the furthest
+  // `fechaFin` among approved payments, the only real coverage date there is.
+  fetchPagosDePersona: (...args: unknown[]) => mockFetchPagosDePersona(...args),
+  independizarPersona: (...args: unknown[]) => mockIndependizarPersona(...args),
 }));
 
 const PORTAL: StudentPortalSummary = {
@@ -71,10 +77,12 @@ const PORTAL: StudentPortalSummary = {
     personaId: "9",
     nombres: "Alumno",
     apellidos: "Test",
-    fechaNacimiento: "2010-05-14",
+    fechaNacimiento: "2000-05-14",
     ranking: { status: "unavailable", reason: "error" },
     recentSessions: [],
     membership: null,
+    representante: null,
+    representanteId: null,
   },
   representados: [],
   membershipPlans: [],
@@ -115,6 +123,7 @@ const PAGO_APROBADO: PagoPersona = {
 beforeEach(() => {
   mockFetchStudentPortal.mockReset().mockResolvedValue(PORTAL);
   mockFetchPagosDePersona.mockReset().mockResolvedValue([]);
+  mockIndependizarPersona.mockReset().mockResolvedValue(undefined);
 });
 
 describe("StudentPage — contextual dependent CTA", () => {
@@ -160,7 +169,12 @@ describe("StudentPage — the club membership card (carnet)", () => {
     expect(within(carnet).getByText("Alumno Test")).toBeInTheDocument();
     expect(within(carnet).getByText("Nivel 3")).toBeInTheDocument();
     expect(within(carnet).getByText("Membresía activa")).toBeInTheDocument();
-    expect(within(carnet).getByText("Mensual")).toBeInTheDocument();
+    // The carnet carries the whole membership: plan, modalidad and amount.
+    expect(within(carnet).getByText("Plan")).toBeInTheDocument();
+    expect(within(carnet).getByText("Modalidad")).toBeInTheDocument();
+    expect(within(carnet).getAllByText("Mensual")).toHaveLength(2);
+    expect(within(carnet).getByText("Monto")).toBeInTheDocument();
+    expect(within(carnet).getByText("$25,00")).toBeInTheDocument();
   });
 
   it("never prints a member number or a join date — neither reaches this client", async () => {
@@ -189,8 +203,9 @@ describe("StudentPage — the club membership card (carnet)", () => {
     render(<StudentPage />);
 
     const carnet = await screen.findByTestId("student-carnet");
-    await screen.findByText("Comprobante ilegible");
-    expect(within(carnet).queryByText("Cobertura hasta")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(within(carnet).queryByText("Cobertura hasta")).not.toBeInTheDocument();
+    });
   });
 
   it("says 'Sin nivel asignado' rather than guessing a rung when the ranking is unavailable", async () => {
@@ -230,33 +245,12 @@ describe("StudentPage — training panel", () => {
   });
 });
 
-describe("StudentPage — Pagos section", () => {
-  it("fetches and renders the persona's payment history from the service", async () => {
-    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_APROBADO]);
-
+describe("StudentPage — Pagos link", () => {
+  it("links to the dedicated payments page", async () => {
     render(<StudentPage />);
 
-    await waitFor(() => {
-      expect(mockFetchPagosDePersona).toHaveBeenCalledWith("9");
-    });
-    expect(await screen.findByText("Efectivo")).toBeInTheDocument();
-  });
-
-  it("shows the rejection reason for a RECHAZADO payment", async () => {
-    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_RECHAZADO]);
-
-    render(<StudentPage />);
-
-    expect(await screen.findByText("Comprobante ilegible")).toBeInTheDocument();
-  });
-
-  it("does not show a rejection-reason block for an APROBADO payment", async () => {
-    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_APROBADO]);
-
-    render(<StudentPage />);
-
-    await screen.findByText("Efectivo");
-    expect(screen.queryByText(/motivo de rechazo/i)).not.toBeInTheDocument();
+    const link = await screen.findByText(/Registrar pago|Renovar membresía/);
+    expect(link.closest("a")).toHaveAttribute("href", "/student/payments");
   });
 });
 
@@ -278,41 +272,5 @@ describe("StudentPage — membership state on the carnet", () => {
 
     const carnet = await screen.findByTestId("student-carnet");
     expect(within(carnet).getByText("Membresía pendiente")).toBeInTheDocument();
-  });
-});
-
-describe("StudentPage — the actionable payments empty state", () => {
-  it("resolves the monthly amount from the persona's own membership row", async () => {
-    mockFetchStudentPortal.mockResolvedValueOnce({
-      ...PORTAL,
-      self: { ...PORTAL.self!, membership: { id: 4, estado: "ACTIVA", personaId: 9, montoAplicado: "25.00", categoria: "Mensual", modalidad: "MENSUAL", franjaHoraria: "Tarde" } },
-    });
-
-    render(<StudentPage />);
-
-    expect(await screen.findByText(/su mensualidad: \$25[.,]00/i)).toBeInTheDocument();
-  });
-
-  it("shows the generic action with no figure when the amount cannot be resolved", async () => {
-    render(<StudentPage />);
-
-    expect(await screen.findByText("Todavía no hay pagos registrados")).toBeInTheDocument();
-    expect(screen.queryByText(/su mensualidad/i)).not.toBeInTheDocument();
-  });
-
-  it("offers 'Subir comprobante' against the real pago that is still waiting for one", async () => {
-    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_RECHAZADO]);
-
-    render(<StudentPage />);
-
-    const buttons = await screen.findAllByRole("button", { name: /subir comprobante/i });
-    expect(buttons.length).toBeGreaterThan(0);
-  });
-
-  it("never offers an upload button when there is no pago to attach it to", async () => {
-    render(<StudentPage />);
-
-    await screen.findByText("Todavía no hay pagos registrados");
-    expect(screen.queryByRole("button", { name: /subir comprobante/i })).not.toBeInTheDocument();
   });
 });

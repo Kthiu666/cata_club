@@ -40,3 +40,5 @@ playwright-report/
 
 # AI orchestrator artifacts
 .atl/
+.codegraph/
+.engram/

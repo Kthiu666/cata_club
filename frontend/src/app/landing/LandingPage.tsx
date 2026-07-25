@@ -39,12 +39,10 @@ interface ValueCardProps {
 /**
  * Where every "inscríbete" affordance points.
  *
- * `/student/enroll`, not `/register`: enroll is the real public enrollment
- * wizard (it POSTs to the backend's public /enrollment, persists the student
- * and auto-logs the user in, and is listed in PUBLIC_EXCEPTIONS in
- * src/lib/middleware-utils.ts). `/register` is still a documented demo
- * placeholder that stores nothing and whose only real exit is a button
- * forwarding here — routing the funnel through it would add a dead step.
+ * `/student/enroll` is the real public enrollment wizard: it POSTs to the
+ * backend's public /enrollment, persists the student and auto-logs the user
+ * in, and is listed in PUBLIC_EXCEPTIONS in src/lib/middleware-utils.ts.
+ * The old `/register` demo placeholder stored nothing and has been removed.
  */
 const ENROLL_HREF = "/student/enroll";
 

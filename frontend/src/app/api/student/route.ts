@@ -55,6 +55,15 @@ async function fetchProfile(
   if (!personaResult.ok || !personaResult.response.ok) return null;
   const persona = (await personaResult.response.json()) as BackendPersonaFull;
 
+  let representante: { nombres: string; apellidos: string } | null = null;
+  if (persona.representanteId) {
+    const repResult = await backendFetchAuthed(request, `/personas/${persona.representanteId}`);
+    if (repResult.ok && repResult.response.ok) {
+      const repPersona = (await repResult.response.json()) as BackendPersonaFull;
+      representante = { nombres: repPersona.nombres, apellidos: repPersona.apellidos };
+    }
+  }
+
   const historial: BackendAsistencia[] =
     historialResult.ok && historialResult.response.ok ? await historialResult.response.json() : [];
   const recentSessions = buildRecentSessions(historial, horariosById);
@@ -62,7 +71,7 @@ async function fetchProfile(
   const activeMembership = memberships.find((m) => m.estado === "ACTIVA" || m.estado === "VENCIDA") ?? memberships[0] ?? null;
   const membership = activeMembership ? buildMembershipView(activeMembership, tiposById) : null;
 
-  return buildStudentProfileView(persona, rankingView, recentSessions, membership);
+  return buildStudentProfileView(persona, rankingView, recentSessions, membership, representante);
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {

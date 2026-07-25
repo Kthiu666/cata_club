@@ -17,6 +17,9 @@ import { useDismissablePopup } from "@/lib/useDismissablePopup";
 
 const TIPO_LABELS: Record<TipoNotificacion, string> = {
   MIEMBRESIA_VENCIMIENTO_PROXIMO: "Membresía próxima a vencer",
+  PAGO_APROBADO: "Pago aprobado",
+  PAGO_RECHAZADO: "Pago rechazado",
+  NUEVA_INSCRIPCION: "Nueva inscripción",
 };
 
 export interface NotificationBellProps {

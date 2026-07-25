@@ -78,6 +78,7 @@ export const NAV_ICON_MAP: Record<string, React.ForwardRefExoticComponent<
   "/trainer/nivel": Trophy,
   "/reports": FileText,
   "/student": User,
+  "/student/payments": CreditCard,
 };
 
 /**

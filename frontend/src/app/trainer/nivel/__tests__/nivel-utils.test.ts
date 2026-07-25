@@ -8,9 +8,8 @@ import {
   isValidPeriodo,
   currentPeriodo,
   parsePeriodo,
-  buildNivelStudents,
+  buildNivelStudentsFromAlumnos,
 } from "../nivel-utils";
-import type { AlumnoParaNivel } from "@/services/api";
 
 describe("isValidPeriodo", () => {
   it("accepts a well-formed YYYY-MM period", () => {
@@ -51,49 +50,27 @@ describe("parsePeriodo", () => {
   });
 });
 
-describe("buildNivelStudents", () => {
-  const roster: AlumnoParaNivel[] = [
-    { personaId: 1, nombres: "Sofía", apellidos: "Martínez", activo: true, representanteId: null, nivelRankingId: 4 },
-    { personaId: 2, nombres: "Mateo", apellidos: "Martínez", activo: false, representanteId: null, nivelRankingId: null },
-    { personaId: 3, nombres: "Ana", apellidos: "López", activo: true, representanteId: null, nivelRankingId: null },
+describe("buildNivelStudentsFromAlumnos", () => {
+  const alumnos = [
+    { personaId: 1, nombres: "Sofía", apellidos: "Martínez", nivelRankingId: 4 },
+    { personaId: 2, nombres: "Mateo", apellidos: "Martínez", nivelRankingId: null },
+    { personaId: 3, nombres: "Ana", apellidos: "López", nivelRankingId: null },
   ];
 
-  it("maps every person in the roster to a student ref", () => {
-    const result = buildNivelStudents(roster);
+  it("maps every alumno in the roster to a student ref", () => {
+    const result = buildNivelStudentsFromAlumnos(alumnos);
     expect(result).toHaveLength(3);
     expect(result.map((s) => s.id)).toEqual(["1", "2", "3"]);
   });
 
   it("passes nivelRankingId through, keeping unassigned students as null", () => {
-    const result = buildNivelStudents(roster);
+    const result = buildNivelStudentsFromAlumnos(alumnos);
     expect(result.find((s) => s.id === "1")?.nivelRankingId).toBe(4);
     expect(result.find((s) => s.id === "2")?.nivelRankingId).toBeNull();
   });
 
-  it("preserves each student's activo flag", () => {
-    const result = buildNivelStudents(roster);
-    expect(result.find((s) => s.id === "2")?.activo).toBe(false);
-  });
-
-  it("drops a person who only appears as somebody's representante", () => {
-    // A parent who enrolled a child is a Persona too, but is not a student —
-    // `/api/members` used to hide them by listing an account's children
-    // instead of its holder. Same rule, applied to the flat roster.
-    const conRepresentante: AlumnoParaNivel[] = [
-      { personaId: 10, nombres: "Laura", apellidos: "Vera", activo: true, representanteId: null, nivelRankingId: null },
-      { personaId: 11, nombres: "Sofía", apellidos: "Vera", activo: true, representanteId: 10, nivelRankingId: 3 },
-    ];
-
-    const result = buildNivelStudents(conRepresentante);
-
-    expect(result.map((s) => s.id)).toEqual(["11"]);
-  });
-
-  it("keeps an adult who represents nobody", () => {
-    const soloAdulto: AlumnoParaNivel[] = [
-      { personaId: 20, nombres: "María", apellidos: "Torres", activo: true, representanteId: null, nivelRankingId: null },
-    ];
-
-    expect(buildNivelStudents(soloAdulto).map((s) => s.id)).toEqual(["20"]);
+  it("defaults activo to true — the payload carries no estado", () => {
+    const result = buildNivelStudentsFromAlumnos(alumnos);
+    expect(result.every((s) => s.activo)).toBe(true);
   });
 });

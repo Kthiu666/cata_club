@@ -24,7 +24,7 @@ export const ENROLLMENT_TYPES = {
 export type EnrollmentType = (typeof ENROLLMENT_TYPES)[keyof typeof ENROLLMENT_TYPES];
 
 /** Wizard step identifiers. */
-export type WizardStep = "type" | "personal" | "club" | "health" | "summary";
+export type WizardStep = "type" | "personal" | "representative" | "health" | "summary";
 
 /** Shape of the enrollment form data. */
 export interface EnrollFormData {
@@ -36,6 +36,8 @@ export interface EnrollFormData {
   telefono: string;
   correo: string;
   contrasenia: string;
+  /** School/institution (child enrollment only) — optional. */
+  institucionId: string;
   nombreRepresentante: string;
   apellidosRepresentante: string;
   cedulaRepresentante: string;
@@ -55,7 +57,7 @@ export interface EnrollFormData {
 export const STEP_ORDER: WizardStep[] = [
   "type",
   "personal",
-  "club",
+  "representative",
   "health",
   "summary",
 ];
@@ -64,7 +66,7 @@ export const STEP_ORDER: WizardStep[] = [
 export const STEP_LABELS: Record<WizardStep, string> = {
   type: "Tipo de Inscripción",
   personal: "Datos del Estudiante",
-  club: "Cuenta y Representante",
+  representative: "Datos del Representante",
   health: "Salud y Emergencia",
   summary: "Resumen y Confirmación",
 };
@@ -83,7 +85,7 @@ export const STEP_LABELS: Record<WizardStep, string> = {
 export const STEP_SHORT_LABELS: Record<WizardStep, string> = {
   type: "Tipo",
   personal: "Estudiante",
-  club: "Contacto",
+  representative: "Representante",
   health: "Salud",
   summary: "Confirmar",
 };
@@ -98,6 +100,7 @@ export const initialFormData: EnrollFormData = {
   telefono: "",
   correo: "",
   contrasenia: "",
+  institucionId: "",
   nombreRepresentante: "",
   apellidosRepresentante: "",
   cedulaRepresentante: "",
@@ -137,14 +140,16 @@ export function validateEnrollStep(
       break;
     case "personal":
       errors.push(...collect(fieldsForStep("personal", data.enrollmentType), data));
+      // A child enrollment may create an optional account for the student:
+      // blank is fine, half-filled is not.
+      if (data.enrollmentType !== ENROLLMENT_TYPES.SELF) {
+        errors.push(...validateOptionalStudentCredentials(data));
+      }
       break;
-    case "club":
-      // NOT `fieldsForStep`: the aggregate check for a child enrollment covers
-      // the representante's identity too, so reaching the summary with a blank
-      // representante is impossible even if a step were skipped.
-      errors.push(...(data.enrollmentType === ENROLLMENT_TYPES.SELF
-        ? validateStudentCredentials(data)
-        : validateRepresentative(data)));
+    case "representative":
+      // NOT `fieldsForStep`: this runs as an aggregate check too, so it must
+      // hold even for a self enrollment that never renders the step.
+      errors.push(...validateRepresentative(data));
       break;
     case "health":
       errors.push(...collect(HEALTH_FIELDS, data));
@@ -160,7 +165,10 @@ export function validateEnrollment(data: EnrollFormData): string[] {
     ...validateStudent(data),
     ...(data.enrollmentType === ENROLLMENT_TYPES.SELF
       ? validateStudentCredentials(data)
-      : validateRepresentative(data)),
+      : validateOptionalStudentCredentials(data)),
+    ...(data.enrollmentType === ENROLLMENT_TYPES.CHILD
+      ? validateRepresentative(data)
+      : []),
     ...validateEnrollStep("health", data),
   ];
 }
@@ -188,7 +196,9 @@ export function isDemoQuickFillEnabled(
 export function getEnrollmentErrorMessage(error: unknown): string {
   if (typeof error === "object" && error !== null && "status" in error) {
     const status = (error as Record<string, unknown>).status;
+    const message = (error as Record<string, unknown>).message;
     if (status === 400 || status === 422) {
+      if (typeof message === "string" && message.trim()) return message.trim();
       return "No se pudo validar la inscripción. Revise sus datos e intente nuevamente.";
     }
     if (status === 429) {
@@ -209,6 +219,7 @@ export function buildEnrollmentRequest(data: EnrollFormData): EnrollmentRequest 
   const alumno = {
     nombres: data.nombres.trim(), apellidos: data.apellidos.trim(), cedula: data.cedula.trim(),
     fechaNacimiento: data.fechaNacimiento, telefono: data.telefono.trim(),
+    ...(data.institucionId ? { institucionId: Number(data.institucionId) } : {}),
   };
   const fichaMedica = {
     tipoSangre: data.tipoSangre as BloodType, condicionesSalud: data.condicionesSalud.trim(),
@@ -219,7 +230,7 @@ export function buildEnrollmentRequest(data: EnrollFormData): EnrollmentRequest 
   if (data.enrollmentType === ENROLLMENT_TYPES.SELF) {
     return { alumno, fichaMedica, credencialesAlumno: { correo: data.correo.trim(), contrasenia: data.contrasenia } };
   }
-  return {
+  const result: EnrollmentRequest = {
     alumno, fichaMedica,
     representante: {
       nombres: data.nombreRepresentante.trim(), apellidos: data.apellidosRepresentante.trim(),
@@ -228,6 +239,10 @@ export function buildEnrollmentRequest(data: EnrollFormData): EnrollmentRequest 
       contrasenia: data.contraseniaRepresentante,
     },
   };
+  if (data.correo.trim() && data.contrasenia) {
+    result.credencialesMenor = { correo: data.correo.trim(), contrasenia: data.contrasenia };
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -250,9 +265,29 @@ export function digitsOf(value: string): string {
   return value.replace(/\D/g, "");
 }
 
+/** Letters (incl. accents) and spaces — a person's name, not an identifier. */
+const NAME_PATTERN = /^[A-Za-z\u00C0-\u024F\s]+$/;
+
+/** A name must be present, plausible in length, and free of digits/symbols. */
+function nameRule(value: string, subject: string, article: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return `${subject} ${article} obligatorios.`;
+  if (trimmed.length < 3) return `${subject} deben tener al menos 3 caracteres.`;
+  return NAME_PATTERN.test(trimmed) ? null : `${subject} solo pueden contener letras y espacios.`;
+}
+
+/** Ecuadorian numbers run 7 (landline) to 10 (mobile) digits. */
+function phoneRule(value: string, subject: string, article: string): string | null {
+  if (!value.trim()) return `${subject} ${article} obligatorio.`;
+  const digits = digitsOf(value);
+  return digits.length >= 7 && digits.length <= 10
+    ? null
+    : `${subject} debe tener entre 7 y 10 dígitos.`;
+}
+
 const FIELD_RULES: Partial<Record<EnrollField, (data: EnrollFormData) => string | null>> = {
-  nombres: (d) => (d.nombres.trim() ? null : "Los nombres son obligatorios."),
-  apellidos: (d) => (d.apellidos.trim() ? null : "Los apellidos son obligatorios."),
+  nombres: (d) => nameRule(d.nombres, "Los nombres", "son"),
+  apellidos: (d) => nameRule(d.apellidos, "Los apellidos", "son"),
   fechaNacimiento: (d) => {
     if (!d.fechaNacimiento) return "La fecha de nacimiento es obligatoria.";
     if (!isDate(d.fechaNacimiento)) return "La fecha de nacimiento ingresada no es válida.";
@@ -265,17 +300,13 @@ const FIELD_RULES: Partial<Record<EnrollField, (data: EnrollFormData) => string 
     if (!d.cedula.trim()) return "La cédula de identidad es obligatoria.";
     return /^\d{10}$/.test(d.cedula.trim()) ? null : "La cédula debe tener 10 dígitos.";
   },
-  telefono: (d) => {
-    if (!d.telefono.trim()) return "El teléfono es obligatorio.";
-    return digitsOf(d.telefono).length === 10 ? null : "El teléfono debe tener 10 dígitos.";
-  },
+  telefono: (d) => phoneRule(d.telefono, "El teléfono", "es"),
   correo: (d) => (isEmail(d.correo) ? null : "El correo electrónico no es válido."),
   contrasenia: (d) =>
     d.contrasenia.length >= 8 ? null : "La contraseña debe tener al menos 8 caracteres.",
-  nombreRepresentante: (d) =>
-    d.nombreRepresentante.trim() ? null : "Los nombres del representante son obligatorios.",
+  nombreRepresentante: (d) => nameRule(d.nombreRepresentante, "Los nombres del representante", "son"),
   apellidosRepresentante: (d) =>
-    d.apellidosRepresentante.trim() ? null : "Los apellidos del representante son obligatorios.",
+    nameRule(d.apellidosRepresentante, "Los apellidos del representante", "son"),
   cedulaRepresentante: (d) =>
     /^\d{10}$/.test(d.cedulaRepresentante.trim())
       ? null
@@ -284,12 +315,8 @@ const FIELD_RULES: Partial<Record<EnrollField, (data: EnrollFormData) => string 
     isDate(d.fechaNacimientoRepresentante) && calculateAge(d.fechaNacimientoRepresentante) >= 18
       ? null
       : "El representante debe ser mayor de edad (18+).",
-  telefonoRepresentante: (d) => {
-    if (!d.telefonoRepresentante.trim()) return "El teléfono del representante es obligatorio.";
-    return digitsOf(d.telefonoRepresentante).length === 10
-      ? null
-      : "El teléfono del representante debe tener 10 dígitos.";
-  },
+  telefonoRepresentante: (d) =>
+    phoneRule(d.telefonoRepresentante, "El teléfono del representante", "es"),
   correoRepresentante: (d) =>
     isEmail(d.correoRepresentante) ? null : "El correo del representante no es válido.",
   contraseniaRepresentante: (d) =>
@@ -297,14 +324,14 @@ const FIELD_RULES: Partial<Record<EnrollField, (data: EnrollFormData) => string 
       ? null
       : "La contraseña del representante debe tener al menos 8 caracteres.",
   tipoSangre: (d) => (isBloodType(d.tipoSangre) ? null : "El tipo de sangre es obligatorio."),
-  contactoEmergencia: (d) =>
-    d.contactoEmergencia.trim() ? null : "El nombre de contacto de emergencia es obligatorio.",
-  telefonoEmergencia: (d) => {
-    if (!d.telefonoEmergencia.trim()) return "El teléfono de emergencia es obligatorio.";
-    return digitsOf(d.telefonoEmergencia).length === 10
+  contactoEmergencia: (d) => {
+    const trimmed = d.contactoEmergencia.trim();
+    if (!trimmed) return "El nombre de contacto de emergencia es obligatorio.";
+    return trimmed.length >= 3
       ? null
-      : "El teléfono de emergencia debe tener 10 dígitos.";
+      : "El nombre del contacto de emergencia debe tener al menos 3 caracteres.";
   },
+  telefonoEmergencia: (d) => phoneRule(d.telefonoEmergencia, "El teléfono de emergencia", "es"),
 };
 
 const STUDENT_FIELDS: EnrollField[] = [
@@ -317,12 +344,11 @@ const STUDENT_FIELDS: EnrollField[] = [
 
 const CREDENTIAL_FIELDS: EnrollField[] = ["correo", "contrasenia"];
 
-/** Representante fields rendered on the "personal" step (beside the student's own). */
-const REPRESENTATIVE_IDENTITY_FIELDS: EnrollField[] = ["nombreRepresentante", "cedulaRepresentante"];
-
-/** Representante fields rendered on the "club" step. */
-const REPRESENTATIVE_CONTACT_FIELDS: EnrollField[] = [
+/** Every representante field — they all live on the "representative" step. */
+const REPRESENTATIVE_FIELDS: EnrollField[] = [
+  "nombreRepresentante",
   "apellidosRepresentante",
+  "cedulaRepresentante",
   "fechaNacimientoRepresentante",
   "telefonoRepresentante",
   "correoRepresentante",
@@ -341,9 +367,12 @@ export function fieldsForStep(step: WizardStep, type: EnrollmentType): EnrollFie
     case "type":
       return [];
     case "personal":
-      return isChild ? [...STUDENT_FIELDS, ...REPRESENTATIVE_IDENTITY_FIELDS] : STUDENT_FIELDS;
-    case "club":
-      return isChild ? REPRESENTATIVE_CONTACT_FIELDS : CREDENTIAL_FIELDS;
+      // A self enrollment signs in as the student, so its credentials are
+      // required here. A child's are optional and validated separately.
+      return isChild ? STUDENT_FIELDS : [...STUDENT_FIELDS, ...CREDENTIAL_FIELDS];
+    case "representative":
+      // Skipped entirely for a self enrollment — there is no representante.
+      return isChild ? REPRESENTATIVE_FIELDS : [];
     case "health":
       return HEALTH_FIELDS;
     case "summary":
@@ -415,8 +444,21 @@ function validateStudentCredentials(data: EnrollFormData): string[] {
   return collect(CREDENTIAL_FIELDS, data);
 }
 
+function validateOptionalStudentCredentials(data: EnrollFormData): string[] {
+  const errors: string[] = [];
+  const hasCorreo = data.correo.trim().length > 0;
+  const hasContrasenia = data.contrasenia.length > 0;
+  if (hasCorreo || hasContrasenia) {
+    if (!hasCorreo) errors.push("El correo del estudiante es obligatorio si se desea crear una cuenta.");
+    else if (!isEmail(data.correo)) errors.push("El correo del estudiante no es válido.");
+    if (!hasContrasenia) errors.push("La contraseña del estudiante es obligatoria si se desea crear una cuenta.");
+    else if (data.contrasenia.length < 8) errors.push("La contraseña del estudiante debe tener al menos 8 caracteres.");
+  }
+  return errors;
+}
+
 function validateRepresentative(data: EnrollFormData): string[] {
-  return collect([...REPRESENTATIVE_IDENTITY_FIELDS, ...REPRESENTATIVE_CONTACT_FIELDS], data);
+  return collect(REPRESENTATIVE_FIELDS, data);
 }
 
 function isDate(value: string): boolean {

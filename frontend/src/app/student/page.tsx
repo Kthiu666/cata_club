@@ -6,20 +6,19 @@ import Image from "next/image";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchStudentPortal, fetchPagosDePersona, subirVoucherPago } from "@/services/api";
+import { fetchStudentPortal, fetchPagosDePersona, independizarPersona } from "@/services/api";
 import type { StudentPortalSummary, StudentProfileSummary, PagoPersona, MembershipSummary } from "@/services/api";
 import { getAttendanceBadgeTone, getAttendanceLabel } from "@/app/attendance/attendance-utils";
-import { formatCurrency, formatDate, formatDateRange } from "@/lib/format-utils";
-import { Badge, Button, EmptyState, ErrorState, LoadingState, buttonClasses } from "@/components/ui";
-import { VALIDATION_STATUS_LABELS, VALIDATION_STATUS_TONES, toValidationStatus } from "@/lib/status-badges";
+import { formatCurrency, formatDate } from "@/lib/format-utils";
+import { Badge, EmptyState, ErrorState, LoadingState, buttonClasses } from "@/components/ui";
+import AgeUpConfirmation from "@/components/AgeUpConfirmation";
 import {
   derivePortalMode,
   isRepresentative,
+  isMinor,
   describeRanking,
-  findUploadablePago,
   parseLevelNumber,
   resolveCoverageEnd,
-  resolveMonthlyAmount,
   summarizeRecentAttendance,
 } from "./student-utils";
 import {
@@ -29,10 +28,8 @@ import {
   User,
   ChevronDown,
   UserPlus,
+  UserMinus,
   ArrowRight,
-  Upload,
-  Paperclip,
-  Loader2,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -103,6 +100,15 @@ function Carnet({
   }
   if (profile.membership?.categoria) facts.push({ label: "Plan", value: profile.membership.categoria });
   if (profile.membership?.franjaHoraria) facts.push({ label: "Franja", value: profile.membership.franjaHoraria });
+  if (profile.membership?.modalidad) {
+    facts.push({
+      label: "Modalidad",
+      value: profile.membership.modalidad === "PERSONALIZADA" ? "Personalizada" : "Mensual",
+    });
+  }
+  if (profile.membership?.montoAplicado) {
+    facts.push({ label: "Monto", value: formatCurrency(Number(profile.membership.montoAplicado)) });
+  }
   if (coverageEnd) facts.push({ label: "Cobertura hasta", value: formatDate(coverageEnd) });
 
   return (
@@ -202,228 +208,6 @@ function TrainingPanel({ profile }: { profile: StudentProfileSummary }): React.R
           "Su asistencia aparecerá aquí en cuanto el entrenador tome lista."
         )}
       </p>
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Pagos
-// ---------------------------------------------------------------------------
-
-const TIPO_PAGO_LABEL: Record<PagoPersona["tipoPago"], string> = {
-  EFECTIVO: "Efectivo",
-  TRANSFERENCIA: "Transferencia",
-};
-
-/**
- * Payment status, in the product's one payment-status vocabulary.
- *
- * This used to be a third bespoke declaration: it invented
- * `bg-emerald-50 text-emerald-700` for approved (a green that is not the state
- * token) and, worse, painted "Pendiente" with `bg-amber-900/20 text-amber-400`
- * — a dark-theme pair stranded on a light card. That was the single badge a
- * parent most needs to read, and it was the least legible thing on the page.
- */
-function PagoEstadoBadge({ estado }: { estado: PagoPersona["estadoPago"] }): React.ReactElement {
-  const status = toValidationStatus(estado);
-  return <Badge tone={VALIDATION_STATUS_TONES[status]}>{VALIDATION_STATUS_LABELS[status]}</Badge>;
-}
-
-/**
- * The actionable empty state: the resolved amount plus the way to act on it.
- *
- * The figure is `Membresia.monto_aplicado` (via `/membresias/mias`) — never a
- * catalog price, never a guess. When it cannot be resolved the card still
- * explains what happens next, with no number attached.
- *
- * The upload button only appears when there is a real `Pago` row to attach the
- * file to (`POST /membresias/pagos/{id}/voucher`). A student cannot open a
- * payment period themselves: `POST /membresias/pagos` exists backend-side and
- * now authorizes the owner, but no client method or route handler exposes it,
- * so offering the button with nothing behind it would be a dead control.
- */
-function PagosEmptyState({
-  amount,
-  uploadablePagoId,
-  uploading,
-  onUpload,
-}: {
-  amount: string | null;
-  uploadablePagoId: number | null;
-  uploading: boolean;
-  onUpload: (pagoId: number) => void;
-}): React.ReactElement {
-  return (
-    <div className="flex flex-col items-start gap-2.5 p-6">
-      {amount !== null ? (
-        <p className="text-[22px] font-extrabold tracking-[-0.03em] text-ink">
-          Su mensualidad: {formatCurrency(amount)}
-        </p>
-      ) : (
-        <p className="text-[17px] font-bold tracking-tight text-ink">Todavía no hay pagos registrados</p>
-      )}
-      <p className="text-[13px] text-ink-3">
-        {uploadablePagoId !== null
-          ? "Adjunte el comprobante de su transferencia y el club lo valida."
-          : "El club abre el período de pago y luego usted adjunta el comprobante desde aquí."}
-      </p>
-      {uploadablePagoId !== null && (
-        <Button variant="primary" disabled={uploading} onClick={() => onUpload(uploadablePagoId)}>
-          {uploading ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Upload size={14} strokeWidth={1.5} aria-hidden="true" />}
-          {uploading ? "Subiendo…" : "Subir comprobante"}
-        </Button>
-      )}
-    </div>
-  );
-}
-
-function PagosSection({
-  state,
-  membership,
-  onRetry,
-  onUploaded,
-}: {
-  state: PagosState;
-  membership: MembershipSummary | null;
-  onRetry: () => void;
-  onUploaded: () => void;
-}): React.ReactElement {
-  const [uploadingId, setUploadingId] = useState<number | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [pendingUploadPagoId, setPendingUploadPagoId] = useState<number | null>(null);
-
-  const pagos = state.status === "ready" ? state.pagos : [];
-  const amount = resolveMonthlyAmount(membership);
-  const uploadable = findUploadablePago(pagos);
-
-  function handleSelectFile(pagoId: number): void {
-    setPendingUploadPagoId(pagoId);
-    fileInputRef.current?.click();
-  }
-
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
-    const file = e.target.files?.[0];
-    if (!file || !pendingUploadPagoId) return;
-
-    setUploadingId(pendingUploadPagoId);
-    setUploadError(null);
-    try {
-      await subirVoucherPago(pendingUploadPagoId, file);
-      onUploaded();
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "No se pudo subir el comprobante.");
-    } finally {
-      setUploadingId(null);
-      setPendingUploadPagoId(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  }
-
-  return (
-    <section className="card overflow-hidden" aria-labelledby="pagos-title">
-      <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-        <CreditCard size={16} strokeWidth={1.5} className="text-ink-3" aria-hidden="true" />
-        <h2 id="pagos-title" className="flex-1 text-[13px] font-bold text-ink">
-          Mis pagos
-        </h2>
-      </div>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,application/pdf"
-        className="hidden"
-        data-testid="voucher-input"
-        onChange={(e) => { void handleFileChange(e); }}
-      />
-
-      {uploadError && (
-        <div className="mx-5 mt-4 rounded-ctl border border-state-bad/20 bg-state-bad-bg px-3 py-2 text-xs text-state-bad" role="alert">
-          {uploadError}
-          <button type="button" onClick={() => setUploadError(null)} className="ml-2 underline">
-            Cerrar
-          </button>
-        </div>
-      )}
-
-      {state.status === "loading" && <LoadingState label="Cargando su historial de pagos…" />}
-
-      {state.status === "error" && (
-        <div className="p-5">
-          <ErrorState message={state.message} onRetry={onRetry} />
-        </div>
-      )}
-
-      {state.status === "ready" &&
-        (state.pagos.length === 0 ? (
-          <PagosEmptyState
-            amount={amount}
-            uploadablePagoId={null}
-            uploading={false}
-            onUpload={handleSelectFile}
-          />
-        ) : (
-          <>
-            {uploadable !== null && (
-              <PagosEmptyState
-                amount={uploadable.monto}
-                uploadablePagoId={uploadable.id}
-                uploading={uploadingId === uploadable.id}
-                onUpload={handleSelectFile}
-              />
-            )}
-            <ul className="flex flex-col border-t border-line">
-              {state.pagos.map((pago) => (
-                <li
-                  key={pago.id}
-                  className="flex flex-col gap-2 border-b border-line px-5 py-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0">
-                    <p className="text-[13.5px] font-semibold tabular-nums text-ink">
-                      {formatCurrency(pago.monto)} · {formatDateRange(pago.fechaInicio, pago.fechaFin)}
-                    </p>
-                    <p className="text-xs text-ink-3">{TIPO_PAGO_LABEL[pago.tipoPago]}</p>
-                    {pago.voucherUrl && (
-                      <a
-                        href={pago.voucherUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-ink underline"
-                      >
-                        <Paperclip size={10} strokeWidth={1.5} aria-hidden="true" />
-                        Ver comprobante
-                      </a>
-                    )}
-                    {pago.estadoPago === "RECHAZADO" && pago.motivoRechazo && (
-                      <div className="mt-2 rounded-ctl border border-state-bad/20 bg-state-bad-bg px-3 py-2">
-                        <p className="text-xs font-semibold text-state-bad">Motivo de rechazo</p>
-                        <p className="text-xs text-state-bad/80">{pago.motivoRechazo}</p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {!pago.voucherUrl && pago.estadoPago !== "APROBADO" && (
-                      <Button
-                        size="sm"
-                        onClick={() => handleSelectFile(pago.id)}
-                        disabled={uploadingId === pago.id}
-                      >
-                        {uploadingId === pago.id ? (
-                          <Loader2 size={12} className="animate-spin" aria-hidden="true" />
-                        ) : (
-                          <Upload size={12} strokeWidth={1.5} aria-hidden="true" />
-                        )}
-                        {uploadingId === pago.id ? "Subiendo…" : "Subir comprobante"}
-                      </Button>
-                    )}
-                    <PagoEstadoBadge estado={pago.estadoPago} />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </>
-        ))}
     </section>
   );
 }
@@ -543,10 +327,12 @@ function ActivePortalView({
   data,
   hasAlumnoRole,
   greetingName,
+  onIndependizar,
 }: {
   data: StudentPortalSummary;
   hasAlumnoRole: boolean;
   greetingName: string;
+  onIndependizar: () => void;
 }): React.ReactElement {
   const managedProfiles: StudentProfileSummary[] =
     hasAlumnoRole && data.self ? [data.self, ...data.representados] : data.representados;
@@ -562,6 +348,7 @@ function ActivePortalView({
   }, [managedProfiles.map((p) => p.personaId).join(",")]);
 
   const representative = isRepresentative(data.representados.length);
+  const selfIsMinor = isMinor(data.self?.fechaNacimiento);
   const selectedProfile = managedProfiles.find((p) => p.personaId === selectedId) ?? managedProfiles[0] ?? null;
   const selectedPersonaId = selectedProfile?.personaId ?? "";
 
@@ -595,6 +382,7 @@ function ActivePortalView({
     () => (pagosState.status === "ready" ? resolveCoverageEnd(pagosState.pagos) : null),
     [pagosState],
   );
+  const selectedIsMinor = isMinor(selectedProfile?.fechaNacimiento);
 
   return (
     <div className="mx-auto w-full max-w-[760px] space-y-5">
@@ -633,6 +421,22 @@ function ActivePortalView({
         </div>
       )}
 
+      {selectedIsMinor && selectedProfile?.representante && (
+        <section className="card flex items-center gap-3 p-5" aria-label="Su representante">
+          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-canvas">
+            <User size={18} strokeWidth={1.5} className="text-ink-3" aria-hidden="true" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3">
+              Su representante
+            </span>
+            <span className="block text-[13.5px] font-semibold text-ink">
+              {selectedProfile.representante.nombres} {selectedProfile.representante.apellidos}
+            </span>
+          </span>
+        </section>
+      )}
+
       {selectedProfile === null ? (
         <div className="card">
           <EmptyState
@@ -645,23 +449,19 @@ function ActivePortalView({
         <>
           <Carnet profile={selectedProfile} coverageEnd={coverageEnd} />
           <TrainingPanel profile={selectedProfile} />
-          <PagosSection
-            state={pagosState}
-            membership={selectedProfile.membership}
-            onRetry={() => setPagosReloadToken((n) => n + 1)}
-            onUploaded={() => setPagosReloadToken((n) => n + 1)}
-          />
           <RecentSessionsSection profile={selectedProfile} />
         </>
       )}
 
-      {/* Contextual CTAs. A self-managed student with no dependents sees
-          neither: "Inscribir hijo/dependiente" used to point them at the
-          PUBLIC enrollment wizard, which creates a whole second account and
-          user — and `/student/add-dependent` is gated to `representante`, so
-          they could not use the honest route either. Offering it was worse
-          than offering nothing. */}
-      {(representative || !hasAlumnoRole) && (
+      {/* A minor manages nothing on their own account: no dependents, no
+          payments, no independentization. Everything below is gated on that.
+
+          A self-managed student with no dependents sees no "agregar
+          dependiente" either: that CTA used to point at the PUBLIC enrolment
+          wizard, which creates a whole second account and user — and
+          `/student/add-dependent` is gated to `representante`, so they could
+          not use the honest route either. Offering it was worse than nothing. */}
+      {!selfIsMinor && (
         <div className="flex flex-wrap gap-3 pt-1">
           {representative && (
             <Link href="/student/add-dependent" className={buttonClasses("secondary")}>
@@ -676,6 +476,17 @@ function ActivePortalView({
               Unirme como jugador
               <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
             </Link>
+          )}
+          <Link href="/student/payments" className={buttonClasses("secondary")}>
+            <CreditCard size={16} strokeWidth={1.5} aria-hidden="true" />
+            Registrar pago o renovar membresía
+            <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+          </Link>
+          {data.self?.representanteId != null && (
+            <button type="button" onClick={onIndependizar} className={buttonClasses("secondary")}>
+              <UserMinus size={16} strokeWidth={1.5} aria-hidden="true" />
+              Independizarse del representante
+            </button>
           )}
         </div>
       )}
@@ -693,12 +504,14 @@ function firstNameOf(fullName: string): string {
 }
 
 function StudentPortalContent(): React.ReactElement {
-  const { session } = useAuth();
+  const { session, refreshSession } = useAuth();
   const personaId = session?.user.id ?? "";
   const hasAlumnoRole = session?.user.role === "estudiante";
 
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
+  const [showAgeUpModal, setShowAgeUpModal] = useState(false);
+  const [ageUpLoading, setAgeUpLoading] = useState(false);
 
   useEffect(() => {
     if (!personaId) return;
@@ -725,6 +538,19 @@ function StudentPortalContent(): React.ReactElement {
       ? firstNameOf(state.data.self.nombres)
       : firstNameOf(session?.user.name ?? "");
 
+  async function handleAgeUpConfirm(contrasenia: string): Promise<void> {
+    if (!personaId) return;
+    setAgeUpLoading(true);
+    try {
+      await independizarPersona(Number(personaId), contrasenia);
+      await refreshSession();
+      setReloadToken((n) => n + 1);
+      setShowAgeUpModal(false);
+    } finally {
+      setAgeUpLoading(false);
+    }
+  }
+
   return (
     <AppShell eyebrow="Área de estudiantes" title="Mi cuenta">
       {state.status === "loading" && (
@@ -743,8 +569,14 @@ function StudentPortalContent(): React.ReactElement {
             data={state.data}
             hasAlumnoRole={hasAlumnoRole}
             greetingName={greetingName}
+            onIndependizar={() => setShowAgeUpModal(true)}
           />
         ))}
+      <AgeUpConfirmation
+        open={showAgeUpModal}
+        onConfirm={handleAgeUpConfirm}
+        onCancel={() => setShowAgeUpModal(false)}
+      />
     </AppShell>
   );
 }

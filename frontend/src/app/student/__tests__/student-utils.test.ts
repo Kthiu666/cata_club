@@ -6,15 +6,14 @@ import { describe, it, expect } from "vitest";
 import {
   derivePortalMode,
   isRepresentative,
+  isMinor,
   describeRanking,
   parseLevelNumber,
   personInitials,
   summarizeRecentAttendance,
-  resolveMonthlyAmount,
   resolveCoverageEnd,
-  findUploadablePago,
 } from "../student-utils";
-import type { MembershipSummary, PagoPersona, StudentRankingSummary, StudentSessionSummary } from "@/services/api";
+import type { PagoPersona, StudentRankingSummary, StudentSessionSummary } from "@/services/api";
 
 // ---------------------------------------------------------------------------
 // derivePortalMode / isRepresentative
@@ -46,6 +45,37 @@ describe("isRepresentative", () => {
   it("is true with one or more representados", () => {
     expect(isRepresentative(1)).toBe(true);
     expect(isRepresentative(3)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isMinor
+// ---------------------------------------------------------------------------
+
+describe("isMinor", () => {
+  it("returns true for a birth date younger than 18", () => {
+    const today = new Date();
+    const birthYear = today.getFullYear() - 15;
+    expect(isMinor(`${birthYear}-06-15`)).toBe(true);
+  });
+
+  it("returns false for a birth date 18 or older", () => {
+    const today = new Date();
+    const birthYear = today.getFullYear() - 20;
+    expect(isMinor(`${birthYear}-06-15`)).toBe(false);
+  });
+
+  it("returns false for null/undefined", () => {
+    expect(isMinor(null)).toBe(false);
+    expect(isMinor(undefined)).toBe(false);
+  });
+
+  it("returns false for empty string", () => {
+    expect(isMinor("")).toBe(false);
+  });
+
+  it("returns false for invalid date format", () => {
+    expect(isMinor("not-a-date")).toBe(false);
   });
 });
 
@@ -167,19 +197,8 @@ describe("summarizeRecentAttendance", () => {
 });
 
 // ---------------------------------------------------------------------------
-// resolveMonthlyAmount / resolveCoverageEnd / findUploadablePago
+// resolveCoverageEnd
 // ---------------------------------------------------------------------------
-
-const MEMBRESIA: MembershipSummary = {
-  id: 3,
-  estado: "ACTIVA",
-  personaId: 9,
-  montoAplicado: "25.00",
-  categoria: "Mensual",
-  modalidad: "MENSUAL",
-  franjaHoraria: "Tarde",
-  fechaActivacion: "2026-03-15T00:00:00Z",
-};
 
 function pago(overrides: Partial<PagoPersona>): PagoPersona {
   return {
@@ -199,20 +218,6 @@ function pago(overrides: Partial<PagoPersona>): PagoPersona {
     ...overrides,
   };
 }
-
-describe("resolveMonthlyAmount", () => {
-  it("resolves the amount from the persona's own membership row", () => {
-    expect(resolveMonthlyAmount(MEMBRESIA)).toBe("25.00");
-  });
-
-  it("returns null when there is no membership — no figure may be invented", () => {
-    expect(resolveMonthlyAmount(null)).toBeNull();
-  });
-
-  it("returns null when the membership carries no montoAplicado", () => {
-    expect(resolveMonthlyAmount({ ...MEMBRESIA, montoAplicado: null })).toBeNull();
-  });
-});
 
 describe("resolveCoverageEnd", () => {
   it("returns the furthest fechaFin among approved payments", () => {
@@ -237,26 +242,5 @@ describe("resolveCoverageEnd", () => {
   it("returns null when nothing has been approved", () => {
     expect(resolveCoverageEnd([pago({ estadoPago: "PENDIENTE_VALIDACION" })])).toBeNull();
     expect(resolveCoverageEnd([])).toBeNull();
-  });
-});
-
-describe("findUploadablePago", () => {
-  it("finds the payment still waiting for a comprobante", () => {
-    const target = pago({ id: 7 });
-    expect(findUploadablePago([pago({ id: 6, estadoPago: "APROBADO" }), target])).toBe(target);
-  });
-
-  it("skips a payment that already carries a voucher", () => {
-    expect(findUploadablePago([pago({ voucherUrl: "https://example.test/v.pdf" })])).toBeNull();
-  });
-
-  it("offers a rejected payment for re-upload", () => {
-    const rejected = pago({ id: 8, estadoPago: "RECHAZADO", motivoRechazo: "Ilegible" });
-    expect(findUploadablePago([rejected])).toBe(rejected);
-  });
-
-  it("returns null when there is nothing to upload", () => {
-    expect(findUploadablePago([])).toBeNull();
-    expect(findUploadablePago([pago({ estadoPago: "APROBADO" })])).toBeNull();
   });
 });

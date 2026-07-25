@@ -39,6 +39,7 @@ interface WizardInputProps {
   icon?: ReactNode;
   pattern?: string;
   maxLength?: number;
+  minLength?: number;
   inputMode?: string;
   /**
    * The field's own validation message, shown BESIDE the field
@@ -80,6 +81,7 @@ export function WizardInput(opts: WizardInputProps): ReactElement {
           disabled={opts.disabled}
           pattern={opts.pattern}
           maxLength={opts.maxLength}
+          minLength={opts.minLength}
           aria-invalid={hasError || undefined}
           aria-describedby={opts.error || opts.hint ? messageId : undefined}
           inputMode={(opts.inputMode ?? "text") as InputHTMLAttributes<HTMLInputElement>["inputMode"]}
@@ -197,12 +199,14 @@ export function PersonIdentityFields(props: PersonIdentityFieldsProps): ReactEle
         onChange={props.onNombresChange} placeholder="p. ej. Juan Carlos" required
         icon={<User size={16} strokeWidth={1.5} aria-hidden="true" />}
         error={errors.nombres} onBlur={() => props.onFieldBlur?.("nombres")}
+        pattern="[A-Za-z\u00C0-\u024F\s]+" maxLength={100} minLength={3}
       />
       <WizardInput
         idPrefix={idPrefix} disabled={disabled} label="Apellidos" value={props.apellidos}
         onChange={props.onApellidosChange} placeholder="p. ej. Rodríguez López" required
         icon={<User size={16} strokeWidth={1.5} aria-hidden="true" />}
         error={errors.apellidos} onBlur={() => props.onFieldBlur?.("apellidos")}
+        pattern="[A-Za-z\u00C0-\u024F\s]+" maxLength={100} minLength={3}
       />
       <div className="grid gap-4 sm:grid-cols-2">
         <WizardInput
@@ -227,9 +231,10 @@ export function PersonIdentityFields(props: PersonIdentityFieldsProps): ReactEle
       <WizardInput
         idPrefix={idPrefix} disabled={disabled} label="Teléfono" value={props.telefono}
         onChange={props.onTelefonoChange} placeholder="p. ej. 0991234567" required
-        icon={<Phone size={16} strokeWidth={1.5} aria-hidden="true" />} inputMode="tel"
+        icon={<Phone size={16} strokeWidth={1.5} aria-hidden="true" />}
+        pattern="[0-9]+" maxLength={10} minLength={7} inputMode="tel"
         error={errors.telefono} onBlur={() => props.onFieldBlur?.("telefono")}
-        hint="Diez dígitos, con o sin espacios."
+        hint="Entre siete y diez dígitos, con o sin espacios."
       />
       {props.fechaNacimiento && (
         <div className="rounded-ctl bg-canvas p-3 text-xs text-ink-3">
@@ -275,13 +280,15 @@ export function EmergencyContactFields(props: EmergencyContactFieldsProps): Reac
           onChange={props.onContactoChange} placeholder="p. ej. María Rodríguez" required
           icon={<UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />}
           error={props.contactoError} onBlur={props.onContactoBlur}
+          pattern="[A-Za-z\u00C0-\u024F\s]+" maxLength={150} minLength={3}
         />
         <WizardInput
           idPrefix={idPrefix} disabled={disabled} label="Teléfono de Emergencia" value={props.telefono}
           onChange={props.onTelefonoChange} placeholder="p. ej. 0991234567" required
-          icon={<Phone size={16} strokeWidth={1.5} aria-hidden="true" />} inputMode="tel"
+          icon={<Phone size={16} strokeWidth={1.5} aria-hidden="true" />}
+          pattern="[0-9]+" maxLength={10} minLength={7} inputMode="tel"
           error={props.telefonoError} onBlur={props.onTelefonoBlur}
-          hint="Diez dígitos, con o sin espacios."
+          hint="Entre siete y diez dígitos, con o sin espacios."
         />
       </div>
     </>

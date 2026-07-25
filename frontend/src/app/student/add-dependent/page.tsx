@@ -25,9 +25,9 @@ import AppShell from "@/components/shell/AppShell";
 import BackLink from "@/components/BackLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
-import { fetchStudentPortal, crearRepresentado } from "@/services/api";
+import { fetchStudentPortal, crearRepresentado, fetchInstituciones, type Institucion } from "@/services/api";
 import { calculateAge } from "@/app/student/enroll/enroll-utils";
-import { WizardTextarea, PersonIdentityFields, EmergencyContactFields, WizardNavigation } from "@/components/wizard-fields";
+import { WizardTextarea, WizardInput, PersonIdentityFields, EmergencyContactFields, WizardNavigation } from "@/components/wizard-fields";
 import { Stepper, buttonClasses } from "@/components/ui";
 import { BLOOD_TYPES } from "@/types/enrollment";
 import type { TipoSangre } from "@/types/domain";
@@ -35,6 +35,8 @@ import {
   Heart,
   CheckCircle,
   AlertTriangle,
+  Mail,
+  Lock,
 } from "lucide-react";
 import {
   ADD_DEPENDENT_STEP_ORDER,
@@ -67,6 +69,8 @@ function AddDependentContent(): React.ReactElement {
   const [summaryReviewed, setSummaryReviewed] = useState(false);
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [touched, setTouched] = useState<Set<AddDependentField>>(new Set());
+  const [instituciones, setInstituciones] = useState<Institucion[]>([]);
+  const [tipoEscuelaFilter, setTipoEscuelaFilter] = useState<string>("");
 
   const [representanteId, setRepresentanteId] = useState<number | null>(null);
   const [loadingRepresentante, setLoadingRepresentante] = useState(true);
@@ -120,6 +124,10 @@ function AddDependentContent(): React.ReactElement {
       cancelled = true;
     };
   }, [session?.user.id, reloadToken]);
+
+  useEffect(() => {
+    fetchInstituciones().then(setInstituciones).catch(() => {});
+  }, []);
 
   // ---- Helpers ----
 
@@ -237,6 +245,103 @@ function AddDependentContent(): React.ReactElement {
           }}
           onFieldBlur={(field) => markTouched(field)}
         />
+
+        {/* School selector */}
+        {instituciones.length > 0 && (
+          <div className="mt-4">
+            <label htmlFor="add-dependent-tipo-escuela" className="mb-1.5 block text-sm font-medium text-cata-text">
+              Tipo de Escuela
+            </label>
+            <select
+              id="add-dependent-tipo-escuela"
+              value={tipoEscuelaFilter}
+              onChange={(e) => {
+                setTipoEscuelaFilter(e.target.value);
+                updateField("institucionId", "");
+              }}
+              disabled={submitting}
+              className="input-field"
+            >
+              <option value="">Todos los tipos</option>
+              <option value="PARTICULAR">Particular</option>
+              <option value="FISCAL">Fiscal</option>
+              <option value="FISCOMISIONAL">Fiscomisional</option>
+              <option value="MUNICIPAL">Municipal</option>
+            </select>
+
+            <label htmlFor="add-dependent-institucion" className="mb-1.5 mt-3 block text-sm font-medium text-cata-text">
+              Escuela / Institución
+            </label>
+            <p className="mb-2 text-xs text-cata-text/50">
+              Seleccione la institución educativa del estudiante (opcional).
+            </p>
+            <select
+              id="add-dependent-institucion"
+              value={formData.institucionId}
+              onChange={(e) => updateField("institucionId", e.target.value)}
+              disabled={submitting}
+              className="input-field"
+            >
+              <option value="">Sin institución asignada</option>
+              {instituciones
+                .filter((inst) => !tipoEscuelaFilter || inst.tipoEscuela === tipoEscuelaFilter)
+                .map((inst) => (
+                  <option key={inst.id} value={String(inst.id)}>
+                    {inst.nombre} ({inst.tipoEscuela})
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderCredentialsStep(): React.ReactElement {
+    return (
+      <div className="space-y-4">
+        <p className="mb-4 text-sm leading-relaxed text-cata-text/65">
+          Si desea que el dependiente tenga su propia cuenta de acceso, ingrese
+          las credenciales. Deje estos campos vacíos si no requiere cuenta para el menor.
+        </p>
+
+        <WizardInput
+          idPrefix="add-dependent"
+          label="Correo electrónico (opcional)"
+          value={formData.correo}
+          onChange={(v) => updateField("correo", v)}
+          type="email"
+          placeholder="correo@ejemplo.com"
+          disabled={submitting}
+          icon={<Mail size={16} strokeWidth={1.5} aria-hidden="true" />}
+          error={shownError("correo")}
+          onBlur={() => markTouched("correo")}
+        />
+
+        <WizardInput
+          idPrefix="add-dependent"
+          label="Contraseña (opcional)"
+          value={formData.contrasenia}
+          onChange={(v) => updateField("contrasenia", v)}
+          type="password"
+          placeholder="Mínimo 8 caracteres"
+          disabled={submitting}
+          icon={<Lock size={16} strokeWidth={1.5} aria-hidden="true" />}
+          error={shownError("contrasenia")}
+          onBlur={() => markTouched("contrasenia")}
+        />
+
+        <div className="rounded-ctl border border-line-2 bg-canvas p-3 text-xs text-ink-2">
+          <p className="flex items-center gap-1.5 font-medium">
+            <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
+            Cuenta de acceso del menor
+          </p>
+          <p className="mt-1 text-blue-700/80">
+            Si crea estas credenciales, el menor podrá iniciar sesión de forma
+            independiente. Si las deja vacías, solo el representante tendrá acceso
+            a la cuenta.
+          </p>
+        </div>
       </div>
     );
   }
@@ -361,6 +466,17 @@ function AddDependentContent(): React.ReactElement {
           {summaryRow("Cédula", formData.cedula || "—", "child")}
           {summaryRow("Teléfono", formData.telefono || "—", "child")}
           {summaryRow(
+            "Institución",
+            instituciones.find((inst) => String(inst.id) === formData.institucionId)?.nombre
+              ?? "Sin institución asignada",
+            "child",
+          )}
+          {summaryRow(
+            "Cuenta de acceso",
+            formData.correo.trim() || "Sin cuenta propia",
+            "credentials",
+          )}
+          {summaryRow(
             "Tipo de sangre",
             formData.tipoSangre ? formData.tipoSangre.replace("_", " ") : "—",
             "health",
@@ -448,6 +564,7 @@ function AddDependentContent(): React.ReactElement {
         <form onSubmit={handleConfirm}>
           {/* Step content */}
           {step === "child" && renderChildStep()}
+          {step === "credentials" && renderCredentialsStep()}
           {step === "health" && renderHealthStep()}
           {step === "summary" && renderSummary()}
 

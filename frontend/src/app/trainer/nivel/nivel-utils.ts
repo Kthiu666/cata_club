@@ -11,8 +11,6 @@
  * has only one such table. There is no separate nivel-category taxonomy.
  */
 
-import type { AlumnoParaNivel } from "@/services/api";
-
 // ---------------------------------------------------------------------------
 // Period ("YYYY-MM") validation and derivation
 // ---------------------------------------------------------------------------
@@ -52,33 +50,32 @@ export interface NivelStudentRef {
 }
 
 /**
- * Build the nivel student list from the roster returned by
- * `fetchAlumnosParaNivel()` (`GET /ranking/alumnos`).
+ * Build the nivel student list from the lightweight alumnos-con-nivel
+ * endpoint (`fetchAlumnosConNivel`), accessible to both admin and trainer.
  *
- * Previously derived from `fetchMembers()`, which a trainer cannot call — its
- * route depends on the ADMINISTRADOR-only `GET /personas/`, so
- * `/trainer/nivel` answered 403. See `AlumnoParaNivel` in src/services/api.ts.
+ * This is the single roster source for both nivel screens: the trainer panel
+ * (`/trainer/nivel`) and the admin ladder (`/ranking`). It replaced
+ * `fetchMembers()`, whose route depends on the ADMINISTRADOR-only
+ * `GET /personas/` — a trainer opening `/trainer/nivel` got a real 403.
  *
- * `/api/members` grouped people into accounts and listed an account's
- * children *instead of* its holder, which kept parents out of the student
- * list. The flat roster needs that rule stated explicitly: anyone who is
- * somebody else's `representanteId` is a parent, not a student.
+ * The backend already restricts the roster to people holding the ALUMNO role,
+ * so a parent who merely enrolled a child never appears here. The `activo`
+ * flag is not part of this payload and defaults to `true`: the nivel screens
+ * assign and move levels, they do not filter by estado.
  */
-export function buildNivelStudents(
-  roster: ReadonlyArray<AlumnoParaNivel>,
+export function buildNivelStudentsFromAlumnos(
+  alumnos: ReadonlyArray<{
+    personaId: number;
+    nombres: string;
+    apellidos: string;
+    nivelRankingId: number | null;
+  }>,
 ): NivelStudentRef[] {
-  const representanteIds = new Set(
-    roster
-      .map((alumno) => alumno.representanteId)
-      .filter((id): id is number => id !== null),
-  );
-  return roster
-    .filter((alumno) => !representanteIds.has(alumno.personaId))
-    .map((alumno) => ({
-      id: String(alumno.personaId),
-      nombres: alumno.nombres,
-      apellidos: alumno.apellidos,
-      activo: alumno.activo,
-      nivelRankingId: alumno.nivelRankingId,
-    }));
+  return alumnos.map((a) => ({
+    id: String(a.personaId),
+    nombres: a.nombres,
+    apellidos: a.apellidos,
+    activo: true,
+    nivelRankingId: a.nivelRankingId,
+  }));
 }

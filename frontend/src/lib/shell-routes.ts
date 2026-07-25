@@ -40,7 +40,6 @@ const PUBLIC_EXCEPTION_PREFIXES = ["/student/enroll"] as const;
  */
 const AUTH_SHELL_PREFIXES = [
   "/login",
-  "/register",
   "/forgot-password",
   // `/reset-password` was missing here, so it was the one credential screen
   // that got the public top header stacked on top of its own composition —
@@ -76,6 +75,8 @@ const APP_SHELL_PREFIXES = [
   "/reports",
   "/student",
   "/profile",
+  // `/admin/crear-cuenta` (admin account CRUD) renders `AppShell` itself.
+  "/admin",
 ] as const;
 
 /** `/trainer` matches `/trainer` and `/trainer/attendance`, never `/trainers`. */

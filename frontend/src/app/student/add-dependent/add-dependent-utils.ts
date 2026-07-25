@@ -1,9 +1,10 @@
 /**
  * Pure utility functions for the authenticated "Add Dependent" wizard.
  *
- * A short, 3-step counterpart to `enroll-utils.ts` (child data → medical
- * record → summary/confirm) for a representante already logged into the
- * portal — no account/credentials step, since no new `Usuario` is created.
+ * 4-step wizard (child data → credentials → medical record → summary/confirm)
+ * for a representante already logged into the portal. If the representative
+ * provides credentials for the minor, a Usuario with rol ALUMNO is also
+ * created (Option B: minors with own account).
  *
  * Extracted for testability — no React dependencies.
  */
@@ -15,15 +16,16 @@ import type { TipoSangre } from "@/types/domain";
 // Types
 // ---------------------------------------------------------------------------
 
-/** Wizard step identifiers — 3 steps only (not the public 5-step enroll flow). */
-export type AddDependentStep = "child" | "health" | "summary";
+/** Wizard step identifiers — 4 steps (child, credentials, health, summary). */
+export type AddDependentStep = "child" | "credentials" | "health" | "summary";
 
 /** Step order used by the wizard. */
-export const ADD_DEPENDENT_STEP_ORDER: AddDependentStep[] = ["child", "health", "summary"];
+export const ADD_DEPENDENT_STEP_ORDER: AddDependentStep[] = ["child", "credentials", "health", "summary"];
 
 /** Human-readable labels for each step, in Spanish. */
 export const ADD_DEPENDENT_STEP_LABELS: Record<AddDependentStep, string> = {
   child: "Datos del Dependiente",
+  credentials: "Cuenta de Acceso (Opcional)",
   health: "Ficha Médica",
   summary: "Resumen y Confirmación",
 };
@@ -31,11 +33,12 @@ export const ADD_DEPENDENT_STEP_LABELS: Record<AddDependentStep, string> = {
 /**
  * One-word names for the stepper pills — the same named-stepper contract the
  * public wizard uses (`STEP_SHORT_LABELS` in enroll-utils.ts). This flow has
- * three steps, not five, because it creates neither a `Usuario` nor a
- * representante: the caller is already both.
+ * four steps, not five, because it creates no representante: the caller
+ * already is one. The `Usuario` it may create is optional.
  */
 export const ADD_DEPENDENT_SHORT_LABELS: Record<AddDependentStep, string> = {
   child: "Estudiante",
+  credentials: "Cuenta",
   health: "Salud",
   summary: "Confirmar",
 };
@@ -47,6 +50,9 @@ export interface AddDependentFormData {
   fechaNacimiento: string;
   cedula: string;
   telefono: string;
+  correo: string;
+  contrasenia: string;
+  institucionId: string;
   tipoSangre: TipoSangre | "";
   /** Raw comma-separated input — parsed into a string[] by `buildRepresentadoPayload`. */
   enfermedades: string;
@@ -62,6 +68,9 @@ export const initialAddDependentFormData: AddDependentFormData = {
   fechaNacimiento: "",
   cedula: "",
   telefono: "",
+  correo: "",
+  contrasenia: "",
+  institucionId: "",
   tipoSangre: "",
   enfermedades: "",
   alergias: "",
@@ -101,6 +110,8 @@ export function validateAddDependentStep(
   switch (step) {
     case "child":
       return validateChildData(data);
+    case "credentials":
+      return validateCredentialsData(data);
     case "health":
       return validateHealthData(data);
     case "summary":
@@ -110,7 +121,7 @@ export function validateAddDependentStep(
 
 /** Validate the whole form at once (all steps) — used before final submit. */
 export function validateAddDependentForm(data: AddDependentFormData): string[] {
-  return [...validateChildData(data), ...validateHealthData(data)];
+  return [...validateChildData(data), ...validateCredentialsData(data), ...validateHealthData(data)];
 }
 
 // ---------------------------------------------------------------------------
@@ -128,9 +139,28 @@ function digitsOf(value: string): string {
   return value.replace(/\D/g, "");
 }
 
+/** Letters (incl. accents) and spaces — a person's name, not an identifier. */
+const NAME_PATTERN = /^[A-Za-z\u00C0-\u024F\s]+$/;
+
+function nameRule(value: string, subject: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return `${subject} son obligatorios.`;
+  if (trimmed.length < 3) return `${subject} deben tener al menos 3 caracteres.`;
+  return NAME_PATTERN.test(trimmed) ? null : `${subject} solo pueden contener letras y espacios.`;
+}
+
+/** Ecuadorian numbers run 7 (landline) to 10 (mobile) digits. */
+function phoneRule(value: string, subject: string): string | null {
+  if (!value.trim()) return `${subject} es obligatorio.`;
+  const digits = digitsOf(value);
+  return digits.length >= 7 && digits.length <= 10
+    ? null
+    : `${subject} debe tener entre 7 y 10 dígitos.`;
+}
+
 const FIELD_RULES: Partial<Record<AddDependentField, (d: AddDependentFormData) => string | null>> = {
-  nombres: (d) => (d.nombres.trim() ? null : "Los nombres son obligatorios."),
-  apellidos: (d) => (d.apellidos.trim() ? null : "Los apellidos son obligatorios."),
+  nombres: (d) => nameRule(d.nombres, "Los nombres"),
+  apellidos: (d) => nameRule(d.apellidos, "Los apellidos"),
   fechaNacimiento: (d) => {
     if (!d.fechaNacimiento) return "La fecha de nacimiento es obligatoria.";
     if (!isValidDate(d.fechaNacimiento)) return "La fecha de nacimiento ingresada no es válida.";
@@ -141,19 +171,16 @@ const FIELD_RULES: Partial<Record<AddDependentField, (d: AddDependentFormData) =
     if (!d.cedula.trim()) return "La cédula de identidad es obligatoria.";
     return /^\d{10}$/.test(d.cedula.trim()) ? null : "La cédula debe tener 10 dígitos.";
   },
-  telefono: (d) => {
-    if (!d.telefono.trim()) return "El teléfono es obligatorio.";
-    return digitsOf(d.telefono).length === 10 ? null : "El teléfono debe tener 10 dígitos.";
-  },
+  telefono: (d) => phoneRule(d.telefono, "El teléfono"),
   tipoSangre: (d) => (isTipoSangre(d.tipoSangre) ? null : "El tipo de sangre es obligatorio."),
-  contactoEmergencia: (d) =>
-    d.contactoEmergencia.trim() ? null : "El nombre de contacto de emergencia es obligatorio.",
-  telefonoEmergencia: (d) => {
-    if (!d.telefonoEmergencia.trim()) return "El teléfono de emergencia es obligatorio.";
-    return digitsOf(d.telefonoEmergencia).length === 10
+  contactoEmergencia: (d) => {
+    const trimmed = d.contactoEmergencia.trim();
+    if (!trimmed) return "El nombre de contacto de emergencia es obligatorio.";
+    return trimmed.length >= 3
       ? null
-      : "El teléfono de emergencia debe tener 10 dígitos.";
+      : "El nombre del contacto de emergencia debe tener al menos 3 caracteres.";
   },
+  telefonoEmergencia: (d) => phoneRule(d.telefonoEmergencia, "El teléfono de emergencia"),
 };
 
 const CHILD_FIELDS: AddDependentField[] = [
@@ -171,6 +198,10 @@ export function fieldsForAddDependentStep(step: AddDependentStep): AddDependentF
   switch (step) {
     case "child":
       return CHILD_FIELDS;
+    case "credentials":
+      // Both fields are optional, so neither is ever "missing". The
+      // both-or-neither rule is applied by `validateAddDependentFields`.
+      return [];
     case "health":
       return HEALTH_FIELDS;
     case "summary":
@@ -187,6 +218,18 @@ export function validateAddDependentFields(
   for (const field of fieldsForAddDependentStep(step)) {
     const message = FIELD_RULES[field]?.(data) ?? null;
     if (message !== null) errors[field] = message;
+  }
+  // An optional account is all-or-nothing: half-filled credentials block the
+  // step, and the message has to land on the field that is actually wrong.
+  if (step === "credentials") {
+    const hasCorreo = data.correo.trim().length > 0;
+    const hasContrasenia = data.contrasenia.length > 0;
+    if (hasCorreo || hasContrasenia) {
+      if (!hasCorreo) errors.correo = "El correo electrónico es obligatorio si se desea crear una cuenta.";
+      else if (!isEmail(data.correo)) errors.correo = "El correo electrónico no es válido.";
+      if (!hasContrasenia) errors.contrasenia = "La contraseña es obligatoria si se desea crear una cuenta.";
+      else if (data.contrasenia.length < 8) errors.contrasenia = "La contraseña debe tener al menos 8 caracteres.";
+    }
   }
   return errors;
 }
@@ -205,6 +248,8 @@ const FIELD_LABELS: Partial<Record<AddDependentField, string>> = {
   fechaNacimiento: "Fecha de nacimiento",
   cedula: "Cédula de identidad",
   telefono: "Teléfono",
+  correo: "Correo electrónico",
+  contrasenia: "Contraseña",
   tipoSangre: "Tipo de sangre",
   contactoEmergencia: "Nombre del contacto de emergencia",
   telefonoEmergencia: "Teléfono de emergencia",
@@ -219,6 +264,17 @@ export function describeAddDependentBlocker(errors: AddDependentFieldErrors): st
   if (labels.length === 1) return `Para continuar, revise: ${labels[0]}.`;
   const last = labels[labels.length - 1];
   return `Para continuar, revise: ${labels.slice(0, -1).join(", ")} y ${last}.`;
+}
+
+/**
+ * Validate credentials: optional, but if either `correo` or `contrasenia`
+ * is provided, BOTH must be present and valid.
+ *
+ * Composed from `validateAddDependentFields` so the flat list and the
+ * beside-the-field message can never drift apart.
+ */
+function validateCredentialsData(data: AddDependentFormData): string[] {
+  return Object.values(validateAddDependentFields("credentials", data));
 }
 
 function collect(fields: AddDependentField[], data: AddDependentFormData): string[] {
@@ -237,6 +293,10 @@ function validateHealthData(data: AddDependentFormData): string[] {
 
 function isTipoSangre(value: string): value is TipoSangre {
   return TIPO_SANGRE_VALUES.includes(value as TipoSangre);
+}
+
+function isEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
 function isValidDate(value: string): boolean {
@@ -302,9 +362,12 @@ function parseEnfermedades(raw: string): string[] {
  * Build the `RepresentadoCreatePayload` sent to `crearRepresentado`, matching
  * the backend's `RepresentadoCreateDTO` shape (camelCase here — the BFF
  * route converts to snake_case before calling FastAPI).
+ *
+ * If the user provided optional `correo` + `contrasenia`, they are included
+ * in the payload so the backend also creates a `Usuario` with rol ALUMNO.
  */
 export function buildRepresentadoPayload(data: AddDependentFormData): RepresentadoCreatePayload {
-  return {
+  const payload: RepresentadoCreatePayload = {
     nombres: data.nombres.trim(),
     apellidos: data.apellidos.trim(),
     cedula: data.cedula.trim(),
@@ -318,4 +381,12 @@ export function buildRepresentadoPayload(data: AddDependentFormData): Representa
       ...(data.telefonoEmergencia.trim() ? { telefonoEmergencia: data.telefonoEmergencia.trim() } : {}),
     },
   };
+  if (data.correo.trim() && data.contrasenia) {
+    payload.correo = data.correo.trim();
+    payload.contrasenia = data.contrasenia;
+  }
+  if (data.institucionId) {
+    payload.institucionId = Number(data.institucionId);
+  }
+  return payload;
 }

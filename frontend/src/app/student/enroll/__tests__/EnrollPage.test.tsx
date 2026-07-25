@@ -42,6 +42,8 @@ vi.mock("@/contexts/ToastContext", () => ({
 
 vi.mock("@/services/api", () => ({
   enrollStudent: vi.fn(),
+  // The wizard loads the school catalogue on mount for the child flow.
+  fetchInstituciones: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/lib/enrollment-session", () => ({
@@ -102,15 +104,25 @@ describe("EnrollPage — back link", () => {
 });
 
 describe("EnrollPage — the named stepper", () => {
-  it("names all five steps from step one", () => {
+  it("names every step of a self enrollment from step one", () => {
     render(<EnrollPage />);
 
     const stepper = screen.getByRole("list", { name: /pasos de la inscripción/i });
     expect(within(stepper).getByText("Tipo")).toBeInTheDocument();
     expect(within(stepper).getByText("Estudiante")).toBeInTheDocument();
-    expect(within(stepper).getByText("Contacto")).toBeInTheDocument();
     expect(within(stepper).getByText("Salud")).toBeInTheDocument();
     expect(within(stepper).getByText("Confirmar")).toBeInTheDocument();
+    // A self enrollment has no representante, so it never gets that step.
+    expect(within(stepper).queryByText("Representante")).not.toBeInTheDocument();
+  });
+
+  it("adds the representante step once a dependent enrollment is chosen", () => {
+    render(<EnrollPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Representante Gestiono la inscripción/ }));
+
+    const stepper = screen.getByRole("list", { name: /pasos de la inscripción/i });
+    expect(within(stepper).getByText("Representante")).toBeInTheDocument();
   });
 });
 
@@ -195,6 +207,10 @@ describe("EnrollPage — error prevention on the student step", () => {
     fireEvent.change(screen.getByLabelText(/fecha de nacimiento/i), { target: { value: "1990-05-20" } });
     fireEvent.change(screen.getByLabelText(/cédula de identidad/i), { target: { value: "1712345678" } });
     fireEvent.change(screen.getByLabelText(/^Teléfono/), { target: { value: "0991234567" } });
+    // A self enrollment signs in as the student, so its credentials are part
+    // of this step (they moved here when the representante got its own step).
+    fireEvent.change(screen.getByLabelText(/^Correo electrónico/), { target: { value: "sofia@example.com" } });
+    fireEvent.change(screen.getByLabelText(/^Contraseña/), { target: { value: "password8" } });
 
     expect(screen.getByRole("button", { name: /^Siguiente/ })).toBeEnabled();
     expect(screen.queryByText(/para continuar, revise:/i)).not.toBeInTheDocument();

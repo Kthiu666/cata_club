@@ -1,6 +1,6 @@
 from datetime import date, datetime, time, timezone
 from typing import Optional
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.dominio.modelos import Pago, ComprobantePago
@@ -77,6 +77,14 @@ class PagoRepositorio:
         if fin is not None:
             stmt = stmt.where(Pago.fecha_registro <= fin)
         return self.db.execute(stmt).scalar_one()
+
+    def existe_pendiente_para_membresia(self, membresia_id: int) -> bool:
+        """True si la membresía tiene al menos un pago PENDIENTE_VALIDACION."""
+        stmt = select(func.count()).select_from(Pago).where(
+            Pago.membresia_id == membresia_id,
+            Pago.estado_pago == EstadoPago.PENDIENTE_VALIDACION,
+        )
+        return self.db.execute(stmt).scalar_one() > 0
 
     def crear(self, pago: Pago) -> Pago:
         self.db.add(pago)

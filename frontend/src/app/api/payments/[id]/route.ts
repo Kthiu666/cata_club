@@ -28,7 +28,7 @@ import {
 } from "@/lib/server/payments-adapter";
 
 type ParsedUpdateBody =
-  | { action: "approved" }
+  | { action: "approved"; startDate?: string; endDate?: string }
   | { action: "rejected"; rejectionReason: string };
 
 /** Mirrors the `UpdatePaymentValidationDTO` contract `updatePaymentValidation()` in src/services/api.ts sends — do not change without updating that client. */
@@ -39,7 +39,9 @@ function parseUpdateBody(value: unknown): ParsedUpdateBody | { error: string } {
   const body = value as Record<string, unknown>;
 
   if (body.action === "approved") {
-    return { action: "approved" };
+    const startDate = typeof body.startDate === "string" ? body.startDate : undefined;
+    const endDate = typeof body.endDate === "string" ? body.endDate : undefined;
+    return { action: "approved", startDate, endDate };
   }
 
   if (body.action === "rejected") {
@@ -69,10 +71,15 @@ export async function PUT(
     return NextResponse.json({ message: parsed.error }, { status: 400 });
   }
 
-  const validarBody =
+  const validarBody: Record<string, unknown> =
     parsed.action === "approved"
       ? { estado_pago: "APROBADO" }
       : { estado_pago: "RECHAZADO", motivo_rechazo: parsed.rejectionReason };
+
+  if (parsed.action === "approved" && parsed.startDate && parsed.endDate) {
+    validarBody.fecha_inicio = parsed.startDate;
+    validarBody.fecha_fin = parsed.endDate;
+  }
 
   const validarResult = await backendFetchAuthed(request, `/membresias/pagos/${params.id}/validar`, {
     method: "PATCH",

@@ -18,7 +18,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { enrollStudent } from "@/services/api";
+import { enrollStudent, fetchInstituciones, type Institucion } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { clearLegacyEnrollmentSession } from "@/lib/enrollment-session";
@@ -28,11 +28,12 @@ import { Stepper, buttonClasses } from "@/components/ui";
 import { BLOOD_TYPES } from "@/types/enrollment";
 import {
   UserPlus,
+  Heart,
   CheckCircle,
   AlertTriangle,
   Hash,
-  Heart,
   FileText,
+  Mail,
 } from "lucide-react";
 import {
   calculateAge,
@@ -89,11 +90,17 @@ export default function EnrollPage(): React.ReactElement {
   const [summaryReviewed, setSummaryReviewed] = useState(false);
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [touched, setTouched] = useState<Set<EnrollField>>(new Set());
+  const [instituciones, setInstituciones] = useState<Institucion[]>([]);
+  const [tipoEscuelaFilter, setTipoEscuelaFilter] = useState<string>("");
   const queryAppliedRef = useRef(false);
 
-  const currentIndex = STEP_ORDER.indexOf(step);
+  // For self-enrollment, skip the representative step entirely.
+  const effectiveSteps = STEP_ORDER.filter(
+    (s) => s !== "representative" || formData.enrollmentType === ENROLLMENT_TYPES.CHILD,
+  );
+  const currentIndex = effectiveSteps.indexOf(step);
   const isFirst = currentIndex === 0;
-  const isLast = currentIndex === STEP_ORDER.length - 1;
+  const isLast = currentIndex === effectiveSteps.length - 1;
 
   // Live validation: recomputed on every keystroke, but only SHOWN for a field
   // the visitor has already left, so a pristine form is never a wall of red.
@@ -127,6 +134,10 @@ export default function EnrollPage(): React.ReactElement {
     clearLegacyEnrollmentSession();
   }, []);
 
+  useEffect(() => {
+    fetchInstituciones().then(setInstituciones).catch(() => {});
+  }, []);
+
   // ---- Helpers ----
 
   function updateField<K extends keyof EnrollFormData>(
@@ -145,8 +156,8 @@ export default function EnrollPage(): React.ReactElement {
     }
     setFormErrors([]);
     const nextIdx = currentIndex + 1;
-    if (nextIdx < STEP_ORDER.length) {
-      const nextStep = STEP_ORDER[nextIdx];
+    if (nextIdx < effectiveSteps.length) {
+      const nextStep = effectiveSteps[nextIdx];
       if (nextStep === "summary") setSummaryReviewed(false);
       setStep(nextStep);
     }
@@ -156,7 +167,7 @@ export default function EnrollPage(): React.ReactElement {
     setFormErrors([]);
     const prevIdx = currentIndex - 1;
     if (prevIdx >= 0) {
-      setStep(STEP_ORDER[prevIdx]);
+      setStep(effectiveSteps[prevIdx]);
     }
   }
 
@@ -359,13 +370,13 @@ export default function EnrollPage(): React.ReactElement {
   }
 
   function renderPersonalStep(): React.ReactElement {
+    const isSelf = formData.enrollmentType === ENROLLMENT_TYPES.SELF;
     return (
       <div className="space-y-1">
         <p className="mb-4 text-sm leading-relaxed text-cata-text/65">
-          {formData.enrollmentType === "self" &&
-            "Ingrese sus datos personales:"}
-          {formData.enrollmentType === "child" &&
-            "Ingrese los datos personales del estudiante a inscribir:"}
+          {isSelf
+            ? "Ingrese sus datos personales y credenciales de acceso:"
+            : "Ingrese los datos personales del estudiante a inscribir:"}
         </p>
 
         <PersonIdentityFields
@@ -390,7 +401,7 @@ export default function EnrollPage(): React.ReactElement {
           }}
           onFieldBlur={(field) => markTouched(field)}
           renderAgeWarning={(age) =>
-            age < 18 && formData.enrollmentType === "self" && (
+            age < 18 && isSelf && (
               <span className="ml-1 text-state-warn">
                 — Los menores de edad requieren un representante.
               </span>
@@ -398,86 +409,172 @@ export default function EnrollPage(): React.ReactElement {
           }
         />
 
-        {/* Representante fields — shown for child enrollment */}
-        {formData.enrollmentType === "child" && (
-          <>
-            <div className="my-8 h-px bg-cata-border" />
+        {/* School selector — only for minors (child enrollment) */}
+        {!isSelf && instituciones.length > 0 && (
+          <div className="mt-4">
+            <label htmlFor="enroll-tipo-escuela" className="mb-1.5 block text-sm font-medium text-cata-text">
+              Tipo de Escuela
+            </label>
+            <select
+              id="enroll-tipo-escuela"
+              value={tipoEscuelaFilter}
+              onChange={(e) => {
+                setTipoEscuelaFilter(e.target.value);
+                updateField("institucionId", "");
+              }}
+              disabled={submitting}
+              className="input-field"
+            >
+              <option value="">Todos los tipos</option>
+              <option value="PARTICULAR">Particular</option>
+              <option value="FISCAL">Fiscal</option>
+              <option value="FISCOMISIONAL">Fiscomisional</option>
+              <option value="MUNICIPAL">Municipal</option>
+            </select>
 
-            <div>
-              <div className="mb-4 flex items-center gap-2">
-                <UserPlus size={16} strokeWidth={1.5} className="text-ink-3" aria-hidden="true" />
-                <h3 className="text-sm font-semibold text-cata-text">
-                  Datos del Representante
-                </h3>
-              </div>
-              <p className="mb-4 text-xs leading-relaxed text-cata-text/65">
-                Identifique al adulto responsable de pago y representante legal
-                del estudiante:
-              </p>
-
-              {renderField("nombreRepresentante", {
-                label: "Nombres del Representante",
-                value: formData.nombreRepresentante,
-                onChange: (v) => updateField("nombreRepresentante", v),
-                placeholder: "p. ej. María Fernanda",
-                required: true,
-                icon: <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />,
-              })}
-
-              {renderField("cedulaRepresentante", {
-                label: "Cédula del Representante",
-                value: formData.cedulaRepresentante,
-                onChange: (v) => updateField("cedulaRepresentante", v),
-                placeholder: "p. ej. 1712345678",
-                required: true,
-                icon: <Hash size={16} strokeWidth={1.5} aria-hidden="true" />,
-                pattern: "[0-9]{10}",
-                maxLength: 10,
-                inputMode: "numeric",
-                hint: "10 dígitos, sin guiones.",
-              })}
-
-              <div className="rounded-ctl border border-state-warn/25 bg-state-warn-bg p-3 text-xs text-state-warn">
-                <p className="flex items-center gap-1.5 font-semibold">
-                  <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
-                  Representante mayor de edad
-                </p>
-                <p className="mt-1">
-                  El representante debe ser mayor de edad (18+). Al inscribir a
-                  un dependiente, usted confirma que es legalmente responsable
-                  del menor.
-                </p>
-              </div>
-            </div>
-          </>
+            <label htmlFor="enroll-institucion" className="mb-1.5 mt-3 block text-sm font-medium text-cata-text">
+              Escuela / Institución
+            </label>
+            <p className="mb-2 text-xs text-cata-text/50">
+              Seleccione la institución educativa del estudiante (opcional).
+            </p>
+            <select
+              id="enroll-institucion"
+              value={formData.institucionId}
+              onChange={(e) => updateField("institucionId", e.target.value)}
+              disabled={submitting}
+              className="input-field"
+            >
+              <option value="">Sin institución asignada</option>
+              {instituciones
+                .filter((inst) => !tipoEscuelaFilter || inst.tipoEscuela === tipoEscuelaFilter)
+                .map((inst) => (
+                  <option key={inst.id} value={String(inst.id)}>
+                    {inst.nombre} ({inst.tipoEscuela})
+                  </option>
+                ))}
+            </select>
+          </div>
         )}
+
+        {/* Student credentials */}
+        <div className="my-4 h-px bg-cata-border" />
+        <div>
+          <div className="mb-4 flex items-center gap-2">
+            <Mail size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
+            <h3 className="text-sm font-semibold text-cata-text">
+              {isSelf ? "Credenciales de Acceso" : "Cuenta del Estudiante (Opcional)"}
+            </h3>
+          </div>
+          {!isSelf && (
+            <p className="mb-3 text-xs leading-relaxed text-cata-text/65">
+              Si desea que el menor tenga su propia cuenta de acceso, ingrese
+              las credenciales. Deje vacío si no requiere cuenta para el estudiante.
+            </p>
+          )}
+          {renderField("correo", {
+            label: isSelf ? "Correo electrónico" : "Correo electrónico del Estudiante",
+            value: formData.correo,
+            onChange: (v) => updateField("correo", v),
+            type: "email",
+            required: isSelf,
+            placeholder: isSelf ? undefined : "Opcional: correo@ejemplo.com",
+          })}
+          {renderField("contrasenia", {
+            label: isSelf ? "Contraseña" : "Contraseña del Estudiante",
+            value: formData.contrasenia,
+            onChange: (v) => updateField("contrasenia", v),
+            type: "password",
+            required: isSelf,
+            placeholder: isSelf ? undefined : "Opcional: mínimo 8 caracteres",
+            hint: isSelf ? "Al menos 8 caracteres." : undefined,
+          })}
+        </div>
       </div>
     );
   }
 
-  function renderClubStep(): React.ReactElement {
-    const isSelfEnrollment = formData.enrollmentType === ENROLLMENT_TYPES.SELF;
+  function renderRepresentativeStep(): React.ReactElement {
     return (
       <div className="space-y-1">
         <p className="mb-4 text-sm leading-relaxed text-cata-text/65">
-          {isSelfEnrollment
-            ? "Cree las credenciales para acceder a su cuenta de estudiante:"
-            : "Complete los datos de contacto y acceso del representante:"}
+          Complete los datos del representante legal y sus credenciales de acceso:
         </p>
-        {isSelfEnrollment ? (
-          <>
-            {renderField("correo", { label: "Correo electrónico", value: formData.correo, onChange: (v) => updateField("correo", v), type: "email", required: true })}
-            {renderField("contrasenia", { label: "Contraseña", value: formData.contrasenia, onChange: (v) => updateField("contrasenia", v), type: "password", required: true, hint: "Al menos 8 caracteres." })}
-          </>
-        ) : (
-          <>
-            {renderField("apellidosRepresentante", { label: "Apellidos del Representante", value: formData.apellidosRepresentante, onChange: (v) => updateField("apellidosRepresentante", v), required: true })}
-            {renderField("fechaNacimientoRepresentante", { label: "Fecha de Nacimiento del Representante", value: formData.fechaNacimientoRepresentante, onChange: (v) => updateField("fechaNacimientoRepresentante", v), type: "date", required: true })}
-            {renderField("telefonoRepresentante", { label: "Teléfono del Representante", value: formData.telefonoRepresentante, onChange: (v) => updateField("telefonoRepresentante", v), inputMode: "tel", required: true, hint: "Diez dígitos, con o sin espacios." })}
-            {renderField("correoRepresentante", { label: "Correo electrónico del Representante", value: formData.correoRepresentante, onChange: (v) => updateField("correoRepresentante", v), type: "email", required: true })}
-            {renderField("contraseniaRepresentante", { label: "Contraseña del Representante", value: formData.contraseniaRepresentante, onChange: (v) => updateField("contraseniaRepresentante", v), type: "password", required: true, hint: "Al menos 8 caracteres." })}
-          </>
-        )}
+        {renderField("nombreRepresentante", {
+          label: "Nombres del Representante",
+          value: formData.nombreRepresentante,
+          onChange: (v) => updateField("nombreRepresentante", v),
+          placeholder: "p. ej. María Fernanda",
+          required: true,
+          icon: <UserPlus size={16} strokeWidth={1.5} aria-hidden="true" />,
+        })}
+
+        {renderField("apellidosRepresentante", {
+          label: "Apellidos del Representante",
+          value: formData.apellidosRepresentante,
+          onChange: (v) => updateField("apellidosRepresentante", v),
+          required: true,
+        })}
+
+        {renderField("cedulaRepresentante", {
+          label: "Cédula del Representante",
+          value: formData.cedulaRepresentante,
+          onChange: (v) => updateField("cedulaRepresentante", v),
+          placeholder: "p. ej. 1712345678",
+          required: true,
+          icon: <Hash size={16} strokeWidth={1.5} aria-hidden="true" />,
+          pattern: "[0-9]{10}",
+          maxLength: 10,
+          inputMode: "numeric",
+          hint: "10 dígitos, sin guiones.",
+        })}
+
+        {renderField("fechaNacimientoRepresentante", {
+          label: "Fecha de Nacimiento del Representante",
+          value: formData.fechaNacimientoRepresentante,
+          onChange: (v) => updateField("fechaNacimientoRepresentante", v),
+          type: "date",
+          required: true,
+        })}
+
+        {renderField("telefonoRepresentante", {
+          label: "Teléfono del Representante",
+          value: formData.telefonoRepresentante,
+          onChange: (v) => updateField("telefonoRepresentante", v),
+          inputMode: "tel",
+          required: true,
+          hint: "Entre siete y diez dígitos, con o sin espacios.",
+        })}
+
+        <div className="my-4 h-px bg-line" />
+
+        {renderField("correoRepresentante", {
+          label: "Correo electrónico del Representante",
+          value: formData.correoRepresentante,
+          onChange: (v) => updateField("correoRepresentante", v),
+          type: "email",
+          required: true,
+        })}
+
+        {renderField("contraseniaRepresentante", {
+          label: "Contraseña del Representante",
+          value: formData.contraseniaRepresentante,
+          onChange: (v) => updateField("contraseniaRepresentante", v),
+          type: "password",
+          required: true,
+          hint: "Al menos 8 caracteres.",
+        })}
+
+        <div className="rounded-ctl border border-state-warn/25 bg-state-warn-bg p-3 text-xs text-state-warn">
+          <p className="flex items-center gap-1.5 font-semibold">
+            <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
+            Representante mayor de edad
+          </p>
+          <p className="mt-1">
+            El representante debe ser mayor de edad (18+). Al inscribir a un
+            dependiente, usted confirma que es legalmente responsable del menor.
+          </p>
+        </div>
       </div>
     );
   }
@@ -562,7 +659,7 @@ export default function EnrollPage(): React.ReactElement {
             <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
             Datos sensibles
           </p>
-          <p className="mt-1 text-amber-700/80">
+          <p className="mt-1 text-blue-700">
             Esta información se maneja de forma segura conforme a la normativa
             de protección de datos.
           </p>
@@ -621,16 +718,27 @@ export default function EnrollPage(): React.ReactElement {
           {summaryRow("Teléfono", formData.telefono || "—", "personal")}
           {isChild
             ? summaryRow(
+                "Institución",
+                instituciones.find((inst) => String(inst.id) === formData.institucionId)?.nombre
+                  ?? "Sin institución asignada",
+                "personal",
+              )
+            : null}
+          {isChild
+            ? summaryRow(
                 "Representante",
                 `${formData.nombreRepresentante} ${formData.apellidosRepresentante}`.trim() || "—",
-                "personal",
+                "representative",
               )
             : null}
           {summaryRow(
             isChild ? "Correo del representante" : "Correo",
             (isChild ? formData.correoRepresentante : formData.correo) || "—",
-            "club",
+            isChild ? "representative" : "personal",
           )}
+          {isChild && formData.correo.trim()
+            ? summaryRow("Cuenta del estudiante", formData.correo, "personal")
+            : null}
           {summaryRow("Tipo de sangre", formData.tipoSangre.replace("_", " ") || "—", "health")}
           {summaryRow(
             "Contacto de emergencia",
@@ -730,7 +838,7 @@ export default function EnrollPage(): React.ReactElement {
               step one: "Paso 2 de 5" anticipates nothing, "Contacto" does. */}
           <div className="mb-6">
             <p className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3">
-              Paso {currentIndex + 1} de {STEP_ORDER.length}
+              Paso {currentIndex + 1} de {effectiveSteps.length}
             </p>
             <h1 className="mt-1 text-[26px] font-extrabold tracking-[-0.03em] text-ink">
               Inscripción de estudiante
@@ -746,7 +854,7 @@ export default function EnrollPage(): React.ReactElement {
             className="mb-8"
             label="Pasos de la inscripción"
             current={currentIndex + 1}
-            steps={STEP_ORDER.map((s) => STEP_SHORT_LABELS[s])}
+            steps={effectiveSteps.map((s) => STEP_SHORT_LABELS[s])}
           />
 
           {/* Demo helper — quick-fill for testing convenience. The "(solo
@@ -791,7 +899,7 @@ export default function EnrollPage(): React.ReactElement {
               {/* Step content */}
               {step === "type" && renderTypeStep()}
               {step === "personal" && renderPersonalStep()}
-              {step === "club" && renderClubStep()}
+              {step === "representative" && renderRepresentativeStep()}
               {step === "health" && renderHealthStep()}
               {step === "summary" && renderSummary()}
 

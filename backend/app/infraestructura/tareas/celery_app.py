@@ -32,6 +32,7 @@ celery_app = Celery(
         "app.infraestructura.tareas.alertas_tareas",
         "app.infraestructura.tareas.comprobante_tareas",
         "app.infraestructura.tareas.recuperacion_tareas",
+        "app.infraestructura.tareas.vencimientos_tareas",
     ],
 )
 
@@ -79,6 +80,15 @@ celery_app.conf.beat_schedule = {
     "alertas-vencimiento-membresias-diaria": {
         "task": "app.infraestructura.tareas.alertas_tareas.alertar_vencimientos_hoy_mas_5",
         "schedule": _hora_diaria,
+    },
+    # 2) Marcar membresías como VENCIDAS (Hoy > fecha_fin del último pago):
+    #    Transición automática de Membresia.estado ACTIVA → VENCIDA para las
+    #    membresías cuyo último pago aprobado ya expiró. Corre 5 min después
+    #    de la alerta (sin pisar la misma ventana horaria) para asegurar que
+    #    las alertas ya emitidas no se vean afectadas por un switch previo.
+    "marcar-membresias-vencidas-diaria": {
+        "task": "app.infraestructura.tareas.vencimientos_tareas.marcar_membresias_vencidas",
+        "schedule": _parsear_hora_crontab("02:35"),
     },
 }
 

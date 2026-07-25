@@ -45,7 +45,7 @@ describe("STEP_SHORT_LABELS", () => {
     expect(STEP_ORDER.map((step) => STEP_SHORT_LABELS[step])).toEqual([
       "Tipo",
       "Estudiante",
-      "Contacto",
+      "Representante",
       "Salud",
       "Confirmar",
     ]);
@@ -61,14 +61,19 @@ describe("digitsOf", () => {
 });
 
 describe("fieldsForStep", () => {
-  it("adds the representante's identity to the student step for a child enrollment", () => {
-    expect(fieldsForStep("personal", "child")).toContain("nombreRepresentante");
-    expect(fieldsForStep("personal", "child")).toContain("cedulaRepresentante");
+  it("puts every representante field on the representante step of a child enrollment", () => {
+    expect(fieldsForStep("representative", "child")).toContain("nombreRepresentante");
+    expect(fieldsForStep("representative", "child")).toContain("cedulaRepresentante");
+    expect(fieldsForStep("personal", "child")).not.toContain("nombreRepresentante");
   });
 
   it("never blames a representante field on a self enrollment", () => {
     expect(fieldsForStep("personal", "self")).not.toContain("nombreRepresentante");
-    expect(fieldsForStep("club", "self")).toEqual(["correo", "contrasenia"]);
+    // A self enrollment signs in as the student, so its credentials belong to
+    // the student step; the representante step is skipped entirely.
+    expect(fieldsForStep("personal", "self")).toContain("correo");
+    expect(fieldsForStep("personal", "self")).toContain("contrasenia");
+    expect(fieldsForStep("representative", "self")).toEqual([]);
   });
 
   it("has nothing to validate on the type and summary steps", () => {
@@ -92,8 +97,8 @@ describe("validateEnrollFields", () => {
   it("accepts a phone typed with spaces but rejects a short one", () => {
     expect(validateEnrollFields("personal", validForm({ telefono: "0981 000 010" })).telefono)
       .toBeUndefined();
-    expect(validateEnrollFields("personal", validForm({ telefono: "0981000" })).telefono)
-      .toBe("El teléfono debe tener 10 dígitos.");
+    expect(validateEnrollFields("personal", validForm({ telefono: "09810" })).telefono)
+      .toBe("El teléfono debe tener entre 7 y 10 dígitos.");
   });
 
   it("blames the birth date for the minors rule on a self enrollment", () => {
@@ -112,9 +117,9 @@ describe("validateEnrollFields", () => {
     expect(errors.fechaNacimiento).toBeUndefined();
   });
 
-  it("validates the representante contact fields on the contact step of a child enrollment", () => {
+  it("validates the representante's contact details on the representante step", () => {
     const errors = validateEnrollFields(
-      "club",
+      "representative",
       validForm({ enrollmentType: "child", correoRepresentante: "no-es-correo" }),
     );
     expect(errors.correoRepresentante).toBe("El correo del representante no es válido.");
@@ -126,7 +131,9 @@ describe("validateEnrollFields", () => {
       validForm({ tipoSangre: "", telefonoEmergencia: "123" }),
     );
     expect(errors.tipoSangre).toBe("El tipo de sangre es obligatorio.");
-    expect(errors.telefonoEmergencia).toBe("El teléfono de emergencia debe tener 10 dígitos.");
+    expect(errors.telefonoEmergencia).toBe(
+      "El teléfono de emergencia debe tener entre 7 y 10 dígitos.",
+    );
   });
 });
 
@@ -137,7 +144,7 @@ describe("isStepComplete", () => {
 
   it("opens a step once every field on it is valid", () => {
     expect(isStepComplete("personal", validForm())).toBe(true);
-    expect(isStepComplete("club", validForm())).toBe(true);
+    expect(isStepComplete("representative", validForm({ enrollmentType: "child" }))).toBe(true);
     expect(isStepComplete("health", validForm())).toBe(true);
   });
 

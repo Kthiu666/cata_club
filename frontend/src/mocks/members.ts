@@ -39,6 +39,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
           fechaInicio: "2026-07-01",
           fechaFin: "2026-07-31",
           monto: 85,
+          id: 1,
         },
         ultimoPago: {
           estado: "aprobado",
@@ -61,6 +62,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
           fechaInicio: "2026-07-01",
           fechaFin: "2026-07-31",
           monto: 85,
+          id: 2,
         },
         ultimoPago: {
           estado: "pendiente_validacion",
@@ -83,6 +85,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
           fechaInicio: "2026-06-01",
           fechaFin: "2026-06-30",
           monto: 85,
+          id: 3,
         },
         ultimoPago: {
           estado: "pendiente_validacion",
@@ -115,6 +118,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
           fechaInicio: "2026-07-01",
           fechaFin: "2026-09-30",
           monto: 240,
+          id: 4,
         },
         ultimoPago: {
           estado: "aprobado",
@@ -147,6 +151,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
           fechaInicio: "2026-06-01",
           fechaFin: "2026-06-30",
           monto: 85,
+          id: 5,
         },
         ultimoPago: null,
       },
@@ -173,6 +178,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
           fechaInicio: "2026-01-01",
           fechaFin: "2026-12-31",
           monto: 720,
+          id: 6,
         },
         ultimoPago: {
           estado: "aprobado",
@@ -205,6 +211,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
           fechaInicio: "2026-06-01",
           fechaFin: "2026-06-30",
           monto: 85,
+          id: 7,
         },
         ultimoPago: {
           estado: "pendiente_validacion",
@@ -227,6 +234,7 @@ export const MOCK_MEMBER_ACCOUNTS: MemberAccount[] = [
           fechaInicio: "2026-05-01",
           fechaFin: "2026-05-31",
           monto: 85,
+          id: 8,
         },
         ultimoPago: null,
       },

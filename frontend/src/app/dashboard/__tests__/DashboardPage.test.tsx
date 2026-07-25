@@ -77,6 +77,8 @@ function pendingPayment(id: string, daysAgo: number): PaymentValidationRequest {
     proofFileName: "comprobante.png",
     proofFileType: "image",
     validationStatus: "pendiente",
+    startDate: "2026-07-01",
+    endDate: "2026-08-12",
   };
 }
 

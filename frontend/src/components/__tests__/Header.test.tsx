@@ -134,7 +134,7 @@ describe("Header", (): void => {
 
   // --- Auth shell routes (login, register, forgot-password) ---
 
-  it.each(["/login", "/register", "/forgot-password", "/reset-password"])(
+  it.each(["/login", "/forgot-password", "/reset-password"])(
     "hides the header on the %s auth-shell route",
     (route): void => {
       mockPathname.mockReturnValue(route);
@@ -157,7 +157,10 @@ describe("Header", (): void => {
     "/trainer/nivel",
     "/reports",
     "/student",
+    "/profile",
+    "/admin/crear-cuenta",
     // Prefix-matched descendants: a flow must not change chrome halfway.
+    "/student/payments",
     "/student/add-dependent",
     "/trainer/attendance/history",
   ])("hides the header on the %s app-shell route", (route): void => {

@@ -61,16 +61,21 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
         // "Asistencias" is the record list, this one is the act of taking it.
         // One word apart, they used to read as the same destination.
         { href: "/trainer/attendance", label: "Pasar lista" },
-        // No "Niveles" row. `docs/ux/prototipos/19-entrenador.html` settles it:
-        // the trainer's navigation is TWO items, "Niveles se elimina y con esa
-        // ruta se va el 403". Level assignment stays an admin action at
-        // `/ranking`; `/trainer/nivel` no longer exists, so a link to it would
-        // be a 404 in the sidebar.
+        // The prototype `docs/ux/prototipos/19-entrenador.html` dropped this
+        // row on the premise that trainers do not assign levels. They do:
+        // `/trainer/nivel` is a live screen and the backend grants ENTRENADOR
+        // both `asignar-nivel-inicial` and `mover-de-nivel`. The 403 that
+        // prompted the removal came from the roster endpoint, and is fixed —
+        // the panel now reads `GET /ranking/alumnos-con-nivel`.
+        { href: "/trainer/nivel", label: "Nivel" },
       );
       break;
     case "representante":
     case "estudiante":
-      links.push({ href: "/student", label: "Mi cuenta" });
+      links.push(
+        { href: "/student", label: "Mi cuenta" },
+        { href: "/student/payments", label: "Pagos" },
+      );
       break;
     case "unsupported":
       // No role-specific links — this account has no recognized backend

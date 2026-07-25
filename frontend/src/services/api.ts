@@ -84,11 +84,15 @@ export interface PaymentValidationRequest {
   rejectionReason?: string;
   validatedAt?: string;
   validatedBy?: string;
+  startDate: string;
+  endDate: string;
 }
 
 /** DTO for approving a payment validation request. */
 export interface ApprovePaymentDTO {
   action: "approved";
+  startDate?: string;
+  endDate?: string;
 }
 
 /** DTO for rejecting a payment validation request. */
@@ -421,26 +425,6 @@ export interface TablaRankingItem {
   estaEnRanking: boolean;
 }
 
-/**
- * One row of the nivel-assignment roster — `GET /ranking/alumnos`.
- *
- * Deliberately PII-free (no cédula/teléfono/fecha de nacimiento) so the
- * backend can serve it to ENTRENADOR as well as ADMINISTRADOR. The nivel
- * screen used to derive this from `fetchMembers()`, whose route depends on
- * the ADMINISTRADOR-only `GET /personas/` — that is why `/trainer/nivel`
- * answered 403. Already camelCase, passed through unmodified.
- */
-export interface AlumnoParaNivel {
-  personaId: number;
-  nombres: string;
-  apellidos: string;
-  activo: boolean;
-  /** Set when this person is somebody's dependent; `null` for account holders. */
-  representanteId: number | null;
-  /** Current nivel_ranking id, or `null` when not yet assigned. */
-  nivelRankingId: number | null;
-}
-
 /** One student's attendance mark, part of a `registerAttendance` batch. */
 export interface AttendanceStudentMark {
   personaId: number;
@@ -490,11 +474,6 @@ export async function fetchAttendanceRecords(params?: {
 /** List ranking levels (Grupo) with current occupancy. */
 export async function fetchNivelesConOcupacion(): Promise<NivelConOcupacion[]> {
   return request<NivelConOcupacion[]>(apiEndpoint("/ranking/niveles"));
-}
-
-/** Roster for the nivel-assignment screen — readable by admin AND trainer (see `AlumnoParaNivel`). */
-export async function fetchAlumnosParaNivel(): Promise<AlumnoParaNivel[]> {
-  return request<AlumnoParaNivel[]>(apiEndpoint("/ranking/alumnos"));
 }
 
 /** Persist attendance for a session (one real `POST /asistencias` per student, partial-failure-tolerant). */
@@ -613,6 +592,31 @@ export async function fetchMembers(): Promise<MembersResponse> {
   return request<MembersResponse>(apiEndpoint("/members"));
 }
 
+/** Lightweight student row from GET /api/ranking/alumnos-con-nivel — accessible to admin and trainer. */
+export interface AlumnoConNivel {
+  personaId: number;
+  nombres: string;
+  apellidos: string;
+  nivelRankingId: number | null;
+}
+
+/**
+ * List all students (rol ALUMNO) with their current `nivelRankingId` (null if
+ * unassigned). Available to both admin and trainer; replaces `fetchMembers`
+ * for the nivel-asignation panel because `/personas/` is admin-only.
+ */
+export async function fetchAlumnosConNivel(): Promise<AlumnoConNivel[]> {
+  const items = await request<{ persona_id: number; nombres: string; apellidos: string; nivel_ranking_id: number | null }[]>(
+    apiEndpoint("/ranking/alumnos-con-nivel"),
+  );
+  return items.map((it) => ({
+    personaId: it.persona_id,
+    nombres: it.nombres,
+    apellidos: it.apellidos,
+    nivelRankingId: it.nivel_ranking_id,
+  }));
+}
+
 /**
  * Assign a student with no prior nivel/group (`grupoId === null`) to one —
  * `POST /ranking/asignar-nivel-inicial`. Backend-role-restricted to
@@ -645,6 +649,26 @@ export async function enrollStudent(data: EnrollmentRequest): Promise<Enrollment
     throw new ApiClientError("La respuesta de inscripción no es válida.", 502);
   }
   return { enrolled: true };
+}
+
+/** Institution for the school selector dropdown. */
+export interface Institucion {
+  id: number;
+  nombre: string;
+  tipoEscuela: string;
+}
+
+/** Fetch all institutions for the school selector (read-only, any auth). */
+export async function fetchInstituciones(): Promise<Institucion[]> {
+  const response: unknown = await request<unknown>(apiEndpoint("/personas/instituciones"));
+  if (!Array.isArray(response)) {
+    throw new ApiClientError("Respuesta inválida de instituciones.", 502);
+  }
+  return response.map((item: Record<string, unknown>) => ({
+    id: item.id as number,
+    nombre: item.nombre as string,
+    tipoEscuela: item.tipo_escuela as string,
+  }));
 }
 
 function isApiErrorBody(value: unknown): value is { message?: string; detail?: string } {
@@ -695,6 +719,8 @@ export interface StudentProfileSummary {
   ranking: StudentRankingSummary;
   recentSessions: StudentSessionSummary[];
   membership: MembershipSummary | null;
+  representante: { nombres: string; apellidos: string } | null;
+  representanteId: number | null;
 }
 
 export interface MembershipSummary {
@@ -707,6 +733,8 @@ export interface MembershipSummary {
   franjaHoraria: string | null;
   /** Activation date, i.e. "socio desde". Null when the backend omits it. */
   fechaActivacion: string | null;
+  /** End of the paid period — drives the "Vigente hasta"/"Venció" state. */
+  fechaFin: string | null;
 }
 
 /** A real `TipoMembresia` catalog entry (`GET /membresias/tipos`) — replaces the old hardcoded `membershipPlans` array. */
@@ -739,6 +767,7 @@ export interface DashboardStats {
   activeMemberships: number;
   pendingPayments: number;
   todaySchedules: number;
+  personasSinMembresia: number;
 }
 
 /** Fetch aggregate dashboard stats, composed server-side from `/personas`, `/membresias/pagos*` and `/asistencias/horarios` — `GET /api/dashboard`. */
@@ -985,6 +1014,29 @@ export async function fetchPagosDePersona(personaId: string): Promise<PagoPerson
   });
 }
 
+/** Payload for registering a new pending payment — `POST /api/membresias/pagos`. */
+export interface RegistrarPagoInput {
+  monto: number;
+  tipoPago: "EFECTIVO" | "TRANSFERENCIA";
+  fechaInicio: string;
+  fechaFin: string;
+  personaId: number;
+  membresiaId: number;
+}
+
+/** Register a new pending payment (PENDIENTE_VALIDACION) — `POST /api/membresias/pagos`.
+ *  Works for both admin-created payments and student/representante renewals:
+ *  the backend enforces authorization at the service layer (owner, their
+ *  representative, or ADMINISTRADOR). */
+export async function registrarPago(data: RegistrarPagoInput): Promise<PagoPersona> {
+  const mockHeaders = isMockMode() ? getMockRoleHeader() : {};
+  return request<PagoPersona>(apiEndpoint("/membresias/pagos"), {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: { "Content-Type": "application/json", ...mockHeaders },
+  });
+}
+
 /** Upload a payment voucher (comprobante) — `POST /api/membresias/pagos/{pagoId}/voucher`. */
 export async function subirVoucherPago(pagoId: number, archivo: File): Promise<PagoPersona> {
   const formData = new FormData();
@@ -1104,7 +1156,9 @@ export interface RepresentadoFichaMedicaPayload {
 /** Payload for the self-service "add a dependent" endpoint. Deliberately
  *  narrow — no admin-only fields (e.g. `representanteId`) are accepted here;
  *  the backend always derives `representante_id` from the caller's own
- *  token, never from the request body. */
+ *  token, never from the request body.
+ *  If `correo` + `contrasenia` are provided, a Usuario with rol ALUMNO is
+ *  also created for the minor (Option B: minors with own account). */
 export interface RepresentadoCreatePayload {
   nombres: string;
   apellidos: string;
@@ -1112,18 +1166,106 @@ export interface RepresentadoCreatePayload {
   fechaNacimiento: string;
   telefono: string;
   fichaMedica?: RepresentadoFichaMedicaPayload;
+  correo?: string;
+  contrasenia?: string;
+  institucionId?: number;
 }
 
 /**
  * Representante-only self-service: add a second/third dependent (child)
- * from the authenticated portal. Creates only a `Persona` + `FichaMedica` —
- * no `Usuario`, no role assignment. See `POST /personas/{persona_id}/representados`.
+ * from the authenticated portal. If `correo`/`contrasenia` are provided,
+ * also creates a `Usuario` + ALUMNO for the minor (Option B).
+ * See `POST /personas/{persona_id}/representados`.
  */
 export async function crearRepresentado(
   personaId: number,
   payload: RepresentadoCreatePayload,
 ): Promise<PersonaResponse> {
   return request<PersonaResponse>(apiEndpoint(`/personas/${personaId}/representados`), {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Aging Up / Independizar (Flow 4)
+// ---------------------------------------------------------------------------
+
+/** Independizar a persona de su representante legal (POST /personas/{id}/independizar). */
+export async function independizarPersona(personaId: number, contrasenia: string): Promise<PersonaResponse> {
+  return request<PersonaResponse>(apiEndpoint(`/personas/${personaId}/independizar`), {
+    method: "POST",
+    body: JSON.stringify({ contrasenia }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Admin Account Creation (Flow 1)
+// ---------------------------------------------------------------------------
+
+/** Medical record payload for admin account creation (optional). */
+export interface AdminFichaMedicaPayload {
+  tipoSangre?: string;
+  enfermedades?: string[];
+  alergias?: string;
+  contactoEmergencia?: string;
+  telefonoEmergencia?: string;
+}
+
+/** Payload for admin creating a full account (Persona + Usuario + Rol) in one request. */
+export interface AdminCrearCuentaPayload {
+  tipoCuenta: "JUGADOR" | "REPRESENTANTE" | "MENOR";
+  nombres: string;
+  apellidos: string;
+  cedula: string;
+  fechaNacimiento: string;
+  telefono: string;
+  telefonoContacto?: string;
+  correo: string;
+  contrasenia: string;
+  representanteId?: number;
+  institucionId?: number;
+  fichaMedica?: AdminFichaMedicaPayload;
+}
+
+/** Admin-only: create a full account (Persona + Usuario + Rol) in one step.
+ *  Returns tokens for auto-login. */
+export async function crearCuentaAdmin(data: AdminCrearCuentaPayload): Promise<{
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  persona_id: number;
+}> {
+  const payload: Record<string, unknown> = {
+    tipo_cuenta: data.tipoCuenta,
+    nombres: data.nombres,
+    apellidos: data.apellidos,
+    cedula: data.cedula,
+    fecha_nacimiento: data.fechaNacimiento,
+    telefono: data.telefono,
+    correo: data.correo,
+    contrasenia: data.contrasenia,
+  };
+  if (data.telefonoContacto) payload.telefono_contacto = data.telefonoContacto;
+  if (data.representanteId) payload.representante_id = data.representanteId;
+  if (data.institucionId) payload.institucion_id = data.institucionId;
+  if (data.fichaMedica) {
+    const fm = data.fichaMedica;
+    payload.ficha_medica = {
+      ...(fm.tipoSangre ? { tipo_sangre: fm.tipoSangre } : {}),
+      ...(fm.enfermedades ? { enfermedades: fm.enfermedades } : {}),
+      ...(fm.alergias ? { alergias: fm.alergias } : {}),
+      ...(fm.contactoEmergencia ? { contacto_emergencia: fm.contactoEmergencia } : {}),
+      ...(fm.telefonoEmergencia ? { telefono_emergencia: fm.telefonoEmergencia } : {}),
+    };
+  }
+
+  return request<{
+    access_token: string;
+    refresh_token: string;
+    token_type: string;
+    persona_id: number;
+  }>(apiEndpoint("/personas/admin/cuentas"), {
     method: "POST",
     body: JSON.stringify(payload),
   });

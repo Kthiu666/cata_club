@@ -3,12 +3,13 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.dominio.modelos import Membresia, TipoMembresia, Pago, ComprobantePago
-from app.dominio.enums import EstadoPago, EstadoMembresia
+from app.dominio.modelos import Membresia, TipoMembresia, Pago, ComprobantePago, Notificacion
+from app.dominio.enums import EstadoPago, EstadoMembresia, TipoNotificacion
 from app.dominio.excepciones import EntidadNoEncontrada, OperacionInvalida, PermisosInsuficientes
 from app.infraestructura.repositorios.persona_repositorio import PersonaRepositorio
 from app.infraestructura.repositorios.membresia_repositorio import MembresiaRepositorio, TipoMembresiaRepositorio
 from app.infraestructura.repositorios.pago_repositorio import PagoRepositorio, ComprobantePagoRepositorio
+from app.infraestructura.repositorios.ranking_repositorio import NotificacionRepositorio
 from app.servicios_negocio.persona_servicio import _calcular_edad
 from app.presentacion.schemas.membresia_pago_schemas import (
     TipoMembresiaCreateDTO, MembresiaCreateDTO, PagoCreateDTO, PagoValidarDTO, ComprobantePagoCreateDTO,
@@ -165,6 +166,7 @@ class PagoServicio:
         self.repo_comprobante = ComprobantePagoRepositorio(db)
         self.repo_membresia = MembresiaRepositorio(db)
         self.repo_persona = PersonaRepositorio(db)
+        self.repo_notificacion = NotificacionRepositorio(db)
 
     def registrar_pago(
         self,
@@ -220,8 +222,23 @@ class PagoServicio:
                     "deben registrar este pago"
                 )
 
-        if not self.repo_membresia.obtener_por_id(datos.membresia_id):
+        membresia = self.repo_membresia.obtener_por_id(datos.membresia_id)
+        if not membresia:
             raise EntidadNoEncontrada(f"Membresía con id {datos.membresia_id} no encontrada")
+
+        if self.repo.existe_pendiente_para_membresia(datos.membresia_id):
+            raise OperacionInvalida(
+                "Esta membresía ya tiene un pago pendiente de validación. "
+                "Espere a que sea validado antes de registrar uno nuevo."
+            )
+
+        # El monto debe ser un múltiplo exacto del precio mensual de la membresía.
+        precio_mensual = membresia.monto_aplicado
+        if precio_mensual > 0 and datos.monto % precio_mensual != 0:
+            raise OperacionInvalida(
+                f"El monto (${datos.monto}) debe ser múltiplo del precio mensual "
+                f"(${precio_mensual})."
+            )
 
         pago = Pago(**datos.model_dump(), estado_pago=EstadoPago.PENDIENTE_VALIDACION)
         return self.repo.crear(pago)
@@ -324,9 +341,19 @@ class PagoServicio:
         pago.fecha_validacion = datetime.now(timezone.utc)
 
         if datos.estado_pago == EstadoPago.APROBADO:
+            # Si el admin corrigió las fechas, aplicarlas al pago.
+            if datos.fecha_inicio is not None and datos.fecha_fin is not None:
+                pago.fecha_inicio = datos.fecha_inicio
+                pago.fecha_fin = datos.fecha_fin
+
             membresia = pago.membresia
             membresia.estado = EstadoMembresia.ACTIVA
-            membresia.fecha_activacion = pago.fecha_validacion
+            membresia.fecha_activacion = datetime(
+                year=pago.fecha_inicio.year,
+                month=pago.fecha_inicio.month,
+                day=pago.fecha_inicio.day,
+                tzinfo=timezone.utc,
+            )
 
             # Flush pending changes before counting active family memberships.
             # With autoflush=False, the ACTIVA state set above is not visible
@@ -339,10 +366,21 @@ class PagoServicio:
 
             self.repo.guardar_cambios(pago)
             self._disparar_generacion_comprobante_pdf(pago_id)
+            self._crear_notificacion_pago(
+                pago=pago,
+                tipo=TipoNotificacion.PAGO_APROBADO,
+                mensaje=f"Tu pago de ${pago.monto} fue aprobado. Tu membresía está activa.",
+            )
         else:
             # EstadoPago.RECHAZADO: el estado de Membresia no cambia; el rechazo
             # queda registrado únicamente en Pago.estado_pago y Pago.motivo_rechazo.
             self.repo.guardar_cambios(pago)
+            motivo = f": {pago.motivo_rechazo}" if pago.motivo_rechazo else ""
+            self._crear_notificacion_pago(
+                pago=pago,
+                tipo=TipoNotificacion.PAGO_RECHAZADO,
+                mensaje=f"Tu pago fue rechazado{motivo}.",
+            )
         return pago
 
     # --- E04-RF002: gratuidad del 4to miembro -------------------------------
@@ -372,6 +410,26 @@ class PagoServicio:
             membresia.monto_aplicado = Decimal("0.00")
             membresia.es_gratuidad_familiar = True
         return None
+
+    def _crear_notificacion_pago(self, pago: Pago, tipo: TipoNotificacion, mensaje: str) -> None:
+        persona = self.repo_persona.obtener_por_id(pago.persona_id)
+        if not persona:
+            return
+        notif = Notificacion(
+            tipo=tipo,
+            mensaje=mensaje,
+            persona_id=persona.id,
+            entidad_relacionada_id=pago.id,
+        )
+        self.repo_notificacion.crear(notif)
+        if persona.representante_id:
+            notif_rep = Notificacion(
+                tipo=tipo,
+                mensaje=f"Para {persona.nombres} {persona.apellidos}: {mensaje}",
+                persona_id=persona.representante_id,
+                entidad_relacionada_id=pago.id,
+            )
+            self.repo_notificacion.crear(notif_rep)
 
     def adjuntar_comprobante(self, pago_id: int, datos: ComprobantePagoCreateDTO) -> ComprobantePago:
         pago = self.obtener_pago(pago_id)

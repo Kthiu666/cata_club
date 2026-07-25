@@ -110,6 +110,7 @@ export default function DashboardPage(): React.ReactElement {
   const overAWeek = countPaymentsWaitingOverAWeek(payments);
   const activeMemberships = stats?.activeMemberships ?? 0;
   const totalPersonas = stats?.totalPersonas ?? 0;
+  const personasSinMembresia = stats?.personasSinMembresia ?? 0;
   const membershipPercent =
     totalPersonas > 0 ? Math.round((activeMemberships / totalPersonas) * 100) : 0;
 
@@ -172,7 +173,7 @@ export default function DashboardPage(): React.ReactElement {
             </section>
 
             {/*
-              Pulse — one internal grammar across all three tiles: uppercase
+              Pulse — one internal grammar across all four tiles: uppercase
               label, ink figure with its unit, one caption line.
 
               The tiles used to close on three different things — a caption, a
@@ -182,13 +183,18 @@ export default function DashboardPage(): React.ReactElement {
               the numbers the widgets only gestured at, which is what the
               sparkbars' own aria-label already conceded they could not.
             */}
-            <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard label="Miembros" value={totalPersonas} hint="personas registradas" />
               <StatCard
                 label="Membresías activas"
                 value={activeMemberships}
                 unit={`de ${totalPersonas}`}
                 hint={`${membershipPercent}% del total`}
+              />
+              <StatCard
+                label="Sin membresía"
+                value={personasSinMembresia}
+                hint={`personas por regularizar de ${totalPersonas}`}
               />
               <StatCard
                 label="Asistencia · 4 semanas"

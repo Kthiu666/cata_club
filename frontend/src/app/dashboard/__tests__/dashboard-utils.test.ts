@@ -127,6 +127,8 @@ function buildRequest(overrides: Partial<PaymentValidationRequest> = {}): Paymen
     proofFileName: "comprobante.png",
     proofFileType: "image",
     validationStatus: "pendiente",
+    startDate: "2026-07-01",
+    endDate: "2026-08-12",
     ...overrides,
   };
 }

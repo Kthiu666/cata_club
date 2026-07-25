@@ -70,6 +70,8 @@ function makePaymentValidation(
     proofFileName: "comprobante.pdf",
     proofFileType: "pdf",
     validationStatus: "pendiente",
+    startDate: "2026-07-01",
+    endDate: "2026-07-31",
     ...overrides,
   };
 }

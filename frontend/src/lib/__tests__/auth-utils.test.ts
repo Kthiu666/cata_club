@@ -147,19 +147,20 @@ describe("getNavLinksForRole", () => {
   // "Dashboard", "Asistencia" and "Nivel".
   it("returns trainer links named after their destinations, in Spanish", () => {
     const links = getNavLinksForRole("trainer");
-    expect(links).toHaveLength(3);
+    expect(links).toHaveLength(4);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
     expect(links[1]).toEqual({ href: "/trainer", label: "Mi día" });
     expect(links[2]).toEqual({ href: "/trainer/attendance", label: "Pasar lista" });
+    expect(links[3]).toEqual({ href: "/trainer/nivel", label: "Nivel" });
   });
 
-  it("gives the trainer no Niveles section at all", () => {
-    // Settled product decision (`19-entrenador.html`): level assignment is an
-    // admin action at `/ranking`. `/trainer/nivel` was deleted with the rest
-    // of the trainer's level surfaces, so a nav row pointing there would 404.
+  it("keeps the trainer's level-assignment section reachable", () => {
+    // Trainers do assign levels: the backend grants ENTRENADOR both
+    // `asignar-nivel-inicial` and `mover-de-nivel`, and `/trainer/nivel` is a
+    // live screen. The 403 that once justified hiding it came from the roster
+    // endpoint, which now has a trainer-readable replacement.
     const links = getNavLinksForRole("trainer");
-    expect(links.some((l) => l.href === "/trainer/nivel")).toBe(false);
-    expect(links.some((l) => l.label === "Niveles")).toBe(false);
+    expect(links.some((l) => l.href === "/trainer/nivel")).toBe(true);
   });
 
   it("uses no English labels in any role's navigation", () => {
@@ -175,18 +176,20 @@ describe("getNavLinksForRole", () => {
     expect(links).toEqual([{ href: "/", label: "Inicio" }]);
   });
 
-  it("returns representante link to Mi cuenta", () => {
+  it("returns representante links to Mi cuenta and Pagos", () => {
     const links = getNavLinksForRole("representante");
-    expect(links).toHaveLength(2);
+    expect(links).toHaveLength(3);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
     expect(links[1]).toEqual({ href: "/student", label: "Mi cuenta" });
+    expect(links[2]).toEqual({ href: "/student/payments", label: "Pagos" });
   });
 
-  it("returns estudiante link to Mi cuenta", () => {
+  it("returns estudiante links to Mi cuenta and Pagos", () => {
     const links = getNavLinksForRole("estudiante");
-    expect(links).toHaveLength(2);
+    expect(links).toHaveLength(3);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
     expect(links[1]).toEqual({ href: "/student", label: "Mi cuenta" });
+    expect(links[2]).toEqual({ href: "/student/payments", label: "Pagos" });
   });
 
   it("every recognized role gets Inicio as first link and at least one role-specific link", () => {

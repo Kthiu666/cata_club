@@ -5,6 +5,7 @@ contraseña.
 from unittest.mock import Mock, patch
 
 import pytest
+from sqlalchemy import select
 
 from app.infraestructura.notificaciones_servicio import ServicioNotificaciones
 from app.infraestructura.tareas.recuperacion_tareas import enviar_enlace_recuperacion
@@ -54,3 +55,141 @@ class TestRecuperacionTarea:
             "user@example.com", "token123"
         )
         assert resultado == {"correo": "user@example.com", "enviado": True}
+
+
+# ---------------------------------------------------------------------------
+# Tests de notificaciones in-app para pagos aprobados/rechazados
+# ---------------------------------------------------------------------------
+def _crear_persona(client, cedula="1710034065"):
+    return client.post(
+        "/api/v1/personas/",
+        json={
+            "nombres": "Ana", "apellidos": "Torres", "cedula": cedula,
+            "fecha_nacimiento": "2010-05-14", "telefono": "0991234567",
+        },
+    ).json()
+
+
+def _crear_tipo_membresia(client):
+    return client.post(
+        "/api/v1/membresias/tipos",
+        json={
+            "categoria": "Adultos", "franja_horaria": "18:00-19:00",
+            "precio": "35.00", "modalidad": "MENSUAL",
+        },
+    ).json()
+
+
+def _crear_pago_pendiente(client, persona_id, membresia_id):
+    return client.post(
+        "/api/v1/membresias/pagos",
+        json={
+            "monto": "35.00", "tipo_pago": "EFECTIVO",
+            "fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31",
+            "persona_id": persona_id, "membresia_id": membresia_id,
+        },
+    ).json()
+
+
+class TestNotificacionPago:
+    def test_pago_aprobado_crea_notificacion_para_alumno(self, client, db_session):
+        """Al aprobar un pago se crea una notificación PAGO_APROBADO para el alumno."""
+        from app.dominio.modelos import Notificacion
+
+        persona = _crear_persona(client)
+        assert persona["id"] == 1
+        tipo = _crear_tipo_membresia(client)
+        membresia = client.post(
+            "/api/v1/membresias/",
+            json={
+                "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+                "persona_id": persona["id"], "tipo_membresia_id": tipo["id"],
+            },
+        ).json()
+        pago = _crear_pago_pendiente(client, persona["id"], membresia["id"])
+
+        resp = client.patch(
+            f"/api/v1/membresias/pagos/{pago['id']}/validar",
+            json={"estado_pago": "APROBADO"},
+        )
+        assert resp.status_code == 200
+
+        notif = db_session.execute(
+            select(Notificacion).where(
+                Notificacion.persona_id == persona["id"],
+                Notificacion.tipo == "PAGO_APROBADO",
+            )
+        ).scalar_one_or_none()
+        assert notif is not None
+        assert "$35.00" in notif.mensaje
+        assert notif.leida is False
+
+    def test_pago_rechazado_crea_notificacion_con_motivo(self, client, db_session):
+        """Al rechazar un pago se crea una notificación PAGO_RECHAZADO con el motivo."""
+        from app.dominio.modelos import Notificacion
+
+        persona = _crear_persona(client)
+        assert persona["id"] == 1
+        tipo = _crear_tipo_membresia(client)
+        membresia = client.post(
+            "/api/v1/membresias/",
+            json={
+                "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+                "persona_id": persona["id"], "tipo_membresia_id": tipo["id"],
+            },
+        ).json()
+        pago = _crear_pago_pendiente(client, persona["id"], membresia["id"])
+
+        resp = client.patch(
+            f"/api/v1/membresias/pagos/{pago['id']}/validar",
+            json={"estado_pago": "RECHAZADO", "motivo_rechazo": "Comprobante ilegible"},
+        )
+        assert resp.status_code == 200
+
+        notif = db_session.execute(
+            select(Notificacion).where(
+                Notificacion.persona_id == persona["id"],
+                Notificacion.tipo == "PAGO_RECHAZADO",
+            )
+        ).scalar_one_or_none()
+        assert notif is not None
+        assert "Comprobante ilegible" in notif.mensaje
+
+    def test_pago_aprobado_notifica_representante(self, client, db_session):
+        """Si el alumno tiene representante, el representante también recibe la notificación."""
+        from app.dominio.modelos import Notificacion
+
+        representante = _crear_persona(client, cedula="1733344455")
+        assert representante["id"] == 1
+        alumno = client.post(
+            "/api/v1/personas/",
+            json={
+                "nombres": "Hijo", "apellidos": "Representado", "cedula": "1744455566",
+                "fecha_nacimiento": "2015-05-14", "telefono": "0991234567",
+                "representante_id": representante["id"],
+            },
+        ).json()
+        tipo = _crear_tipo_membresia(client)
+        membresia = client.post(
+            "/api/v1/membresias/",
+            json={
+                "monto_aplicado": "35.00", "fecha_activacion": "2026-07-01T00:00:00",
+                "persona_id": alumno["id"], "tipo_membresia_id": tipo["id"],
+            },
+        ).json()
+        pago = _crear_pago_pendiente(client, alumno["id"], membresia["id"])
+
+        resp = client.patch(
+            f"/api/v1/membresias/pagos/{pago['id']}/validar",
+            json={"estado_pago": "APROBADO"},
+        )
+        assert resp.status_code == 200
+
+        notifs_representante = db_session.execute(
+            select(Notificacion).where(
+                Notificacion.persona_id == representante["id"],
+                Notificacion.tipo == "PAGO_APROBADO",
+            )
+        ).scalars().all()
+        assert len(notifs_representante) == 1
+        assert "Hijo Representado" in notifs_representante[0].mensaje

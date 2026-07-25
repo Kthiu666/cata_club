@@ -33,12 +33,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   ShieldCheck,
   XCircle,
+  X,
+  User,
+  Calendar,
+  DollarSign,
   FileText,
   Eye,
   ArrowLeft,
@@ -145,11 +150,13 @@ function ProofViewer({
   previewUnavailable,
   onPreviewError,
   onRetryPreview,
+  onExpand,
 }: {
   request: PaymentValidationRequest;
   previewUnavailable: boolean;
   onPreviewError: () => void;
   onRetryPreview: () => void;
+  onExpand: () => void;
 }): React.ReactElement {
   return (
     <div className="overflow-hidden rounded-card border border-line bg-paper lg:sticky lg:top-6">
@@ -164,13 +171,22 @@ function ProofViewer({
 
       <div className="flex min-h-[280px] items-center justify-center bg-canvas p-4">
         {request.proofPreviewUrl && !previewUnavailable ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={request.proofPreviewUrl}
-            alt="Vista previa del comprobante de pago"
-            onError={onPreviewError}
-            className="max-h-[420px] w-full object-contain"
-          />
+          // A PDF never renders in an <img>; it needs its own viewport.
+          request.proofFileType === "pdf" ? (
+            <iframe
+              src={request.proofPreviewUrl}
+              title="Vista previa del comprobante de pago"
+              className="h-[420px] w-full border-0"
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={request.proofPreviewUrl}
+              alt="Vista previa del comprobante de pago"
+              onError={onPreviewError}
+              className="max-h-[420px] w-full object-contain"
+            />
+          )
         ) : request.proofPreviewUrl ? (
           <div role="status" className="space-y-3 text-center text-[13px] text-ink-2">
             <p>Comprobante no disponible</p>
@@ -202,14 +218,13 @@ function ProofViewer({
 
       {request.proofPreviewUrl && (
         <div className="flex items-center gap-2 border-t border-line px-4 py-3">
-          <a
-            href={request.proofPreviewUrl}
-            target="_blank"
-            rel="noreferrer"
+          <button
+            type="button"
+            onClick={onExpand}
             className="text-[12.5px] font-semibold text-ink-2 hover:text-ink"
           >
             Ampliar
-          </a>
+          </button>
           <a
             href={request.proofPreviewUrl}
             download
@@ -278,6 +293,16 @@ export default function PaymentsPage(): React.ReactElement {
   const [confirmApproveOpen, setConfirmApproveOpen] = useState(false);
   const [previewUnavailable, setPreviewUnavailable] = useState(false);
   const [page, setPage] = useState(1);
+  const [editStartDate, setEditStartDate] = useState("");
+  const [editMonths, setEditMonths] = useState<number>(1);
+  const [voucherModalOpen, setVoucherModalOpen] = useState(false);
+
+  function calcEditEndDate(startDate: string, months: number): string {
+    if (!startDate || months <= 0) return "";
+    const d = new Date(startDate + "T12:00:00");
+    d.setMonth(d.getMonth() + months);
+    return d.toISOString().slice(0, 10);
+  }
 
   const loadRequests = useCallback(async (): Promise<void> => {
     try {
@@ -322,7 +347,29 @@ export default function PaymentsPage(): React.ReactElement {
     setRejectionNote("");
     setActionError(null);
     setPreviewUnavailable(false);
+    setVoucherModalOpen(false);
   }, [selectedId]);
+
+  /**
+   * Seed the editable validity period from whatever the request already
+   * carries, so approving without touching the fields is a no-op change.
+   * Keyed on the resolved request rather than the id alone: on auto-advance
+   * the id and the list update together, and the period must come from the
+   * request the admin is now looking at.
+   */
+  useEffect(() => {
+    if (selectedRequest === null) return;
+    setEditStartDate(selectedRequest.startDate);
+    if (selectedRequest.startDate && selectedRequest.endDate) {
+      const start = new Date(selectedRequest.startDate + "T12:00:00");
+      const end = new Date(selectedRequest.endDate + "T12:00:00");
+      const diffMonths =
+        (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+      setEditMonths(Math.max(1, diffMonths));
+    } else {
+      setEditMonths(1);
+    }
+  }, [selectedRequest]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = useMemo(
@@ -405,7 +452,14 @@ export default function PaymentsPage(): React.ReactElement {
     setActionLoading("approve");
     setActionError(null);
     try {
-      applyDecision(await updatePaymentValidation(selectedRequest.id, { action: "approved" }));
+      const startDate = editStartDate || selectedRequest.startDate;
+      applyDecision(
+        await updatePaymentValidation(selectedRequest.id, {
+          action: "approved",
+          startDate,
+          endDate: calcEditEndDate(startDate, editMonths),
+        }),
+      );
       showSuccess("Pago aprobado. La membresía ahora está activa.");
     } catch (err) {
       console.error("[payments] approve failed", err);
@@ -721,6 +775,46 @@ export default function PaymentsPage(): React.ReactElement {
 
                 {!showRejectForm ? (
                   <>
+                    {/* The membership's validity is the admin's call, not the
+                        payer's: the uploaded proof states an intent, approval
+                        is what fixes the dates. Pre-filled from the request,
+                        so leaving it alone approves exactly what was asked. */}
+                    <fieldset className="rounded-ctl border border-line bg-canvas p-3">
+                      <legend className="px-1 text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3">
+                        Período de vigencia
+                      </legend>
+                      <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+                        <label className="flex flex-col gap-1 text-[12.5px] text-ink-2">
+                          Fecha de inicio
+                          <input
+                            type="date"
+                            value={editStartDate}
+                            onChange={(e) => setEditStartDate(e.target.value)}
+                            className="rounded-ctl border border-line bg-paper px-3 py-2 text-[13.5px] text-ink"
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[12.5px] text-ink-2">
+                          Meses
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={editMonths}
+                            onChange={(e) => {
+                              const parsed = parseInt(e.target.value, 10);
+                              setEditMonths(Number.isNaN(parsed) || parsed < 1 ? 1 : parsed);
+                            }}
+                            className="rounded-ctl border border-line bg-paper px-3 py-2 text-[13.5px] tabular-nums text-ink"
+                          />
+                        </label>
+                      </div>
+                      {editStartDate && editMonths > 0 && (
+                        <p className="mt-2 text-[12.5px] text-ink-3">
+                          Vence el {formatDate(calcEditEndDate(editStartDate, editMonths))}
+                        </p>
+                      )}
+                    </fieldset>
+
                     <div className="flex flex-wrap gap-2">
                       <Button
                         variant="primary"
@@ -851,6 +945,7 @@ export default function PaymentsPage(): React.ReactElement {
               previewUnavailable={previewUnavailable}
               onPreviewError={() => setPreviewUnavailable(true)}
               onRetryPreview={() => setPreviewUnavailable(false)}
+              onExpand={() => setVoucherModalOpen(true)}
             />
           </div>
         </div>
@@ -874,6 +969,54 @@ export default function PaymentsPage(): React.ReactElement {
           }}
           onCancel={() => setConfirmApproveOpen(false)}
         />
+
+        {/* Fullscreen voucher viewer modal */}
+        {voucherModalOpen && selectedRequest?.proofPreviewUrl &&
+          createPortal(
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-coal/60 backdrop-blur-sm"
+              onClick={(): void => setVoucherModalOpen(false)}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Visor de comprobante"
+            >
+              <div
+                className="relative mx-4 flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-card border border-line bg-paper shadow-elevated"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex shrink-0 items-center justify-between border-b border-line px-5 py-3">
+                  <p className="truncate text-[13.5px] font-semibold text-ink">
+                    {selectedRequest.proofFileName}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={(): void => setVoucherModalOpen(false)}
+                    aria-label="Cerrar"
+                    className="rounded-ctl p-1.5 text-ink-3 transition-colors hover:bg-canvas hover:text-ink"
+                  >
+                    <X size={16} strokeWidth={1.5} aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-auto bg-canvas p-2">
+                  {selectedRequest.proofFileType === "pdf" ? (
+                    <iframe
+                      src={selectedRequest.proofPreviewUrl}
+                      title="Comprobante de pago"
+                      className="h-full w-full border-0"
+                    />
+                  ) : (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={selectedRequest.proofPreviewUrl}
+                      alt="Comprobante de pago"
+                      className="mx-auto h-full object-contain"
+                    />
+                  )}
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )}
       </AppShell>
     </ProtectedRoute>
   );

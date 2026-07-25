@@ -228,10 +228,10 @@ export default function LoginPage(): React.ReactElement {
       <p className="text-center text-[12.5px] text-ink-3">
         ¿No tiene una cuenta?{" "}
         <Link
-          href="/register"
+          href="/student/enroll"
           className="font-semibold text-cata-red transition-colors hover:text-cata-red-dark"
         >
-          Crear una
+          Inscríbase
         </Link>
       </p>
     </AuthShell>

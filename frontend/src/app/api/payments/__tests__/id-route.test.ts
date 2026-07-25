@@ -162,6 +162,8 @@ describe("PUT /api/payments/[id] — approve", () => {
       proofPreviewUrl: "https://example.com/comprobante.pdf",
       validationStatus: "validado",
       validatedAt: "2026-07-18T12:00:00Z",
+      startDate: "2026-07-01",
+      endDate: "2026-07-31",
     });
   });
 

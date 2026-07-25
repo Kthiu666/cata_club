@@ -90,29 +90,17 @@ export interface AuthShellProps {
    * /login, the "el enlace vencido" escape hatch on /reset-password.
    */
   note?: React.ReactNode;
-  /**
-   * Card width. `.fcard` is `max-width:360px` and that is the default for all
-   * four screens. `"wide"` exists for exactly one caller: `/register` still
-   * carries the long multi-column field set. The prototype reduces that form
-   * to three fields, but that reduction is the inscripción wizard's work, not
-   * this one — so the wide card is a temporary accommodation, not a second
-   * layout to design against.
-   */
-  cardWidth?: "form" | "wide";
   /** The screen's form, rendered inside the elevated card. */
   children: React.ReactNode;
 }
 
-const CARD_WIDTH: Record<NonNullable<AuthShellProps["cardWidth"]>, string> = {
-  form: "max-w-[360px]",
-  wide: "max-w-[520px]",
-};
+/** `.fcard` is `max-width:360px` — the single card width for all three screens. */
+const CARD_WIDTH = "max-w-[360px]";
 
 export default function AuthShell({
   title,
   subtitle,
   note,
-  cardWidth = "form",
   children,
 }: AuthShellProps): React.ReactElement {
   const years = yearsSinceFounding();
@@ -208,7 +196,7 @@ export default function AuthShell({
         <div className="flex flex-1 flex-col justify-center bg-canvas px-6 py-8 text-ink min-[980px]:flex-1 min-[980px]:px-12 min-[980px]:py-9">
           {/* `.fcard` — 360px, 18px radius, `padding:30px 28px`, elevated. */}
           <div
-            className={`mx-auto flex w-full flex-col gap-3.5 rounded-[18px] border border-line bg-paper px-7 py-[30px] shadow-[0_12px_44px_rgba(0,0,0,0.07)] ${CARD_WIDTH[cardWidth]}`}
+            className={`mx-auto flex w-full flex-col gap-3.5 rounded-[18px] border border-line bg-paper px-7 py-[30px] shadow-[0_12px_44px_rgba(0,0,0,0.07)] ${CARD_WIDTH}`}
           >
             {/* The red eyebrow — 10px/700, `letter-spacing:2px`, uppercase. */}
             <p className="text-[10px] font-bold uppercase tracking-[2px] text-cata-red">
@@ -222,7 +210,7 @@ export default function AuthShell({
           {/* The note — outside the card, on purpose. `margin:16px auto 0`. */}
           {note && (
             <p
-              className={`mx-auto mt-4 text-center text-[11.5px] leading-[1.5] text-ink-3 ${CARD_WIDTH[cardWidth]}`}
+              className={`mx-auto mt-4 text-center text-[11.5px] leading-[1.5] text-ink-3 ${CARD_WIDTH}`}
             >
               {note}
             </p>

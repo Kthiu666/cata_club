@@ -47,9 +47,8 @@ describe("resolveShellKind", () => {
 
   it("gives the auth shell to the public credential screens", () => {
     expect(resolveShellKind("/login")).toBe("auth");
-    expect(resolveShellKind("/register")).toBe("auth");
     expect(resolveShellKind("/forgot-password")).toBe("auth");
-    // All four, without exception: `/reset-password` used to fall through to
+    // All three, without exception: `/reset-password` used to fall through to
     // "public" and got the top header stacked over its own composition.
     expect(resolveShellKind("/reset-password")).toBe("auth");
   });

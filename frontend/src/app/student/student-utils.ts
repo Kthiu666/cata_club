@@ -12,6 +12,31 @@ import type {
   StudentSessionSummary,
 } from "@/services/api";
 
+const MAJORITY_AGE = 18;
+
+// ---------------------------------------------------------------------------
+// Age gate
+// ---------------------------------------------------------------------------
+
+/**
+ * True when the persona is younger than 18 as of today. Uses the same
+ * component-wise calculation as `enroll-utils.ts::calculateAge` (avoids
+ * UTC midnight shifts in Ecuador timezone). Returns `false` for
+ * invalid/empty dates so the portal does not accidentally restrict access.
+ */
+export function isMinor(fechaNacimiento: string | null | undefined): boolean {
+  if (!fechaNacimiento) return false;
+  const parts = fechaNacimiento.split("-");
+  if (parts.length !== 3) return false;
+  const [y, m, d] = parts.map(Number);
+  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return false;
+  const today = new Date();
+  let age = today.getFullYear() - y;
+  const monthDiff = today.getMonth() - (m - 1);
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < d)) age--;
+  return age < MAJORITY_AGE;
+}
+
 // ---------------------------------------------------------------------------
 // Portal mode
 // ---------------------------------------------------------------------------
@@ -156,15 +181,6 @@ export function summarizeRecentAttendance(
 // Payments
 // ---------------------------------------------------------------------------
 
-/**
- * The monthly fee actually applied to this persona's membership, as a decimal
- * string — `Membresia.monto_aplicado`, reached through `/membresias/mias`.
- * `null` means the amount cannot be resolved, and the UI must then offer the
- * action with no figure attached rather than print a plausible one.
- */
-export function resolveMonthlyAmount(membership: MembershipSummary | null): string | null {
-  return membership?.montoAplicado ?? null;
-}
 
 /** The furthest `fechaFin` among APPROVED payments — the real end of paid coverage, or `null` when nothing is approved yet. */
 export function resolveCoverageEnd(pagos: PagoPersona[]): string | null {
@@ -176,11 +192,3 @@ export function resolveCoverageEnd(pagos: PagoPersona[]): string | null {
     );
 }
 
-/**
- * The payment a comprobante can still be attached to — anything not yet
- * approved and not yet carrying a voucher, including a REJECTED one (whose
- * whole point is that the student must upload a legible replacement).
- */
-export function findUploadablePago(pagos: PagoPersona[]): PagoPersona | null {
-  return pagos.find((pago) => pago.estadoPago !== "APROBADO" && !pago.voucherUrl) ?? null;
-}
