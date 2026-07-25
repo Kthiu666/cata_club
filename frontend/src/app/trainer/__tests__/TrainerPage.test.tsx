@@ -275,7 +275,7 @@ describe("TrainerPage — Mi día", () => {
 
     render(<TrainerPage />);
 
-    expect(await screen.findByText(/No se pudo cargar tu día/)).toBeInTheDocument();
+    expect(await screen.findByText(/No se pudo cargar su día/)).toBeInTheDocument();
     mockFetchTrainingSchedules.mockResolvedValue(TODAY_SCHEDULES);
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
 

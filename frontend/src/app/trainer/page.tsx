@@ -38,7 +38,7 @@ import {
 import { Badge, Button, EmptyState, ErrorState, LoadingState, buttonClasses } from "@/components/ui";
 import {
   formatDay,
-  jsDayIndexToDiaSemana,
+  todayDiaSemana,
   getAttendanceBadgeTone,
   getAttendanceLabel,
   type AttendanceRecord,
@@ -98,7 +98,7 @@ export default function TrainerPage(): React.ReactElement {
       setMonthRecords(recordData);
     } catch (err) {
       console.error("[trainer] loadData failed", err);
-      setError("No se pudo cargar tu día. Intenta nuevamente.");
+      setError("No se pudo cargar su día. Intente nuevamente.");
     } finally {
       setLoading(false);
     }
@@ -109,7 +109,7 @@ export default function TrainerPage(): React.ReactElement {
   }, [loadData]);
 
   const todaySchedules = useMemo(() => {
-    const today = jsDayIndexToDiaSemana(new Date().getDay());
+    const today = todayDiaSemana();
     return schedules.filter((s) => s.diaSemana === today);
   }, [schedules]);
 

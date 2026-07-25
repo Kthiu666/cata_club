@@ -1216,6 +1216,8 @@ export default function MembersPage(): React.ReactElement {
   const [accounts, setAccounts] = useState<MemberAccount[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [personasCapped, setPersonasCapped] = useState(false);
+  /** At least one membership could not be read upstream — see `MembersResponse`. */
+  const [membresiasDegraded, setMembresiasDegraded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
@@ -1235,10 +1237,16 @@ export default function MembersPage(): React.ReactElement {
     setError(null);
     setPersonasCapped(false);
     try {
-      const { accounts: membersData, niveles, personasCapped: upstreamPersonasCapped } = await fetchMembers();
+      const {
+        accounts: membersData,
+        niveles,
+        personasCapped: upstreamPersonasCapped,
+        membresiasDegraded: upstreamMembresiasDegraded = false,
+      } = await fetchMembers();
       setAccounts(membersData);
       setGrupos(niveles.map(nivelToGrupo));
       setPersonasCapped(upstreamPersonasCapped);
+      setMembresiasDegraded(upstreamMembresiasDegraded);
     } catch {
       // A failed silent refresh must not contradict the success the user just
       // saw: the write itself succeeded, only the re-read did not.
@@ -1307,10 +1315,28 @@ export default function MembersPage(): React.ReactElement {
         <div className="mb-6 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="Cuentas" value={stats.totalAccounts} hint="responsables de pago" />
           <StatCard label="Estudiantes" value={stats.totalStudents} hint="perfiles registrados" />
+          {/*
+              The label names the POPULATION this counts, because it is not the
+              same population `/dashboard` counts. Here the numerator walks the
+              account tree and counts STUDENTS with an active membership, so the
+              denominator has to be students too — it used to read "de 44
+              cuentas" beside a count of students, which is two different things
+              in one sentence. `/dashboard` counts membership rows over all 86
+              personas, staff included; both are true, and now both say so.
+
+              When the upstream membership lookup degraded, this shows an em
+              dash instead of a hard "0": an unreadable count is not a count of
+              zero, and it is what made this tile contradict the dashboard and
+              the student portals.
+          */}
           <StatCard
-            label="Membresías activas"
-            value={stats.activeMemberships}
-            hint={`de ${stats.totalAccounts} cuentas`}
+            label="Con membresía activa"
+            value={membresiasDegraded ? "—" : stats.activeMemberships}
+            hint={
+              membresiasDegraded
+                ? "No disponible ahora mismo"
+                : `de ${stats.totalStudents} estudiantes`
+            }
           />
           <StatCard label="Pagos pendientes" value={stats.pendingPayments} hint="por validar" />
         </div>

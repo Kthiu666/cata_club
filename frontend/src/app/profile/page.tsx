@@ -82,7 +82,7 @@ import { MEMBERSHIP_STATUS_LABELS, MEMBERSHIP_STATUS_TONE } from "@/app/members/
 // backend-estado -> frontend-estado mapping `members-adapter.ts` reuses;
 // it's a pure value object with no server-only APIs, safe in a client bundle.
 import { MEMBERSHIP_STATUS_BY_ESTADO } from "@/lib/membership-status";
-import { getRoleLabel } from "@/lib/auth-utils";
+import { backendRoleForUserRole, getBackendRoleLabel, getRoleLabel } from "@/lib/auth-utils";
 import { Loader2, Save, X, Camera, ArrowRight } from "lucide-react";
 import { formatDate } from "@/lib/format-utils";
 
@@ -384,6 +384,14 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
         : props.sessionName;
 
   const roleLabel = getRoleLabel(props.role);
+  /**
+   * Every role the backend has on this account. `PerfilPropio` is fetched on
+   * both branches (`GET /auth/me`), so a multi-role representante/alumno is
+   * covered too; it is only `null` while the student branch's own profile call
+   * is still in flight, and then the session's single role is all there is.
+   */
+  const assignedRoles = props.perfil?.roles ?? [];
+  const sessionBackendRole = backendRoleForUserRole(props.role);
   const membership = props.kind === "student" && self ? describeMembership(self.membership) : null;
   const initials = personInitials(
     fullName.split(/\s+/)[0] ?? "",
@@ -497,8 +505,34 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
             source: "Cuenta activa" (no `activo` flag on `UsuarioMeResponseDTO`)
             and "Cédula" (admin-only, via `/personas/{id}`). */}
         <div className="flex flex-wrap gap-x-8 gap-y-4 border-t border-line pt-5 sm:flex-none sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
-          <IdentityFact label="Rol">
-            <Badge>{roleLabel}</Badge>
+          {/*
+              EVERY assigned role, not just the session's. `mapBackendRoleToUserRole`
+              collapses an account's backend roles to the single
+              highest-privilege one, so a person who is administrator AND
+              trainer AND representante AND alumno used to read "Rol ·
+              Administrador" here — and the other three appeared nowhere in the
+              product. The session's own role keeps the solid badge; the rest
+              are neutral, so "which one am I using right now" survives.
+          */}
+          <IdentityFact label={assignedRoles.length > 1 ? "Roles asignados" : "Rol"}>
+            {/* Capped, and wrapping. The rail is `flex-none`, so four badges
+                laid out in one line grew it far enough to break "Admin Dev"
+                across two lines — the same squeeze the membership fallback
+                below was already capped for. */}
+            <div className="flex max-w-[15rem] flex-wrap items-center gap-1.5">
+              {assignedRoles.length === 0 ? (
+                <Badge>{roleLabel}</Badge>
+              ) : (
+                assignedRoles.map((rol) => (
+                  <Badge key={rol} tone={rol === sessionBackendRole ? "ok" : "neutral"}>
+                    {getBackendRoleLabel(rol)}
+                    {rol === sessionBackendRole && assignedRoles.length > 1 && (
+                      <span className="sr-only"> — rol activo en esta sesión</span>
+                    )}
+                  </Badge>
+                ))
+              )}
+            </div>
           </IdentityFact>
           {props.kind === "student" && self && (
             <IdentityFact label="Membresía">

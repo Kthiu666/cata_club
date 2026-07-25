@@ -7,13 +7,18 @@
  * SESSION, not one per student — "el entrenador no busca «qué hizo Ana el
  * 14»; busca «la lista del lunes pasado»".
  *
+ * The other thing pinned down here is filter PARITY with the admin's
+ * `/attendance`: horario, custom range and alumno were only ever built on that
+ * screen, which redirects a trainer away, so the trainer had lost them
+ * entirely. These tests fail if they regress out of this page again.
+ *
  * @vitest-environment jsdom
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import TrainerAttendanceHistoryPage from "@/app/trainer/attendance/history/page";
-import type { AttendanceRecord } from "@/app/attendance/attendance-utils";
+import type { AttendanceRecord, TrainingSchedule } from "@/app/attendance/attendance-utils";
 import { createAuthenticatedAuth } from "@/components/__tests__/test-utils";
 
 vi.mock("@/components/ProtectedRoute", () => ({
@@ -49,12 +54,37 @@ vi.mock("next/image", () => ({
 }));
 
 const mockFetchAttendanceRecords = vi.fn();
+const mockFetchTrainingSchedules = vi.fn();
+const mockSearchStudents = vi.fn();
 
 vi.mock("@/services/api", () => ({
   fetchAttendanceRecords: (params?: unknown) => mockFetchAttendanceRecords(params),
+  fetchTrainingSchedules: () => mockFetchTrainingSchedules(),
+  searchStudents: (...args: unknown[]) => mockSearchStudents(...args),
   fetchNotificaciones: vi.fn().mockResolvedValue([]),
   marcarNotificacionLeida: vi.fn().mockResolvedValue(undefined),
 }));
+
+const SCHEDULES: TrainingSchedule[] = [
+  {
+    id: 7,
+    diaSemana: "lun",
+    horaInicio: "15:00",
+    horaFin: "16:00",
+    entrenadorId: 3,
+    entrenadorNombre: "Carlos Mendoza",
+    nivelRankingId: null,
+  },
+  {
+    id: 9,
+    diaSemana: "vie",
+    horaInicio: "17:00",
+    horaFin: "18:00",
+    entrenadorId: 3,
+    entrenadorNombre: "Carlos Mendoza",
+    nivelRankingId: null,
+  },
+];
 
 function record(
   estado: AttendanceRecord["estado"],
@@ -87,6 +117,8 @@ const RECORDS: AttendanceRecord[] = [
 describe("TrainerAttendanceHistoryPage", () => {
   beforeEach(() => {
     mockFetchAttendanceRecords.mockReset().mockResolvedValue(RECORDS);
+    mockFetchTrainingSchedules.mockReset().mockResolvedValue(SCHEDULES);
+    mockSearchStudents.mockReset().mockResolvedValue([]);
   });
 
   it("renders one row per session, most recent first — not one per student", async () => {
@@ -175,6 +207,95 @@ describe("TrainerAttendanceHistoryPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Lunes 15:00 — 16:00")).toBeInTheDocument();
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // Filter parity with `/attendance` — the three controls the trainer lost
+  // -------------------------------------------------------------------------
+
+  it("narrows by horario, with every schedule offered as an option", async () => {
+    render(<TrainerAttendanceHistoryPage />);
+    await screen.findAllByRole("row");
+    await waitFor(() => {
+      expect(screen.getByRole("option", { name: /Lunes 15:00 — 16:00/ })).toBeInTheDocument();
+    });
+    mockFetchAttendanceRecords.mockClear();
+
+    fireEvent.change(screen.getByLabelText("Filtrar por horario"), { target: { value: "9" } });
+
+    await waitFor(() => {
+      expect(mockFetchAttendanceRecords).toHaveBeenCalledTimes(1);
+    });
+    expect(mockFetchAttendanceRecords.mock.calls[0][0]).toMatchObject({ horarioId: 9 });
+  });
+
+  it("offers a custom range, and only queries once both ends are set and ordered", async () => {
+    render(<TrainerAttendanceHistoryPage />);
+    await screen.findAllByRole("row");
+    mockFetchAttendanceRecords.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: /rango personalizado/i }));
+    // Half a range is not a range: no request, and no stale rows left behind.
+    await waitFor(() => {
+      expect(screen.getByText("No hay listas en este período")).toBeInTheDocument();
+    });
+    expect(mockFetchAttendanceRecords).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Fecha de inicio"), {
+      target: { value: "2026-07-01" },
+    });
+    // Inverted: named as a problem, still no request.
+    fireEvent.change(screen.getByLabelText("Fecha límite"), { target: { value: "2026-06-01" } });
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /La fecha límite no puede ser menor/,
+    );
+    expect(mockFetchAttendanceRecords).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Fecha límite"), { target: { value: "2026-07-20" } });
+    await waitFor(() => {
+      expect(mockFetchAttendanceRecords).toHaveBeenCalledTimes(1);
+    });
+    expect(mockFetchAttendanceRecords.mock.calls[0][0]).toMatchObject({
+      fechaInicio: "2026-07-01",
+      fechaFin: "2026-07-20",
+    });
+  });
+
+  it("narrows to one student through the alumno search", async () => {
+    mockSearchStudents.mockResolvedValue([{ id: 42, nombres: "Ana", apellidos: "García" }]);
+    render(<TrainerAttendanceHistoryPage />);
+    await screen.findAllByRole("row");
+    mockFetchAttendanceRecords.mockClear();
+
+    fireEvent.change(screen.getByLabelText("Buscar alumno"), { target: { value: "Ana" } });
+    fireEvent.click(await screen.findByRole("option", { name: /Ana García/ }));
+
+    await waitFor(() => {
+      expect(mockFetchAttendanceRecords).toHaveBeenCalledTimes(1);
+    });
+    expect(mockFetchAttendanceRecords.mock.calls[0][0]).toMatchObject({ personaId: 42 });
+
+    // And the selection can be undone without retyping.
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar selección" }));
+    await waitFor(() => {
+      expect(mockFetchAttendanceRecords).toHaveBeenCalledTimes(2);
+    });
+    expect(mockFetchAttendanceRecords.mock.calls[1][0]).not.toHaveProperty("personaId");
+  });
+
+  it("keeps the history usable when the schedule list cannot be loaded", async () => {
+    mockFetchTrainingSchedules.mockRejectedValue(new Error("boom"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(<TrainerAttendanceHistoryPage />);
+
+    // The sessions still render; only the horario select is left with its
+    // single "Todos los horarios" option.
+    expect(await screen.findByText("Lunes 15:00 — 16:00")).toBeInTheDocument();
+    expect(screen.queryByText(/No se pudieron cargar los registros/)).not.toBeInTheDocument();
+    expect(within(screen.getByLabelText("Filtrar por horario")).getAllByRole("option")).toHaveLength(
+      1,
+    );
   });
 
   it("leads back to Mi día", async () => {

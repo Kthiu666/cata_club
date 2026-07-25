@@ -188,6 +188,48 @@ describe("ProfilePage — staff view (ADMINISTRADOR/ENTRENADOR)", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it("shows EVERY assigned role, not just the one the session resolved to", async () => {
+    // `mapBackendRoleToUserRole` collapses these four to "admin". If the rail
+    // renders only that, the other three exist nowhere in the product.
+    mockUseAuth.mockReturnValue(sessionForRole("admin"));
+    mockFetchMiPerfil.mockResolvedValueOnce({
+      ...PERFIL_ADMIN,
+      roles: ["ADMINISTRADOR", "ENTRENADOR", "ALUMNO", "REPRESENTANTE"],
+    });
+
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
+
+    await screen.findAllByText("Ana Admin");
+    const main = within(screen.getByRole("main"));
+    expect(main.getByText("Roles asignados")).toBeInTheDocument();
+    for (const label of ["Administrador", "Entrenador", "Alumno", "Representante"]) {
+      expect(main.getByText(new RegExp(`^${label}`))).toBeInTheDocument();
+    }
+    // Which one is in use right now is still legible without colour alone.
+    expect(main.getByText(/rol activo en esta sesión/i)).toBeInTheDocument();
+  });
+
+  it("keeps the singular label for a single-role account", async () => {
+    mockUseAuth.mockReturnValue(sessionForRole("admin"));
+    mockFetchMiPerfil.mockResolvedValueOnce(PERFIL_ADMIN);
+
+    render(
+      <ToastProvider>
+        <ProfilePage />
+      </ToastProvider>,
+    );
+
+    await screen.findAllByText("Ana Admin");
+    const main = within(screen.getByRole("main"));
+    expect(main.getByText("Rol")).toBeInTheDocument();
+    expect(main.queryByText("Roles asignados")).not.toBeInTheDocument();
+    expect(main.queryByText(/rol activo en esta sesión/i)).not.toBeInTheDocument();
+  });
+
   it("renders the same staff fields for an ENTRENADOR session (triangulation)", async () => {
     mockUseAuth.mockReturnValue(sessionForRole("trainer"));
     mockFetchMiPerfil.mockResolvedValueOnce({

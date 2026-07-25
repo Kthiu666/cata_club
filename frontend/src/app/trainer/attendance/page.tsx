@@ -88,6 +88,8 @@ import {
   getAttendanceBadgeTone,
   formatDay,
   groupSchedulesByDay,
+  selectVisibleSchedules,
+  todayDiaSemana,
   paginateRecords,
   getTotalPages,
 } from "@/app/attendance/attendance-utils";
@@ -115,7 +117,7 @@ const STEP_ORDER: WizardStep[] = ["select-session", "mark-attendance", "confirm"
 
 /** The card heading per step. */
 const STEP_LABELS: Record<WizardStep, string> = {
-  "select-session": "Elegí el horario",
+  "select-session": "Elija el horario",
   "mark-attendance": "Pasar lista",
   confirm: "Confirmar y finalizar",
 };
@@ -165,6 +167,12 @@ export default function TrainerAttendancePage(): React.ReactElement {
 
   const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
   const [expandedDays, setExpandedDays] = useState<Set<DiaSemana>>(new Set());
+  /**
+   * The picker opens on today and stays there until the trainer says
+   * otherwise — a default, never a lock. Filing a session missed yesterday
+   * has to stay one tap away.
+   */
+  const [showAllDays, setShowAllDays] = useState(false);
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterError, setRosterError] = useState<string | null>(null);
 
@@ -195,6 +203,30 @@ export default function TrainerAttendancePage(): React.ReactElement {
   useEffect(() => {
     loadOptions();
   }, [loadOptions]);
+
+  /**
+   * Resolved every render rather than memoized: a tablet left open at
+   * courtside crosses midnight, and a "today" frozen at mount would keep
+   * offering yesterday's sessions. The formatter behind it is cached, so the
+   * cost is a lookup.
+   */
+  const today = todayDiaSemana();
+  const visible = useMemo(
+    () => selectVisibleSchedules(schedules, today, showAllDays),
+    [schedules, today, showAllDays],
+  );
+
+  /**
+   * Open today's panel as soon as the schedules land. With a single day on
+   * screen, making the trainer tap the accordion to reveal its times is the
+   * friction this whole default exists to remove.
+   */
+  useEffect(() => {
+    if (schedules.length === 0) return;
+    const currentDay = todayDiaSemana();
+    if (!schedules.some((s) => s.diaSemana === currentDay)) return;
+    setExpandedDays((prev) => (prev.has(currentDay) ? prev : new Set(prev).add(currentDay)));
+  }, [schedules]);
 
   /**
    * One feedback rule, product-wide (see `payments/page.tsx` for the other
@@ -435,11 +467,34 @@ export default function TrainerAttendancePage(): React.ReactElement {
   // ---- Step renderers ----
 
   function renderSessionSelection(): React.ReactElement {
-    const dayGroups = groupSchedulesByDay(schedules);
+    const dayGroups = groupSchedulesByDay(visible.schedules);
     return (
       <div className="flex flex-col gap-5">
         <div>
-          <p className="mb-3 text-[13px] text-ink-3">Seleccione el horario de entrenamiento:</p>
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <p className="text-[13px] text-ink-3">
+              {visible.narrowedToToday
+                ? `Horarios de hoy · ${formatDay(today)}`
+                : "Seleccione el horario de entrenamiento:"}
+            </p>
+            {/* The escape hatch. Hidden when today is empty: the list is
+                already the full week and the hint below says why. */}
+            {schedules.length > 0 && !visible.emptyToday && (
+              <button
+                type="button"
+                onClick={() => setShowAllDays((prev) => !prev)}
+                className="text-[12.5px] font-semibold text-ink-2 underline underline-offset-2 transition-colors hover:text-ink"
+              >
+                {showAllDays ? "Ver solo hoy" : "Ver todos los días"}
+              </button>
+            )}
+          </div>
+          {visible.emptyToday && (
+            <p className="mb-3 text-[12.5px] text-ink-3">
+              No hay entrenamientos hoy ({formatDay(today).toLowerCase()}). Mostrando la semana
+              completa.
+            </p>
+          )}
           {schedules.length === 0 ? (
             <EmptyState
               icon={<Calendar size={21} strokeWidth={1.5} aria-hidden="true" />}
@@ -598,7 +653,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
                   {ATTENDANCE_LABELS[state]}
                 </Badge>
               ))}
-              <span className="text-xs text-ink-3">Toca la ficha para cambiar el estado</span>
+              <span className="text-xs text-ink-3">Toque la ficha para cambiar el estado</span>
             </div>
 
             <input
@@ -614,7 +669,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
               <EmptyState
                 icon={<Users size={21} strokeWidth={1.5} aria-hidden="true" />}
                 title="No se encontraron alumnos con ese nombre."
-                description="Revisá el filtro o borralo para volver a ver la lista completa."
+                description="Revise el filtro o bórrelo para volver a ver la lista completa."
               />
             ) : (
               <>
@@ -750,7 +805,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
     return (
       <div className="flex flex-col gap-4">
         <p className="text-[13px] text-ink-3">
-          Revisá el resumen antes de confirmar el registro de asistencia:
+          Revise el resumen antes de confirmar el registro de asistencia:
         </p>
 
         <dl className="overflow-hidden rounded-ctl border border-line">
@@ -875,7 +930,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
                   ))}
                 </ul>
                 <p className="mt-1.5 text-state-warn/80">
-                  Volvé a tomar lista de este horario para reintentar con estos alumnos — el resto
+                  Vuelva a tomar lista de este horario para reintentar con estos alumnos — el resto
                   ya quedó guardado.
                 </p>
               </div>

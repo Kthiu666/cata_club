@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { clearLegacyEnrollmentSession } from "@/lib/enrollment-session";
 import BackLink from "@/components/BackLink";
+import HelpChatLauncher from "@/components/chatbot/HelpChatLauncher";
 import { WizardInput, WizardTextarea, PersonIdentityFields, EmergencyContactFields, WizardNavigation } from "@/components/wizard-fields";
 import { Stepper, buttonClasses } from "@/components/ui";
 import { BLOOD_TYPES } from "@/types/enrollment";
@@ -829,10 +830,27 @@ export default function EnrollPage(): React.ReactElement {
               visitors arrive from the landing with no account, and sending
               them to `/student` would bounce them straight to /login, which
               is the wall the landing funnel exists to route around. */}
-          <BackLink
-            href={isAuthenticated ? "/student" : "/"}
-            label={isAuthenticated ? "Volver a Mi Cuenta" : "Volver al inicio"}
-          />
+          {/* Back on the left, help on the right — the two things a visitor
+              reaches for when a five-step form stops making sense. The
+              assistant is public (`POST /chatbot` needs no session), which is
+              the point: most people filling this in have no account yet. */}
+          {/* `items-baseline`, not `items-center`: `BackLink` carries its own
+              `mb-6`, so centring the two margin boxes dropped the help link
+              half a line below the back link it sits beside. */}
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <BackLink
+              href={isAuthenticated ? "/student" : "/"}
+              label={isAuthenticated ? "Volver a Mi Cuenta" : "Volver al inicio"}
+            />
+            {/* Carries `BackLink`'s own `mb-6` so that when the row wraps on a
+                phone the help link keeps its distance from the step eyebrow
+                below, instead of sitting on top of it. */}
+            <HelpChatLauncher
+              variant="quiet"
+              label="¿Tiene dudas? Pregunte al asistente"
+              className="mb-6"
+            />
+          </div>
 
           {/* Step header + the NAMED stepper. The five steps are named from
               step one: "Paso 2 de 5" anticipates nothing, "Contacto" does. */}

@@ -73,6 +73,13 @@ export interface BackendMembresia {
   id: number;
   estado: BackendEstadoMembresia;
   tipoMembresiaId: number;
+  /**
+   * The amount the membership was activated for, as a decimal string. Only
+   * read when a membership has no payment behind it (see `/api/members`) —
+   * every other surface takes the figure from the Pago, which is the record
+   * the admin actually validated.
+   */
+  montoAplicado?: string | null;
 }
 
 export interface BackendTipoMembresia {

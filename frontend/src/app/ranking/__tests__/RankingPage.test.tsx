@@ -220,7 +220,9 @@ describe("RankingPage — la escalera", () => {
     await waitForLadder();
 
     expect(screen.getByText("Estudiantes asignados")).toBeInTheDocument();
-    expect(screen.getByText("de 3 estudiantes")).toBeInTheDocument();
+    // The hint splits once there are unassigned students: the gap becomes a
+    // jump link to the block that can actually place them (see below).
+    expect(screen.getByText(/de 3 estudiantes/)).toBeInTheDocument();
     // "Niveles" also names the sidebar nav entry, so scope to the stat's hint.
     // The hint names the REAL top rung instead of hardcoding "1" — the club's
     // top level is called "1A", and its rank is not its name.
@@ -403,6 +405,30 @@ describe("RankingPage — finding a student and placing the unassigned", () => {
     const block = screen.getByRole("heading", { name: "Sin nivel asignado (1)" });
     const section = block.closest("section") as HTMLElement;
     expect(within(section).getByText("Sofía González")).toBeInTheDocument();
+  });
+
+  it("announces the unassigned count at the top and jumps straight to them", async () => {
+    // The old level select carried a "Sin asignar" option purely so an admin
+    // could enumerate these students. The block below the ladder does that and
+    // more, but it sits a full ladder-scroll away — so the gap has to be
+    // visible, and clickable, from the stat row.
+    render(<RankingPage />);
+    await waitForLadder();
+
+    const link = screen.getByRole("link", { name: "1 sin asignar" });
+    expect(link).toHaveAttribute("href", "#sin-nivel");
+
+    const target = screen.getByRole("heading", { name: "Sin nivel asignado (1)" }).closest("section");
+    expect(target).toHaveAttribute("id", "sin-nivel");
+  });
+
+  it("drops the jump link while searching, since its target is hidden then", async () => {
+    render(<RankingPage />);
+    await waitForLadder();
+    search("Sofía");
+
+    expect(screen.queryByRole("link", { name: /sin asignar/ })).not.toBeInTheDocument();
+    expect(screen.getByText("de 3 estudiantes")).toBeInTheDocument();
   });
 
   it("places an unassigned student on the level picked in their own row", async () => {

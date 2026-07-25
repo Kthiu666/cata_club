@@ -479,10 +479,33 @@ function RankingContent(): React.ReactElement {
       {/* Two stats, and only two. The prototype caps this row at 520px so it
           reads as a pair rather than as a dashboard. */}
       <div className="mb-5 grid max-w-[520px] grid-cols-2 gap-3.5">
+        {/*
+            The gap is the actionable half of this figure, so it is a LINK, not
+            a subtraction the admin has to do. The old level select carried a
+            "Sin asignar" option purely to enumerate these students; the block
+            at the foot of the page does that better — it lists them AND places
+            them — it was just a scroll past eleven rungs away with nothing at
+            the top pointing to it. The link is suppressed while searching,
+            because the block it jumps to is hidden then.
+        */}
         <StatCard
           label="Estudiantes asignados"
           value={assignedCount}
-          hint={`de ${students.length} estudiantes`}
+          hint={
+            sinNivel.length > 0 && !buscando ? (
+              <>
+                de {students.length} estudiantes ·{" "}
+                <a
+                  href="#sin-nivel"
+                  className="font-semibold text-ink-2 underline decoration-line-2 underline-offset-2 transition-colors hover:text-cata-red hover:decoration-cata-red"
+                >
+                  {sinNivel.length} sin asignar
+                </a>
+              </>
+            ) : (
+              `de ${students.length} estudiantes`
+            )
+          }
         />
         <StatCard
           label="Niveles"
@@ -560,7 +583,10 @@ function RankingContent(): React.ReactElement {
           ladder implies. Hidden while searching, because the results block
           above is already answering a narrower question. */}
       {!buscando && sinNivel.length > 0 ? (
-        <section className="overflow-hidden rounded-card border border-line bg-paper">
+        <section
+          id="sin-nivel"
+          className="scroll-mt-6 overflow-hidden rounded-card border border-line bg-paper"
+        >
           <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3">
             <UserPlus
               size={16}

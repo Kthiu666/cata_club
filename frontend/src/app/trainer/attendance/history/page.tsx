@@ -16,6 +16,16 @@
  * because a substitution puts a different name there than the horario's
  * titular trainer — and the club needs to see that.
  *
+ * ## Filters
+ *
+ * Range, horario and alumno, rendered from the shared
+ * `<AttendanceFilters>` panel (src/components/attendance/AttendanceFilters.tsx).
+ * The three date presets this screen shipped with were not enough: the same
+ * controls existed only on the admin's `/attendance`, which redirects a trainer
+ * away, so "how did the Friday 17:00 group do?" and "what has Ana been doing
+ * this term?" had no answer anywhere in the trainer's product. Grouping stays
+ * by session; the filters just narrow what gets grouped.
+ *
  * ## Known gap: "Corregir" cannot deep-link
  *
  * `AttendanceRecord` (src/app/attendance/attendance-utils.ts:61) carries the
@@ -33,12 +43,12 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import BackLink from "@/components/BackLink";
 import { ClipboardList } from "lucide-react";
-import { fetchAttendanceRecords } from "@/services/api";
+import { fetchAttendanceRecords, fetchTrainingSchedules } from "@/services/api";
+import AttendanceFilters, { useAttendanceFilters } from "@/components/attendance/AttendanceFilters";
 import {
   Badge,
   EmptyState,
   ErrorState,
-  FilterPill,
   LoadingState,
   Pagination,
   Table,
@@ -56,11 +66,11 @@ import {
   getTotalPages,
   paginateRecords,
   type AttendanceRecord,
+  type TrainingSchedule,
 } from "@/app/attendance/attendance-utils";
 import type { EstadoAsistencia } from "@/types/domain";
 import { formatDate } from "@/lib/format-utils";
 import { groupRecordsBySession, type SessionSummary } from "../../trainer-day-utils";
-import { buildDateRange, type DateRangePreset } from "../../trainer-history-utils";
 
 /** Sessions per page. */
 const PAGE_SIZE = 10;
@@ -68,40 +78,51 @@ const PAGE_SIZE = 10;
 /** Best news first, same order as every other attendance surface. */
 const STATE_ORDER: EstadoAsistencia[] = ["present", "late", "justified", "absent"];
 
-/**
- * The presets the prototype shows. A custom date-pair picker is deliberately
- * absent: the audit's complaint about this content was a four-control filter
- * panel, and the list is already ordered most-recent-first.
- */
-const DATE_PRESETS: { key: DateRangePreset; label: string }[] = [
-  { key: "this_month", label: "Este mes" },
-  { key: "this_week", label: "Esta semana" },
-  { key: "today", label: "Hoy" },
-];
-
 export default function TrainerAttendanceHistoryPage(): React.ReactElement {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [schedules, setSchedules] = useState<TrainingSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [preset, setPreset] = useState<DateRangePreset>("this_month");
   const [page, setPage] = useState(1);
 
+  const filters = useAttendanceFilters("this_month");
+  const { query } = filters;
+
   const loadHistory = useCallback(async (): Promise<void> => {
+    // A half-filled custom range shows no sessions rather than silently
+    // falling back to "everything" — see `buildAttendanceQuery`.
+    if (query === null) {
+      setRecords([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
-      setRecords(await fetchAttendanceRecords(buildDateRange(preset)));
+      setRecords(await fetchAttendanceRecords(query));
     } catch (err) {
       console.error("[trainer/attendance/history] loadHistory failed", err);
       setError("No se pudieron cargar los registros de asistencia.");
     } finally {
       setLoading(false);
     }
-  }, [preset]);
+  }, [query]);
 
   useEffect(() => {
     loadHistory();
   }, [loadHistory]);
+
+  // The horario select needs the schedule list; a failure there only costs the
+  // trainer that one filter, so it never blocks or errors the history itself.
+  useEffect(() => {
+    fetchTrainingSchedules()
+      .then(setSchedules)
+      .catch((err: unknown) => {
+        console.error("[trainer/attendance/history] fetchTrainingSchedules failed", err);
+      });
+  }, []);
 
   const sessions = useMemo(() => groupRecordsBySession(records), [records]);
 
@@ -120,16 +141,11 @@ export default function TrainerAttendanceHistoryPage(): React.ReactElement {
         <BackLink href="/trainer" label="Volver a Mi día" />
 
         <div className="mt-4 flex flex-col gap-4">
-          <div className="flex flex-wrap gap-[7px]">
-            {DATE_PRESETS.map((option) => (
-              <FilterPill
-                key={option.key}
-                label={option.label}
-                active={preset === option.key}
-                onClick={() => setPreset(option.key)}
-              />
-            ))}
-          </div>
+          <AttendanceFilters
+            filters={filters}
+            schedules={schedules}
+            className="flex flex-col gap-4 rounded-card border border-line bg-paper p-[18px]"
+          />
 
           {loading && <LoadingState label="Cargando historial…" />}
 
@@ -141,7 +157,14 @@ export default function TrainerAttendanceHistoryPage(): React.ReactElement {
                 <EmptyState
                   icon={<ClipboardList size={21} strokeWidth={1.5} aria-hidden="true" />}
                   title="No hay listas en este período"
-                  description="Cambia el rango de fechas, o pasa lista para que aparezca aquí."
+                  description={
+                    query === null
+                      // Covers both unusable states — one end missing, or the
+                      // two ends inverted — because "complete las dos fechas"
+                      // is wrong advice when both are already filled in.
+                      ? "Ajuste el rango de fechas para ver las listas."
+                      : "Cambie el rango o los filtros, o pase lista para que aparezca aquí."
+                  }
                   action={
                     <Link href="/trainer/attendance" className={buttonClasses("primary")}>
                       Pasar lista

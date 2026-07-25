@@ -6,7 +6,7 @@
  * browser APIs.
  */
 
-import type { UserRole } from "@/types/domain";
+import type { BackendTipoRol, UserRole } from "@/types/domain";
 
 // ---------------------------------------------------------------------------
 // Pure navigation link data (no icon components — use at UI layer)
@@ -149,6 +149,49 @@ export function getRoleLabel(role: UserRole): string {
       return "Estudiante";
     case "unsupported":
       return "Rol no soportado";
+  }
+}
+
+/**
+ * Human-readable label for a BACKEND role name, as it arrives on
+ * `PerfilPropio.roles` / `RolesResponse.roles`.
+ *
+ * Distinct from `getRoleLabel`, which names the ONE `UserRole` the session
+ * resolved to. An account can hold several backend roles at once, and
+ * `mapBackendRoleToUserRole` collapses them to the highest-privilege one — so
+ * anywhere the full set must stay visible (see `/profile`'s identity rail),
+ * this is the label to use.
+ */
+export function getBackendRoleLabel(rol: BackendTipoRol): string {
+  switch (rol) {
+    case "ADMINISTRADOR":
+      return "Administrador";
+    case "ENTRENADOR":
+      return "Entrenador";
+    case "REPRESENTANTE":
+      return "Representante";
+    case "ALUMNO":
+      return "Alumno";
+  }
+}
+
+/**
+ * The backend role a given `UserRole` was derived from — the inverse of
+ * `mapBackendRoleToUserRole` (src/lib/server/auth.ts). `null` for
+ * `"unsupported"`, which by definition maps from no known role.
+ */
+export function backendRoleForUserRole(role: UserRole): BackendTipoRol | null {
+  switch (role) {
+    case "admin":
+      return "ADMINISTRADOR";
+    case "trainer":
+      return "ENTRENADOR";
+    case "representante":
+      return "REPRESENTANTE";
+    case "estudiante":
+      return "ALUMNO";
+    case "unsupported":
+      return null;
   }
 }
 

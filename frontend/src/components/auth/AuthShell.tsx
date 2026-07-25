@@ -83,6 +83,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import HelpChatLauncher from "@/components/chatbot/HelpChatLauncher";
 import { yearsSinceFounding } from "@/app/landing/landing-config";
 
 /**
@@ -262,6 +263,18 @@ export default function AuthShell({
             {note}
           </p>
         )}
+
+        {/*
+         * The assistant, reachable BEFORE signing in — it answers "¿cómo
+         * inicio sesión?" and "¿cuáles son los horarios?" without an account,
+         * and `POST /chatbot` is public. It lives in the small print rather
+         * than as the floating button it used to be, which covered this very
+         * form. One placement here covers /login, /forgot-password and
+         * /reset-password, since all three inherit this shell.
+         */}
+        <p className={`mx-auto mt-3 text-center ${CARD_WIDTH}`}>
+          <HelpChatLauncher variant="quiet" label="¿Necesita ayuda para entrar?" />
+        </p>
       </div>
     </div>
   );

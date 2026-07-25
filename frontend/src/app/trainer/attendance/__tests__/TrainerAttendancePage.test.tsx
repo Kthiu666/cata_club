@@ -7,7 +7,7 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import TrainerAttendancePage from "@/app/trainer/attendance/page";
 import { createAuthenticatedAuth } from "@/components/__tests__/test-utils";
@@ -61,6 +61,29 @@ function trainerAuthWithPersonaId(id = "17"): ReturnType<typeof createAuthentica
  */
 beforeEach(() => {
   window.sessionStorage.clear();
+});
+
+/**
+ * A Tuesday, 10:00 in Guayaquil — deliberately a day NO fixture in this file
+ * schedules on (they use lun/mie/vie).
+ *
+ * The picker defaults to today's schedules and auto-expands that day's panel,
+ * which makes every test here clock-dependent: the fixtures are reached by
+ * clicking a day header to expand it, and on a day the fixture falls on that
+ * panel is already open — the click would COLLAPSE it and the schedule button
+ * would never be found. Landing on an empty day means the picker falls back to
+ * the full week, which is the state these tests were written against. Without
+ * this pin they are green six days a week and red on the seventh.
+ */
+const TUESDAY_IN_CLUB_TIME = new Date("2026-07-21T15:00:00Z");
+
+beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(TUESDAY_IN_CLUB_TIME);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 const mockFetchTrainingSchedules = vi.fn().mockResolvedValue([]);
@@ -994,5 +1017,126 @@ describe("TrainerAttendancePage — partial failures name the students", () => {
     await fileSessionWithFailures([]);
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The picker opens on today — a default, never a lock
+// ---------------------------------------------------------------------------
+
+describe("TrainerAttendancePage — the picker opens on today", () => {
+  function sched(id: number, diaSemana: string, horaInicio: string) {
+    return {
+      id,
+      diaSemana,
+      horaInicio,
+      horaFin: "19:00",
+      entrenadorId: 17,
+      entrenadorNombre: "Coach Torres",
+    };
+  }
+
+  beforeEach(() => {
+    mockUseAuth.mockReturnValue(trainerAuthWithPersonaId());
+    mockFetchAlumnosPorHorario.mockResolvedValue([ANA_ALUMNO_HORARIO]);
+    mockFetchAttendanceRecords.mockReset().mockResolvedValue([]);
+  });
+
+  /** 2026-07-20, 10:00 in Guayaquil — a Monday. */
+  function pinToMonday(): void {
+    vi.setSystemTime(new Date("2026-07-20T15:00:00Z"));
+  }
+
+  it("resolves today in club time, not in the device's time zone", async () => {
+    // 02:00Z on the 24th is FRIDAY on the machine clock and 21:00 THURSDAY at
+    // the club. This is the whole point of the feature: a tablet left on UTC
+    // must still open on the session the trainer is actually standing in.
+    vi.setSystemTime(new Date("2026-07-24T02:00:00Z"));
+    mockFetchTrainingSchedules.mockResolvedValue([
+      sched(30, "jue", "18:00"),
+      sched(31, "vie", "20:00"),
+    ]);
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+
+    expect(await screen.findByText("Horarios de hoy · Jueves")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^viernes/i })).not.toBeInTheDocument();
+  });
+
+  it("hides the other days and names the day it is showing", async () => {
+    pinToMonday();
+    mockFetchTrainingSchedules.mockResolvedValue([
+      sched(12, "lun", "18:00"),
+      sched(13, "vie", "20:00"),
+    ]);
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+
+    expect(await screen.findByText("Horarios de hoy · Lunes")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^lunes/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^viernes/i })).not.toBeInTheDocument();
+  });
+
+  it("opens today's panel so the times are readable without a tap", async () => {
+    pinToMonday();
+    mockFetchTrainingSchedules.mockResolvedValue([sched(12, "lun", "18:00")]);
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+
+    // No click on the "Lunes" header first — that tap is the friction this
+    // default exists to remove.
+    expect(await screen.findByRole("button", { name: /18:00/ })).toBeInTheDocument();
+  });
+
+  it("gives back the whole week on request, and takes it away again", async () => {
+    pinToMonday();
+    mockFetchTrainingSchedules.mockResolvedValue([
+      sched(12, "lun", "18:00"),
+      sched(13, "vie", "20:00"),
+    ]);
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Ver todos los días" }));
+
+    // Yesterday's missed session has to stay reachable — the default narrows,
+    // it does not lock.
+    expect(screen.getByRole("button", { name: /^viernes/i })).toBeInTheDocument();
+    expect(screen.getByText("Seleccione el horario de entrenamiento:")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ver solo hoy" }));
+
+    expect(screen.queryByRole("button", { name: /^viernes/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the full week and says why when today has nothing scheduled", async () => {
+    // Narrowing to an empty list would read as a broken screen on a rest day.
+    vi.setSystemTime(new Date("2026-07-21T15:00:00Z")); // Tuesday
+    mockFetchTrainingSchedules.mockResolvedValue([
+      sched(12, "lun", "18:00"),
+      sched(13, "vie", "20:00"),
+    ]);
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+
+    expect(
+      await screen.findByText(/No hay entrenamientos hoy \(martes\)/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^lunes/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^viernes/i })).toBeInTheDocument();
+    // Nothing to toggle back to — offering "ver todos" here would be a no-op
+    // control the trainer has to reason about.
+    expect(screen.queryByRole("button", { name: "Ver todos los días" })).not.toBeInTheDocument();
+  });
+
+  it("does not blame the day filter when no schedules exist at all", async () => {
+    pinToMonday();
+    mockFetchTrainingSchedules.mockResolvedValue([]);
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+
+    expect(await screen.findByText("No hay horarios registrados")).toBeInTheDocument();
+    expect(screen.queryByText(/No hay entrenamientos hoy/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ver todos los días" })).not.toBeInTheDocument();
   });
 });

@@ -44,8 +44,15 @@ export default function RootLayout({
              * No ChatWidget here on purpose. It used to be mounted globally
              * and carried its own floating action button, so the FAB sat over
              * the login form, over the landing's WhatsApp block and over the
-             * trainer's attendance controls. It now lives inside `AppShell`,
-             * opened from the sidebar's "Ayuda y soporte" entry.
+             * trainer's attendance controls.
+             *
+             * It is now opened from whatever affordance each surface already
+             * has: the sidebar's "Ayuda y soporte" entry inside `AppShell`,
+             * "Contactar al club" on /unauthorized, and — since `/api/chatbot`
+             * is public and a prospective member needs it BEFORE any account
+             * exists — `HelpChatLauncher` in the landing's contact block, in
+             * `AuthShell`'s small print (login, forgot/reset password) and in
+             * the enrolment wizard's header.
              */}
           </AuthProviderWrapper>
         </ToastProvider>

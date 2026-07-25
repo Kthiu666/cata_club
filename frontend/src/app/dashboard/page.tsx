@@ -185,11 +185,20 @@ export default function DashboardPage(): React.ReactElement {
             */}
             <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard label="Miembros" value={totalPersonas} hint="personas registradas" />
+              {/*
+                  "de N personas", not a bare "de N": this counts membresía
+                  rows in estado ACTIVA against EVERY registered persona —
+                  administradores and entrenadores included, none of whom ever
+                  holds a membership. `/members` counts a different population
+                  (students inside the account tree), and the two tiles were
+                  both labelled "Membresías activas" while answering different
+                  questions. Each now names its own denominator.
+              */}
               <StatCard
                 label="Membresías activas"
                 value={activeMemberships}
                 unit={`de ${totalPersonas}`}
-                hint={`${membershipPercent}% del total`}
+                hint={`${membershipPercent}% de las personas registradas`}
               />
               <StatCard
                 label="Sin membresía"

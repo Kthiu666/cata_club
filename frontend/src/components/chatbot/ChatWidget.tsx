@@ -141,7 +141,10 @@ export default function ChatWidget({
       aria-label="Chat de ayuda"
       /* Lifted clear of the phone tab bar (62px + breathing room); back to the
          corner from `lg` up, where the tab bar is not rendered. */
-      className="fixed bottom-[74px] right-3 z-40 flex max-h-[min(34rem,72vh)] w-[min(340px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-card border border-line bg-paper shadow-[0_14px_40px_rgba(0,0,0,0.12)] lg:bottom-5 lg:right-5 lg:max-h-[min(34rem,80vh)]"
+      /* `text-left` is not decoration: the panel is rendered as a sibling of
+         whatever trigger opened it, so a centred host (AuthShell's small
+         print) was centring every message bubble inside it. */
+      className="fixed bottom-[74px] right-3 z-40 flex max-h-[min(34rem,72vh)] w-[min(340px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-card border border-line bg-paper text-left shadow-[0_14px_40px_rgba(0,0,0,0.12)] lg:bottom-5 lg:right-5 lg:max-h-[min(34rem,80vh)]"
     >
       {/* `.chat > header` — coal, logo disc, "Responde en segundos". */}
       <header className="flex flex-none items-center gap-[11px] bg-coal px-[15px] py-3 text-white">

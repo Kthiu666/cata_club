@@ -20,6 +20,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import LandingMap from "./LandingMap";
 import LandingMotion from "./LandingMotion";
+import HelpChatLauncher from "@/components/chatbot/HelpChatLauncher";
 import { buildLandingStats, landingConfig, toWhatsAppLink, type LandingSchedule } from "./landing-config";
 
 interface SectionHeaderProps {
@@ -270,6 +271,16 @@ function Location(): React.ReactElement {
           <a className="landing-button landing-button-outline" href="https://www.openstreetmap.org/?mlat=-4.0056095&mlon=-79.2046238#map=18/-4.0056095/-79.2046238" target="_blank" rel="noreferrer">
             <Navigation aria-hidden="true" /> Cómo llegar
           </a>
+          {/*
+           * The assistant — quiet, and ABOVE the WhatsApp CTA, which keeps
+           * closing the card as the primary conversion. `POST /api/chatbot` is
+           * public, and this is where the navbar's "Soporte" link already
+           * points, so a visitor with a question finds both options at once:
+           * the bot for "¿cuáles son los horarios?", a real person for
+           * everything else. No floating button — the one that used to hover
+           * here covered this very block.
+           */}
+          <HelpChatLauncher variant="landing" label="Pregunta al asistente" />
           <a className="landing-button landing-button-block" href={toWhatsAppLink(contact.whatsapp[0])} target="_blank" rel="noreferrer">
             <MessageCircle aria-hidden="true" /> Escríbenos por WhatsApp
           </a>
