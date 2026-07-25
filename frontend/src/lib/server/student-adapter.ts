@@ -163,7 +163,18 @@ export interface StudentPortalView {
 // Builders (pure)
 // ---------------------------------------------------------------------------
 
-const RECENT_SESSIONS_LIMIT = 5;
+/**
+ * Raised from 5 once /student/attendance existed to show a real history.
+ *
+ * This is a pure frontend slice, not a backend constraint: GET
+ * /asistencias/persona/{id} returns the full unpaginated history
+ * (AsistenciaRepositorio.listar_por_persona takes no limit/offset). At 5 the
+ * portal was hiding records students already had — several have 13. The cap
+ * stays because the payload is unbounded and this feeds a portal, not a report;
+ * `PORTAL_SESSION_WINDOW` in the attendance screen must match it, since the
+ * screen states the window in its footnote.
+ */
+const RECENT_SESSIONS_LIMIT = 30;
 
 /** Most recent attendance records first, capped — real activity used as an honest substitute for "upcoming sessions" (see attendance-adapter.ts's doc comment: Horario has no link to which persona/nivel it serves, so a real future schedule can't be derived per-student). */
 export function buildRecentSessions(

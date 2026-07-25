@@ -7,7 +7,7 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ReportsPage from "@/app/reports/page";
 import type { PersonaReporte } from "@/types/domain";
@@ -417,5 +417,126 @@ describe("ReportsPage — Generar PDF", () => {
     fireEvent.click(generateButton());
 
     expect(await screen.findByText("No se pudo generar el PDF del reporte.")).toBeInTheDocument();
+  });
+});
+
+/**
+ * ReportsPage — Descargar CSV.
+ *
+ * The CSV has no backend endpoint (the whole of `backend/` has no CSV route),
+ * so the control builds the file in the browser from the result set the page
+ * already holds. These tests pin the two things that make that honest rather
+ * than a fake: the button is only live when there is something to export, and
+ * what it writes is the FULL result set with the preview's own columns — not
+ * the visible page, and not an empty file.
+ */
+describe("ReportsPage — Descargar CSV", () => {
+  let capturedBlob: Blob | null;
+  let capturedFilename: string;
+  let originalCreateObjectURL: typeof URL.createObjectURL;
+  let originalRevokeObjectURL: typeof URL.revokeObjectURL;
+
+  function csvButton(): HTMLElement {
+    return screen.getByRole("button", { name: /descargar csv/i });
+  }
+
+  /** The text of the file the page just handed to the browser. */
+  async function downloadedCsv(): Promise<string> {
+    if (capturedBlob === null) throw new Error("no se generó ningún archivo");
+    return capturedBlob.text();
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchTrainingSchedules.mockResolvedValue([]);
+    mockFetchAttendanceRecords.mockResolvedValue([]);
+    mockFetchPagosReporte.mockResolvedValue([]);
+    mockFetchNuevosPorPeriodo.mockResolvedValue([]);
+
+    capturedBlob = null;
+    capturedFilename = "";
+    // jsdom implements neither object-URL method, so the download path needs
+    // both stubbed; the Blob itself is real and is what the assertions read.
+    originalCreateObjectURL = URL.createObjectURL;
+    originalRevokeObjectURL = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn((blob: Blob): string => {
+      capturedBlob = blob;
+      return "blob:mock";
+    }) as unknown as typeof URL.createObjectURL;
+    URL.revokeObjectURL = vi.fn() as unknown as typeof URL.revokeObjectURL;
+
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      capturedFilename = this.download;
+    });
+  });
+
+  afterEach(() => {
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+    vi.restoreAllMocks();
+  });
+
+  it("stays disabled until the preview actually has rows to export", async () => {
+    render(<ReportsPage />);
+    await waitFor(() => expect(mockFetchTrainingSchedules).toHaveBeenCalled());
+
+    expect(csvButton()).toBeDisabled();
+
+    setRange("2026-01-01", "2026-12-31");
+    await waitFor(() => expect(mockFetchNuevosPorPeriodo).toHaveBeenCalled());
+    // The range is valid but the report came back empty — still nothing to write.
+    expect(csvButton()).toBeDisabled();
+  });
+
+  it("writes the período rows with the preview's own columns", async () => {
+    mockFetchNuevosPorPeriodo.mockResolvedValue([PERSONA]);
+    render(<ReportsPage />);
+    await waitFor(() => expect(mockFetchTrainingSchedules).toHaveBeenCalled());
+
+    setRange("2026-01-01", "2026-12-31");
+    await waitFor(() => expect(csvButton()).toBeEnabled());
+    fireEvent.click(csvButton());
+
+    const csv = await downloadedCsv();
+    expect(csv).toContain("Nombres,Apellidos,Cédula");
+    expect(csv).toContain("Juan");
+    expect(csv).toContain("Pérez");
+    expect(csv).toContain("1710034065");
+    expect(capturedFilename).toMatch(/^reporte-periodo_\d{4}-\d{2}-\d{2}\.csv$/);
+  });
+
+  it("exports every row of the range, not just the visible page", async () => {
+    const many = Array.from({ length: 23 }, (_, i) => ({
+      ...PERSONA,
+      id: i + 1,
+      nombres: `Alumno${i}`,
+    }));
+    mockFetchNuevosPorPeriodo.mockResolvedValue(many);
+    render(<ReportsPage />);
+    await waitFor(() => expect(mockFetchTrainingSchedules).toHaveBeenCalled());
+
+    setRange("2026-01-01", "2026-12-31");
+    await waitFor(() => expect(csvButton()).toBeEnabled());
+    fireEvent.click(csvButton());
+
+    // 23 rows + 1 header. The preview only shows 10 of them at a time.
+    const csv = await downloadedCsv();
+    expect(csv.trim().split("\r\n")).toHaveLength(24);
+    expect(csv).toContain("Alumno22");
+  });
+
+  it("names the file after the preset that is selected", async () => {
+    mockFetchPagosReporte.mockResolvedValue([PAGO]);
+    render(<ReportsPage />);
+    await waitFor(() => expect(mockFetchTrainingSchedules).toHaveBeenCalled());
+
+    choosePreset(/reporte de pagos/i);
+    await waitFor(() => expect(csvButton()).toBeEnabled());
+    fireEvent.click(csvButton());
+
+    expect(capturedFilename).toMatch(/^reporte-pagos_\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(await downloadedCsv()).toContain("Estudiante,Responsable de pago");
   });
 });

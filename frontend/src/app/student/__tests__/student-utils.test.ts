@@ -8,6 +8,10 @@ import {
   isRepresentative,
   isMinor,
   describeRanking,
+  describeMembershipState,
+  breakdownAttendance,
+  daysUntil,
+  formatLevelName,
   parseLevelNumber,
   personInitials,
   summarizeRecentAttendance,
@@ -242,5 +246,150 @@ describe("resolveCoverageEnd", () => {
   it("returns null when nothing has been approved", () => {
     expect(resolveCoverageEnd([pago({ estadoPago: "PENDIENTE_VALIDACION" })])).toBeNull();
     expect(resolveCoverageEnd([])).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatLevelName
+// ---------------------------------------------------------------------------
+
+describe("formatLevelName", () => {
+  it("names a bare rung number, so it does not read as a count", () => {
+    // The seed data stores one level as "3" and another as "Nivel 9"; printed
+    // raw beside a student's name, a lone "3" is not recognisable as a rank.
+    expect(formatLevelName("3")).toBe("Nivel 3");
+  });
+
+  it("leaves an already-named level alone", () => {
+    expect(formatLevelName("Nivel 9")).toBe("Nivel 9");
+  });
+
+  it("keeps a free-text level name verbatim rather than guessing a rung", () => {
+    expect(formatLevelName("1B")).toBe("1B");
+    expect(formatLevelName("Intermedios")).toBe("Intermedios");
+  });
+
+  it("returns null when there is no level to name", () => {
+    expect(formatLevelName(null)).toBeNull();
+    expect(formatLevelName("   ")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// daysUntil
+// ---------------------------------------------------------------------------
+
+describe("daysUntil", () => {
+  const today = new Date(2026, 6, 25); // 25 jul 2026, local
+
+  it("counts the whole days left before a future date", () => {
+    expect(daysUntil("2026-07-28", today)).toBe(3);
+  });
+
+  it("returns 0 on the day coverage ends, not -1", () => {
+    // Both ends are compared at local midnight; comparing timestamps would
+    // make a same-day expiry read as already past from 00:01 onwards.
+    expect(daysUntil("2026-07-25", today)).toBe(0);
+  });
+
+  it("goes negative once the date is past", () => {
+    expect(daysUntil("2026-07-20", today)).toBe(-5);
+  });
+
+  it("crosses a DST-free month boundary without drifting", () => {
+    expect(daysUntil("2026-08-25", today)).toBe(31);
+  });
+
+  it("tolerates a full timestamp, not just a date-only string", () => {
+    expect(daysUntil("2026-07-28T18:30:00", today)).toBe(3);
+  });
+
+  it("returns null for a missing or unparseable date", () => {
+    expect(daysUntil(null, today)).toBeNull();
+    expect(daysUntil("", today)).toBeNull();
+    expect(daysUntil("pronto", today)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// describeMembershipState
+// ---------------------------------------------------------------------------
+
+describe("describeMembershipState", () => {
+  it("reads an ACTIVA membership as active", () => {
+    expect(describeMembershipState("ACTIVA")).toEqual({
+      label: "Membresía activa",
+      tone: "ok",
+      active: true,
+    });
+  });
+
+  it("reads an INACTIVA membership as pending, never as failed", () => {
+    // A membership the club has not activated yet is waiting, not broken —
+    // `bad` here would tell a parent something is wrong when nothing is.
+    expect(describeMembershipState("INACTIVA")).toEqual({
+      label: "Membresía pendiente",
+      tone: "warn",
+      active: false,
+    });
+  });
+
+  it("reads a VENCIDA membership as expired", () => {
+    expect(describeMembershipState("VENCIDA")).toEqual({
+      label: "Membresía vencida",
+      tone: "bad",
+      active: false,
+    });
+  });
+
+  it("reads the absence of a membership as neutral, not as a failure", () => {
+    expect(describeMembershipState(null)).toEqual({
+      label: "Sin membresía",
+      tone: "neutral",
+      active: false,
+    });
+  });
+
+  it("falls back to 'vencida' for any other estado the backend may add", () => {
+    // Same fallback the carnet has always used — an unknown estado is never
+    // reported as active.
+    expect(describeMembershipState("SUSPENDIDA").active).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// breakdownAttendance
+// ---------------------------------------------------------------------------
+
+describe("breakdownAttendance", () => {
+  it("counts each of the four states separately", () => {
+    expect(
+      breakdownAttendance([
+        session("present", "2026-07-20"),
+        session("present", "2026-07-19"),
+        session("late", "2026-07-18"),
+        session("justified", "2026-07-17"),
+        session("absent", "2026-07-16"),
+      ]),
+    ).toEqual({ present: 2, late: 1, justified: 1, absent: 1, total: 5 });
+  });
+
+  it("returns an all-zero breakdown for an empty history rather than null", () => {
+    // The caller renders the tally beside a "no records yet" empty state, so
+    // a zeroed object keeps that branch free of null checks.
+    expect(breakdownAttendance([])).toEqual({
+      present: 0,
+      late: 0,
+      justified: 0,
+      absent: 0,
+      total: 0,
+    });
+  });
+
+  it("counts an unknown estado in the total without inventing a category for it", () => {
+    const unknown = { fecha: "2026-07-15", horario: "Lunes 15:00 — 16:00", estado: "cancelled" };
+    expect(
+      breakdownAttendance([session("present", "2026-07-20"), unknown as StudentSessionSummary]),
+    ).toEqual({ present: 1, late: 0, justified: 0, absent: 0, total: 2 });
   });
 });

@@ -42,8 +42,17 @@
 import { useState, type ReactElement, type ReactNode } from "react";
 import { Button, cn } from "@/components/ui";
 
-/** How many names a rung shows before collapsing the rest behind "+N más". */
-const MAX_NAMES = 3;
+/**
+ * How many names a rung shows before collapsing the rest behind "+N más".
+ *
+ * Five, not three. Measured at 1440px the roster column is ~795px wide and
+ * three names used ~430px of it, so every rung ended in ~380px of nothing
+ * between the last name and the action — part of the "mucho espacio vacío"
+ * the screen was pulled up on. Five names fill the column at the club's real
+ * name lengths, and rungs run 4–9 students, so most now show their roster
+ * outright instead of hiding it behind a disclosure.
+ */
+const MAX_NAMES = 5;
 
 export interface LadderStudent {
   id: string;

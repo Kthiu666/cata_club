@@ -254,6 +254,93 @@ describe("StudentPage — Pagos link", () => {
   });
 });
 
+describe("StudentPage — the situation panel", () => {
+  it("answers both questions the reader arrived with, each ending in the screen that owns it", async () => {
+    render(<StudentPage />);
+
+    const panel = await screen.findByTestId("student-situation");
+    expect(
+      within(panel).getByText(/Registrar pago o renovar membresía/).closest("a"),
+    ).toHaveAttribute("href", "/student/payments");
+    expect(within(panel).getByText("Ver mis asistencias").closest("a")).toHaveAttribute(
+      "href",
+      "/student/attendance",
+    );
+  });
+
+  it("reports coverage from the furthest approved payment, and says so plainly", async () => {
+    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_APROBADO]);
+
+    render(<StudentPage />);
+
+    const panel = await screen.findByTestId("student-situation");
+    await waitFor(() => {
+      expect(within(panel).getByText("31/07/2026")).toBeInTheDocument();
+    });
+  });
+
+  it("says nothing has been approved rather than implying coverage it cannot prove", async () => {
+    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_RECHAZADO]);
+
+    render(<StudentPage />);
+
+    const panel = await screen.findByTestId("student-situation");
+    await waitFor(() => {
+      expect(
+        within(panel).getByText(/todavía no hay ningún pago aprobado/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("counts payments waiting on the club instead of inventing an amount due", async () => {
+    mockFetchPagosDePersona.mockResolvedValueOnce([
+      { ...PAGO_APROBADO, id: 3, estadoPago: "PENDIENTE_VALIDACION" },
+    ]);
+
+    render(<StudentPage />);
+
+    const panel = await screen.findByTestId("student-situation");
+    await waitFor(() => {
+      expect(within(panel).getByText(/1 pago esperando la validación/i)).toBeInTheDocument();
+    });
+    // There is no debt concept anywhere in the backend, so the panel never
+    // states one.
+    expect(within(panel).queryByText(/debe|saldo|vence el/i)).not.toBeInTheDocument();
+  });
+
+  it("offers a minor on their own account the read-only payments route, never 'registrar pago'", async () => {
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      ...PORTAL,
+      self: { ...PORTAL.self!, fechaNacimiento: "2014-03-10" },
+    });
+
+    render(<StudentPage />);
+
+    const panel = await screen.findByTestId("student-situation");
+    expect(within(panel).getByText("Ver mis pagos").closest("a")).toHaveAttribute(
+      "href",
+      "/student/payments",
+    );
+    expect(within(panel).queryByText(/Registrar pago/)).not.toBeInTheDocument();
+  });
+
+  it("still offers the real payment CTA when a guardian is looking at a minor dependent", async () => {
+    // The session persona (9) is the guardian; the selected profile (42) is
+    // the child. The backend authorizes the representative to pay, so the
+    // screen must not degrade to the read-only link here.
+    mockFetchStudentPortal.mockReset().mockResolvedValue({
+      ...PORTAL,
+      self: null,
+      representados: [{ ...PORTAL.self!, personaId: "42", fechaNacimiento: "2014-03-10" }],
+    });
+
+    render(<StudentPage />);
+
+    const panel = await screen.findByTestId("student-situation");
+    expect(within(panel).getByText(/Registrar pago o renovar membresía/)).toBeInTheDocument();
+  });
+});
+
 describe("StudentPage — membership state on the carnet", () => {
   it("shows sin membresía when there is no membership row", async () => {
     render(<StudentPage />);

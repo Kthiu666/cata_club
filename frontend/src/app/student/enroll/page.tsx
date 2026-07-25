@@ -843,8 +843,12 @@ export default function EnrollPage(): React.ReactElement {
             <h1 className="mt-1 text-[26px] font-extrabold tracking-[-0.03em] text-ink">
               Inscripción de estudiante
             </h1>
+            {/* The count is read from `effectiveSteps`, not written out: this
+                copy said "Cinco pasos" while the line directly above it said
+                "Paso 1 de 4", because arriving from the landing with
+                `?type=self` already answers the first step and drops it. */}
             <p className="mt-1.5 text-[13px] leading-relaxed text-ink-3">
-              Cinco pasos y queda dentro del club.
+              {effectiveSteps.length} pasos y queda dentro del club.
               {formData.enrollmentType === "self" && " Se inscribe usted como jugador."}
               {formData.enrollmentType === "child" && " Usted actúa como representante."}
             </p>

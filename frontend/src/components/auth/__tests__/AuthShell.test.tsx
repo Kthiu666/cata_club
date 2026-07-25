@@ -3,16 +3,21 @@
  *
  * The authority for these screens is the login stage of
  * `docs/ux/prototipo-rediseno.html`, NOT the smaller `docs/ux/prototipos/`
- * login. These tests pin the four things that were built against the wrong
- * prototype and must not regress:
+ * login — EXCEPT for the two things the product owner overruled after seeing
+ * the built screen. These tests pin both the overrides and the prototype
+ * details that must survive them:
  *
- *  1. The composition is bounded at `min-height:660px` (login instance), not
- *     560px and not the full viewport.
- *  2. The headline is 42px on desktop / 30px on phones. It shipped at 21px —
+ *  1. The composition FILLS THE VIEWPORT. It first shipped bounded at the
+ *     prototype's `min-height:660px`, centred as an artboard, and was
+ *     rejected: *"por qué el login no ocupa toda la pantalla"*. So there must
+ *     be no max-width cap and no bounded min-height on the composition.
+ *  2. The headline uses TYPOGRAPHIC DOUBLE QUOTES, never guillemets —
+ *     *"esos signos de mayor y menor se ven muy mal"*.
+ *  3. The headline is 42px on desktop / 30px on phones. It shipped at 21px —
  *     half its intended size — which is what made the screen read as broken.
- *  3. The coal panel is WIDER than the form panel (`flex:1.1` vs `flex:1`),
+ *  4. The coal panel is WIDER than the form panel (`flex:1.1` vs `flex:1`),
  *     not an equal half.
- *  4. The card carries the red "Panel de gestión" eyebrow, and the single
+ *  5. The card carries the red "Panel de gestión" eyebrow, and the single
  *     figure is `yearsSinceFounding()` — a real, public, unauthenticated fact
  *     — rendered as an inline number + caption. It is NOT a student count: no
  *     endpoint an anonymous visitor can call returns one, and a fabricated
@@ -33,13 +38,25 @@ function renderShell(): void {
 }
 
 describe("AuthShell", () => {
-  it("bounds the composition at the prototype's 660px instead of stretching it", () => {
+  it("fills the viewport instead of floating as a bounded, centred artboard", () => {
     renderShell();
 
     const composition = screen.getByTestId("auth-composition");
-    expect(composition.className).toContain("min-[980px]:min-h-[660px]");
-    // …and it is capped, so the panels never grow to an arbitrary width.
-    expect(composition.className).toMatch(/max-w-\[\d+px\]/);
+    expect(composition.className).toContain("min-h-screen");
+    expect(composition.className).toContain("w-full");
+    // The rejected version capped the composition and bounded its height.
+    expect(composition.className).not.toMatch(/max-w-\[\d+px\]/);
+    expect(composition.className).not.toContain("min-h-[660px]");
+  });
+
+  it("renders the motto with typographic double quotes, never guillemets", () => {
+    renderShell();
+
+    const headline = screen.getByTestId("auth-headline");
+    expect(headline.textContent).toContain("“");
+    expect(headline.textContent).toContain("”");
+    expect(headline.textContent).not.toContain("«");
+    expect(headline.textContent).not.toContain("»");
   });
 
   it("renders the headline at 42px on desktop and 30px on phones", () => {

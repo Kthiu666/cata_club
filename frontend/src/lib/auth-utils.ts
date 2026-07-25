@@ -75,6 +75,10 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
       links.push(
         { href: "/student", label: "Mi cuenta" },
         { href: "/student/payments", label: "Pagos" },
+        // The two things a student actually opens the portal to do. Without
+        // this entry /student/attendance is reachable only from a panel on the
+        // home screen.
+        { href: "/student/attendance", label: "Asistencias" },
       );
       break;
     case "unsupported":

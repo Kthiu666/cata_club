@@ -25,8 +25,27 @@
  *      picking Juan out on his own rung, and the second by offering the move
  *      right there in the result row.
  *   4. THE UNASSIGNED WERE INVISIBLE. "59 de 67" named eight students it gave
- *      no way to see or act on. They now have their own block above the
- *      ladder, each with the one control that places them.
+ *      no way to see or act on. They now have their own block, each with the
+ *      one control that places them.
+ *
+ * v3 answers two things the product owner said after using v2:
+ *
+ *   A. ORDER. *"en nivel los paneles al revés, primero lo que ya están
+ *      asignados, y abajo los que no están asignados"*. The ladder is the
+ *      subject of the screen and now leads; the unassigned block is the
+ *      exception list and follows it. Both carry a heading so the pair reads
+ *      as "here is the ladder / here is who is not on it yet".
+ *   B. THE EMPTY HALF. *"hay mucho espacio vacío dentro del panel"*, and
+ *      measured at 1440px it was exactly that: the unassigned block ran 1137px
+ *      wide with the name at the left edge and the picker + button pinned to
+ *      the right, leaving ~700px of nothing per row, over eight full-width
+ *      rows (548px tall — very nearly half the ladder's 670px, which is the
+ *      "mitad y mitad" being questioned). The student rows are now a TWO-COLUMN
+ *      grid: each cell is ~545px, which is what a name plus a 168px picker plus
+ *      the action actually needs, so the horizontal void closes and the block
+ *      halves in height instead of competing with the ladder for the page.
+ *      Three columns were measured and rejected — at ~379px the name truncates,
+ *      and the name is the only thing the row is about.
  *
  * Non-negotiable product rules baked in here:
  *   - NO occupancy. `NivelConOcupacion` carries `personasActuales`,
@@ -93,6 +112,14 @@ const SUCCESS_RESET_DELAY_MS = 2000;
 
 /** Rows the rung's assignment panel renders before it asks you to search instead. */
 const PANEL_VISIBLE_LIMIT = 12;
+
+/**
+ * The layout every "this person → that level" list uses. Two columns from `sm`
+ * up, and no more: at 1440px that is ~545px per cell, which fits a name, the
+ * 168px picker and the action with no dead space left over. A third column
+ * measures ~379px and starts truncating names.
+ */
+const STUDENT_ROW_GRID = "grid gap-x-8 px-5 py-2 sm:grid-cols-2";
 
 /** Display name for a level, falling back to its rank when unnamed. */
 function nivelNombre(nivel: NivelConOcupacion): string {
@@ -277,10 +304,7 @@ function RankingContent(): React.ReactElement {
     const selectId = `nivel-destino-${scope}-${student.id}`;
 
     return (
-      <li
-        key={student.id}
-        className="flex min-h-drow flex-wrap items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
-      >
+      <li key={student.id} className="flex min-h-drow flex-wrap items-center gap-3 py-1.5">
         {/* On a phone the name takes the whole first line and the controls the
             second: truncating a student's name to "Arian…" to keep a picker on
             the same row loses the only thing the row is about. */}
@@ -391,7 +415,7 @@ function RankingContent(): React.ReactElement {
             description="Ningún estudiante coincide con la búsqueda."
           />
         ) : (
-          <ul className="overflow-hidden rounded-ctl border border-line bg-paper">
+          <ul className="grid gap-x-8 rounded-ctl border border-line bg-paper px-4 py-2 sm:grid-cols-2">
             {visibleStudents.map((student) => {
               const alreadyHere = student.nivelRankingId === openNivel.id;
               const currentNivel = niveles.find((n) => n.id === student.nivelRankingId);
@@ -399,7 +423,7 @@ function RankingContent(): React.ReactElement {
               return (
                 <li
                   key={student.id}
-                  className="flex min-h-drow flex-wrap items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
+                  className="flex min-h-drow flex-wrap items-center gap-3 py-1.5"
                 >
                   <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">
                     {studentFullName(student)}
@@ -477,6 +501,8 @@ function RankingContent(): React.ReactElement {
         onChange={setStudentSearch}
       />
 
+      {/* Search results answer the question that was just typed, so they stay
+          directly under the field that asked it. */}
       {buscando ? (
         <section className="mb-5 overflow-hidden rounded-card border border-line bg-paper">
           <h2 className="border-b border-line px-5 py-3 text-[13px] font-bold text-ink">
@@ -489,33 +515,10 @@ function RankingContent(): React.ReactElement {
               description="Revise el nombre o borre la búsqueda para ver toda la escalera."
             />
           ) : (
-            <ul className="px-2 py-2">
+            <ul className={STUDENT_ROW_GRID}>
               {resultados.map((student) => renderStudentRow(student, "busqueda"))}
             </ul>
           )}
-        </section>
-      ) : sinNivel.length > 0 ? (
-        // The eight students the "59 de 67" stat used to name and hide. They
-        // are the actionable population of this screen, so they sit above the
-        // ladder with the control that places them.
-        <section className="mb-5 overflow-hidden rounded-card border border-line bg-paper">
-          <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3">
-            <UserPlus
-              size={16}
-              strokeWidth={1.5}
-              className="flex-none text-ink-2"
-              aria-hidden="true"
-            />
-            <h2 className="flex-1 text-[13px] font-bold text-ink">
-              Sin nivel asignado ({sinNivel.length})
-            </h2>
-          </div>
-          <p className="px-5 pt-3 text-[12.5px] text-ink-3">
-            Elija el nivel donde entra cada estudiante y confirme la asignación.
-          </p>
-          <ul className="px-2 py-2">
-            {sinNivel.map((student) => renderStudentRow(student, "sin-nivel"))}
-          </ul>
         </section>
       ) : null}
 
@@ -525,7 +528,15 @@ function RankingContent(): React.ReactElement {
         </p>
       ) : null}
 
-      <div className="overflow-hidden rounded-card border border-line bg-paper">
+      {/* The ladder leads: it is what the screen is about, and the students on
+          it are the ones already placed. */}
+      <section className="mb-5 overflow-hidden rounded-card border border-line bg-paper">
+        <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3">
+          <Trophy size={16} strokeWidth={1.5} className="flex-none text-ink-2" aria-hidden="true" />
+          <h2 className="flex-1 text-[13px] font-bold text-ink">
+            La escalera ({assignedCount} asignado{assignedCount === 1 ? "" : "s"})
+          </h2>
+        </div>
         {loading ? (
           <LoadingState label="Cargando niveles…" />
         ) : niveles.length === 0 ? (
@@ -543,7 +554,32 @@ function RankingContent(): React.ReactElement {
             highlightIds={resaltados}
           />
         )}
-      </div>
+      </section>
+
+      {/* …and the students who are not on it yet follow, as the exception the
+          ladder implies. Hidden while searching, because the results block
+          above is already answering a narrower question. */}
+      {!buscando && sinNivel.length > 0 ? (
+        <section className="overflow-hidden rounded-card border border-line bg-paper">
+          <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3">
+            <UserPlus
+              size={16}
+              strokeWidth={1.5}
+              className="flex-none text-ink-2"
+              aria-hidden="true"
+            />
+            <h2 className="flex-1 text-[13px] font-bold text-ink">
+              Sin nivel asignado ({sinNivel.length})
+            </h2>
+          </div>
+          <p className="px-5 pt-3 text-[12.5px] text-ink-3">
+            Elija el nivel donde entra cada estudiante y confirme la asignación.
+          </p>
+          <ul className={STUDENT_ROW_GRID}>
+            {sinNivel.map((student) => renderStudentRow(student, "sin-nivel"))}
+          </ul>
+        </section>
+      ) : null}
     </AppShell>
   );
 }

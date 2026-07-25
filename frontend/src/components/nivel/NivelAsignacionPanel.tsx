@@ -19,6 +19,22 @@
  * /ranking/asignar-nivel-inicial`) is backend-restricted to ENTRENADOR — an
  * ADMINISTRADOR gets a real 403. Moving an already-assigned student (`PATCH
  * /ranking/mover-de-nivel`) works fine for admins.
+ *
+ * ## Design-system migration
+ *
+ * This file came back from upstream still speaking the pre-redesign dialect —
+ * `cata-text`, `cata-border`, `cata-bg`, `btn-secondary`, hand-rolled table
+ * markup and a hand-rolled pager. It now uses the shared primitives, so the
+ * screen inherits the committed metrics (40px controls, 32px in-table
+ * controls, 26px badges, 14/10 radii) instead of restating them by eye.
+ *
+ * The one judgement call: the "Nivel actual" column used a sky/violet/fuchsia
+ * ramp keyed on `nivelCategoria`. Three saturated hues that belong to no
+ * product token, encoding a category the user cannot act on, on a screen whose
+ * governing rule (see `NivelLadder`) is that a nivel is identified by its NAME
+ * and nothing else. It is now a neutral badge carrying that name, and the
+ * absence of one is muted text rather than a fourth colour — an unassigned
+ * student has no nivel, so there is no chip to draw.
  */
 
 "use client";
@@ -27,7 +43,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import BackLink from "@/components/BackLink";
-import { Users, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, GraduationCap } from "lucide-react";
+import { Users, CheckCircle2, GraduationCap } from "lucide-react";
 import {
   fetchAlumnosConNivel,
   fetchNivelesConOcupacion,
@@ -37,6 +53,21 @@ import {
   type NivelConOcupacion,
   type AlumnoConNivel,
 } from "@/services/api";
+import {
+  Badge,
+  Button,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  Pagination,
+  SearchInput,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+} from "@/components/ui";
 import { useToast } from "@/contexts/ToastContext";
 import {
   buildNivelStudentsFromAlumnos,
@@ -48,27 +79,11 @@ import type { UserRole } from "@/types/domain";
 /** Tamaño de página para la lista de estudiantes (Nivel). */
 const NIVEL_PAGE_SIZE = 10;
 
-const NIVEL_COLOR_MAP: Record<string, string> = {
-  principiante: "border border-sky-200 bg-sky-100 text-sky-700",
-  intermedio: "border border-violet-200 bg-violet-100 text-violet-700",
-  avanzado: "border border-fuchsia-200 bg-fuchsia-100 text-fuchsia-700",
-};
-const DEFAULT_BADGE_CLASS = "border border-gray-200 bg-gray-100 text-gray-400";
-
-function nivelBadge(
-  niveles: NivelConOcupacion[],
-  nivelId: number | null,
-): { label: string; className: string } {
-  if (nivelId === null) {
-    return { label: "Sin asignar", className: DEFAULT_BADGE_CLASS };
-  }
+/** The club's own name for a nivel — the only label this screen ever shows. */
+function nivelLabel(niveles: NivelConOcupacion[], nivelId: number): string {
   const nivel = niveles.find((n) => n.id === nivelId);
-  if (!nivel) {
-    return { label: `Nivel ${nivelId}`, className: DEFAULT_BADGE_CLASS };
-  }
-  const label = nivel.nombre ?? String(nivel.numeroNivel);
-  const className = NIVEL_COLOR_MAP[nivel.nivelCategoria] ?? DEFAULT_BADGE_CLASS;
-  return { label, className };
+  if (!nivel) return `Nivel ${nivelId}`;
+  return nivel.nombre ?? String(nivel.numeroNivel);
 }
 
 export interface NivelAsignacionPanelProps {
@@ -170,16 +185,7 @@ export default function NivelAsignacionPanel({
         <BackLink href={backHref} label={backLabel} />
 
         {loadError && (
-          <div
-            className="mb-6 flex items-center gap-2 rounded-xl border border-cata-red/30 bg-cata-red/10 px-4 py-3 text-sm text-cata-red"
-            role="alert"
-          >
-            <AlertTriangle size={14} strokeWidth={2} aria-hidden="true" />
-            {loadError}
-            <button type="button" onClick={() => void loadData()} className="btn-ghost ml-auto text-xs">
-              Reintentar
-            </button>
-          </div>
+          <ErrorState className="mb-6" message={loadError} onRetry={() => void loadData()} />
         )}
 
         <AsignarNivelTab
@@ -320,23 +326,24 @@ function AsignarNivelTab({ students, niveles, loading, onOptimisticAssign, onBac
 
   return (
     <div className="card overflow-hidden">
-      <div className="flex flex-col gap-3 border-b border-cata-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <Users size={16} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-          <h2 className="text-sm font-bold text-cata-text">Estudiantes ({filteredStudents.length})</h2>
+          <Users size={16} strokeWidth={1.5} className="flex-none text-ink-2" aria-hidden="true" />
+          <h2 className="text-[13px] font-bold text-ink">
+            Estudiantes ({filteredStudents.length})
+          </h2>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <input
-            type="text"
-            aria-label="Buscar estudiante por nombre"
+          <SearchInput
+            className="w-full sm:w-56"
+            label="Buscar estudiante por nombre"
             placeholder="Buscar por nombre…"
-            className="input-field w-full sm:w-48"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={setSearchTerm}
           />
           <select
             aria-label="Filtrar por nivel actual"
-            className="input-field w-full sm:w-40"
+            className="input-field h-ctl w-full sm:w-40"
             value={nivelFilter}
             onChange={(e) => setNivelFilter(e.target.value)}
           >
@@ -352,70 +359,75 @@ function AsignarNivelTab({ students, niveles, loading, onOptimisticAssign, onBac
       </div>
 
       {error && (
-        <div className="alert-error mx-5 mt-4" role="alert">
+        <p className="px-5 pt-4 text-[12.5px] text-state-bad" role="alert">
           {error}
-        </div>
+        </p>
       )}
 
       {loading ? (
-        <div className="flex flex-col items-center py-12 text-center">
-          <p className="text-sm text-cata-text/50">Cargando estudiantes…</p>
-        </div>
+        <LoadingState label="Cargando estudiantes…" />
       ) : students.length === 0 ? (
-        <div className="flex flex-col items-center py-12 text-center">
-          <Users size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
-          <p className="text-sm text-cata-text/50">No hay estudiantes registrados.</p>
-        </div>
+        <EmptyState
+          icon={<Users size={21} strokeWidth={1.5} aria-hidden="true" />}
+          title="Todavía no hay estudiantes"
+          description="Cuando el club registre a su primer estudiante, aparecerá aquí."
+        />
       ) : filteredStudents.length === 0 ? (
-        <div className="flex flex-col items-center py-12 text-center">
-          <Users size={32} strokeWidth={1.5} className="mb-3 text-cata-text/20" aria-hidden="true" />
-          <p className="text-sm text-cata-text/50">No se encontraron estudiantes con ese criterio.</p>
-        </div>
+        <EmptyState
+          icon={<Users size={21} strokeWidth={1.5} aria-hidden="true" />}
+          title="Ningún estudiante coincide"
+          description="Revise el nombre o cambie el filtro de nivel para ver más estudiantes."
+        />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-cata-border bg-cata-bg text-xs font-medium uppercase tracking-wider text-cata-text/65">
-                <th className="px-4 py-3 font-medium">Estudiante</th>
-                <th className="px-4 py-3 text-center font-medium">Nivel actual</th>
-                <th className="px-4 py-3 font-medium">Nuevo nivel</th>
-                <th className="px-4 py-3 font-medium" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-cata-border">
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell>Estudiante</TableHeaderCell>
+                <TableHeaderCell>Nivel actual</TableHeaderCell>
+                <TableHeaderCell>Nuevo nivel</TableHeaderCell>
+                <TableHeaderCell align="right">
+                  <span className="sr-only">Acción</span>
+                </TableHeaderCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {paginatedStudents.map((student) => (
-                <tr key={student.id} className="transition-colors hover:bg-cata-bg">
-                  <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cata-red/15">
-                        <GraduationCap size={14} strokeWidth={1.5} className="text-cata-red" aria-hidden="true" />
-                      </div>
-                      <div>
-                        <span className="font-medium text-cata-text">
+                <TableRow key={student.id} className="transition-colors hover:bg-sunken">
+                  <TableCell>
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-canvas">
+                        <GraduationCap
+                          size={14}
+                          strokeWidth={1.5}
+                          className="text-ink-2"
+                          aria-hidden="true"
+                        />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="text-sm font-semibold text-ink">
                           {student.nombres} {student.apellidos}
                         </span>
                         {!student.activo && (
-                          <span className="ml-2 rounded bg-cata-bg px-1.5 py-0.5 text-[10px] font-medium text-cata-text/45">
+                          <span className="ml-2 inline-flex h-badge items-center rounded-full bg-canvas px-2 text-[11.5px] font-semibold text-ink-3">
                             Inactivo
                           </span>
                         )}
-                      </div>
+                      </span>
                     </div>
-                  </td>
-                  <td className="px-4 py-3.5 text-center">
-                    {(() => {
-                      const badge = nivelBadge(niveles, student.nivelRankingId);
-                      return (
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
-                          {badge.label}
-                        </span>
-                      );
-                    })()}
-                  </td>
-                  <td className="px-4 py-3.5">
+                  </TableCell>
+                  <TableCell>
+                    {student.nivelRankingId === null ? (
+                      <span className="text-[12.5px] text-ink-3">Sin asignar</span>
+                    ) : (
+                      <Badge tone="neutral">{nivelLabel(niveles, student.nivelRankingId)}</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {/* In-table control — 32px, not the 40px page control. */}
                     <select
                       aria-label={`Nuevo nivel para ${student.nombres} ${student.apellidos}`}
-                      className="input-field w-24 py-1.5 text-sm"
+                      className="input-field h-ctl-sm w-28 py-0 text-[12.5px]"
                       value={drafts[student.id] ?? ""}
                       onChange={(e) =>
                         setDrafts((prev) => ({ ...prev, [student.id]: Number(e.target.value) }))
@@ -428,16 +440,15 @@ function AsignarNivelTab({ students, niveles, loading, onOptimisticAssign, onBac
                         </option>
                       ))}
                     </select>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <button
-                      type="button"
+                  </TableCell>
+                  <TableCell align="right">
+                    <Button
+                      size="sm"
                       disabled={!drafts[student.id] || savingId === student.id}
                       onClick={() => handleAssign(student.id)}
-                      className="btn-secondary py-1.5 text-xs"
                     >
                       {savingId === student.id ? (
-                        "Guardando..."
+                        "Guardando…"
                       ) : successIds.has(student.id) ? (
                         <>
                           <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
@@ -446,44 +457,25 @@ function AsignarNivelTab({ students, niveles, loading, onOptimisticAssign, onBac
                       ) : (
                         "Asignar"
                       )}
-                    </button>
-                  </td>
-                </tr>
+                    </Button>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
 
-      {/* Paginación */}
       {!loading && filteredStudents.length > NIVEL_PAGE_SIZE && (
-        <div className="flex items-center justify-between border-t border-cata-border bg-cata-bg px-4 py-3">
-          <p className="text-xs text-cata-text/65">
-            Página {page} de {totalPages} · {filteredStudents.length} estudiante{filteredStudents.length !== 1 ? "s" : ""}
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="btn-secondary inline-flex items-center gap-1 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="Página anterior"
-            >
-              <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
-              Anterior
-            </button>
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="btn-secondary inline-flex items-center gap-1 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="Página siguiente"
-            >
-              Siguiente
-              <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
-            </button>
-          </div>
-        </div>
+        <Pagination
+          className="border-t border-line px-5 py-4"
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          totalItems={filteredStudents.length}
+          pageSize={NIVEL_PAGE_SIZE}
+          itemNoun="estudiante"
+        />
       )}
     </div>
   );

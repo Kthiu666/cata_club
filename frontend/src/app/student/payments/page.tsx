@@ -1,9 +1,48 @@
+/**
+ * /student/payments — the family-facing payment screen.
+ *
+ * One of the two things a student or a parent actually opens this portal to do
+ * ("hay que hacer pago y ver asistencias"). It arrived from upstream visually
+ * unmigrated — raw `cata-*` classes, ISO dates printed straight from the API,
+ * `$35.00` amounts, a red "selected" filter chip and Argentine voseo in its
+ * copy ("Adjuntá", "tenés", "Consultá") — and this pass puts it on the same
+ * system as the rest of the product:
+ *
+ * - `Badge`, `FilterPill`, `Button`, `EmptyState`, `ErrorState`,
+ *   `LoadingState`, and the `card` / `h-ctl` / `h-drow` / `rounded-card`
+ *   tokens, instead of eight bespoke pill and card shapes.
+ * - `formatCurrency` / `formatDate` / `formatDateRange` from
+ *   `src/lib/format-utils.ts` — this screen was the second currency grammar
+ *   and the third date grammar in the product.
+ * - Neutral Ecuadorian Spanish, usted. The student portal is not tuteo and it
+ *   is certainly not voseo.
+ * - Selection is coal plus the yellow ball dot (`FilterPill`), never red. Red
+ *   is the primary CTA and destructive intent only, so a red "Aprobados" chip
+ *   read as an alarm about approved payments.
+ *
+ * ## Two facts this screen deliberately does NOT show
+ *
+ * - **"Vigente hasta" from the membership.** `MembershipSummary.fechaFin` is
+ *   declared on the client type but `MembershipView` in
+ *   src/lib/server/student-adapter.ts never populates it — the field is
+ *   `undefined` for every real payload, and the old status bar's "Vigente
+ *   hasta: {fechaFin}" therefore rendered nothing at all while its `isExpired`
+ *   branch silently never fired. The real, computable coverage date is the
+ *   furthest `fechaFin` among APPROVED payments (`resolveCoverageEnd`), which
+ *   is what the card shows and what the renewal form starts from.
+ * - **An amount due.** There is no debt concept in the backend: a Membresia
+ *   carries a `montoAplicado` (the plan's price), not a balance. The card
+ *   reports the monthly price it can prove and lets the reader enter what they
+ *   are paying.
+ */
+
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
+import BackLink from "@/components/BackLink";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   fetchStudentPortal,
@@ -18,31 +57,32 @@ import type {
   MembershipSummary,
   RegistrarPagoInput,
 } from "@/services/api";
-import { isRepresentative, isMinor } from "../student-utils";
+import {
+  Badge,
+  Button,
+  EmptyState,
+  ErrorState,
+  FilterPill,
+  LoadingState,
+  buttonClasses,
+} from "@/components/ui";
+import { formatCurrency, formatDate, formatDateRange } from "@/lib/format-utils";
+import { describeMembershipState, isMinor, resolveCoverageEnd } from "../student-utils";
+import ManagedStudentPicker, { useManagedProfiles } from "../ManagedStudentPicker";
 import {
   filterPagosByStatus,
   sortPagosByDate,
   formatPagoMonto,
   getEmptyStateMessage,
+  describePagoEstado,
+  countPagosByStatus,
+  wholeMonthsFor,
+  addMonthsIso,
   TIPO_PAGO_LABEL,
-  type PagoStatusFilter,
   PAGO_FILTER_LABELS,
+  type PagoStatusFilter,
 } from "./payments-utils";
-import {
-  CreditCard,
-  AlertTriangle,
-  ChevronDown,
-  RefreshCw,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  Upload,
-  Paperclip,
-  Loader2,
-  Plus,
-  ShieldCheck,
-  ArrowRight,
-} from "lucide-react";
+import { CreditCard, Loader2, Paperclip, Plus, Upload, X } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Load state
@@ -58,263 +98,187 @@ type PagosLoadState =
   | { status: "error"; message: string }
   | { status: "ready"; pagos: PagoPersona[] };
 
-// ---------------------------------------------------------------------------
-// Small presentational pieces
-// ---------------------------------------------------------------------------
+const FILTERS: PagoStatusFilter[] = ["TODOS", "PENDIENTE_VALIDACION", "APROBADO", "RECHAZADO"];
 
-function LoadingCard(): React.ReactElement {
-  return (
-    <div className="card flex min-h-[40vh] items-center justify-center p-6 text-center">
-      <p className="text-sm text-cata-text/50">Cargando pagos...</p>
-    </div>
-  );
+/** Shared empty list, so "not loaded yet" is a stable reference for the memos below. */
+const NO_PAGOS: PagoPersona[] = [];
+
+/** `_sistema.css` `.fld` — the one input shape, 40px like every other control. */
+const FIELD_CLASSES =
+  "h-ctl w-full rounded-ctl border border-line-2 bg-paper px-3.5 text-[13px] text-ink " +
+  "placeholder:text-ink-3 focus-visible:outline focus-visible:outline-2 " +
+  "focus-visible:outline-offset-2 focus-visible:outline-ball disabled:cursor-not-allowed disabled:opacity-45";
+
+const FIELD_LABEL_CLASSES = "text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3";
+
+/** ISO `YYYY-MM-DD` for a `Date`, read in local time so it cannot slip a day in Ecuador. */
+function toIsoDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
-function ErrorCard({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry: () => void;
-}): React.ReactElement {
-  return (
-    <div className="card p-6 text-center">
-      <AlertTriangle
-        size={28}
-        strokeWidth={1.5}
-        className="mx-auto mb-3 text-cata-red"
-        aria-hidden="true"
-      />
-      <p className="mb-4 text-sm text-cata-text/65">{message}</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="btn-secondary mx-auto inline-flex items-center gap-2"
-      >
-        <RefreshCw size={14} strokeWidth={1.5} aria-hidden="true" />
-        Reintentar
-      </button>
-    </div>
-  );
+/** Parse an ISO date at local noon — the same anchoring `format-utils` uses, for the same reason. */
+function fromIsoDate(iso: string): Date {
+  return new Date(`${iso}T12:00:00`);
 }
 
 // ---------------------------------------------------------------------------
-// Membership status bar (sticky)
+// Membership status — everything the club can actually prove about coverage
 // ---------------------------------------------------------------------------
 
-function MembershipStatusBar({
+function MembershipCard({
   membership,
+  coverageEnd,
+  children,
 }: {
   membership: MembershipSummary | null;
-}): React.ReactElement | null {
-  if (!membership) return null;
+  coverageEnd: string | null;
+  children?: React.ReactNode;
+}): React.ReactElement {
+  const state = describeMembershipState(membership?.estado);
 
-  const hoyIso = new Date().toISOString().slice(0, 10);
-  const isExpired =
-    membership.estado === "VENCIDA" ||
-    (membership.fechaFin !== null && membership.fechaFin < hoyIso);
-  const isActive = membership.estado === "ACTIVA" && !isExpired;
+  const facts: { label: string; value: string }[] = [];
+  if (membership?.categoria) facts.push({ label: "Plan", value: membership.categoria });
+  if (membership?.montoAplicado) {
+    facts.push({ label: "Valor mensual", value: formatCurrency(membership.montoAplicado) });
+  }
+  if (membership?.franjaHoraria) facts.push({ label: "Franja", value: membership.franjaHoraria });
 
   return (
-    <div className="mb-6 flex items-center gap-3 rounded-xl border border-cata-border bg-cata-surface px-4 py-3">
-      <div
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-          isActive ? "bg-emerald-100" : isExpired ? "bg-red-100" : "bg-amber-100"
-        }`}
-      >
-        <ShieldCheck
-          size={16}
-          strokeWidth={1.5}
-          className={
-            isActive
-              ? "text-emerald-600"
-              : isExpired
-                ? "text-cata-red"
-                : "text-amber-600"
-          }
-          aria-hidden="true"
-        />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-cata-text">
-          Membresía:{" "}
-          <span className={isActive ? "text-emerald-600" : isExpired ? "text-cata-red" : "text-amber-600"}>
-            {isExpired ? "Vencida" : isActive ? "Activa" : membership.estado}
-          </span>
-        </p>
-        {membership.fechaFin && (
-          <p className="text-xs text-cata-text/55">
-            {isExpired ? "Venció" : "Vigente hasta"}: {membership.fechaFin}
+    <section
+      data-testid="membership-status"
+      className="card overflow-hidden"
+      aria-labelledby="membership-status-title"
+    >
+      {/* The badge carries the `estado`; the heading carries the fact the
+          reader came for. The badge used to say the same thing as the heading
+          in coarser words ("Al día"), which is a second, weaker judgement of
+          data that already speaks for itself. */}
+      <div className="px-5 py-[18px]">
+        <div className="mb-2 flex flex-wrap items-center gap-2.5">
+          <p className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3">
+            Su membresía
           </p>
-        )}
+          <Badge tone={state.tone}>{state.label}</Badge>
+        </div>
+        <h2 id="membership-status-title" className="text-[17px] font-bold tracking-tight text-ink">
+          {coverageEnd ? (
+            <>
+              Pagado hasta el <span className="tabular-nums">{formatDate(coverageEnd)}</span>
+            </>
+          ) : (
+            "Todavía no hay ningún pago aprobado"
+          )}
+        </h2>
+        <p className="mt-1.5 text-[13px] text-ink-3">
+          {coverageEnd
+            ? "Es la fecha del pago aprobado que llega más lejos en su historial."
+            : "En cuanto el club apruebe un pago, aquí aparecerá hasta qué fecha queda cubierto."}
+        </p>
       </div>
-      {membership.categoria && (
-        <span className="hidden shrink-0 rounded-full bg-cata-bg px-2.5 py-0.5 text-xs font-medium text-cata-text/65 sm:inline-block">
-          {membership.categoria}
-        </span>
+
+      {facts.length > 0 && (
+        <dl className="flex flex-wrap gap-x-8 gap-y-3 border-t border-line bg-sunken px-5 py-3.5">
+          {facts.map((fact) => (
+            <div key={fact.label}>
+              <dt className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3-strong">
+                {fact.label}
+              </dt>
+              <dd className="mt-0.5 text-[13.5px] font-bold tabular-nums text-ink">{fact.value}</dd>
+            </div>
+          ))}
+        </dl>
       )}
-    </div>
+
+      {children && <div className="border-t border-line px-5 py-4">{children}</div>}
+    </section>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Filter chips
-// ---------------------------------------------------------------------------
-
-function FilterChips({
-  active,
-  onChange,
-  counts,
-}: {
-  active: PagoStatusFilter;
-  onChange: (f: PagoStatusFilter) => void;
-  counts: Record<PagoStatusFilter, number>;
-}): React.ReactElement {
-  const filters: PagoStatusFilter[] = ["TODOS", "PENDIENTE_VALIDACION", "APROBADO", "RECHAZADO"];
-  return (
-    <div className="mb-5 flex flex-wrap gap-2" role="tablist" aria-label="Filtrar por estado">
-      {filters.map((f) => (
-        <button
-          key={f}
-          type="button"
-          role="tab"
-          aria-selected={active === f}
-          onClick={() => onChange(f)}
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-            active === f
-              ? "bg-cata-red text-white"
-              : "border border-cata-border bg-cata-surface text-cata-text/65 hover:border-cata-red/30 hover:text-cata-red"
-          }`}
-        >
-          {PAGO_FILTER_LABELS[f]}
-          <span
-            className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-              active === f ? "bg-white/20" : "bg-cata-bg"
-            }`}
-          >
-            {counts[f]}
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Pago status badge
-// ---------------------------------------------------------------------------
-
-function PagoEstadoBadge({
-  estado,
-}: {
-  estado: PagoPersona["estadoPago"];
-}): React.ReactElement {
-  if (estado === "APROBADO") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-        <CheckCircle2 size={10} strokeWidth={2} aria-hidden="true" /> Aprobado
-      </span>
-    );
-  }
-  if (estado === "RECHAZADO") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-cata-red">
-        <XCircle size={10} strokeWidth={2} aria-hidden="true" /> Rechazado
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/20 px-2 py-0.5 text-xs font-medium text-amber-400">
-      <Clock size={10} strokeWidth={2} aria-hidden="true" /> Pendiente
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Renew payment form (inline, improved with proportional date calculation)
+// Registering a payment
 // ---------------------------------------------------------------------------
 
 function RenewPaymentForm({
   membership,
   personaId,
-  onRenewed,
-  hasPendingPago = false,
+  coverageEnd,
+  hasPendingPago,
+  onRegistered,
 }: {
   membership: MembershipSummary;
   personaId: string;
-  onRenewed: () => void;
-  hasPendingPago?: boolean;
+  coverageEnd: string | null;
+  hasPendingPago: boolean;
+  onRegistered: () => void;
 }): React.ReactElement {
   const [showForm, setShowForm] = useState(false);
   const [monto, setMonto] = useState<string>(membership.montoAplicado ?? "");
   const [tipoPago, setTipoPago] = useState<"EFECTIVO" | "TRANSFERENCIA">("TRANSFERENCIA");
   const [fechaInicio, setFechaInicio] = useState<string>("");
-  const [fechaFin, setFechaFin] = useState<string>("");
   const [voucherFile, setVoucherFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const monthlyPrice = parseFloat(String(membership.montoAplicado ?? "").replace(/[^0-9.]/g, "")) || 0;
+  const monthlyPrice = Number(membership.montoAplicado ?? "") || 0;
+  const amount = Number(monto) || 0;
+  const months = wholeMonthsFor(amount, monthlyPrice);
 
-  function calcFechaFin(baseDate: Date, amount: number): string {
-    if (monthlyPrice <= 0 || amount <= 0) return "";
-    const months = amount / monthlyPrice;
-    const fin = new Date(baseDate);
-    fin.setMonth(fin.getMonth() + months);
-    return fin.toISOString().slice(0, 10);
-  }
-
-  function resolveFechaInicio(): Date {
-    const hoy = new Date();
-    const prevFin = membership.fechaFin ? new Date(membership.fechaFin + "T12:00:00") : null;
-    return prevFin && prevFin.getTime() > hoy.getTime() ? prevFin : hoy;
-  }
+  /**
+   * Coverage resumes where the paid period ends, not today — otherwise a family
+   * paying early loses the days they already paid for. `coverageEnd` is the
+   * furthest approved `fechaFin`; `membership.fechaFin`, which the old form
+   * read, never reaches this client.
+   */
+  const fechaFin = useMemo(
+    () => (fechaInicio && months !== null ? addMonthsIso(fechaInicio, months) : ""),
+    [fechaInicio, months],
+  );
 
   function handleOpen(): void {
     setShowForm(true);
     setError(null);
     setVoucherFile(null);
-    const base = resolveFechaInicio();
-    setFechaInicio(base.toISOString().slice(0, 10));
-    const amount = parseFloat(String(monto).replace(/[^0-9.]/g, "")) || 0;
-    setFechaFin(amount > 0 ? calcFechaFin(base, amount) : "");
+    const today = new Date();
+    const paidThrough = coverageEnd ? fromIsoDate(coverageEnd) : null;
+    setFechaInicio(
+      toIsoDate(paidThrough && paidThrough.getTime() > today.getTime() ? paidThrough : today),
+    );
   }
 
-  function handleMontoChange(value: string): void {
-    setMonto(value);
-    if (!fechaInicio) return;
-    const amount = parseFloat(value.replace(/[^0-9.]/g, "")) || 0;
-    setFechaFin(amount > 0 ? calcFechaFin(new Date(fechaInicio + "T12:00:00"), amount) : "");
+  function handleCancel(): void {
+    setShowForm(false);
+    setVoucherFile(null);
+    setError(null);
   }
 
   async function handleSubmit(): Promise<void> {
-    const montoNum = Number(monto);
-    if (!montoNum || montoNum <= 0) {
-      setError("El monto debe ser mayor a 0.");
+    if (amount <= 0) {
+      setError("Ingrese un monto mayor a 0.");
       return;
     }
-    if (monthlyPrice > 0 && montoNum % monthlyPrice !== 0) {
-      setError(`El monto debe ser múltiplo de $${monthlyPrice}.`);
+    if (monthlyPrice > 0 && months === null) {
+      setError(
+        `El monto debe ser un múltiplo del valor mensual (${formatCurrency(monthlyPrice)}): pague uno o más meses completos.`,
+      );
       return;
     }
     if (!fechaInicio || !fechaFin) {
-      setError("Las fechas son obligatorias.");
-      return;
-    }
-    if (fechaInicio >= fechaFin) {
-      setError("La fecha de inicio debe ser anterior a la fecha de fin.");
+      setError("No se pudo calcular el período que cubre este pago.");
       return;
     }
     if (tipoPago === "TRANSFERENCIA" && !voucherFile) {
-      setError("El comprobante de transferencia es obligatorio.");
+      setError("Adjunte el comprobante de la transferencia para que el club pueda validarla.");
       return;
     }
+
     setLoading(true);
     setError(null);
     try {
       const nuevoPago = await registrarPago({
-        monto: montoNum,
+        monto: amount,
         tipoPago,
         fechaInicio,
         fechaFin,
@@ -328,7 +292,7 @@ function RenewPaymentForm({
 
       setShowForm(false);
       setVoucherFile(null);
-      onRenewed();
+      onRegistered();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo registrar el pago.");
     } finally {
@@ -338,57 +302,46 @@ function RenewPaymentForm({
 
   if (hasPendingPago) {
     return (
-      <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
-        Ya tenés un pago pendiente de validación. Esperá a que sea aprobado para registrar uno nuevo.
+      <p className="text-[13px] text-ink-2">
+        Ya tiene un pago esperando validación. Espere a que el club lo apruebe para registrar otro.
       </p>
     );
   }
 
   if (!showForm) {
     return (
-      <button
-        type="button"
-        onClick={handleOpen}
-        className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-cata-red px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-cata-red/85"
-      >
-        <Plus size={14} strokeWidth={1.5} aria-hidden="true" />
-        Registrar pago
-      </button>
+      <Button variant="primary" onClick={handleOpen}>
+        <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
+        Registrar un pago
+      </Button>
     );
   }
 
-  const durationLabel = (() => {
-    const amount = parseFloat(String(monto).replace(/[^0-9.]/g, "")) || 0;
-    if (monthlyPrice <= 0 || amount <= 0) return null;
-    const months = amount / monthlyPrice;
-    return months === 1 ? "1 mes de vigencia" : `${months} meses de vigencia`;
-  })();
-
   return (
-    <div className="space-y-2.5 rounded-lg bg-cata-bg/60 p-3">
-      <div className="grid grid-cols-2 gap-2">
-        <label className="text-xs font-medium text-cata-text/65">
-          Monto
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="flex flex-col gap-1.5">
+          <span className={FIELD_LABEL_CLASSES}>Monto</span>
           <input
             type="number"
             step={monthlyPrice > 0 ? monthlyPrice : "0.01"}
             min="0"
             value={monto}
-            onChange={(e) => handleMontoChange(e.target.value)}
-            className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
-            placeholder="0.00"
+            onChange={(e) => setMonto(e.target.value)}
+            className={FIELD_CLASSES}
+            placeholder="0,00"
           />
         </label>
-        <label className="text-xs font-medium text-cata-text/65">
-          Método
+        <label className="flex flex-col gap-1.5">
+          <span className={FIELD_LABEL_CLASSES}>Forma de pago</span>
           <select
             value={tipoPago}
             onChange={(e) => {
-              const val = e.target.value as "EFECTIVO" | "TRANSFERENCIA";
-              setTipoPago(val);
-              if (val !== "TRANSFERENCIA") setVoucherFile(null);
+              const value = e.target.value as "EFECTIVO" | "TRANSFERENCIA";
+              setTipoPago(value);
+              if (value !== "TRANSFERENCIA") setVoucherFile(null);
             }}
-            className="mt-0.5 w-full rounded-lg border border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text"
+            className={FIELD_CLASSES}
           >
             <option value="TRANSFERENCIA">Transferencia</option>
             <option value="EFECTIVO">Efectivo</option>
@@ -396,88 +349,93 @@ function RenewPaymentForm({
         </label>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 rounded-lg border border-cata-border/50 bg-cata-surface/50 px-2.5 py-2">
-        <div className="text-xs">
-          <span className="text-cata-text/45">Inicio: </span>
-          <span className="font-medium text-cata-text">{fechaInicio || "—"}</span>
-        </div>
-        <div className="text-xs">
-          <span className="text-cata-text/45">Fin: </span>
-          <span className="font-medium text-cata-text">{fechaFin || "—"}</span>
-        </div>
-      </div>
-      {durationLabel && (
-        <p className="text-[10px] text-cata-text/45">
-          {durationLabel}
-          {monthlyPrice > 0 && ` (precio mensual: $${monthlyPrice})`}
+      {/* The consequence of the amount, stated before the reader commits to it. */}
+      <div className="rounded-ctl bg-sunken px-3.5 py-3">
+        <p className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3-strong">
+          Período que cubre
         </p>
-      )}
+        <p className="mt-1 text-[13.5px] font-bold tabular-nums text-ink">
+          {fechaInicio && fechaFin ? formatDateRange(fechaInicio, fechaFin) : "—"}
+        </p>
+        {months !== null && (
+          <p className="mt-0.5 text-[12.5px] text-ink-3-strong">
+            {months === 1 ? "1 mes" : `${months} meses`} a {formatCurrency(monthlyPrice)} por mes.
+          </p>
+        )}
+        {months === null && monthlyPrice > 0 && amount > 0 && (
+          <p className="mt-0.5 text-[12.5px] text-state-bad">
+            El monto debe ser un múltiplo de {formatCurrency(monthlyPrice)}.
+          </p>
+        )}
+      </div>
 
       {tipoPago === "TRANSFERENCIA" && (
-        <label className="block text-xs font-medium text-cata-text/65">
-          Comprobante de pago
-          <div className="mt-0.5 flex items-center gap-2">
+        <div className="flex flex-col gap-1.5">
+          <span className={FIELD_LABEL_CLASSES}>Comprobante</span>
+          <div className="flex flex-wrap items-center gap-2">
             <input
               ref={fileInputRef}
               type="file"
               accept="image/jpeg,image/png,application/pdf"
               onChange={(e) => setVoucherFile(e.target.files?.[0] ?? null)}
               className="hidden"
+              data-testid="renew-voucher-input"
             />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 rounded-lg border border-dashed border-cata-border bg-cata-surface px-2.5 py-1.5 text-xs text-cata-text/65 transition-colors hover:border-cata-red/30 hover:text-cata-text"
-            >
-              <Upload size={12} strokeWidth={1.5} aria-hidden="true" />
-              {voucherFile ? voucherFile.name : "Seleccionar archivo"}
-            </button>
+            <Button onClick={() => fileInputRef.current?.click()}>
+              <Upload size={16} strokeWidth={1.5} aria-hidden="true" />
+              {voucherFile ? "Cambiar archivo" : "Seleccionar archivo"}
+            </Button>
             {voucherFile && (
-              <button
-                type="button"
-                onClick={() => setVoucherFile(null)}
-                className="text-[10px] text-cata-text/45 hover:text-cata-red"
-              >
-                Quitar
-              </button>
+              <span className="inline-flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2">
+                <Paperclip size={14} strokeWidth={1.5} aria-hidden="true" />
+                <span className="truncate">{voucherFile.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setVoucherFile(null)}
+                  aria-label="Quitar el comprobante seleccionado"
+                  className="rounded text-ink-3 hover:text-state-bad focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball"
+                >
+                  <X size={14} strokeWidth={2} aria-hidden="true" />
+                </button>
+              </span>
             )}
           </div>
-          <span className="mt-0.5 block text-[10px] text-cata-text/40">PDF, JPG o PNG — máx. 5 MB</span>
-        </label>
+          <span className="text-[12.5px] text-ink-3-strong">PDF, JPG o PNG — máximo 5 MB.</span>
+        </div>
       )}
 
-      {error && <p className="text-xs text-cata-red">{error}</p>}
-      <div className="flex gap-1.5">
-        <button
-          type="button"
+      {error && (
+        <p role="alert" className="text-[13px] font-semibold text-state-bad">
+          {error}
+        </p>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="primary"
           onClick={() => void handleSubmit()}
           disabled={loading || !monto || !fechaInicio || !fechaFin}
-          className="inline-flex items-center gap-1 rounded-lg bg-cata-red px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-cata-red/80 disabled:opacity-50"
         >
           {loading ? (
-            <Loader2 size={12} className="animate-spin" />
+            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
           ) : (
-            <CreditCard size={12} strokeWidth={1.5} />
+            <CreditCard size={16} strokeWidth={1.5} aria-hidden="true" />
           )}
-          Registrar pago
-        </button>
-        <button
-          type="button"
-          onClick={() => { setShowForm(false); setVoucherFile(null); }}
-          className="rounded-lg border border-cata-border px-2.5 py-1.5 text-xs text-cata-text/65 transition-colors hover:bg-cata-surface"
-        >
+          {loading ? "Registrando…" : "Registrar pago"}
+        </Button>
+        <Button variant="ghost" onClick={handleCancel} disabled={loading}>
           Cancelar
-        </button>
+        </Button>
       </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Payment timeline card
+// One payment in the history
 // ---------------------------------------------------------------------------
 
-function PagoCard({
+function PagoRow({
   pago,
   onUploadFile,
   uploadingId,
@@ -486,82 +444,60 @@ function PagoCard({
   onUploadFile: (pagoId: number) => void;
   uploadingId: number | null;
 }): React.ReactElement {
-  const fechaPago = new Date(pago.fechaRegistro).toLocaleDateString("es-EC", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  const estado = describePagoEstado(pago.estadoPago);
+  const canUpload = !pago.voucherUrl && pago.estadoPago !== "APROBADO";
 
   return (
-    <div className="relative flex gap-4">
-      {/* Timeline dot */}
-      <div className="flex flex-col items-center">
-        <div
-          className={`mt-1 h-3 w-3 shrink-0 rounded-full ${
-            pago.estadoPago === "APROBADO"
-              ? "bg-emerald-500"
-              : pago.estadoPago === "RECHAZADO"
-                ? "bg-cata-red"
-                : "bg-amber-400"
-          }`}
-        />
-        <div className="mt-1 w-px flex-1 bg-cata-border" />
+    <li className="flex min-h-drow flex-wrap items-start gap-x-4 gap-y-2 border-b border-line px-5 py-3.5 last:border-b-0">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="text-[15px] font-bold tabular-nums text-ink">
+            {formatPagoMonto(pago.monto)}
+          </span>
+          <Badge tone={estado.tone}>{estado.label}</Badge>
+        </div>
+        <p className="mt-1 text-[12.5px] text-ink-3-strong">
+          {TIPO_PAGO_LABEL[pago.tipoPago]} · Registrado el{" "}
+          <span className="tabular-nums">{formatDate(pago.fechaRegistro)}</span> · Cubre{" "}
+          <span className="tabular-nums">{formatDateRange(pago.fechaInicio, pago.fechaFin)}</span>
+        </p>
+
+        {pago.voucherUrl && (
+          <a
+            href={pago.voucherUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1.5 inline-flex items-center gap-1.5 rounded text-[12.5px] font-semibold text-ink underline decoration-line-2 decoration-2 underline-offset-4 hover:decoration-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball"
+          >
+            <Paperclip size={13} strokeWidth={1.5} aria-hidden="true" />
+            Ver el comprobante
+          </a>
+        )}
+
+        {/* The rejection reason is the one thing on this screen that asks the
+            reader to act, so it is stated in full rather than truncated into
+            the meta line. */}
+        {pago.estadoPago === "RECHAZADO" && pago.motivoRechazo && (
+          <div className="mt-2 rounded-ctl bg-state-bad-bg px-3.5 py-2.5">
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-state-bad">
+              Motivo del rechazo
+            </p>
+            <p className="mt-0.5 text-[13px] text-ink-2">{pago.motivoRechazo}</p>
+          </div>
+        )}
       </div>
 
-      {/* Card content */}
-      <div className="mb-4 min-w-0 flex-1 rounded-xl border border-cata-border bg-cata-surface p-4 transition-colors hover:border-cata-red/20">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold text-cata-text">
-                {formatPagoMonto(pago.monto)}
-              </p>
-              <PagoEstadoBadge estado={pago.estadoPago} />
-            </div>
-            <p className="mt-1 text-xs text-cata-text/55">
-              {fechaPago} · {TIPO_PAGO_LABEL[pago.tipoPago]} · Período:{" "}
-              {pago.fechaInicio} – {pago.fechaFin}
-            </p>
-            {pago.voucherUrl && (
-              <a
-                href={pago.voucherUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-1.5 inline-flex items-center gap-1 text-xs text-cata-red hover:underline"
-              >
-                <Paperclip size={10} strokeWidth={1.5} />
-                Ver comprobante
-              </a>
-            )}
-            {pago.estadoPago === "RECHAZADO" && pago.motivoRechazo && (
-              <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
-                <p className="text-xs font-semibold text-cata-red">
-                  Motivo de rechazo
-                </p>
-                <p className="text-xs text-cata-red/80">{pago.motivoRechazo}</p>
-              </div>
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {!pago.voucherUrl && pago.estadoPago !== "APROBADO" && (
-              <button
-                type="button"
-                onClick={() => onUploadFile(pago.id)}
-                disabled={uploadingId === pago.id}
-                className="inline-flex items-center gap-1 rounded-lg border border-cata-border px-2.5 py-1.5 text-xs font-medium text-cata-text transition-colors hover:border-cata-red/30 hover:text-cata-red disabled:opacity-50"
-              >
-                {uploadingId === pago.id ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Upload size={12} strokeWidth={1.5} />
-                )}
-                {uploadingId === pago.id ? "Subiendo..." : "Subir comprobante"}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+      {canUpload && (
+        <Button size="sm" onClick={() => onUploadFile(pago.id)} disabled={uploadingId === pago.id}>
+          {uploadingId === pago.id ? (
+            <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+          ) : (
+            <Upload size={14} strokeWidth={1.5} aria-hidden="true" />
+          )}
+          {uploadingId === pago.id ? "Subiendo…" : "Subir comprobante"}
+        </Button>
+      )}
+    </li>
   );
 }
 
@@ -572,46 +508,44 @@ function PagoCard({
 function PaymentsContent({
   data,
   hasAlumnoRole,
-  onRenewed,
+  accountPersonaId,
+  onRegistered,
 }: {
   data: StudentPortalSummary;
   hasAlumnoRole: boolean;
-  onRenewed: () => void;
+  /** The persona behind the SESSION — not the profile being viewed. */
+  accountPersonaId: string;
+  onRegistered: () => void;
 }): React.ReactElement {
-  const managedProfiles: StudentProfileSummary[] =
-    hasAlumnoRole && data.self
-      ? [data.self, ...data.representados]
-      : data.representados;
-
-  const [selectedId, setSelectedId] = useState<string>(
-    managedProfiles[0]?.personaId ?? "",
+  const { managedProfiles, selectedId, setSelectedId, selectedProfile } = useManagedProfiles(
+    data,
+    hasAlumnoRole,
   );
+
   const [reloadToken, setReloadToken] = useState(0);
   const [filter, setFilter] = useState<PagoStatusFilter>("TODOS");
   const [pagosState, setPagosState] = useState<PagosLoadState>({ status: "loading" });
   const [uploadingId, setUploadingId] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingUploadPagoId, setPendingUploadPagoId] = useState<number | null>(null);
 
-  const selectedProfile =
-    managedProfiles.find((p) => p.personaId === selectedId) ?? managedProfiles[0] ?? null;
-
-  const representative = isRepresentative(data.representados.length);
-  const selectedIsMinor = isMinor(selectedProfile?.fechaNacimiento);
-
-  const hasPendingPago =
-    pagosState.status === "ready" &&
-    pagosState.pagos.some((p) => p.estadoPago === "PENDIENTE_VALIDACION");
-
-  useEffect(() => {
-    if (!managedProfiles.some((p) => p.personaId === selectedId)) {
-      setSelectedId(managedProfiles[0]?.personaId ?? "");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [managedProfiles.map((p) => p.personaId).join(",")]);
-
-  // Fetch payments when selected profile changes
   const selectedPersonaId = selectedProfile?.personaId ?? null;
+
+  /**
+   * A minor cannot register a payment on their OWN account — but their
+   * representative can, from theirs, and the backend agrees: `registrarPago`
+   * authorizes "the owner, their representative, or an ADMINISTRADOR" at the
+   * service layer.
+   *
+   * The gate used to read `isMinor(selectedProfile)` alone, which locked a
+   * guardian out of paying for their own child — the single most common thing
+   * a representante account exists to do — and told them to ask the minor's
+   * representative, i.e. themselves.
+   */
+  const viewingOwnProfile = selectedPersonaId !== null && selectedPersonaId === accountPersonaId;
+  const blockedAsMinor = viewingOwnProfile && isMinor(selectedProfile?.fechaNacimiento);
+
   useEffect(() => {
     if (!selectedPersonaId) return;
     let cancelled = false;
@@ -625,9 +559,7 @@ function PaymentsContent({
         setPagosState({
           status: "error",
           message:
-            error instanceof Error
-              ? error.message
-              : "No se pudo cargar el historial de pagos.",
+            error instanceof Error ? error.message : "No se pudo cargar el historial de pagos.",
         });
       });
     return () => {
@@ -635,23 +567,38 @@ function PaymentsContent({
     };
   }, [selectedPersonaId, reloadToken]);
 
+  // Memoised so the empty-list branch does not hand a fresh array to the three
+  // derivations below on every render.
+  const pagos = useMemo(
+    () => (pagosState.status === "ready" ? pagosState.pagos : NO_PAGOS),
+    [pagosState],
+  );
+  const coverageEnd = useMemo(() => resolveCoverageEnd(pagos), [pagos]);
+  const counts = useMemo(() => countPagosByStatus(pagos), [pagos]);
+  const filteredPagos = useMemo(
+    () => sortPagosByDate(filterPagosByStatus(pagos, filter)),
+    [pagos, filter],
+  );
+  const hasPendingPago = pagos.some((pago) => pago.estadoPago === "PENDIENTE_VALIDACION");
+
   function handleSelectFile(pagoId: number): void {
+    setUploadError(null);
     setPendingUploadPagoId(pagoId);
     fileInputRef.current?.click();
   }
 
-  async function handleFileChange(
-    e: React.ChangeEvent<HTMLInputElement>,
-  ): Promise<void> {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = e.target.files?.[0];
     if (!file || !pendingUploadPagoId) return;
     setUploadingId(pendingUploadPagoId);
+    setUploadError(null);
     try {
       await subirVoucherPago(pendingUploadPagoId, file);
       setReloadToken((n) => n + 1);
     } catch (err) {
-      // eslint-disable-next-line no-alert
-      alert(err instanceof Error ? err.message : "No se pudo subir el comprobante.");
+      // Inline, not `alert()`: a browser dialog cannot be styled, cannot be
+      // read by the surrounding context, and blocks the page it interrupts.
+      setUploadError(err instanceof Error ? err.message : "No se pudo subir el comprobante.");
     } finally {
       setUploadingId(null);
       setPendingUploadPagoId(null);
@@ -659,158 +606,152 @@ function PaymentsContent({
     }
   }
 
-  function handleRenewed(): void {
+  function handleRegistered(): void {
     setReloadToken((n) => n + 1);
-    onRenewed();
+    onRegistered();
   }
 
-  const filteredPagos =
-    pagosState.status === "ready"
-      ? sortPagosByDate(filterPagosByStatus(pagosState.pagos, filter))
-      : [];
-
-  const counts: Record<PagoStatusFilter, number> =
-    pagosState.status === "ready"
-      ? {
-          TODOS: pagosState.pagos.length,
-          PENDIENTE_VALIDACION: pagosState.pagos.filter(
-            (p) => p.estadoPago === "PENDIENTE_VALIDACION",
-          ).length,
-          APROBADO: pagosState.pagos.filter((p) => p.estadoPago === "APROBADO")
-            .length,
-          RECHAZADO: pagosState.pagos.filter((p) => p.estadoPago === "RECHAZADO")
-            .length,
-        }
-      : { TODOS: 0, PENDIENTE_VALIDACION: 0, APROBADO: 0, RECHAZADO: 0 };
+  if (selectedProfile === null) {
+    return (
+      <div className="mx-auto w-full max-w-[760px]">
+        <div className="card">
+          <EmptyState
+            icon={<CreditCard size={21} strokeWidth={1.5} aria-hidden="true" />}
+            title="No se encontraron estudiantes asociados a esta cuenta"
+            description="Inscríbase como jugador o agregue un hijo o dependiente para registrar pagos."
+            action={
+              <Link href="/student" className={buttonClasses("secondary", "sm")}>
+                Ir a mi cuenta
+              </Link>
+            }
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <>
-      {/* Profile selector */}
-      {representative && managedProfiles.length > 1 && (
-        <div className="mb-5">
-          <label
-            htmlFor="student-select-payments"
-            className="text-xs font-medium text-cata-text/45"
-          >
-            Seleccionar estudiante
-          </label>
-          <div className="relative mt-1 inline-block">
-            <select
-              id="student-select-payments"
-              value={selectedId}
-              onChange={(e) => {
-                setSelectedId(e.target.value);
-                setFilter("TODOS");
-              }}
-              className="appearance-none rounded-xl border border-cata-border bg-cata-surface px-4 py-2 pr-10 text-sm font-medium text-cata-text shadow-sm transition-colors hover:border-cata-red/30 focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/10"
-            >
-              {managedProfiles.map((profile) => (
-                <option key={profile.personaId} value={profile.personaId}>
-                  {profile.nombres} {profile.apellidos}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              size={14}
-              strokeWidth={1.5}
-              className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-cata-text/65"
-              aria-hidden="true"
-            />
-          </div>
-        </div>
-      )}
+    <div className="mx-auto w-full max-w-[760px] space-y-5">
+      <ManagedStudentPicker
+        id="student-select-payments"
+        profiles={managedProfiles}
+        value={selectedId}
+        onChange={(id) => {
+          setSelectedId(id);
+          setFilter("TODOS");
+        }}
+      />
 
-      {selectedProfile === null ? (
-        <div className="card p-6 text-center">
-          <p className="text-sm text-cata-text/50">
-            No se encontraron estudiantes asociados a esta cuenta.
+      <MembershipCard membership={selectedProfile.membership} coverageEnd={coverageEnd}>
+        {blockedAsMinor ? (
+          <p className="text-[13px] text-ink-2">
+            Un estudiante menor de edad no registra pagos desde su propia cuenta. Lo hace su
+            representante desde la suya, o el club en administración.
           </p>
-        </div>
-      ) : (
-        <>
-          <MembershipStatusBar membership={selectedProfile.membership} />
-
-          {/* Renewal form when membership is inactive or expired — hidden for minors */}
-          {!selectedIsMinor && selectedProfile.membership &&
-            (selectedProfile.membership.estado === "INACTIVA" ||
-              selectedProfile.membership.estado === "VENCIDA") && (
-              <div className="mb-6">
-                <RenewPaymentForm
-                  membership={selectedProfile.membership}
-                  personaId={selectedProfile.personaId}
-                  onRenewed={handleRenewed}
-                  hasPendingPago={hasPendingPago}
-                />
-              </div>
-            )}
-
-          {selectedIsMinor && (
-            <p className="mb-6 text-xs text-cata-text/55">
-              Los menores de edad no pueden registrar pagos. Consultá con tu representante.
-            </p>
-          )}
-
-          {/* Filter chips */}
-          <FilterChips active={filter} onChange={setFilter} counts={counts} />
-
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,application/pdf"
-            className="hidden"
-            onChange={(e) => {
-              void handleFileChange(e);
-            }}
+        ) : selectedProfile.membership ? (
+          <RenewPaymentForm
+            membership={selectedProfile.membership}
+            personaId={selectedProfile.personaId}
+            coverageEnd={coverageEnd}
+            hasPendingPago={hasPendingPago}
+            onRegistered={handleRegistered}
           />
+        ) : (
+          <p className="text-[13px] text-ink-2">
+            El club crea la membresía al registrar el primer pago. Acérquese a administración para
+            activarla y después podrá renovarla desde aquí.
+          </p>
+        )}
+      </MembershipCard>
 
-          {/* Payment list */}
-          {pagosState.status === "loading" && <LoadingCard />}
-          {pagosState.status === "error" && (
-            <ErrorCard
-              message={pagosState.message}
-              onRetry={() => setReloadToken((n) => n + 1)}
-            />
-          )}
-          {pagosState.status === "ready" &&
-            (filteredPagos.length === 0 ? (
-              <div className="card p-8 text-center">
-                <CreditCard
-                  size={32}
-                  strokeWidth={1.5}
-                  className="mx-auto mb-3 text-cata-text/20"
-                  aria-hidden="true"
-                />
-                <p className="text-sm text-cata-text/50">
-                  {getEmptyStateMessage(filter)}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-0">
-                {filteredPagos.map((pago) => (
-                  <PagoCard
-                    key={pago.id}
-                    pago={pago}
-                    onUploadFile={handleSelectFile}
-                    uploadingId={uploadingId}
-                  />
-                ))}
-              </div>
-            ))}
+      {/* Selection is coal plus the ball dot — `FilterPill` owns that rule. */}
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar pagos por estado">
+        {FILTERS.map((option) => (
+          <FilterPill
+            key={option}
+            label={PAGO_FILTER_LABELS[option]}
+            count={counts[option]}
+            active={filter === option}
+            onClick={() => setFilter(option)}
+          />
+        ))}
+      </div>
 
-          {/* Link back to dashboard */}
-          <div className="mt-8">
-            <Link
-              href="/student"
-              className="inline-flex items-center gap-2 text-sm text-cata-text/55 transition-colors hover:text-cata-red"
-            >
-              <ArrowRight size={14} strokeWidth={1.5} className="rotate-180" />
-              Volver a Mi Cuenta
-            </Link>
-          </div>
-        </>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,application/pdf"
+        className="hidden"
+        data-testid="pago-voucher-input"
+        onChange={(e) => {
+          void handleFileChange(e);
+        }}
+      />
+
+      {uploadError && (
+        <p role="alert" className="text-[13px] font-semibold text-state-bad">
+          {uploadError}
+        </p>
       )}
-    </>
+
+      {pagosState.status === "loading" && (
+        <div className="card">
+          <LoadingState label="Cargando sus pagos…" />
+        </div>
+      )}
+      {pagosState.status === "error" && (
+        <ErrorState message={pagosState.message} onRetry={() => setReloadToken((n) => n + 1)} />
+      )}
+      {pagosState.status === "ready" && (
+        <section className="card overflow-hidden" aria-labelledby="pagos-title">
+          <div className="flex items-center gap-3 border-b border-line px-5 py-4">
+            <h2 id="pagos-title" className="flex-1 text-[13px] font-bold text-ink">
+              Historial de pagos
+            </h2>
+            {filteredPagos.length > 0 && (
+              <span className="text-[12.5px] font-semibold tabular-nums text-ink-3">
+                {filteredPagos.length}
+              </span>
+            )}
+          </div>
+          {filteredPagos.length === 0 ? (
+            <EmptyState
+              icon={<CreditCard size={21} strokeWidth={1.5} aria-hidden="true" />}
+              title={getEmptyStateMessage(filter)}
+              description={
+                filter === "TODOS"
+                  ? "Cuando registre un pago aparecerá aquí, junto con el resultado de su validación."
+                  : "Pruebe con otro estado para ver el resto de su historial."
+              }
+              action={
+                filter === "TODOS" ? undefined : (
+                  <Button size="sm" onClick={() => setFilter("TODOS")}>
+                    Ver todos los pagos
+                  </Button>
+                )
+              }
+            />
+          ) : (
+            <ul className="flex flex-col">
+              {filteredPagos.map((pago) => (
+                <PagoRow
+                  key={pago.id}
+                  pago={pago}
+                  onUploadFile={handleSelectFile}
+                  uploadingId={uploadingId}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      <BackLink
+        href="/student"
+        label="Volver a mi cuenta"
+        className="btn-ghost -ml-2 mt-1 inline-flex items-center gap-1 text-xs"
+      />
+    </div>
   );
 }
 
@@ -838,10 +779,7 @@ function PaymentsPageContent(): React.ReactElement {
         if (cancelled) return;
         setState({
           status: "error",
-          message:
-            error instanceof Error
-              ? error.message
-              : "No se pudo cargar la información.",
+          message: error instanceof Error ? error.message : "No se pudo cargar la información.",
         });
       });
     return () => {
@@ -850,19 +788,25 @@ function PaymentsPageContent(): React.ReactElement {
   }, [personaId, reloadToken]);
 
   return (
-    <AppShell eyebrow="Área de Estudiantes" title="Mis pagos">
-      {state.status === "loading" && <LoadingCard />}
+    <AppShell
+      eyebrow="Área de estudiantes"
+      title="Mis pagos"
+      subtitle="Registre un pago, siga su validación y consulte lo que ya pagó."
+    >
+      {state.status === "loading" && (
+        <div className="card">
+          <LoadingState label="Cargando sus pagos…" />
+        </div>
+      )}
       {state.status === "error" && (
-        <ErrorCard
-          message={state.message}
-          onRetry={() => setReloadToken((n) => n + 1)}
-        />
+        <ErrorState message={state.message} onRetry={() => setReloadToken((n) => n + 1)} />
       )}
       {state.status === "ready" && (
         <PaymentsContent
           data={state.data}
           hasAlumnoRole={hasAlumnoRole}
-          onRenewed={() => setReloadToken((n) => n + 1)}
+          accountPersonaId={personaId}
+          onRegistered={() => setReloadToken((n) => n + 1)}
         />
       )}
     </AppShell>

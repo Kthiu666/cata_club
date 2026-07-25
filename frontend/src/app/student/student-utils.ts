@@ -142,6 +142,23 @@ export function parseLevelNumber(nivelNombre: string | null): number | null {
   return Number.isInteger(rung) && rung >= 1 && rung <= 10 ? rung : null;
 }
 
+/**
+ * A level name with the word "Nivel" in front of it when the backend name is a
+ * bare rung number.
+ *
+ * `NivelRanking.nombre` is free text and the seed data uses both conventions:
+ * "Nivel 9" in one place and a bare "3" in another. Printed raw next to a
+ * student's name — as the dependants list on /profile does — a lone "3" reads
+ * as a count of something, not as a rank.
+ */
+export function formatLevelName(nivelNombre: string | null | undefined): string | null {
+  if (!nivelNombre) return null;
+  const name = nivelNombre.trim();
+  if (!name) return null;
+  const rung = parseLevelNumber(name);
+  return rung !== null ? `Nivel ${rung}` : name;
+}
+
 /** First letter of the first given name plus first letter of the first surname — the avatar disc. */
 export function personInitials(nombres: string, apellidos: string): string {
   const first = nombres.trim().split(/\s+/)[0]?.[0] ?? "";
@@ -177,10 +194,94 @@ export function summarizeRecentAttendance(
   return { attended, total: sessions.length };
 }
 
+/**
+ * How the persona's recorded sessions split across the four attendance states.
+ *
+ * `summarizeRecentAttendance` answers "did they come?"; this answers "what
+ * happened", which is the question `/student/attendance` exists to show. The
+ * two are kept apart on purpose: collapsing `justified` into `absent` in the
+ * ratio is correct (an excused absence is still an absence), but collapsing it
+ * in the breakdown would hide the one state a parent most wants to verify.
+ *
+ * `total` counts every record, including an `estado` this build does not know
+ * about, so the four categories never silently add up to less than the list
+ * the reader is looking at.
+ */
+export interface AttendanceBreakdown {
+  present: number;
+  late: number;
+  justified: number;
+  absent: number;
+  total: number;
+}
+
+export function breakdownAttendance(sessions: StudentSessionSummary[]): AttendanceBreakdown {
+  return {
+    present: sessions.filter((s) => s.estado === "present").length,
+    late: sessions.filter((s) => s.estado === "late").length,
+    justified: sessions.filter((s) => s.estado === "justified").length,
+    absent: sessions.filter((s) => s.estado === "absent").length,
+    total: sessions.length,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Membership state
+// ---------------------------------------------------------------------------
+
+export interface MembershipState {
+  label: string;
+  tone: BadgeTone;
+  /** True only for a membership the club has actually activated. */
+  active: boolean;
+}
+
+/**
+ * The single reading of a `Membresia.estado` for the family-facing screens.
+ *
+ * The carnet on `/student` and the status card on `/student/payments` used to
+ * each spell their own version of this — one said "Membresía pendiente", the
+ * other rendered the raw `INACTIVA` enum, and the payments one painted expiry
+ * in red text on the page field. One function, so a parent reading the two
+ * screens back to back never has to decide which of them is right.
+ *
+ * Anything the backend may add later falls through to "vencida", never to
+ * "activa": over-reporting coverage is the one error that costs the family
+ * money.
+ */
+export function describeMembershipState(estado: string | null | undefined): MembershipState {
+  if (!estado) return { label: "Sin membresía", tone: "neutral", active: false };
+  if (estado === "ACTIVA") return { label: "Membresía activa", tone: "ok", active: true };
+  if (estado === "INACTIVA") return { label: "Membresía pendiente", tone: "warn", active: false };
+  return { label: "Membresía vencida", tone: "bad", active: false };
+}
+
 // ---------------------------------------------------------------------------
 // Payments
 // ---------------------------------------------------------------------------
 
+
+/**
+ * Whole days from today to an ISO `YYYY-MM-DD` date — negative once it is past.
+ *
+ * Not an estimate and not a projection: it is arithmetic on a date the club
+ * already approved, and it is the reading a family actually wants from
+ * "cobertura hasta el 28/07/2026". Both ends are compared at local midnight so
+ * "today" is a calendar day, not a 24-hour window — a payment ending today
+ * returns 0, never -1 because of the hour.
+ *
+ * Returns `null` for an unparseable date rather than a number that would be
+ * rendered as "hace NaN días".
+ */
+export function daysUntil(isoDate: string | null | undefined, today: Date = new Date()): number | null {
+  if (!isoDate) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate);
+  if (!match) return null;
+  const target = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(target.getTime())) return null;
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return Math.round((target.getTime() - start.getTime()) / 86_400_000);
+}
 
 /** The furthest `fechaFin` among APPROVED payments — the real end of paid coverage, or `null` when nothing is approved yet. */
 export function resolveCoverageEnd(pagos: PagoPersona[]): string | null {

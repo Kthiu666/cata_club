@@ -176,20 +176,24 @@ describe("getNavLinksForRole", () => {
     expect(links).toEqual([{ href: "/", label: "Inicio" }]);
   });
 
-  it("returns representante links to Mi cuenta and Pagos", () => {
+  it("returns representante links to Mi cuenta, Pagos and Asistencias", () => {
     const links = getNavLinksForRole("representante");
-    expect(links).toHaveLength(3);
+    expect(links).toHaveLength(4);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
     expect(links[1]).toEqual({ href: "/student", label: "Mi cuenta" });
     expect(links[2]).toEqual({ href: "/student/payments", label: "Pagos" });
+    expect(links[3]).toEqual({ href: "/student/attendance", label: "Asistencias" });
   });
 
-  it("returns estudiante links to Mi cuenta and Pagos", () => {
+  it("returns estudiante links to Mi cuenta, Pagos and Asistencias", () => {
     const links = getNavLinksForRole("estudiante");
-    expect(links).toHaveLength(3);
+    expect(links).toHaveLength(4);
     expect(links[0]).toEqual({ href: "/", label: "Inicio" });
     expect(links[1]).toEqual({ href: "/student", label: "Mi cuenta" });
     expect(links[2]).toEqual({ href: "/student/payments", label: "Pagos" });
+    // Paying and checking attendance are the two things a student opens the
+    // portal to do, so both are reachable from the nav, not only from a panel.
+    expect(links[3]).toEqual({ href: "/student/attendance", label: "Asistencias" });
   });
 
   it("every recognized role gets Inicio as first link and at least one role-specific link", () => {

@@ -70,7 +70,11 @@ import {
 } from "@/services/api";
 import type { StudentPortalSummary, StudentProfileSummary, MembershipSummary } from "@/services/api";
 import type { PerfilPropio, UserRole } from "@/types/domain";
-import { personInitials, describeRanking } from "@/app/student/student-utils";
+// `formatLevelName`, not `describeRanking`: this page prints the level beside
+// a name and inside a labelled rail, where `describeRanking`'s
+// "Sin nivel asignado" / "No disponible" sentences would read as values. The
+// level here is either a real level or the slot is dropped.
+import { personInitials, formatLevelName } from "@/app/student/student-utils";
 import { Badge, Button, ErrorState, LoadingState, buttonClasses } from "@/components/ui";
 import type { BadgeTone } from "@/components/ui/Badge";
 import { MEMBERSHIP_STATUS_LABELS, MEMBERSHIP_STATUS_TONE } from "@/app/members/members-utils";
@@ -137,17 +141,22 @@ function DetailRow({
   action?: React.ReactNode;
 }): React.ReactElement {
   return (
-    <div className="flex min-h-drow items-center gap-4 border-b border-line px-5 py-2 last:border-b-0">
+    // `flex-wrap` plus a real minimum on the value column: at 375px a 150px
+    // label, a sentence and a 40px button do not fit on one line, and without
+    // a wrap the value collapsed to one word per line while the button was
+    // clipped by the card's own edge. The action now drops to a second line
+    // and stays right-aligned; above `sm` nothing about the row changes.
+    <div className="flex min-h-drow flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-5 py-2.5 last:border-b-0">
       {label && (
-        <span className="w-[150px] flex-none text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3">
+        <span className="w-[110px] flex-none text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3 sm:w-[150px]">
           {label}
         </span>
       )}
-      <span className="flex flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-semibold text-ink">
+      <span className="flex min-w-[9rem] flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-semibold text-ink">
         {children}
         {note && <span className="text-xs font-normal text-ink-3">{note}</span>}
       </span>
-      {action && <span className="flex-none">{action}</span>}
+      {action && <span className="ml-auto flex-none">{action}</span>}
     </div>
   );
 }
@@ -387,7 +396,7 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
 
   const nivel =
     props.kind === "student" && self && self.ranking.status === "available" && self.ranking.estaEnRanking
-      ? describeRanking(self.ranking).label
+      ? formatLevelName(self.ranking.nivelNombre)
       : null;
 
   // The page action lives in `PageHeader`'s own row (`.rowline` in
@@ -496,7 +505,13 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
               {membership ? (
                 <Badge tone={membership.tone}>{membership.label}</Badge>
               ) : (
-                <span className="text-xs font-normal text-ink-3">{NO_MEMBERSHIP_FALLBACK}</span>
+                // Capped measure: at its natural width this 45-character
+                // sentence is the widest thing in the rail, and the rail is
+                // `flex-none`, so it was squeezing the account holder's own
+                // name onto two lines beside it.
+                <span className="max-w-[22ch] text-xs font-normal text-ink-3">
+                  {NO_MEMBERSHIP_FALLBACK}
+                </span>
               )}
             </IdentityFact>
           )}
@@ -532,12 +547,13 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
         {/* "Miembro desde" is NOT a row: it is account metadata, it lives on
             the identity card's rail, and repeating it here would be the same
             datum printed twice on one screen. */}
+        {/* A note ABOUT the card, not a datum in it — so it sits on `sunken`
+            below the rows instead of occupying a 56px `.drow` with an empty
+            label column, which is what it did before. */}
         {props.kind === "student" && (
-          <DetailRow>
-            <span className="text-xs font-normal text-ink-3">
-              Esta información no se puede editar desde aquí. Escriba al club para corregirla.
-            </span>
-          </DetailRow>
+          <p className="border-t border-line bg-sunken px-5 py-3 text-[12.5px] text-ink-3-strong">
+            Esta información no se puede editar desde aquí. Escriba al club para corregirla.
+          </p>
         )}
         {saveError && (
           <p role="alert" className="border-t border-line px-5 py-3 text-sm text-cata-red">
@@ -546,25 +562,40 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
         )}
       </CardSection>
 
-      {/* 3 — Seguridad: the same row pattern, carrying actions. */}
+      {/* 3 — Seguridad: the same 56px row shape as "Datos personales", label
+          on the left and the action on the right. The two rows used to put
+          "Contraseña" in the VALUE column with no label at all, which broke
+          the page's own grammar three rows after establishing it — and left
+          the reader guessing what the button beside a bare noun would do.
+
+          Two rows, not three: `auth_router.py` exposes login/registro/me/
+          refresh/logout/recuperar/restablecer and nothing that revokes another
+          device's token, so a "cerrar otras sesiones" row would be a button
+          that cannot do what it says. */}
       <CardSection title="Seguridad" testId="profile-column-status">
         <DetailRow
+          label="Contraseña"
           action={
             <Button size="sm" onClick={() => void handleChangePassword()} disabled={requestingPassword}>
               {requestingPassword ? "Enviando…" : "Cambiar contraseña"}
             </Button>
           }
         >
-          Contraseña
+          <span className="text-[13px] font-normal text-ink-2">
+            Le enviamos un enlace de cambio a su correo
+          </span>
         </DetailRow>
         <DetailRow
+          label="Sesión"
           action={
             <Button size="sm" onClick={() => void logout()}>
               Salir
             </Button>
           }
         >
-          Cerrar sesión en este equipo
+          <span className="text-[13px] font-normal text-ink-2">
+            Cerrar sesión en este equipo
+          </span>
         </DetailRow>
       </CardSection>
 
@@ -601,18 +632,40 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
 }
 
 /**
- * One dependant row. No membership badge: the backend only ever scopes
- * `/membresias/mias` to the JWT owner's own persona, never a represented
- * dependant's, so any status shown here would be a guess.
+ * One dependant row.
+ *
+ * The membership badge is rendered ONLY when the payload actually carried a
+ * `membership` for that dependant, and the "no disponible" note is kept for
+ * when it did not. Both halves are load-bearing:
+ *
+ * - The note used to be unconditional, on the premise that `/membresias/mias`
+ *   is only ever scoped to the caller's own persona. That is not what the
+ *   route does: `src/app/api/student/route.ts` calls
+ *   `/membresias/mias?persona_id={id}` once per profile, and a real
+ *   representante session comes back with the dependant's membership filled
+ *   in. Printing "no disponible" over data the page is holding is a false
+ *   statement, and it was the same false statement on every row.
+ * - The note stays for the null case because null is genuinely ambiguous:
+ *   `fetchMemberships` returns `[]` both when the dependant has no membership
+ *   and when the lookup was refused, and those two must not be collapsed into
+ *   "sin membresía".
  */
 function DependantRow({ profile }: { profile: StudentProfileSummary }): React.ReactElement {
   const fullName = `${profile.nombres} ${profile.apellidos}`.trim();
+  const membership = describeMembership(profile.membership);
+  const nivel =
+    profile.ranking.status === "available" && profile.ranking.estaEnRanking
+      ? formatLevelName(profile.ranking.nivelNombre)
+      : null;
+
   return (
-    <DetailRow note={NO_MEMBERSHIP_FALLBACK}>
+    <DetailRow note={membership ? undefined : NO_MEMBERSHIP_FALLBACK}>
       <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-state-neutral-bg text-[10px] font-bold text-state-neutral">
         {personInitials(profile.nombres, profile.apellidos)}
       </span>
       {fullName}
+      {membership && <Badge tone={membership.tone}>{membership.label}</Badge>}
+      {nivel && <span className="text-xs font-normal text-ink-3">{nivel}</span>}
     </DetailRow>
   );
 }

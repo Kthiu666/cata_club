@@ -28,6 +28,24 @@
  * had just typed. Three controls whose only documented behaviour was "these do
  * not affect the thing you came here to produce" are three controls too many.
  *
+ * ## PDF and CSV
+ *
+ * PDF is real and server-rendered: all three presets map to an endpoint that
+ * exists (see the deviation note above), so the button downloads a document
+ * the backend produced.
+ *
+ * CSV has NO backend. Grepping `backend/` for "csv" finds `.env.example` and
+ * `configuracion.py` and nothing else — there is no route to call. The control
+ * therefore builds the file in the browser, which is honest here and only
+ * here: the page already holds the COMPLETE result set for the range (the
+ * table's pagination is a client-side slice), so the CSV carries exactly the
+ * rows the preview counts and the PDF renders. Faking a request, or shipping a
+ * button that silently did nothing, were the two alternatives; a real file
+ * built from data already in hand beats both. Server-side CSV is tracked as
+ * backend work in issue #150, which is what removes the three limits this
+ * approach really does have: column definitions that can drift from the PDF's,
+ * no streaming, and an export the backend never sees.
+ *
  * The `<h2>` level of the section headings was normalised in an earlier phase
  * and is preserved: `AppShell` owns the page `<h1>`.
  */
@@ -35,7 +53,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle, Download, FileText, Loader2, Users, Wallet } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle,
+  Download,
+  FileText,
+  Loader2,
+  Table2,
+  Users,
+  Wallet,
+} from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import BackLink from "@/components/BackLink";
@@ -63,6 +90,9 @@ import {
   getAsistenciaReportTotalPages,
   paginatePagosResults,
   getPagosReportTotalPages,
+  csvFilename,
+  downloadCsv,
+  toCsv,
   PERSONA_REPORT_PAGE_SIZE,
   ASISTENCIA_REPORT_PAGE_SIZE,
   PAGOS_REPORT_PAGE_SIZE,
@@ -266,6 +296,74 @@ function ReportsContent(): React.ReactElement {
     }
   }
 
+  /**
+   * The CSV of everything currently previewed. Columns mirror the preview's
+   * own table exactly, so what you downloaded is what you were looking at —
+   * and it covers the whole result set, not the visible page, because
+   * `*Results` already hold every row for the range (see `reports-utils`).
+   */
+  function handleDownloadCsv(): void {
+    setError(null);
+    try {
+      if (preset === "periodo") {
+        downloadCsv(
+          csvFilename("periodo"),
+          toCsv(
+            ["Nombres", "Apellidos", "Cédula", "Fecha de nacimiento", "Edad", "Teléfono"],
+            personaResults.map((persona) => [
+              persona.nombres,
+              persona.apellidos,
+              persona.cedula,
+              formatDate(persona.fechaNacimiento),
+              calcAge(persona.fechaNacimiento),
+              persona.telefono,
+            ]),
+          ),
+        );
+      } else if (preset === "asistencia") {
+        downloadCsv(
+          csvFilename("asistencia"),
+          toCsv(
+            ["Fecha", "Horario", "Estudiante", "Estado", "Entrenador"],
+            attendanceResults.map((record) => [
+              formatDate(record.fecha),
+              record.horario,
+              record.estudiante,
+              getAttendanceLabel(record.estado),
+              record.entrenador,
+            ]),
+          ),
+        );
+      } else {
+        downloadCsv(
+          csvFilename("pagos"),
+          toCsv(
+            [
+              "Estudiante",
+              "Responsable de pago",
+              "Período",
+              "Monto",
+              "Método",
+              "Subido",
+              "Estado",
+            ],
+            pagosResults.map((pago) => [
+              pago.studentName,
+              pago.responsablePagoName ?? "",
+              pago.membershipPeriod,
+              formatCurrency(pago.expectedAmount),
+              pago.paymentMethod,
+              formatDateTime(pago.uploadedAt),
+              VALIDATION_STATUS_LABELS[pago.validationStatus],
+            ]),
+          ),
+        );
+      }
+    } catch {
+      setError("No se pudo generar el CSV del reporte.");
+    }
+  }
+
   return (
     <AppShell eyebrow="Documentos del club" title="Reportes">
       <BackLink href="/dashboard" label="Volver al Panel" />
@@ -380,18 +478,32 @@ function ReportsContent(): React.ReactElement {
 
         <span className="flex-1" />
 
-        <Button
-          variant="primary"
-          onClick={() => void handleGeneratePdf()}
-          disabled={exportingPdf || !canQuery || resultCount === 0}
-        >
-          {exportingPdf ? (
-            <Loader2 size={14} strokeWidth={1.5} className="animate-spin" aria-hidden="true" />
-          ) : (
-            <Download size={14} strokeWidth={1.5} aria-hidden="true" />
-          )}
-          {exportingPdf ? "Generando…" : "Generar PDF"}
-        </Button>
+        {/*
+         * Two named actions rather than one button behind a format menu: the
+         * PDF is the club's document (server-rendered, the one to hand in) and
+         * the CSV is the same rows as data (built here in the browser). They
+         * are different artefacts, so they say so. Red stays on the PDF alone
+         * — it is the primary CTA of the screen and the only red control.
+         */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            variant="primary"
+            onClick={() => void handleGeneratePdf()}
+            disabled={exportingPdf || !canQuery || resultCount === 0}
+          >
+            {exportingPdf ? (
+              <Loader2 size={14} strokeWidth={1.5} className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Download size={14} strokeWidth={1.5} aria-hidden="true" />
+            )}
+            {exportingPdf ? "Generando…" : "Generar PDF"}
+          </Button>
+
+          <Button onClick={handleDownloadCsv} disabled={!canQuery || resultCount === 0}>
+            <Table2 size={14} strokeWidth={1.5} aria-hidden="true" />
+            Descargar CSV
+          </Button>
+        </div>
       </div>
 
       {rangeInverted && (
@@ -459,9 +571,10 @@ function ReportsContent(): React.ReactElement {
 
         <div className="border-t border-line px-5 py-3.5">
           <p className="text-[12px] text-ink-3">
-            La vista previa se genera al elegir el reporte, antes de descargar. El PDF incluye los{" "}
-            {resultCount} {pluralize(activePreset.noun, resultCount)} del rango seleccionado, no solo
-            esta página.
+            La vista previa se genera al elegir el reporte, antes de descargar. Tanto el PDF como el
+            CSV incluyen los {resultCount} {pluralize(activePreset.noun, resultCount)} del rango
+            seleccionado, no solo esta página. El PDF lo genera el servidor; el CSV se arma en su
+            navegador con esos mismos datos.
           </p>
         </div>
       </section>
