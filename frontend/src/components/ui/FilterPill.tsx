@@ -45,7 +45,9 @@ export default function FilterPill({
         "disabled:cursor-not-allowed disabled:opacity-45",
         active
           ? "bg-coal border-coal text-white"
-          : "bg-paper border-line-2 text-ink-2 hover:bg-canvas",
+          // `sunken`, not `canvas` — see `Button`: pills sit on the page
+          // field, so hovering to the page field is not a hover.
+          : "bg-paper border-line-2 text-ink-2 hover:bg-sunken",
         className,
       )}
     >

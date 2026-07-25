@@ -20,9 +20,12 @@
     box-sizing: border-box;
   }
 
+  /* `canvas` and `ink` — the same two values the shell paints. The body used
+     to be #F9FAFB while the shell painted #F5F5F7 over it, so the app ran on
+     two page greys that differed by 1.5 L* and neither of them was a token. */
   body {
-    background-color: #F9FAFB;
-    color: #1F2937;
+    background-color: #E8E8EE;
+    color: #17181C;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -39,19 +42,39 @@
 }
 
 @layer components {
+  /*
+   * ELEVATION IS A SYSTEM RULE, NOT A PER-SCREEN DECISION.
+   *
+   * A card in this product is written as `rounded-card bg-paper` plus a
+   * `border-line` hairline — roughly 60 of them across the screens, none of
+   * which carried a shadow. On the old near-white canvas that did not matter
+   * because nothing separated anyway; on the reworked surface ladder the
+   * shadow is half of what makes the card an object, and asking 20 page files
+   * to remember `shadow-card` guarantees that half of them will not.
+   *
+   * So the shared layer grants it: any element that opts into the card
+   * radius AND the paper surface gets the card shadow. This lives in
+   * `@layer components`, so a screen that genuinely needs something else
+   * (`shadow-elevated` on a modal, `shadow-none` on an inset panel) still
+   * wins from the utilities layer.
+   */
+  .rounded-card.bg-paper,
+  .card,
+  .card-hover {
+    @apply shadow-card;
+  }
+
   .card {
     background-color: #FFFFFF;
-    border: 1px solid #E5E7EB;
-    border-radius: 1rem;
-    @apply shadow-card;
+    border: 1px solid #DEDEE6;
+    border-radius: 14px;
   }
 
   .card-hover {
     background-color: #FFFFFF;
-    border: 1px solid #E5E7EB;
-    border-radius: 1rem;
+    border: 1px solid #DEDEE6;
+    border-radius: 14px;
     transition: all 0.2s ease;
-    @apply shadow-card;
   }
 
   .card-hover:hover {
@@ -76,15 +99,26 @@
   }
 
   .btn-secondary {
-    background-color: transparent;
-    color: #1F2937;
-    border: 1px solid #E5E7EB;
+    background-color: #FFFFFF;
+    color: #17181C;
+    /* `line-2`, the control border — a button outlined in the divider
+       hairline reads as a table cell, not as something you can press. */
+    border: 1px solid #CFCFDA;
     border-radius: 0.75rem;
     @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium transition-all duration-200 hover:bg-cata-bg focus:outline-none focus:ring-2 focus:ring-cata-border disabled:cursor-not-allowed disabled:opacity-50;
   }
 
+  /*
+   * `text-ink-2` / `hover:text-ink`, not `text-cata-text/65`. A ghost button
+   * has no surface of its own, so it wears whatever is behind it — and behind
+   * it is usually the page field, where 65% of #1F2937 measures 4.34:1 on the
+   * deepened canvas (it was 4.58:1 on the old near-white one, which is how it
+   * shipped). Solid ink at 7.16:1 on canvas and 8.74:1 on paper does not
+   * depend on the surface at all. Matches the `ghost` variant of the `Button`
+   * primitive, which is where new code should go.
+   */
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-cata-text/65 transition-colors duration-200 hover:bg-cata-bg hover:text-cata-text focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-ink-2 transition-colors duration-200 hover:bg-coal/[0.06] hover:text-ink focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   /*
@@ -96,8 +130,9 @@
    */
   .input-field {
     background-color: #FFFFFF;
-    border: 1px solid #E5E7EB;
-    color: #1F2937;
+    /* `line-2` — same reason as `.btn-secondary`: a field needs an edge. */
+    border: 1px solid #CFCFDA;
+    color: #17181C;
     @apply w-full min-h-ctl rounded-ctl px-4 py-2 text-sm transition-all duration-200 placeholder:text-cata-text/35 focus:border-cata-red/40 focus:outline-none focus:ring-2 focus:ring-cata-red/15 disabled:cursor-not-allowed disabled:opacity-50;
   }
 

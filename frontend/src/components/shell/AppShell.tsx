@@ -38,7 +38,7 @@ import {
   User,
   ChevronLeft,
   ChevronRight,
-  MessageCircle,
+  CircleHelp,
   MoreHorizontal,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -506,7 +506,28 @@ export default function AppShell({
             aria-expanded={chatOpen}
             className={`${NAV_ITEM_CLASSES} ${NAV_ITEM_IDLE_CLASSES} w-full text-left`}
           >
-            <MessageCircle size={17} strokeWidth={2} className="shrink-0" aria-hidden="true" />
+            {/*
+              * `CircleHelp`, not a speech bubble: the row asks a question,
+              * and a chat glyph named the mechanism rather than the errand.
+              * `LifeBuoy` is the other conventional support mark and it was
+              * tried first — at this size its six inner strokes collapse into
+              * a smudge on the dark rail, while a question mark stays a
+              * question mark. Legibility at 17-20px wins.
+              *
+              * The glyph is drawn at 18px inside a 17px box. Every nav icon
+              * above is a 17px square-ish outline; a ring at the same nominal
+              * size reads visibly smaller because a circle only fills ~79% of
+              * its box, so it gets one point back optically while the box —
+              * and therefore the label column, measured at x=49 on both —
+              * stays on the nav grid. The lighter stroke compensates for the
+              * extra point of size.
+              */}
+            <span
+              className="flex h-[17px] w-[17px] shrink-0 items-center justify-center"
+              aria-hidden="true"
+            >
+              <CircleHelp size={18} strokeWidth={1.75} />
+            </span>
             <span className={`truncate ${collapsed ? "lg:hidden" : ""}`}>Ayuda y soporte</span>
           </button>
 
@@ -568,8 +589,25 @@ export default function AppShell({
 
       {/* `.main` */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* `.topbar` — utility strip only; navigation lives in the sidebar. */}
-        <div className="flex h-14 flex-none items-center gap-2.5 border-b border-line bg-canvas px-4 sm:px-[22px]">
+        {/*
+         * `.topbar` — utility strip only; navigation lives in the sidebar.
+         *
+         * Two things the prototype got wrong and this row now fixes:
+         *
+         * 1. It carried a `border-b`. The strip and the page beneath it are
+         *    THE SAME COLOUR (both `canvas`), so the rule separated nothing —
+         *    it just drew a horizontal line under the search field and pushed
+         *    the page title away into a second slab. The row is not sticky
+         *    either, so there is no scroll case where content slides under it
+         *    and needs an edge. It is gone; the utility controls and the page
+         *    title now read as one band on one surface.
+         *
+         * 2. Its horizontal padding was 22px against the content column's
+         *    26px, so the search box and the bell hung 4px outside the right
+         *    edge of every card and every page action below them. Both
+         *    columns are now 26px (16px on phones) and share one edge.
+         */}
+        <div className="flex h-14 flex-none items-center gap-2.5 bg-canvas px-4 sm:px-[26px]">
           {/* The hamburger is the phone navigation for every role EXCEPT
               admin, whose destinations moved to the bottom tab bar below
               (prototype `27-movil.html`: "una tab bar inferior que sustituye
@@ -578,7 +616,7 @@ export default function AppShell({
             <button
               type="button"
               onClick={(): void => setSidebarOpen(true)}
-              className="inline-flex h-ctl items-center gap-1.5 rounded-ctl border border-line-2 bg-paper px-3 text-[12.5px] font-medium text-ink-2 hover:bg-canvas lg:hidden"
+              className="inline-flex h-ctl items-center gap-1.5 rounded-ctl border border-line-2 bg-paper px-3 text-[12.5px] font-medium text-ink-2 hover:bg-sunken lg:hidden"
               aria-label="Abrir menú principal"
             >
               <Menu size={17} strokeWidth={2} aria-hidden="true" />
@@ -610,9 +648,16 @@ export default function AppShell({
 
         {/* `.canvas` — the page header row belongs to the shell, above `<main>`.
             The extra bottom padding clears the fixed tab bar; without it the
-            last row of every admin list sits under it. */}
+            last row of every admin list sits under it.
+
+            `pt-3`, was `pt-6`: with the divider removed the title no longer
+            opens a second slab, so it only needs to clear the utility row —
+            12px under a control that already carries 8px of its own bottom
+            margin. Measured at 1440×900: the eyebrow now starts 20px below
+            the search box (it was 32.5px below the box and 24px below the
+            rule), and the h1 rises from y=98.8 to y=86.8. */}
         <div
-          className={`flex flex-1 flex-col gap-5 px-4 pt-6 sm:px-[26px] ${
+          className={`flex flex-1 flex-col gap-5 px-4 pt-3 sm:px-[26px] ${
             showMobileTabs ? "pb-[78px] lg:pb-8" : "pb-8"
           }`}
         >

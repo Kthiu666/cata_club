@@ -53,6 +53,12 @@ export function compositeOver(foreground: string, background: string, alpha: num
     .join("")}`;
 }
 
+/** Perceptual lightness, for reasoning about surface steps rather than text. */
+export function lightness(hex: string): number {
+  const y = relativeLuminance(parseHex(hex));
+  return y > 0.008856 ? 116 * Math.cbrt(y) - 16 : 903.3 * y;
+}
+
 const AA_NORMAL_TEXT = 4.5;
 
 // ---------------------------------------------------------------------------
@@ -67,14 +73,22 @@ const ink = group("ink");
 const state = group("state");
 const coal = group("coal");
 
-/** Page background shared by /trainer, /dashboard and friends. */
-const PAGE_BG = "#F9FAFB";
-/** `--canvas` — what the shell paints behind every page header. */
+const line = group("line");
+
+/** `--canvas` — the page field. `AppShell` paints it, `body` matches it. */
 const CANVAS = colors.canvas as string;
 /** `--paper` — the card/control surface. */
 const PAPER = colors.paper as string;
-/** The `.tbl thead th` fill: the one value the spec spells as a literal. */
-const THEAD_BG = "#FAFAFB";
+/** The inset fill inside a card: table heads, pagers, modal footers. */
+const SUNKEN = colors.sunken as string;
+/**
+ * The page background every screen actually renders on. It used to be the
+ * literal #F9FAFB the `body` rule carried, which was neither the shell's
+ * `canvas` nor a token; both now resolve to the same value.
+ */
+const PAGE_BG = CANVAS;
+/** Kept under its old name because the table head is what it dresses. */
+const THEAD_BG = SUNKEN;
 
 describe("contrastRatio helper", () => {
   it("returns 21 for black on white", () => {
@@ -87,6 +101,73 @@ describe("contrastRatio helper", () => {
 
   it("is symmetric in its arguments", () => {
     expect(contrastRatio("#374151", "#F3F4F6")).toBeCloseTo(contrastRatio("#F3F4F6", "#374151"), 5);
+  });
+});
+
+describe("the surface ladder — canvas, sunken, paper", () => {
+  // The user-visible complaint these numbers answer: "ese fondo gris y cards
+  // blanco no me gusta, no da contraste". The old pair was #F5F5F7 under
+  // #FFFFFF — 1.089:1, a 3.4-point L* step, which is under the threshold
+  // where a flat field reads as a plane of its own, so a screen of stacked
+  // cards looked like one washed sheet.
+  const OLD_CANVAS = "#F5F5F7";
+
+  it("confirms the separation the spec shipped was the flat one", () => {
+    expect(contrastRatio(PAPER, OLD_CANVAS)).toBeLessThan(1.1);
+    expect(lightness(PAPER) - lightness(OLD_CANVAS)).toBeLessThan(4);
+  });
+
+  it("lifts a card at least 7 L* points off the page", () => {
+    expect(contrastRatio(PAPER, CANVAS)).toBeGreaterThanOrEqual(1.2);
+    expect(lightness(PAPER) - lightness(CANVAS)).toBeGreaterThanOrEqual(7);
+  });
+
+  it("keeps sunken between the two, so an inset area reads inside the card", () => {
+    expect(lightness(CANVAS)).toBeLessThan(lightness(SUNKEN));
+    expect(lightness(SUNKEN)).toBeLessThan(lightness(PAPER));
+    // It also has to be a fill you can SEE on white — the #FAFAFB literal it
+    // replaces was 1.043:1, which is nothing.
+    expect(contrastRatio(SUNKEN, PAPER)).toBeGreaterThanOrEqual(1.09);
+  });
+
+  it("draws a card edge that is visible on both surfaces it borders", () => {
+    // One `line` token has to work as the card outline against the canvas AND
+    // as a row divider on paper. The spec's #E9E9EC is the failure case: on
+    // this canvas it is the same luminance as the page.
+    expect(contrastRatio("#E9E9EC", CANVAS)).toBeLessThan(1.02);
+    expect(contrastRatio(line.DEFAULT, CANVAS)).toBeGreaterThanOrEqual(1.08);
+    expect(contrastRatio(line.DEFAULT, PAPER)).toBeGreaterThanOrEqual(1.3);
+  });
+
+  it("gives a control a firmer border than a divider", () => {
+    expect(contrastRatio(line["2"], PAPER)).toBeGreaterThan(
+      contrastRatio(line.DEFAULT, PAPER),
+    );
+    expect(contrastRatio(line["2"], PAPER)).toBeGreaterThanOrEqual(1.5);
+  });
+});
+
+describe("every foreground that lands on the deepened canvas", () => {
+  // Deepening the page field costs contrast on the page field. This is the
+  // list of tokens that pay for it, and the reason the canvas stops where it
+  // does: one more step to #E4E4EC drops state-warn to 4.43:1.
+  const ON_CANVAS = {
+    ink: ink.DEFAULT,
+    "ink-2": ink["2"],
+    "ink-3-strong": ink["3-strong"],
+    "state-ok": state.ok,
+    "state-warn": state.warn,
+    "state-bad": state.bad,
+    "state-neutral": state.neutral,
+  };
+
+  it.each(Object.entries(ON_CANVAS))("meets AA for %s on canvas", (_name, value) => {
+    expect(contrastRatio(value, CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+  });
+
+  it("pins the canvas at the darkest value the palette can carry", () => {
+    const oneStepDarker = "#E4E4EC";
+    expect(contrastRatio(state.warn, oneStepDarker)).toBeLessThan(AA_NORMAL_TEXT);
   });
 });
 
@@ -112,7 +193,7 @@ describe("muted text on the canvas grey — kicker, subtitle, table head", () =>
   // The kicker ("Panel administrativo", "Área de entrenadores", …) and the
   // subtitle are two rules in PageHeader.tsx, and both sit on the `canvas` grey
   // the shell paints behind the header. The table head is the same problem on
-  // the `#FAFAFB` fill.
+  // the `sunken` fill.
   it("confirms ink-3 fails on both micro-label surfaces", () => {
     expect(contrastRatio(ink["3"], CANVAS)).toBeLessThan(AA_NORMAL_TEXT);
     expect(contrastRatio(ink["3"], THEAD_BG)).toBeLessThan(AA_NORMAL_TEXT);
@@ -191,9 +272,10 @@ describe("sidebar rail — the two sub-labels on coal", () => {
 
 describe("/trainer — fuchsia quick-action cards", () => {
   // The cards are `bg-cata-fuchsia/10` over the page background, so the real
-  // backdrop is the composited tint, NOT #F9FAFB. Measured against the tint
-  // the original brand pink is 3.38:1 — even worse than the 3.85:1 an audit
-  // computed against the bare page background.
+  // backdrop is the composited tint, not the bare page. Measured against the
+  // tint the original brand pink is 3.4:1 — even worse than the 3.85:1 an
+  // audit computed against the bare page background. Deepening the canvas
+  // deepens the tint too, which is why `fuchsia-ink` moved with it.
   const cardBg = compositeOver(cata.fuchsia, PAGE_BG, 0.1);
   const cardHoverBg = compositeOver(cata.fuchsia, PAGE_BG, 0.15);
 

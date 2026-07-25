@@ -38,12 +38,16 @@ const SIZE: Record<ButtonSize, string> = {
 const VARIANT: Record<ButtonVariant, string> = {
   // `.btn.pri` — the only red button. Hover is `--red-dark`.
   primary: "bg-cata-red border-cata-red text-white hover:bg-cata-red-dark hover:border-cata-red-dark",
-  // `.btn` bare — white surface, `--line-2` border.
-  secondary: "bg-paper border-line-2 text-ink hover:bg-canvas",
+  // `.btn` bare — white surface, `--line-2` border. Hover is `sunken`, not
+  // `canvas`: a white button standing ON the canvas that hovers TO the canvas
+  // dissolves into the page instead of responding.
+  secondary: "bg-paper border-line-2 text-ink hover:bg-sunken",
   // `.btn.dark` — coal. Secondary-but-emphatic actions ("+ Nuevo miembro").
   dark: "bg-coal border-coal text-white hover:bg-coal-2 hover:border-coal-2",
-  // `.btn.ghost` — no chrome at all.
-  ghost: "bg-transparent border-transparent text-ink-2 hover:bg-canvas hover:text-ink",
+  // `.btn.ghost` — no chrome at all. A translucent ink wash rather than a
+  // fixed grey, because a ghost button is the one control that has no surface
+  // of its own and can therefore sit on any of the three.
+  ghost: "bg-transparent border-transparent text-ink-2 hover:bg-coal/[0.06] hover:text-ink",
 };
 
 /**

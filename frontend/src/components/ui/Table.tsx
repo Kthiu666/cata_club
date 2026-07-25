@@ -2,19 +2,20 @@
  * Table primitives — `.tbl` from `_sistema.css` (:238-244).
  *
  *   thead th : `--h-thead` 44px, 16px padding, 10.5px/700/.1em uppercase in
- *              `--ink-3-strong`, `#FAFAFB` fill, `--line` bottom rule
- *              (the spec shipped `--ink-3` here, which measures 4.43:1 on the
- *              `#FAFAFB` fill — the same sub-AA micro-label the page kicker
- *              had, so it takes the same companion token)
+ *              `--ink-3-strong`, `sunken` fill, `--line` bottom rule
+ *              (the spec shipped `--ink-3` here, which measures 4.21:1 on the
+ *              fill — the same sub-AA micro-label the page kicker had, so it
+ *              takes the same companion token)
  *   tbody td : `--h-row` 60px, 16px padding, 13.5px in `--ink-2`, `--line`
  *              bottom rule, suppressed on the last row
  *   .nm / .sb: the two-line identity cell (14px/600 `--ink` over 11.5px
  *              `--ink-3`)
  *   .rt      : right alignment, used for the action column
  *
- * `#FAFAFB` is the one value here the spec spells as a literal rather than a
- * named token — it appears verbatim in `.tbl thead th`, `.pager` and
- * `.modal .mfoot`. It is reproduced literally rather than given a new name.
+ * The head fill is the one value the spec spelled as a literal (`#FAFAFB`,
+ * verbatim in `.tbl thead th`, `.pager` and `.modal .mfoot`). At 1.043:1 on
+ * white it was a fill you could not see, so it is now the `sunken` token —
+ * same role, 1.10:1, one name.
  */
 
 import type {
@@ -79,7 +80,7 @@ export function TableHeaderCell({
     <th
       scope="col"
       className={cn(
-        "h-thead whitespace-nowrap border-b border-line bg-[#FAFAFB] px-4",
+        "h-thead whitespace-nowrap border-b border-line bg-sunken px-4",
         "text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3-strong",
         align === "right" ? "text-right" : "text-left",
         className,

@@ -44,19 +44,28 @@ describe("design tokens — ink and surfaces (_sistema.css:29-35)", () => {
   });
 
   it("carries the AA-safe companion for 10.5px/700 micro labels", () => {
-    // `ink-3` passes on `paper` and fails on `canvas`/`#FAFAFB`, so the ramp
+    // `ink-3` passes on `paper` and fails on `canvas`/`sunken`, so the ramp
     // keeps its value and the kicker/table-head treatment takes this one.
+    // Deepening the canvas moved it one step darker (#6B6B76 → #63636E).
     // The ratios are asserted in lib/__tests__/color-contrast.test.ts.
-    expect(nested("ink")["3-strong"]).toBe("#6B6B76");
+    expect(nested("ink")["3-strong"]).toBe("#63636E");
   });
 
-  it("carries both hairlines", () => {
-    expect(nested("line")).toMatchObject({ DEFAULT: "#E9E9EC", "2": "#D8D8DE" });
+  it("carries both hairlines, one step darker than the spec shipped them", () => {
+    // #E9E9EC / #D8D8DE were drawn for a #F5F5F7 page. On the reworked canvas
+    // the divider hairline was 1.01:1 — a card outline the same luminance as
+    // the page under it.
+    expect(nested("line")).toMatchObject({ DEFAULT: "#DEDEE6", "2": "#CFCFDA" });
   });
 
-  it("carries the paper and canvas surfaces", () => {
+  it("carries the three-surface ladder, not two near-white sheets", () => {
+    // The spec's #F5F5F7 canvas put a white card 1.089:1 above its page — a
+    // 3.4-point L* step, which is why a screen of cards read as one flat
+    // sheet. The ladder is now canvas → sunken → paper, and
+    // lib/__tests__/color-contrast.test.ts asserts the separations.
+    expect(colors.canvas).toBe("#E8E8EE");
+    expect(colors.sunken).toBe("#F4F4F7");
     expect(colors.paper).toBe("#FFFFFF");
-    expect(colors.canvas).toBe("#F5F5F7");
   });
 });
 
@@ -104,7 +113,9 @@ describe("design tokens — level ramp (_sistema.css:44-45)", () => {
     "#9A9AA4",
     "#B8B8C0",
     "#D3D3D9",
-    "#E9E9EC",
+    // The spec's base rung was #E9E9EC, which is 1.01:1 against the reworked
+    // canvas — a level-10 chip on the page field would have vanished.
+    "#DCDCE4",
   ];
 
   it("carries l1 through l10 in order", () => {
@@ -153,7 +164,10 @@ describe("design tokens — the legacy cata palette is preserved", () => {
   });
 
   it("still exposes the accessibility token Phase 0 added", () => {
-    expect((colors.cata as Record<string, string>)["fuchsia-ink"]).toBe("#A81257");
+    // Darkened from #A81257 with the canvas: the /trainer quick-action cards
+    // are a fuchsia tint composited over the page field, so a deeper field
+    // means a deeper card and a foreground that has to follow it down.
+    expect((colors.cata as Record<string, string>)["fuchsia-ink"]).toBe("#9E114F");
   });
 
   it("keeps every legacy key — screens not yet migrated still reference them", () => {
