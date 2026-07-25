@@ -173,7 +173,9 @@ describe("StudentPage — the club membership card (carnet)", () => {
     expect(within(carnet).getByText("Plan")).toBeInTheDocument();
     expect(within(carnet).getByText("Modalidad")).toBeInTheDocument();
     expect(within(carnet).getAllByText("Mensual")).toHaveLength(2);
-    expect(within(carnet).getByText("Monto")).toBeInTheDocument();
+    // "Valor mensual", the same label `/student/payments` puts on the same
+    // field — the carnet used to call it "Monto".
+    expect(within(carnet).getByText("Valor mensual")).toBeInTheDocument();
     expect(within(carnet).getByText("$25,00")).toBeInTheDocument();
   });
 
@@ -245,83 +247,129 @@ describe("StudentPage — training panel", () => {
   });
 });
 
-describe("StudentPage — Pagos link", () => {
-  it("links to the dedicated payments page", async () => {
+/**
+ * The band is the screen's answer to "no se indica bien cómo ir a hacer el
+ * pago": it opens the page, states what the club can prove about coverage, and
+ * carries the one action — one click from here to an open form.
+ */
+describe("StudentPage — the payment band", () => {
+  const MEMBERSHIP = {
+    id: 3,
+    estado: "ACTIVA",
+    personaId: 9,
+    montoAplicado: "35.00",
+    categoria: "Mensual",
+    modalidad: "MENSUAL" as const,
+    franjaHoraria: "15:00-18:00",
+  };
+
+  function portalWithMembership(overrides: Record<string, unknown> = {}) {
+    return {
+      ...PORTAL,
+      self: { ...PORTAL.self!, membership: MEMBERSHIP, ...overrides },
+    };
+  }
+
+  it("puts the payment action above everything else and lands on an already-open form", async () => {
+    mockFetchStudentPortal.mockReset().mockResolvedValue(portalWithMembership());
+    mockFetchPagosDePersona.mockResolvedValue([PAGO_APROBADO]);
+
     render(<StudentPage />);
 
-    const link = await screen.findByText(/Registrar pago|Renovar membresía/);
-    expect(link.closest("a")).toHaveAttribute("href", "/student/payments");
-  });
-});
+    const band = await screen.findByTestId("student-payment-band");
+    await waitFor(() => {
+      expect(within(band).getByText("Registrar un pago").closest("a")).toHaveAttribute(
+        "href",
+        "/student/payments?registrar=1",
+      );
+    });
 
-describe("StudentPage — the situation panel", () => {
-  it("answers both questions the reader arrived with, each ending in the screen that owns it", async () => {
-    render(<StudentPage />);
-
-    const panel = await screen.findByTestId("student-situation");
-    expect(
-      within(panel).getByText(/Registrar pago o renovar membresía/).closest("a"),
-    ).toHaveAttribute("href", "/student/payments");
-    expect(within(panel).getByText("Ver mis asistencias").closest("a")).toHaveAttribute(
-      "href",
-      "/student/attendance",
-    );
+    // …and it is the FIRST thing in the content column, ahead of the carnet.
+    const carnet = screen.getByTestId("student-carnet");
+    expect(band.compareDocumentPosition(carnet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("reports coverage from the furthest approved payment, and says so plainly", async () => {
-    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_APROBADO]);
+    mockFetchStudentPortal.mockReset().mockResolvedValue(portalWithMembership());
+    mockFetchPagosDePersona.mockResolvedValue([PAGO_APROBADO]);
 
     render(<StudentPage />);
 
-    const panel = await screen.findByTestId("student-situation");
+    const band = await screen.findByTestId("student-payment-band");
     await waitFor(() => {
-      expect(within(panel).getByText("31/07/2026")).toBeInTheDocument();
+      expect(within(band).getByText(/31\/07\/2026/)).toBeInTheDocument();
     });
   });
 
   it("says nothing has been approved rather than implying coverage it cannot prove", async () => {
-    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_RECHAZADO]);
+    mockFetchStudentPortal.mockReset().mockResolvedValue(portalWithMembership());
+    mockFetchPagosDePersona.mockResolvedValue([PAGO_RECHAZADO]);
 
     render(<StudentPage />);
 
-    const panel = await screen.findByTestId("student-situation");
+    const band = await screen.findByTestId("student-payment-band");
     await waitFor(() => {
-      expect(
-        within(panel).getByText(/todavía no hay ningún pago aprobado/i),
-      ).toBeInTheDocument();
+      expect(within(band).getByText(/no tiene ningún pago aprobado/i)).toBeInTheDocument();
     });
   });
 
-  it("counts payments waiting on the club instead of inventing an amount due", async () => {
-    mockFetchPagosDePersona.mockResolvedValueOnce([
+  it("states the plan's monthly price as a price, and never an amount owed", async () => {
+    mockFetchStudentPortal.mockReset().mockResolvedValue(portalWithMembership());
+    mockFetchPagosDePersona.mockResolvedValue([]);
+
+    render(<StudentPage />);
+
+    const band = await screen.findByTestId("student-payment-band");
+    await waitFor(() => {
+      expect(within(band).getByText(/\$35,00 al mes/)).toBeInTheDocument();
+    });
+    // There is no debt concept anywhere in the backend, so the band never
+    // states one.
+    expect(within(band).queryByText(/adeuda|deuda|total a pagar|vence el/i)).not.toBeInTheDocument();
+  });
+
+  it("hands a pending payment back to the club instead of asking for a second one", async () => {
+    mockFetchStudentPortal.mockReset().mockResolvedValue(portalWithMembership());
+    mockFetchPagosDePersona.mockResolvedValue([
       { ...PAGO_APROBADO, id: 3, estadoPago: "PENDIENTE_VALIDACION" },
     ]);
 
     render(<StudentPage />);
 
-    const panel = await screen.findByTestId("student-situation");
+    const band = await screen.findByTestId("student-payment-band");
     await waitFor(() => {
-      expect(within(panel).getByText(/1 pago esperando la validación/i)).toBeInTheDocument();
+      expect(within(band).getByText(/el club está validando/i)).toBeInTheDocument();
     });
-    // There is no debt concept anywhere in the backend, so the panel never
-    // states one.
-    expect(within(panel).queryByText(/debe|saldo|vence el/i)).not.toBeInTheDocument();
+    expect(within(band).queryByText("Registrar un pago")).not.toBeInTheDocument();
   });
 
-  it("offers a minor on their own account the read-only payments route, never 'registrar pago'", async () => {
-    mockFetchStudentPortal.mockResolvedValueOnce({
-      ...PORTAL,
-      self: { ...PORTAL.self!, fechaNacimiento: "2014-03-10" },
-    });
+  it("offers a minor on their own account the read-only route, never 'registrar un pago'", async () => {
+    mockFetchStudentPortal
+      .mockReset()
+      .mockResolvedValue(portalWithMembership({ fechaNacimiento: "2014-03-10" }));
+    mockFetchPagosDePersona.mockResolvedValue([]);
 
     render(<StudentPage />);
 
-    const panel = await screen.findByTestId("student-situation");
-    expect(within(panel).getByText("Ver mis pagos").closest("a")).toHaveAttribute(
+    const band = await screen.findByTestId("student-payment-band");
+    expect(within(band).getByText("Ver los pagos").closest("a")).toHaveAttribute(
       "href",
       "/student/payments",
     );
-    expect(within(panel).queryByText(/Registrar pago/)).not.toBeInTheDocument();
+    expect(within(band).queryByText("Registrar un pago")).not.toBeInTheDocument();
+  });
+
+  it("sends a minor with no representative on record to the club, not to a person who does not exist", async () => {
+    mockFetchStudentPortal
+      .mockReset()
+      .mockResolvedValue(portalWithMembership({ fechaNacimiento: "2014-03-10" }));
+    mockFetchPagosDePersona.mockResolvedValue([]);
+
+    render(<StudentPage />);
+
+    const band = await screen.findByTestId("student-payment-band");
+    expect(within(band).getByText(/administración del club/i)).toBeInTheDocument();
+    expect(within(band).queryByText(/lo hace su representante/i)).not.toBeInTheDocument();
   });
 
   it("still offers the real payment CTA when a guardian is looking at a minor dependent", async () => {
@@ -331,13 +379,53 @@ describe("StudentPage — the situation panel", () => {
     mockFetchStudentPortal.mockReset().mockResolvedValue({
       ...PORTAL,
       self: null,
-      representados: [{ ...PORTAL.self!, personaId: "42", fechaNacimiento: "2014-03-10" }],
+      representados: [
+        {
+          ...PORTAL.self!,
+          personaId: "42",
+          nombres: "Sofía",
+          fechaNacimiento: "2014-03-10",
+          membership: MEMBERSHIP,
+        },
+      ],
+    });
+    mockFetchPagosDePersona.mockResolvedValue([]);
+
+    render(<StudentPage />);
+
+    const band = await screen.findByTestId("student-payment-band");
+    await waitFor(() => {
+      expect(within(band).getByText("Registrar un pago")).toBeInTheDocument();
+    });
+    // …and it names the child, because the reader is not the student.
+    expect(within(band).getByText(/Sofía/)).toBeInTheDocument();
+  });
+});
+
+describe("StudentPage — the training panel", () => {
+  it("ends in the screen that owns the attendance record", async () => {
+    render(<StudentPage />);
+
+    const panel = await screen.findByTestId("student-situation");
+    expect(within(panel).getByText("Ver mis asistencias").closest("a")).toHaveAttribute(
+      "href",
+      "/student/attendance",
+    );
+  });
+
+  it("names the dependent instead of telling a guardian about their own attendance", async () => {
+    mockFetchStudentPortal.mockReset().mockResolvedValue({
+      ...PORTAL,
+      self: null,
+      representados: [{ ...PORTAL.self!, personaId: "42", nombres: "Sofía" }],
     });
 
     render(<StudentPage />);
 
     const panel = await screen.findByTestId("student-situation");
-    expect(within(panel).getByText(/Registrar pago o renovar membresía/)).toBeInTheDocument();
+    expect(
+      within(panel).getByText("Ver las asistencias de Sofía").closest("a"),
+    ).toHaveAttribute("href", "/student/attendance");
   });
 });
 

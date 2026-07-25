@@ -38,11 +38,11 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
-import BackLink from "@/components/BackLink";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   fetchStudentPortal,
@@ -68,7 +68,13 @@ import {
 } from "@/components/ui";
 import { formatCurrency, formatDate, formatDateRange } from "@/lib/format-utils";
 import { calendarIsoDate, clubToday } from "@/lib/club-date";
-import { describeMembershipState, isMinor, resolveCoverageEnd } from "../student-utils";
+import {
+  describeMembershipState,
+  describePaymentSituation,
+  firstNameOf,
+  isMinor,
+  resolveCoverageEnd,
+} from "../student-utils";
 import ManagedStudentPicker, { useManagedProfiles } from "../ManagedStudentPicker";
 import {
   filterPagosByStatus,
@@ -124,10 +130,22 @@ function fromIsoDate(iso: string): Date {
 function MembershipCard({
   membership,
   coverageEnd,
+  /**
+   * Whose membership this is, when the reader is not that person.
+   *
+   * A guardian with exactly ONE dependent never saw the switcher (it hides
+   * below two profiles), so this whole screen — titled "Mis pagos", with a
+   * card reading "Su membresía" and a form that debits a specific persona —
+   * never once named the student it was about. Laura Vera, who has no
+   * membership of her own, was registering a payment for Sofía on a page that
+   * said "su".
+   */
+  studentName,
   children,
 }: {
   membership: MembershipSummary | null;
   coverageEnd: string | null;
+  studentName: string | null;
   children?: React.ReactNode;
 }): React.ReactElement {
   const state = describeMembershipState(membership?.estado);
@@ -152,7 +170,7 @@ function MembershipCard({
       <div className="px-5 py-[18px]">
         <div className="mb-2 flex flex-wrap items-center gap-2.5">
           <p className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3">
-            Su membresía
+            {studentName ? `Membresía de ${studentName}` : "Su membresía"}
           </p>
           <Badge tone={state.tone}>{state.label}</Badge>
         </div>
@@ -199,12 +217,25 @@ function RenewPaymentForm({
   personaId,
   coverageEnd,
   hasPendingPago,
+  /**
+   * Open the form without a click, for a reader who arrived from the home
+   * screen's "Registrar un pago" band (`/student/payments?registrar=1`).
+   *
+   * The caller only flips this to `true` once the payment history has loaded:
+   * `handleOpen` seeds `fechaInicio` from `coverageEnd` so a family paying
+   * early does not lose the days they already paid for, and `coverageEnd` is
+   * `null` until the history arrives.
+   */
+  autoOpen,
+  studentName,
   onRegistered,
 }: {
   membership: MembershipSummary;
   personaId: string;
   coverageEnd: string | null;
   hasPendingPago: boolean;
+  autoOpen: boolean;
+  studentName: string | null;
   onRegistered: () => void;
 }): React.ReactElement {
   const [showForm, setShowForm] = useState(false);
@@ -231,7 +262,7 @@ function RenewPaymentForm({
     [fechaInicio, months],
   );
 
-  function handleOpen(): void {
+  const openForm = useCallback((): void => {
     setShowForm(true);
     setError(null);
     setVoucherFile(null);
@@ -243,7 +274,17 @@ function RenewPaymentForm({
     setFechaInicio(
       calendarIsoDate(paidThrough && paidThrough.getTime() > today.getTime() ? paidThrough : today),
     );
-  }
+  }, [coverageEnd]);
+
+  // Once, on arrival. Guarded by a ref rather than by `showForm` so that a
+  // reader who deliberately cancels the form is not handed it straight back
+  // when the payment history refetches.
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (!autoOpen || autoOpened.current || hasPendingPago) return;
+    autoOpened.current = true;
+    openForm();
+  }, [autoOpen, hasPendingPago, openForm]);
 
   function handleCancel(): void {
     setShowForm(false);
@@ -300,22 +341,29 @@ function RenewPaymentForm({
   if (hasPendingPago) {
     return (
       <p className="text-[13px] text-ink-2">
-        Ya tiene un pago esperando validación. Espere a que el club lo apruebe para registrar otro.
+        {studentName
+          ? `Ya hay un pago de ${studentName} esperando validación. Espere a que el club lo apruebe para registrar otro.`
+          : "Ya tiene un pago esperando validación. Espere a que el club lo apruebe para registrar otro."}
       </p>
     );
   }
 
   if (!showForm) {
     return (
-      <Button variant="primary" onClick={handleOpen}>
+      <Button variant="primary" onClick={openForm}>
         <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
-        Registrar un pago
+        {studentName ? `Registrar un pago de ${studentName}` : "Registrar un pago"}
       </Button>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
+      {studentName && (
+        <p className="text-[13px] text-ink-2">
+          Este pago se registra a nombre de <b className="font-semibold text-ink">{studentName}</b>.
+        </p>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5">
           <span className={FIELD_LABEL_CLASSES}>Monto</span>
@@ -506,12 +554,15 @@ function PaymentsContent({
   data,
   hasAlumnoRole,
   accountPersonaId,
+  /** True when the reader arrived from the home band's "Registrar un pago". */
+  wantsRegisterForm,
   onRegistered,
 }: {
   data: StudentPortalSummary;
   hasAlumnoRole: boolean;
   /** The persona behind the SESSION — not the profile being viewed. */
   accountPersonaId: string;
+  wantsRegisterForm: boolean;
   onRegistered: () => void;
 }): React.ReactElement {
   const { managedProfiles, selectedId, setSelectedId, selectedProfile } = useManagedProfiles(
@@ -578,6 +629,37 @@ function PaymentsContent({
   );
   const hasPendingPago = pagos.some((pago) => pago.estadoPago === "PENDIENTE_VALIDACION");
 
+  /**
+   * The dependent's given name, or `null` when the reader IS the student.
+   *
+   * Everything on this screen that used to say "su" says this instead when it
+   * is somebody else's money and somebody else's coverage.
+   */
+  const studentName = viewingOwnProfile ? null : firstNameOf(selectedProfile?.nombres ?? "");
+
+  /**
+   * The same reading the home screen's band shows, from the same function.
+   *
+   * This screen only borrows two things from it — the sentence a blocked minor
+   * gets, and nothing else — because the `MembershipCard` right below already
+   * carries the coverage date and the price in the shape this screen owns.
+   * What matters is that the two screens can no longer disagree about who a
+   * minor should turn to.
+   */
+  const situation = describePaymentSituation({
+    studentName: studentName ?? firstNameOf(selectedProfile?.nombres ?? ""),
+    viewingOwnProfile,
+    blockedAsMinor,
+    representanteName: selectedProfile?.representante
+      ? `${selectedProfile.representante.nombres} ${selectedProfile.representante.apellidos}`.trim()
+      : null,
+    hasMembership: selectedProfile?.membership != null,
+    planName: selectedProfile?.membership?.categoria ?? null,
+    monthlyPrice: selectedProfile?.membership?.montoAplicado ?? null,
+    coverageEnd,
+    pendingCount: pagos.filter((pago) => pago.estadoPago === "PENDIENTE_VALIDACION").length,
+  });
+
   function handleSelectFile(pagoId: number): void {
     setUploadError(null);
     setPendingUploadPagoId(pagoId);
@@ -610,7 +692,7 @@ function PaymentsContent({
 
   if (selectedProfile === null) {
     return (
-      <div className="mx-auto w-full max-w-[760px]">
+      <div className="w-full max-w-[760px]">
         <div className="card">
           <EmptyState
             icon={<CreditCard size={21} strokeWidth={1.5} aria-hidden="true" />}
@@ -628,7 +710,10 @@ function PaymentsContent({
   }
 
   return (
-    <div className="mx-auto w-full max-w-[760px] space-y-5">
+    // Left-aligned like `/student` and like every admin screen — the prototype
+    // (`docs/ux/prototipos/23-alumno-pagos.html`) sets `max-width:760px` with
+    // no auto margin.
+    <div className="w-full max-w-[760px] space-y-5">
       <ManagedStudentPicker
         id="student-select-payments"
         profiles={managedProfiles}
@@ -639,11 +724,18 @@ function PaymentsContent({
         }}
       />
 
-      <MembershipCard membership={selectedProfile.membership} coverageEnd={coverageEnd}>
+      <MembershipCard
+        membership={selectedProfile.membership}
+        coverageEnd={coverageEnd}
+        studentName={studentName}
+      >
         {blockedAsMinor ? (
           <p className="text-[13px] text-ink-2">
-            Un estudiante menor de edad no registra pagos desde su propia cuenta. Lo hace su
-            representante desde la suya, o el club en administración.
+            {/* The old copy sent EVERY minor to "su representante" — including
+                the ones whose `representanteId` is null, who were being pointed
+                at a person the backend does not have. `describePaymentSituation`
+                resolves that from the payload. */}
+            {situation.detail}
           </p>
         ) : selectedProfile.membership ? (
           <RenewPaymentForm
@@ -651,6 +743,8 @@ function PaymentsContent({
             personaId={selectedProfile.personaId}
             coverageEnd={coverageEnd}
             hasPendingPago={hasPendingPago}
+            autoOpen={wantsRegisterForm && pagosState.status === "ready"}
+            studentName={studentName}
             onRegistered={handleRegistered}
           />
         ) : (
@@ -743,11 +837,11 @@ function PaymentsContent({
         </section>
       )}
 
-      <BackLink
-        href="/student"
-        label="Volver a mi cuenta"
-        className="btn-ghost -ml-2 mt-1 inline-flex items-center gap-1 text-xs"
-      />
+      {/* No "← Volver a mi cuenta" here. The sidebar's "Mi cuenta" row is one
+          click away and is highlighted the whole time — the admin screens
+          dropped their own back links for exactly this reason (see the header
+          comment on `src/app/attendance/page.tsx`), and the family area was
+          the last place still carrying one. */}
     </div>
   );
 }
@@ -760,6 +854,9 @@ function PaymentsPageContent(): React.ReactElement {
   const { session } = useAuth();
   const personaId = session?.user.id ?? "";
   const hasAlumnoRole = session?.user.role === "estudiante";
+  // `?registrar=1` is the home band's CTA saying "this reader came here to
+  // pay" — the form opens itself instead of asking for a third click.
+  const wantsRegisterForm = useSearchParams().get("registrar") === "1";
 
   const [state, setState] = useState<PortalLoadState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
@@ -787,8 +884,17 @@ function PaymentsPageContent(): React.ReactElement {
   return (
     <AppShell
       eyebrow="Área de estudiantes"
-      title="Mis pagos"
-      subtitle="Registre un pago, siga su validación y consulte lo que ya pagó."
+      // "Pagos", not "Mis pagos": the codebase's own rule is that a nav label
+      // IS the destination's page title (see `getNavLinksForRole`), and the
+      // sidebar row has always said "Pagos". "Mis" was also a lie to the
+      // reader this screen most often serves — a representante paying for a
+      // dependent, who has no membership of her own.
+      title="Pagos"
+      subtitle={
+        hasAlumnoRole
+          ? "Registre un pago, siga su validación y consulte lo que ya pagó."
+          : "Registre el pago de un dependiente, siga su validación y consulte lo que ya pagó."
+      }
     >
       {state.status === "loading" && (
         <div className="card">
@@ -803,6 +909,7 @@ function PaymentsPageContent(): React.ReactElement {
           data={state.data}
           hasAlumnoRole={hasAlumnoRole}
           accountPersonaId={personaId}
+          wantsRegisterForm={wantsRegisterForm}
           onRegistered={() => setReloadToken((n) => n + 1)}
         />
       )}
@@ -813,7 +920,11 @@ function PaymentsPageContent(): React.ReactElement {
 export default function StudentPaymentsPage(): React.ReactElement {
   return (
     <ProtectedRoute allowedRoles={["representante", "estudiante", "unsupported"]}>
-      <PaymentsPageContent />
+      {/* `useSearchParams` needs a boundary to fall back to during prerender
+          — the same wrapper `/reset-password` uses for the same reason. */}
+      <Suspense>
+        <PaymentsPageContent />
+      </Suspense>
     </ProtectedRoute>
   );
 }

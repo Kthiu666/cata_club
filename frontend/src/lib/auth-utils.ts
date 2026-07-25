@@ -66,8 +66,12 @@ export function getNavLinksForRole(role: UserRole | null): NavLinkDef[] {
         // `/trainer/nivel` is a live screen and the backend grants ENTRENADOR
         // both `asignar-nivel-inicial` and `mover-de-nivel`. The 403 that
         // prompted the removal came from the roster endpoint, and is fixed —
-        // the panel now reads `GET /ranking/alumnos-con-nivel`.
-        { href: "/trainer/nivel", label: "Nivel" },
+        // the screen now reads `GET /ranking/alumnos-con-nivel`.
+        //
+        // "Niveles", not "Nivel": `/trainer/nivel` renders the very same
+        // `NivelLadderScreen` the admin's `/ranking` renders, under the same
+        // title. One screen, one name, whoever is reading the sidebar.
+        { href: "/trainer/nivel", label: "Niveles" },
       );
       break;
     case "representante":

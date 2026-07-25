@@ -441,7 +441,7 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
       {/* `.canvas` at `max-width: 820px` (`25-perfil.html`), not 760: at 1440
           the shell leaves ~1137px of content area, and 820 is the measure the
           prototype's own main column uses. */}
-      <div className="mx-auto w-full max-w-[820px] space-y-5">
+      <div className="w-full max-w-[820px] space-y-5">
       {/* 1 — `.idcard`: the identity on the left, the account facts it can
           prove on the right. */}
       <section

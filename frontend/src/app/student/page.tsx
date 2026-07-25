@@ -12,12 +12,14 @@ import { formatCurrency, formatDate } from "@/lib/format-utils";
 import { EmptyState, ErrorState, LoadingState, buttonClasses } from "@/components/ui";
 import AgeUpConfirmation from "@/components/AgeUpConfirmation";
 import ManagedStudentPicker, { useManagedProfiles } from "./ManagedStudentPicker";
+import PaymentBand from "./PaymentBand";
 import {
   derivePortalMode,
   isRepresentative,
   isMinor,
   describeMembershipState,
-  daysUntil,
+  describePaymentSituation,
+  firstNameOf,
   formatLevelName,
   resolveCoverageEnd,
   summarizeRecentAttendance,
@@ -92,7 +94,14 @@ function Carnet({
     });
   }
   if (profile.membership?.montoAplicado) {
-    facts.push({ label: "Monto", value: formatCurrency(Number(profile.membership.montoAplicado)) });
+    // "Valor mensual", the same label `/student/payments` puts on the same
+    // field. The carnet used to call it "Monto", which reads as an amount
+    // paid rather than the plan's price, and gave one number two names two
+    // clicks apart.
+    facts.push({
+      label: "Valor mensual",
+      value: formatCurrency(Number(profile.membership.montoAplicado)),
+    });
   }
   if (coverageEnd) facts.push({ label: "Cobertura hasta", value: formatDate(coverageEnd) });
 
@@ -153,78 +162,25 @@ function Carnet({
 }
 
 // ---------------------------------------------------------------------------
-// "Su situación" — the two answers this page owes the reader
+// "Entrenamientos" — the second of the two answers this page owes its reader
 //
 // The audit's complaint about this screen ("el dashboard para el perfil no
-// dice nada") was not that it lacked content: it had a carnet, a training
-// panel and a five-row session list. It was that none of them answered either
-// question a family opens the portal with — am I up to date with the club, and
-// has my child been going. Those two answers now sit together, above
-// everything else, each ending in the screen that owns it.
+// dice nada") was that nothing on it answered either question a family opens
+// the portal with: am I up to date with the club, and has my child been going.
 //
-// The two halves live in ONE card with a divider rather than in two cards
-// side by side. A pair of equal cards reads as a grid of tiles you scan; a
-// divided panel reads as one status you take in at once, which is what this is.
+// Those two answers used to share one divided card. They no longer do — the
+// first is now the coal `PaymentBand` above the carnet, which is where the
+// product puts "the one thing to do next" on `/dashboard` and `/trainer`. What
+// is left here is the second answer, and it is a plain card rather than half
+// of one, because it reports and does not ask.
 //
-// Every value below is counted or read from the payload:
-//
-//   - the membership line is `Membresia.estado`, via the same
-//     `describeMembershipState` the carnet and /student/payments use;
-//   - "cobertura pagada hasta" is the furthest `fechaFin` among APPROVED
-//     payments (`resolveCoverageEnd`), which is the only real coverage date
-//     in the system — `MembershipSummary.fechaFin` is declared on the client
-//     type but never produced by the adapter, so it is not read here;
-//   - "un pago esperando validación" is a count of the persona's own pagos;
-//   - the attendance line is the counted recap over the sessions received.
-//
-// No amount due, no due date, no attendance percentage: the backend has no
-// source for any of the three.
+// Every value is counted from the payload: the last session is the most recent
+// record received, and the ratio is the counted recap over the sessions the
+// portal was given. No attendance percentage — the backend has no source for
+// one over a capped window.
 // ---------------------------------------------------------------------------
 
-function SituationHalf({
-  kicker,
-  headline,
-  detail,
-  action,
-}: {
-  kicker: string;
-  headline: React.ReactNode;
-  detail: React.ReactNode;
-  action: React.ReactNode;
-}): React.ReactElement {
-  return (
-    // `h-full` plus the growing detail line keeps both actions on the same
-    // baseline when one half's copy runs a line longer than the other's.
-    <div className="flex h-full flex-col gap-1.5 px-5 py-[18px]">
-      <p className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3">{kicker}</p>
-      <h3 className="text-[17px] font-bold leading-snug tracking-tight text-ink">{headline}</h3>
-      <p className="flex-1 text-[13px] leading-relaxed text-ink-3">{detail}</p>
-      <div className="mt-1.5">{action}</div>
-    </div>
-  );
-}
-
-/**
- * What the paid-through date MEANS, in the words a family would use.
- *
- * The carnet two hundred pixels above already prints "Cobertura hasta
- * 28/07/2026". Repeating that date as this panel's headline made the panel a
- * second copy of the card rather than an answer, so the headline carries the
- * reading instead: how long is left, or how long ago it ran out. The date
- * itself stays, once, in the supporting line.
- *
- * This is arithmetic on an approved payment, not a projection — there is no
- * renewal date anywhere in the backend and none is implied here.
- */
-function describeCoverage(daysLeft: number): string {
-  if (daysLeft > 1) return `Le quedan ${daysLeft} días de cobertura`;
-  if (daysLeft === 1) return "Le queda 1 día de cobertura";
-  if (daysLeft === 0) return "Su cobertura termina hoy";
-  if (daysLeft === -1) return "Su cobertura venció ayer";
-  return `Su cobertura venció hace ${Math.abs(daysLeft)} días`;
-}
-
-/** A text action that reads as a destination, not as a button competing with the page's real CTAs. */
+/** A text action that reads as a destination, not as a button competing with the page's CTA. */
 function SituationLink({ href, children }: { href: string; children: React.ReactNode }): React.ReactElement {
   return (
     <Link
@@ -237,105 +193,72 @@ function SituationLink({ href, children }: { href: string; children: React.React
   );
 }
 
-function SituationPanel({
+function TrainingPanel({
   profile,
-  coverageEnd,
-  pendingPagos,
-  paymentsAreReadOnly,
+  /** Whose record this is — "sus asistencias" only when the reader is the student. */
+  viewingOwnProfile,
+  studentName,
 }: {
   profile: StudentProfileSummary;
-  coverageEnd: string | null;
-  pendingPagos: number;
-  /** True only for a minor looking at their own account — see `ActivePortalView`. */
-  paymentsAreReadOnly: boolean;
+  viewingOwnProfile: boolean;
+  studentName: string;
 }): React.ReactElement {
-  const membership = describeMembershipState(profile.membership?.estado);
-  const daysLeft = daysUntil(coverageEnd);
   const recap = summarizeRecentAttendance(profile.recentSessions);
   const lastSession = profile.recentSessions[0] ?? null;
+  // A guardian reading "De sus últimas 2 sesiones asistió a 1" about their
+  // child was being told about themselves. The subject is named instead.
+  const scope = recap
+    ? viewingOwnProfile
+      ? recap.total === 1
+        ? "su última sesión registrada"
+        : `sus últimas ${recap.total} sesiones registradas`
+      : recap.total === 1
+        ? `la última sesión registrada de ${studentName}`
+        : `las últimas ${recap.total} sesiones registradas de ${studentName}`
+    : "";
 
   return (
     <section
       data-testid="student-situation"
-      aria-label="Su situación en el club"
-      className="card grid overflow-hidden sm:grid-cols-2"
+      aria-label="Entrenamientos"
+      className="card overflow-hidden"
     >
-      <div className="border-b border-line sm:border-b-0 sm:border-r">
-        <SituationHalf
-          kicker="Membresía y pagos"
-          // The state pill lives on the carnet directly above; repeating it
-          // here would put the same badge twice within one screenful. This
-          // half carries the READING of that state, which the carnet cannot.
-          headline={daysLeft === null ? membership.label : describeCoverage(daysLeft)}
-          detail={
+      <div className="flex flex-col gap-1.5 px-5 py-[18px]">
+        <p className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3">
+          Entrenamientos
+        </p>
+        <h2 className="text-[17px] font-bold leading-snug tracking-tight text-ink">
+          {lastSession ? (
             <>
-              {coverageEnd ? (
-                <>
-                  Su último pago aprobado cubre hasta el{" "}
-                  <b className="font-semibold tabular-nums text-ink">{formatDate(coverageEnd)}</b>.
-                </>
-              ) : (
-                "Todavía no hay ningún pago aprobado en su historial."
-              )}
-              {pendingPagos > 0 && (
-                <>
-                  {" "}
-                  {pendingPagos === 1
-                    ? "Hay 1 pago esperando la validación del club."
-                    : `Hay ${pendingPagos} pagos esperando la validación del club.`}
-                </>
-              )}
+              {lastSession.horario}
+              <span className="block text-[13px] font-semibold tabular-nums text-ink-3">
+                {formatDate(lastSession.fecha)}
+              </span>
             </>
-          }
-          action={
-            paymentsAreReadOnly ? (
-              <SituationLink href="/student/payments">Ver mis pagos</SituationLink>
-            ) : (
-              <SituationLink href="/student/payments">
-                Registrar pago o renovar membresía
-              </SituationLink>
-            )
-          }
-        />
-      </div>
-
-      <div>
-        <SituationHalf
-          kicker="Entrenamientos"
-          headline={
-            lastSession ? (
-              <>
-                {lastSession.horario}
-                <span className="block text-[13px] font-semibold tabular-nums text-ink-3">
-                  {formatDate(lastSession.fecha)}
-                </span>
-              </>
-            ) : (
-              <>Todavía no hay entrenamientos registrados</>
-            )
-          }
-          detail={
-            recap ? (
-              recap.total === 1 ? (
-                <>
-                  De su última sesión registrada asistió a{" "}
-                  <b className="font-semibold text-ink">{recap.attended} de 1</b>.
-                </>
-              ) : (
-                <>
-                  De sus últimas {recap.total} sesiones registradas asistió a{" "}
-                  <b className="font-semibold text-ink">
-                    {recap.attended} de {recap.total}
-                  </b>
-                  .
-                </>
-              )
-            ) : (
-              "Su asistencia aparecerá aquí en cuanto el entrenador tome lista."
-            )
-          }
-          action={<SituationLink href="/student/attendance">Ver mis asistencias</SituationLink>}
-        />
+          ) : (
+            <>Todavía no hay entrenamientos registrados</>
+          )}
+        </h2>
+        <p className="text-[13px] leading-relaxed text-ink-3">
+          {recap ? (
+            <>
+              De {scope} asistió a{" "}
+              <b className="font-semibold text-ink">
+                {recap.attended} de {recap.total}
+              </b>
+              .
+            </>
+          ) : viewingOwnProfile ? (
+            "Su asistencia aparecerá aquí en cuanto el entrenador tome lista."
+          ) : (
+            `La asistencia de ${studentName} aparecerá aquí en cuanto el entrenador tome lista.`
+          )}
+        </p>
+        <div className="mt-1.5">
+          <SituationLink href="/student/attendance">
+            {viewingOwnProfile ? "Ver mis asistencias" : `Ver las asistencias de ${studentName}`}
+          </SituationLink>
+        </div>
       </div>
     </section>
   );
@@ -380,7 +303,7 @@ function MembershipPlansGrid({ data }: { data: StudentPortalSummary }): React.Re
 
 function PendingEnrollmentView({ data }: { data: StudentPortalSummary }): React.ReactElement {
   return (
-    <div className="mx-auto w-full max-w-[760px] space-y-5">
+    <div className="w-full max-w-[760px] space-y-5">
       <section className="card p-6">
         <h2 className="text-[17px] font-bold tracking-tight text-ink">Bienvenido a Cata Club</h2>
         <p className="mt-2 text-[13px] leading-relaxed text-ink-3">
@@ -488,8 +411,37 @@ function ActivePortalView({
   const hasAccountActions =
     representative || !hasAlumnoRole || data.self?.representanteId != null;
 
+  /**
+   * The one thing this screen exists to answer, resolved once and rendered in
+   * the band above everything else — see `PaymentBand`. `describePaymentSituation`
+   * owns every word of it, so the home screen and `/student/payments` can never
+   * word the same `estado` differently again.
+   */
+  const paymentSituation = selectedProfile
+    ? describePaymentSituation({
+        studentName: firstNameOf(selectedProfile.nombres),
+        viewingOwnProfile,
+        blockedAsMinor: paymentsAreReadOnly,
+        representanteName: selectedProfile.representante
+          ? `${selectedProfile.representante.nombres} ${selectedProfile.representante.apellidos}`.trim()
+          : null,
+        hasMembership: selectedProfile.membership != null,
+        planName: selectedProfile.membership?.categoria ?? null,
+        monthlyPrice: selectedProfile.membership?.montoAplicado ?? null,
+        coverageEnd,
+        pendingCount: pendingPagos,
+      })
+    : null;
+
   return (
-    <div className="mx-auto w-full max-w-[760px] space-y-5">
+    // Left-aligned, not centered: the approved prototypes for all three family
+    // screens (`docs/ux/prototipos/22-alumno-cuenta.html` and siblings) set
+    // `.canvas { max-width: 760px }` with no `margin: 0 auto`, so the column
+    // shares its left edge with the page title above it exactly the way every
+    // admin and trainer screen does. Centred, the cards started 196px to the
+    // right of their own `<h1>` at 1440×900 — the single loudest reason the
+    // family area did not read as the same product.
+    <div className="w-full max-w-[760px] space-y-5">
       {/* The greeting is NOT a heading here. It used to be a 26px h2 directly
           under `PageHeader`'s own 26px h1, which stacked "ÁREA DE ESTUDIANTES
           / Mi cuenta / Hola, Ana" — three title-weight lines before a single
@@ -527,7 +479,7 @@ function ActivePortalView({
         </section>
       )}
 
-      {selectedProfile === null ? (
+      {selectedProfile === null || paymentSituation === null ? (
         <div className="card">
           <EmptyState
             icon={<User size={21} strokeWidth={1.5} aria-hidden="true" />}
@@ -537,12 +489,26 @@ function ActivePortalView({
         </div>
       ) : (
         <>
+          {/* First, above the carnet: the reader came to find out whether they
+              owe the club anything and to do something about it. The carnet is
+              the identity document they screenshot; it is not the errand. */}
+          <PaymentBand
+            situation={paymentSituation}
+            action={
+              paymentSituation.canRegister
+                ? // Straight into the open form. The route to paying used to be
+                  // three clicks — link, page, "Registrar un pago" — and the
+                  // last two were on a screen that never said whose payment it
+                  // was about.
+                  { href: "/student/payments?registrar=1", label: "Registrar un pago" }
+                : { href: "/student/payments", label: "Ver los pagos" }
+            }
+          />
           <Carnet profile={selectedProfile} coverageEnd={coverageEnd} />
-          <SituationPanel
+          <TrainingPanel
             profile={selectedProfile}
-            coverageEnd={coverageEnd}
-            pendingPagos={pendingPagos}
-            paymentsAreReadOnly={paymentsAreReadOnly}
+            viewingOwnProfile={viewingOwnProfile}
+            studentName={firstNameOf(selectedProfile.nombres)}
           />
         </>
       )}
@@ -557,9 +523,9 @@ function ActivePortalView({
           not use the honest route either. Offering it was worse than nothing.
 
           `hasAccountActions` exists because the row is now genuinely optional:
-          the payments CTA moved into `SituationPanel` (where the fact it acts
-          on is stated), so a self-managed adult with no dependents and no
-          representative has nothing left to put here, and an empty flex row
+          the payments CTA lives in `PaymentBand` at the top of the screen (on
+          the fact it acts on), so a self-managed adult with no dependents and
+          no representative has nothing left to put here, and an empty flex row
           still costs a 20px gap under the panel. */}
       {!selfIsMinor && hasAccountActions && (
         <div className="flex flex-wrap gap-3 pt-1">
@@ -592,11 +558,6 @@ function ActivePortalView({
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
-
-/** First given name — "Hola, Ana", not "Hola, Ana Maria Garcia Lopez". */
-function firstNameOf(fullName: string): string {
-  return fullName.trim().split(/\s+/)[0] || fullName;
-}
 
 function StudentPortalContent(): React.ReactElement {
   const { session, refreshSession } = useAuth();

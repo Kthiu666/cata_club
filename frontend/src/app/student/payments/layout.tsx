@@ -10,7 +10,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: { absolute: "Mis pagos — Cata Club" },
+  title: { absolute: "Pagos — Cata Club" },
 };
 
 export default function StudentPaymentsLayout({

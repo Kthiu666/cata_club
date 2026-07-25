@@ -20,9 +20,17 @@ vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+/**
+ * `?registrar=1` is how the home screen's payment band says "this reader came
+ * here to pay", so the search params are part of this screen's contract now.
+ * Tests that care set `searchParams` before rendering.
+ */
+let searchParams = new URLSearchParams();
+
 vi.mock("next/navigation", () => ({
   usePathname: () => "/student/payments",
   useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => searchParams,
 }));
 
 vi.mock("next/link", () => ({
@@ -129,11 +137,96 @@ function makePago(overrides: Partial<PagoPersona> = {}): PagoPersona {
 }
 
 beforeEach(() => {
+  searchParams = new URLSearchParams();
   mockUseAuth.mockReset().mockReturnValue(authSession());
   mockFetchStudentPortal.mockReset().mockResolvedValue(PORTAL);
   mockFetchPagosDePersona.mockReset().mockResolvedValue([makePago()]);
   mockSubirVoucherPago.mockReset().mockResolvedValue(undefined);
   mockRegistrarPago.mockReset().mockResolvedValue({ id: 99 });
+});
+
+/**
+ * A guardian with exactly ONE dependent never sees the profile switcher (it
+ * hides below two profiles), so before this pass the screen never once named
+ * the student it was about: "Mis pagos", "Su membresía", and a form that
+ * debited a persona the reader had no way to identify.
+ */
+describe("StudentPaymentsPage — whose payment this is", () => {
+  const DEPENDENT = { ...SELF, personaId: "42", nombres: "Sofía", apellidos: "Vera" };
+
+  function renderAsGuardian(): void {
+    mockUseAuth.mockReturnValue(authSession("representante"));
+    mockFetchStudentPortal.mockReset().mockResolvedValue({
+      self: null,
+      representados: [DEPENDENT],
+      membershipPlans: [],
+    });
+    render(<StudentPaymentsPage />);
+  }
+
+  it("names the dependent on the membership card even with no switcher on screen", async () => {
+    renderAsGuardian();
+
+    expect(await screen.findByText("Membresía de Sofía")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Estudiante")).not.toBeInTheDocument();
+  });
+
+  it("names the dependent on the register button and inside the open form", async () => {
+    renderAsGuardian();
+
+    const open = await screen.findByRole("button", { name: /registrar un pago de sofía/i });
+    fireEvent.click(open);
+
+    expect(await screen.findByText(/se registra a nombre de/i)).toBeInTheDocument();
+  });
+
+  it("keeps usted for a student reading their own account", async () => {
+    render(<StudentPaymentsPage />);
+
+    expect(await screen.findByText("Su membresía")).toBeInTheDocument();
+    expect(screen.queryByText(/Membresía de/)).not.toBeInTheDocument();
+  });
+});
+
+describe("StudentPaymentsPage — arriving from the home band", () => {
+  it("opens the form on ?registrar=1 so the route to paying is one click, not three", async () => {
+    searchParams = new URLSearchParams("registrar=1");
+
+    render(<StudentPaymentsPage />);
+
+    // The collapsed state is a button; the open state is the amount field.
+    expect(await screen.findByText("Período que cubre")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^registrar un pago$/i })).not.toBeInTheDocument();
+  });
+
+  it("waits for the payment history before opening, so the period starts where coverage ends", async () => {
+    searchParams = new URLSearchParams("registrar=1");
+    mockFetchPagosDePersona.mockReset().mockResolvedValue([makePago({ fechaFin: "2026-08-31" })]);
+
+    render(<StudentPaymentsPage />);
+
+    // The period starts at the furthest approved `fechaFin` (31/08/2026), not
+    // at today — a family paying early must not lose the days they paid for.
+    // (The same date also appears in the card's "Pagado hasta", hence the
+    // scoped lookup inside the form's own period block.)
+    const period = (await screen.findByText("Período que cubre")).parentElement!;
+    expect(within(period).getByText(/^31\/08\/2026/)).toBeInTheDocument();
+  });
+
+  it("does not force the form open on a minor's own account", async () => {
+    searchParams = new URLSearchParams("registrar=1");
+    mockFetchStudentPortal.mockReset().mockResolvedValue({
+      ...PORTAL,
+      self: { ...SELF, fechaNacimiento: "2014-03-10" },
+    });
+
+    render(<StudentPaymentsPage />);
+
+    expect(
+      await screen.findByText(/no registra pagos desde su propia cuenta/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Período que cubre")).not.toBeInTheDocument();
+  });
 });
 
 describe("StudentPaymentsPage — the membership card", () => {

@@ -9,7 +9,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: { absolute: "Mis asistencias — Cata Club" },
+  title: { absolute: "Asistencias — Cata Club" },
 };
 
 export default function StudentAttendanceLayout({

@@ -44,17 +44,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
-import BackLink from "@/components/BackLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchStudentPortal } from "@/services/api";
 import type { StudentPortalSummary, StudentProfileSummary } from "@/services/api";
 import { getAttendanceBadgeTone, getAttendanceLabel } from "@/app/attendance/attendance-utils";
 import { formatDate } from "@/lib/format-utils";
 import { Badge, EmptyState, ErrorState, LoadingState, buttonClasses, cn } from "@/components/ui";
-import { breakdownAttendance, summarizeRecentAttendance } from "../student-utils";
+import { breakdownAttendance, firstNameOf, summarizeRecentAttendance } from "../student-utils";
 import type { AttendanceBreakdown } from "../student-utils";
 import ManagedStudentPicker, { useManagedProfiles } from "../ManagedStudentPicker";
-import { CalendarCheck, CreditCard, User } from "lucide-react";
+import { CalendarCheck, User } from "lucide-react";
 
 /**
  * Mirrors `RECENT_SESSIONS_LIMIT` in src/lib/server/student-adapter.ts.
@@ -97,15 +96,26 @@ const DOT_CLASS: Record<string, string> = {
   absent: "bg-state-bad",
 };
 
-function AttendanceRecap({ profile }: { profile: StudentProfileSummary }): React.ReactElement {
+function AttendanceRecap({
+  profile,
+  /** The dependent's given name, or `null` when the reader IS the student. */
+  studentName,
+}: {
+  profile: StudentProfileSummary;
+  studentName: string | null;
+}): React.ReactElement {
   const recap = summarizeRecentAttendance(profile.recentSessions);
   const breakdown = breakdownAttendance(profile.recentSessions);
 
   return (
     <section className="card overflow-hidden" aria-labelledby="attendance-recap-title">
       <div className="px-5 py-[18px]">
+        {/* A guardian with one dependent never sees the switcher (it hides
+            below two profiles), so this kicker was the only place that could
+            name whose record this is — and it said "Su asistencia" to a reader
+            who does not train here. */}
         <p className="mb-1 text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3">
-          Su asistencia
+          {studentName ? `Asistencia de ${studentName}` : "Su asistencia"}
         </p>
         <h2 id="attendance-recap-title" className="text-[17px] font-bold tracking-tight text-ink">
           {recap ? (
@@ -123,7 +133,9 @@ function AttendanceRecap({ profile }: { profile: StudentProfileSummary }): React
         <p className="mt-1.5 text-[13px] text-ink-3">
           {recap
             ? "Una tardanza cuenta como asistencia; una falta justificada, no."
-            : "Su asistencia aparecerá aquí en cuanto el entrenador tome lista."}
+            : studentName
+              ? `La asistencia de ${studentName} aparecerá aquí en cuanto el entrenador tome lista.`
+              : "Su asistencia aparecerá aquí en cuanto el entrenador tome lista."}
         </p>
       </div>
 
@@ -253,8 +265,10 @@ function StudentAttendanceContent(): React.ReactElement {
   return (
     <AppShell
       eyebrow="Área de estudiantes"
-      title="Mis asistencias"
-      subtitle="Cada sesión que su entrenador registró, con el estado que le asignó."
+      // "Asistencias" — the sidebar row's own label, and true for a guardian
+      // reading a dependent's record. See the same change on `/student/payments`.
+      title="Asistencias"
+      subtitle="Cada sesión que el entrenador registró, con el estado que le asignó."
     >
       {state.status === "loading" && (
         <div className="card">
@@ -265,7 +279,11 @@ function StudentAttendanceContent(): React.ReactElement {
         <ErrorState message={state.message} onRetry={() => setReloadToken((n) => n + 1)} />
       )}
       {state.status === "ready" && (
-        <AttendanceView data={state.data} hasAlumnoRole={hasAlumnoRole} />
+        <AttendanceView
+          data={state.data}
+          hasAlumnoRole={hasAlumnoRole}
+          accountPersonaId={personaId}
+        />
       )}
     </AppShell>
   );
@@ -274,17 +292,27 @@ function StudentAttendanceContent(): React.ReactElement {
 function AttendanceView({
   data,
   hasAlumnoRole,
+  accountPersonaId,
 }: {
   data: StudentPortalSummary;
   hasAlumnoRole: boolean;
+  /** The persona behind the SESSION — not the profile being viewed. */
+  accountPersonaId: string;
 }): React.ReactElement {
   const { managedProfiles, selectedId, setSelectedId, selectedProfile } = useManagedProfiles(
     data,
     hasAlumnoRole,
   );
 
+  const viewingOwnProfile =
+    selectedProfile !== null && selectedProfile.personaId === accountPersonaId;
+  const studentName = viewingOwnProfile ? null : firstNameOf(selectedProfile?.nombres ?? "");
+
   return (
-    <div className="mx-auto w-full max-w-[760px] space-y-5">
+    // Left-aligned like every other screen in the product — the prototype
+    // (`docs/ux/prototipos/24-alumno-asistencia.html`) sets `max-width:760px`
+    // with no auto margin.
+    <div className="w-full max-w-[760px] space-y-5">
       <ManagedStudentPicker
         id="student-select-attendance"
         profiles={managedProfiles}
@@ -307,26 +335,21 @@ function AttendanceView({
         </div>
       ) : (
         <>
-          <AttendanceRecap profile={selectedProfile} />
+          <AttendanceRecap profile={selectedProfile} studentName={studentName} />
           <SessionList profile={selectedProfile} />
 
-          {/* The scope, stated. Five rows presented without this line read as
-              "you have trained five times". */}
+          {/* The scope, stated. Rows presented without this line read as "this
+              is the whole record". */}
           <p className="text-[12.5px] leading-relaxed text-ink-3-strong">
             Su portal recibe las {PORTAL_SESSION_WINDOW} sesiones más recientes que el club
             registró. Si necesita un período anterior, pídalo al club.
           </p>
-
-          <div className="flex flex-wrap gap-3">
-            <Link href="/student/payments" className={buttonClasses("secondary")}>
-              <CreditCard size={16} strokeWidth={1.5} aria-hidden="true" />
-              Ver mis pagos
-            </Link>
-          </div>
         </>
       )}
 
-      <BackLink href="/student" label="Volver a mi cuenta" className="btn-ghost -ml-2 mt-1 inline-flex items-center gap-1 text-xs" />
+      {/* No back link and no "Ver mis pagos" button. The sidebar carries both
+          destinations and highlights the current one; the admin screens
+          dropped their own "← Volver al Panel" for exactly this reason. */}
     </div>
   );
 }

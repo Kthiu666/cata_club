@@ -523,7 +523,7 @@ function AddDependentContent(): React.ReactElement {
       title="Agregar dependiente"
       subtitle="Complete los pasos para agregar un nuevo dependiente a su cuenta de representante."
     >
-      <div className="mx-auto w-full max-w-[760px]">
+      <div className="w-full max-w-[760px]">
       <BackLink href="/student" label="Volver" />
 
       {/* Named stepper — the same contract as the public wizard. */}

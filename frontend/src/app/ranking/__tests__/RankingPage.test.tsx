@@ -328,6 +328,8 @@ describe("RankingPage — la escalera", () => {
     fireEvent.click(screen.getByRole("button", { name: "Asignar estudiantes al nivel Nivel Cima" }));
     await screen.findByRole("heading", { name: "En el nivel Nivel Cima (1)" });
 
+    // "Asignar" is `asignar-nivel-inicial`, and he already has a level. The
+    // action he gets is "Mover" — see the roster-column tests below.
     expect(
       screen.queryByRole("button", { name: "Asignar Pedro Ramírez al nivel Nivel Cima" }),
     ).not.toBeInTheDocument();
@@ -566,6 +568,123 @@ describe("RankingPage — finding a student and placing the unassigned", () => {
       "Nivel Medio",
       "Nivel Base",
     ]);
+  });
+});
+
+/**
+ * The two things the upstream trainer table could do that the ladder could
+ * not, carried over when the two screens were unified (see
+ * `NivelLadderScreen`'s header). Both are about a student you are LOOKING at
+ * rather than one whose name you can already spell into the page search.
+ */
+describe("RankingPage — what the old table could do", () => {
+  beforeEach(() => {
+    mockFetchAlumnosConNivel.mockReset().mockResolvedValue(ROSTER);
+    mockFetchNivelesConOcupacion.mockReset().mockResolvedValue(NIVELES);
+    mockAssignStudentToNivel.mockReset().mockResolvedValue(undefined);
+    mockMoveStudentToNivel.mockReset().mockResolvedValue(undefined);
+    mockShowError.mockClear();
+    mockShowSuccess.mockClear();
+  });
+
+  function openCima(): void {
+    fireEvent.click(screen.getByRole("button", { name: "Asignar estudiantes al nivel Nivel Cima" }));
+  }
+
+  it("moves a resident of the open rung without asking for their name", async () => {
+    // The table's "Nuevo nivel" picker sat on every row. Losing it would have
+    // left the roster column inert: the only way to move Pedro would be to
+    // type "Pedro" into a search while already reading his name on screen.
+    render(<RankingPage />);
+    await waitForLadder();
+    openCima();
+
+    fireEvent.change(await screen.findByLabelText("Nuevo nivel para Pedro Ramírez"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mover a Pedro Ramírez desde el nivel Nivel Cima" }),
+    );
+
+    await waitFor(() => {
+      expect(mockMoveStudentToNivel).toHaveBeenCalledWith(11, 2);
+    });
+    // `mover-de-nivel`, never `asignar-nivel-inicial`: he already holds one.
+    expect(mockAssignStudentToNivel).not.toHaveBeenCalled();
+  });
+
+  it("will not move a resident until a destination is chosen", async () => {
+    render(<RankingPage />);
+    await waitForLadder();
+    openCima();
+
+    expect(
+      await screen.findByRole("button", { name: "Mover a Pedro Ramírez desde el nivel Nivel Cima" }),
+    ).toBeDisabled();
+  });
+
+  it("never offers a resident the level they are already on", async () => {
+    render(<RankingPage />);
+    await waitForLadder();
+    openCima();
+
+    const options = within(await screen.findByLabelText("Nuevo nivel para Pedro Ramírez"))
+      .getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Mover a…",
+      "Nivel Medio",
+      "Nivel Base",
+    ]);
+  });
+
+  it("takes the moved student off the rung and off its headcount", async () => {
+    render(<RankingPage />);
+    await waitForLadder();
+    openCima();
+
+    fireEvent.change(await screen.findByLabelText("Nuevo nivel para Pedro Ramírez"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mover a Pedro Ramírez desde el nivel Nivel Cima" }),
+    );
+
+    // By test id, not by rung index: an open rung's `<li>` contains the
+    // panel's own `<li>`s, so positional lookups would land inside the panel.
+    await waitFor(() => {
+      expect(screen.getByTestId("rung-headcount-1")).toHaveTextContent("Sin estudiantes");
+    });
+    expect(screen.getByTestId("rung-headcount-2")).toHaveTextContent("1 estudiante");
+    expect(screen.getByRole("heading", { name: "En el nivel Nivel Cima (0)" })).toBeInTheDocument();
+  });
+
+  it("reaches every name in a column instead of printing the first few", async () => {
+    // The table paginated; the panel used to print twelve and say "use the
+    // search for the rest", which cannot be followed for a student whose name
+    // you do not know. Both columns scroll now, so the list is complete.
+    const many: AlumnoConNivel[] = Array.from({ length: 20 }, (_, i) => ({
+      personaId: 100 + i,
+      nombres: `Alumno${String(i).padStart(2, "0")}`,
+      apellidos: "Sinnivel",
+      nivelRankingId: null,
+    }));
+    mockFetchAlumnosConNivel.mockResolvedValue(many);
+
+    render(<RankingPage />);
+    await waitForLadder();
+    openCima();
+
+    await screen.findByRole("heading", { name: "Sin nivel asignado (20)" });
+    // The last name in the column is rendered, not hidden behind a note.
+    expect(screen.getByText("Alumno19 Sinnivel")).toBeInTheDocument();
+    expect(screen.queryByText(/use la búsqueda para encontrarlos/i)).not.toBeInTheDocument();
+
+    // …reachable by scrolling the column rather than by growing the page.
+    const columna = screen
+      .getByRole("heading", { name: "Sin nivel asignado (20)" })
+      .closest("section")
+      ?.querySelector("ul");
+    expect(columna?.className).toContain("overflow-y-auto");
   });
 });
 

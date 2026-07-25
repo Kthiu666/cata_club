@@ -16,7 +16,10 @@ import {
   personInitials,
   summarizeRecentAttendance,
   resolveCoverageEnd,
+  describePaymentSituation,
+  COVERAGE_ENDING_SOON_DAYS,
 } from "../student-utils";
+import type { PaymentSituationInput } from "../student-utils";
 import type { PagoPersona, StudentRankingSummary, StudentSessionSummary } from "@/services/api";
 
 // ---------------------------------------------------------------------------
@@ -391,5 +394,179 @@ describe("breakdownAttendance", () => {
     expect(
       breakdownAttendance([session("present", "2026-07-20"), unknown as StudentSessionSummary]),
     ).toEqual({ present: 1, late: 0, justified: 0, absent: 0, total: 2 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// describePaymentSituation
+//
+// The reader's three questions, answered from the payload alone: do I owe
+// anything, how much, and what do I do about it. There is no debt concept in
+// the backend, so "how much" can only ever be the plan's monthly price — these
+// tests exist mostly to keep a balance from being invented later.
+// ---------------------------------------------------------------------------
+
+const TODAY = new Date(2026, 6, 25); // 25/07/2026, local midnight.
+
+function situation(overrides: Partial<PaymentSituationInput> = {}): PaymentSituationInput {
+  return {
+    studentName: "Ana",
+    viewingOwnProfile: true,
+    blockedAsMinor: false,
+    representanteName: null,
+    hasMembership: true,
+    planName: "Mensual Infantil",
+    monthlyPrice: "25.00",
+    coverageEnd: "2026-08-30",
+    pendingCount: 0,
+    ...overrides,
+  };
+}
+
+describe("describePaymentSituation", () => {
+  it("never claims a balance, an amount due or a due date in any state", () => {
+    // The one permitted use of the word "saldo" is the sentence that DENIES
+    // one, so the guard looks for the affirmative forms a fabricated debt
+    // would take.
+    const inputs: PaymentSituationInput[] = [
+      situation(),
+      situation({ coverageEnd: null }),
+      situation({ coverageEnd: "2026-07-01" }),
+      situation({ coverageEnd: "2026-07-28" }),
+      situation({ pendingCount: 2 }),
+      situation({ hasMembership: false, monthlyPrice: null, planName: null }),
+      situation({ blockedAsMinor: true }),
+    ];
+    for (const input of inputs) {
+      const result = describePaymentSituation(input, TODAY);
+      const prose = `${result.headline} ${result.detail} ${result.priceNote ?? ""}`;
+      expect(prose).not.toMatch(
+        /saldo de|saldo pendiente de|adeud|deuda|debe pagar|total a pagar|vence el|fecha límite/i,
+      );
+    }
+  });
+
+  it("reports days of coverage left and stays quiet when there is plenty", () => {
+    const result = describePaymentSituation(situation({ coverageEnd: "2026-08-30" }), TODAY);
+    expect(result.kind).toBe("covered");
+    expect(result.figure).toEqual({ value: 36, unit: "días de cobertura" });
+    expect(result.urgent).toBe(false);
+    expect(result.canRegister).toBe(true);
+    expect(result.detail).toContain("30/08/2026");
+  });
+
+  it("asks for action once coverage is inside the last week", () => {
+    const result = describePaymentSituation(situation({ coverageEnd: "2026-07-28" }), TODAY);
+    expect(result.kind).toBe("ending-soon");
+    expect(result.figure).toEqual({ value: 3, unit: "días de cobertura" });
+    expect(result.headline).toBe("Le quedan 3 días de cobertura");
+    expect(result.urgent).toBe(true);
+  });
+
+  it("uses the singular for the last day and drops the figure on the final day", () => {
+    expect(describePaymentSituation(situation({ coverageEnd: "2026-07-26" }), TODAY).figure).toEqual(
+      { value: 1, unit: "día de cobertura" },
+    );
+    const today = describePaymentSituation(situation({ coverageEnd: "2026-07-25" }), TODAY);
+    expect(today.figure).toBeNull();
+    expect(today.headline).toBe("Su cobertura termina hoy");
+    expect(today.urgent).toBe(true);
+  });
+
+  it("counts the days since coverage ran out rather than the days that are left", () => {
+    const result = describePaymentSituation(situation({ coverageEnd: "2026-07-20" }), TODAY);
+    expect(result.kind).toBe("expired");
+    expect(result.figure).toEqual({ value: 5, unit: "días vencida" });
+    expect(result.headline).toBe("Su cobertura venció");
+    expect(result.urgent).toBe(true);
+    expect(result.canRegister).toBe(true);
+  });
+
+  it("says plainly that nothing has been approved instead of implying coverage", () => {
+    const result = describePaymentSituation(situation({ coverageEnd: null }), TODAY);
+    expect(result.kind).toBe("never-paid");
+    expect(result.figure).toBeNull();
+    expect(result.headline).toBe("No tiene ningún pago aprobado");
+    expect(result.detail).toMatch(/no lleva un saldo pendiente/i);
+    expect(result.urgent).toBe(true);
+    expect(result.canRegister).toBe(true);
+  });
+
+  it("names the dependent when the reader is the guardian, and keeps usted for their own profile", () => {
+    const guardian = describePaymentSituation(
+      situation({ studentName: "Sofía", viewingOwnProfile: false, coverageEnd: "2026-07-28" }),
+      TODAY,
+    );
+    expect(guardian.headline).toBe("A Sofía le quedan 3 días de cobertura");
+
+    const own = describePaymentSituation(situation({ coverageEnd: "2026-07-28" }), TODAY);
+    expect(own.headline).toBe("Le quedan 3 días de cobertura");
+  });
+
+  it("hands a pending payment back to the club instead of asking for another one", () => {
+    const result = describePaymentSituation(
+      situation({ pendingCount: 1, coverageEnd: "2026-07-20" }),
+      TODAY,
+    );
+    expect(result.kind).toBe("awaiting-validation");
+    expect(result.figure).toEqual({ value: 1, unit: "pago en revisión" });
+    expect(result.canRegister).toBe(false);
+    expect(result.urgent).toBe(false);
+  });
+
+  it("does not offer to register a payment when the club has not created a membership", () => {
+    const result = describePaymentSituation(
+      situation({ hasMembership: false, monthlyPrice: null, planName: null, coverageEnd: null }),
+      TODAY,
+    );
+    expect(result.kind).toBe("no-membership");
+    expect(result.canRegister).toBe(false);
+    expect(result.priceNote).toBeNull();
+    expect(result.detail).toMatch(/administración/i);
+  });
+
+  it("sends a minor to the representative the backend actually has on record", () => {
+    const result = describePaymentSituation(
+      situation({ blockedAsMinor: true, representanteName: "Laura Vera" }),
+      TODAY,
+    );
+    expect(result.kind).toBe("minor-blocked");
+    expect(result.canRegister).toBe(false);
+    expect(result.detail).toContain("Laura Vera");
+  });
+
+  it("sends a minor with no representative on record to the club, never to a person who does not exist", () => {
+    const result = describePaymentSituation(situation({ blockedAsMinor: true }), TODAY);
+    expect(result.kind).toBe("minor-blocked");
+    expect(result.detail).not.toMatch(/su representante/i);
+    expect(result.detail).toMatch(/administración del club/i);
+  });
+
+  it("states the monthly price as a price, never as an amount owed", () => {
+    const result = describePaymentSituation(situation(), TODAY);
+    expect(result.priceNote).toBe("Plan Mensual Infantil · $25,00 al mes");
+  });
+
+  it("drops the plan name when the backend has none but keeps the price it can prove", () => {
+    expect(describePaymentSituation(situation({ planName: null }), TODAY).priceNote).toBe(
+      "$25,00 al mes",
+    );
+    expect(describePaymentSituation(situation({ monthlyPrice: null }), TODAY).priceNote).toBeNull();
+  });
+
+  it("treats a coverage date it cannot parse as no coverage rather than as NaN days", () => {
+    const result = describePaymentSituation(situation({ coverageEnd: "no-es-una-fecha" }), TODAY);
+    expect(result.figure).toBeNull();
+    expect(result.headline).not.toMatch(/NaN/);
+  });
+
+  it("keeps the ending-soon window at exactly one week", () => {
+    expect(COVERAGE_ENDING_SOON_DAYS).toBe(7);
+    expect(describePaymentSituation(situation({ coverageEnd: "2026-08-01" }), TODAY).kind).toBe(
+      "ending-soon",
+    );
+    expect(describePaymentSituation(situation({ coverageEnd: "2026-08-02" }), TODAY).kind).toBe(
+      "covered",
+    );
   });
 });

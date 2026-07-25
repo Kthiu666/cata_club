@@ -295,13 +295,17 @@ describe("Header", (): void => {
 
     render(<Header />);
 
-    // Trainer gets Inicio + Mi día + Pasar lista. No "Niveles": level
-    // assignment is an admin action, and `/trainer/nivel` no longer exists
-    // (`docs/ux/prototipos/19-entrenador.html`).
+    // Trainer gets Inicio + Mi día + Pasar lista + Niveles. Level assignment
+    // is NOT an admin-only action — the backend grants ENTRENADOR both
+    // `asignar-nivel-inicial` and `mover-de-nivel` — and `/trainer/nivel`
+    // renders the same ladder screen `/ranking` does, under the same label.
     expect(screen.getByRole("link", { name: /Inicio/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Mi día" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Pasar lista" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Niveles" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Niveles" })).toHaveAttribute(
+      "href",
+      "/trainer/nivel",
+    );
 
     // The nav must not carry an English label — see auth-utils.
     expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
