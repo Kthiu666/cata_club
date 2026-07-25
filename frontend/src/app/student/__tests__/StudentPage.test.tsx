@@ -230,6 +230,45 @@ describe("StudentPage — the club membership card (carnet)", () => {
     });
   });
 
+  it("lays the facts out on one grid, in order, so their columns line up", async () => {
+    // Guards the alignment regression this card was polished for: as a
+    // wrapping flex row each fact was only as wide as its own value, so the
+    // labels landed at arbitrary x positions and no two rows shared a column.
+    mockFetchStudentPortal.mockResolvedValueOnce({
+      ...PORTAL,
+      self: {
+        ...PORTAL.self!,
+        membership: {
+          id: 4,
+          estado: "ACTIVA",
+          personaId: 9,
+          montoAplicado: "25.00",
+          categoria: "Mensual",
+          modalidad: "MENSUAL",
+          franjaHoraria: "Tarde",
+          fechaActivacion: "2026-03-18",
+        },
+      },
+    });
+    mockFetchPagosDePersona.mockResolvedValueOnce([PAGO_APROBADO]);
+
+    render(<StudentPage />);
+
+    const facts = await screen.findByTestId("carnet-facts");
+    await waitFor(() => {
+      expect(within(facts).getByText("Cobertura hasta")).toBeInTheDocument();
+    });
+    expect(facts.className).toContain("grid");
+    expect([...facts.children].map((cell) => cell.firstElementChild?.textContent)).toEqual([
+      "Socio desde",
+      "Plan",
+      "Franja",
+      "Modalidad",
+      "Valor mensual",
+      "Cobertura hasta",
+    ]);
+  });
+
   it("says 'Sin nivel asignado' rather than guessing a rung when the ranking is unavailable", async () => {
     render(<StudentPage />);
 

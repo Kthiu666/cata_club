@@ -75,11 +75,11 @@ function levelTagLabel(profile: StudentProfileSummary): string | null {
 
 function CarnetFact({ label, value }: { label: string; value: string }): React.ReactElement {
   return (
-    <div>
-      <span className="block text-[9px] font-normal uppercase tracking-[0.12em] text-white/40">
+    <div className="min-w-0">
+      <span className="mb-[3px] block text-[10px] font-semibold uppercase leading-[1.2] tracking-[0.1em] text-white/60">
         {label}
       </span>
-      <b className="text-[12.5px] font-bold tabular-nums">{value}</b>
+      <b className="block text-[13px] font-bold leading-[1.25] tabular-nums">{value}</b>
     </div>
   );
 }
@@ -127,7 +127,7 @@ function Carnet({
     <section
       data-testid="student-carnet"
       aria-label={`Carnet de socio de ${fullName}`}
-      className="relative flex flex-col gap-3.5 overflow-hidden rounded-card bg-gradient-to-br from-coal to-[#2A2A33] px-6 py-[22px] text-white"
+      className="relative flex flex-col overflow-hidden rounded-card bg-gradient-to-br from-coal to-[#2A2A33] px-6 py-[22px] text-white"
     >
       <span
         aria-hidden="true"
@@ -139,14 +139,21 @@ function Carnet({
           <Image src="/brand/cata-club-logo.jpeg" alt="" width={30} height={30} className="h-[30px] w-[30px] object-cover" />
         </span>
         <div>
-          <b className="block text-[12.5px] font-bold">Cata Club</b>
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-white/45">Tenis de mesa</span>
+          <b className="block text-[12.5px] font-bold leading-[1.25]">Cata Club</b>
+          <span className="block text-[10px] uppercase leading-[1.3] tracking-[0.12em] text-white/60">Tenis de mesa</span>
         </div>
       </div>
 
-      <p className="relative z-10 text-2xl font-extrabold tracking-[-0.03em]">{fullName}</p>
+      {/* Name and badges are one group — the person and what the club grants
+          them — so they sit 10px apart, while the club header above and the
+          fact grid below are separated by 18px. The card used to space all
+          four blocks by an identical 14px, which read as four unrelated rows
+          rather than as header / identity / record. */}
+      <p className="relative z-10 mt-[18px] text-balance text-2xl font-extrabold leading-[1.15] tracking-[-0.03em]">
+        {fullName}
+      </p>
 
-      <div className="relative z-10 flex flex-wrap gap-2">
+      <div className="relative z-10 mt-2.5 flex flex-wrap gap-2">
         {level !== null ? (
           <span className="h-badge inline-flex items-center rounded-full bg-l9 px-[11px] text-[11.5px] font-bold text-ink">
             {level}
@@ -168,8 +175,19 @@ function Carnet({
         </span>
       </div>
 
+      {/* Equal columns, not shrink-to-fit ones. As a wrapping flex row every
+          fact was as wide as its own value, so the labels landed at arbitrary
+          x positions and no two rows lined up (in the 340px rail: 1098/1198.4
+          on the first row against 1098/1203.5/1293 on the second, with 93px of
+          dead space at the end of the first). `auto-fit` tracks give one
+          rhythm at every width — two columns in the rail and on a phone, and
+          all five or six side by side when the card runs full width below
+          `lg`. */}
       {facts.length > 0 && (
-        <div className="relative z-10 flex flex-wrap gap-x-[26px] gap-y-2 border-t border-white/10 pt-[13px]">
+        <div
+          data-testid="carnet-facts"
+          className="relative z-10 mt-[18px] grid grid-cols-[repeat(auto-fit,minmax(116px,1fr))] gap-x-4 gap-y-[13px] border-t border-white/10 pt-[15px]"
+        >
           {facts.map((fact) => (
             <CarnetFact key={fact.label} label={fact.label} value={fact.value} />
           ))}
