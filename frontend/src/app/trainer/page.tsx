@@ -38,13 +38,13 @@ import {
 import { Badge, Button, EmptyState, ErrorState, LoadingState, buttonClasses } from "@/components/ui";
 import {
   formatDay,
-  todayDiaSemana,
   getAttendanceBadgeTone,
   getAttendanceLabel,
   type AttendanceRecord,
   type TrainingSchedule,
 } from "@/app/attendance/attendance-utils";
 import type { EstadoAsistencia } from "@/types/domain";
+import { todayDiaSemana } from "@/lib/club-date";
 import { formatDate } from "@/lib/format-utils";
 import {
   buildAbsenceNotice,

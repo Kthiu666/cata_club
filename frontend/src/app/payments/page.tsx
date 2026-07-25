@@ -57,6 +57,7 @@ import type {
 import { fetchPaymentValidations, updatePaymentValidation } from "@/services/api";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format-utils";
 import { useToast } from "@/contexts/ToastContext";
+import { calendarIsoDate } from "@/lib/club-date";
 import {
   paginatePaymentRequests,
   getTotalPages,
@@ -301,7 +302,7 @@ export default function PaymentsPage(): React.ReactElement {
     if (!startDate || months <= 0) return "";
     const d = new Date(startDate + "T12:00:00");
     d.setMonth(d.getMonth() + months);
-    return d.toISOString().slice(0, 10);
+    return calendarIsoDate(d);
   }
 
   const loadRequests = useCallback(async (): Promise<void> => {

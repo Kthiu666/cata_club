@@ -20,7 +20,6 @@ import {
   ATTENDANCE_PAGE_SIZE,
   groupSchedulesByDay,
   formatHumanDate,
-  todayDiaSemana,
   selectVisibleSchedules,
   type AttendanceRecord,
   type TrainingSchedule,
@@ -432,41 +431,6 @@ describe("formatHumanDate", () => {
     expect(formatHumanDate("", today)).toBe("");
     expect(formatHumanDate("no es una fecha", today)).toBe("");
     expect(formatHumanDate("2026-13-45", today)).toBe("");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// todayDiaSemana — "today" as the club defines it, not as the device does
-// ---------------------------------------------------------------------------
-
-describe("todayDiaSemana", () => {
-  it("resolves the day in club time, not in the device's time zone", () => {
-    // 2026-07-24T02:00Z is FRIDAY in UTC but 21:00 THURSDAY in Guayaquil.
-    // A device left on UTC (or on any zone east of Ecuador) would otherwise
-    // offer Friday's schedules to a trainer standing in a Thursday session.
-    expect(todayDiaSemana(new Date("2026-07-24T02:00:00Z"))).toBe("jue");
-  });
-
-  it("flips the day exactly at club midnight, not at UTC midnight", () => {
-    // 04:59Z → 23:59 Thursday in Guayaquil; 05:00Z → 00:00 Friday.
-    expect(todayDiaSemana(new Date("2026-07-24T04:59:00Z"))).toBe("jue");
-    expect(todayDiaSemana(new Date("2026-07-24T05:00:00Z"))).toBe("vie");
-  });
-
-  it("maps Sunday to 'dom' rather than falling off the week", () => {
-    // Sunday is the index-0 edge of JS `getDay()` and the last key of
-    // DIA_SEMANA_LABELS — the spot an off-by-one lands on.
-    expect(todayDiaSemana(new Date("2026-07-26T12:00:00Z"))).toBe("dom");
-    expect(todayDiaSemana(new Date("2026-07-27T03:00:00Z"))).toBe("dom");
-  });
-
-  it("covers every day of the week with no gaps or repeats", () => {
-    // 2026-07-20 is a Monday; seven consecutive noons must yield seven
-    // distinct days in calendar order.
-    const week = Array.from({ length: 7 }, (_, i) =>
-      todayDiaSemana(new Date(`2026-07-${20 + i}T17:00:00Z`)),
-    );
-    expect(week).toEqual(["lun", "mar", "mie", "jue", "vie", "sab", "dom"]);
   });
 });
 

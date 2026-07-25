@@ -19,6 +19,7 @@ import {
 import type { EstadoAsistencia } from "@/types/domain";
 import type { PaymentValidationRequest } from "@/services/api";
 import { formatCurrency } from "@/lib/format-utils";
+import { calendarIsoDate, clubToday } from "@/lib/club-date";
 
 export const ATTENDANCE_STATUS_CHART_COLORS: Record<EstadoAsistencia, string> = {
   present: "#008300",
@@ -168,12 +169,6 @@ export interface FourWeekAttendance {
   ratePercent: number;
 }
 
-function toIsoDate(date: Date): string {
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
-}
-
 /**
  * Bucket attendance records into the trailing N 7-day windows ending today.
  *
@@ -187,11 +182,14 @@ export function buildFourWeekAttendance(
   today: Date = new Date(),
   weeks = 4,
 ): FourWeekAttendance {
-  const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  // Anchored on the CLUB's today, then read back as calendar dates: the
+  // window bounds are days, not instants.
+  const clubNow = clubToday(today);
+  const endOfToday = new Date(clubNow.getFullYear(), clubNow.getMonth(), clubNow.getDate()).getTime();
   const bars: AttendanceWeekBar[] = Array.from({ length: weeks }, (_, i) => {
     const startOffsetDays = (weeks - 1 - i) * 7 + 6;
     return {
-      startIso: toIsoDate(new Date(endOfToday - startOffsetDays * DAY_MS)),
+      startIso: calendarIsoDate(new Date(endOfToday - startOffsetDays * DAY_MS)),
       total: 0,
       present: 0,
       ratePercent: 0,

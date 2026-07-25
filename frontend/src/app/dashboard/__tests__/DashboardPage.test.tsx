@@ -18,6 +18,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import DashboardPage from "@/app/dashboard/page";
 import type { PaymentValidationRequest } from "@/services/api";
 import type { AttendanceRecord } from "@/app/attendance/attendance-utils";
+import { clubIsoDate } from "@/lib/club-date";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -83,11 +84,12 @@ function pendingPayment(id: string, daysAgo: number): PaymentValidationRequest {
 }
 
 function todayRecord(id: string): AttendanceRecord {
-  const now = new Date();
-  const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  // The club's today, not the runner's: `buildFourWeekAttendance` buckets its
+  // windows in club time, so a date built from local components lands outside
+  // the newest bar on any machine far enough from Ecuador.
   return {
     id,
-    fecha: iso,
+    fecha: clubIsoDate(),
     horario: "Lunes 15:00 — 16:00",
     personaId: Number(id.replace(/\D/g, "")) || 1,
     estudiante: `Estudiante ${id}`,

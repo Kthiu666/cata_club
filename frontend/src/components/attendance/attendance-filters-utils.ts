@@ -5,7 +5,7 @@
  * repo's `*-utils.ts` convention (see src/app/attendance/attendance-utils.ts).
  */
 
-import { buildDateRange, type DateRangePreset } from "@/app/trainer/trainer-history-utils";
+import { buildDateRange, type DateRangePreset } from "@/lib/club-date";
 
 /** The query `fetchAttendanceRecords` takes — every key optional, all of them omitted when unset. */
 export interface AttendanceQuery {

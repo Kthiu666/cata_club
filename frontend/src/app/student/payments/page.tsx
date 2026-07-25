@@ -67,6 +67,7 @@ import {
   buttonClasses,
 } from "@/components/ui";
 import { formatCurrency, formatDate, formatDateRange } from "@/lib/format-utils";
+import { calendarIsoDate, clubToday } from "@/lib/club-date";
 import { describeMembershipState, isMinor, resolveCoverageEnd } from "../student-utils";
 import ManagedStudentPicker, { useManagedProfiles } from "../ManagedStudentPicker";
 import {
@@ -110,13 +111,6 @@ const FIELD_CLASSES =
   "focus-visible:outline-offset-2 focus-visible:outline-ball disabled:cursor-not-allowed disabled:opacity-45";
 
 const FIELD_LABEL_CLASSES = "text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3";
-
-/** ISO `YYYY-MM-DD` for a `Date`, read in local time so it cannot slip a day in Ecuador. */
-function toIsoDate(date: Date): string {
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
-}
 
 /** Parse an ISO date at local noon — the same anchoring `format-utils` uses, for the same reason. */
 function fromIsoDate(iso: string): Date {
@@ -241,10 +235,13 @@ function RenewPaymentForm({
     setShowForm(true);
     setError(null);
     setVoucherFile(null);
-    const today = new Date();
+    // Both sides must be CALENDAR dates before they are compared: mixing an
+    // instant with a noon-anchored date made the comparison depend on the
+    // hour of day.
+    const today = clubToday();
     const paidThrough = coverageEnd ? fromIsoDate(coverageEnd) : null;
     setFechaInicio(
-      toIsoDate(paidThrough && paidThrough.getTime() > today.getTime() ? paidThrough : today),
+      calendarIsoDate(paidThrough && paidThrough.getTime() > today.getTime() ? paidThrough : today),
     );
   }
 

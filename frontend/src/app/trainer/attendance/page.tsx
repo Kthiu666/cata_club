@@ -89,13 +89,13 @@ import {
   formatDay,
   groupSchedulesByDay,
   selectVisibleSchedules,
-  todayDiaSemana,
   paginateRecords,
   getTotalPages,
 } from "@/app/attendance/attendance-utils";
 import BackLink from "@/components/BackLink";
 import { Badge, Button, EmptyState, ErrorState, LoadingState, Pagination, Stepper, buttonClasses } from "@/components/ui";
 import { getUserInitials } from "@/lib/auth-utils";
+import { clubIsoDate, todayDiaSemana } from "@/lib/club-date";
 import type { TrainingSchedule } from "@/app/attendance/attendance-utils";
 import type { DiaSemana } from "@/types/domain";
 import {
@@ -146,10 +146,6 @@ const TOTAL_LABELS: Record<EstadoAsistencia, [singular: string, plural: string]>
 
 /** Best news first — the same order every attendance surface reads in. */
 const TOTAL_ORDER: EstadoAsistencia[] = ["present", "late", "justified", "absent"];
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -291,7 +287,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
       // Re-opening the wizard for a session that already has today's
       // attendance recorded must show those existing marks, not silently
       // default everyone back to unmarked.
-      const today = todayIso();
+      const today = clubIsoDate();
       // The prefill fetch is a convenience, not a requirement: if it fails,
       // fall back to an empty list rather than failing the whole roster load.
       const [alumnoHorarios, existingRecords] = await Promise.all([

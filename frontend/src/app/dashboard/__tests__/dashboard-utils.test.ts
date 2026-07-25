@@ -111,7 +111,18 @@ describe("buildDonutArcs", () => {
 // countPaymentsWaitingOverAWeek
 // ---------------------------------------------------------------------------
 
-const NOW = new Date(2026, 6, 23, 9, 0); // 23 jul 2026, local
+/**
+ * 23 jul 2026, 09:00 at the club (14:00 UTC).
+ *
+ * An explicit instant, NOT `new Date(2026, 6, 23, 9, 0)`: `buildFourWeekAttendance`
+ * resolves its window through `clubToday()` (America/Guayaquil), so a fixture
+ * built from the runner's local components lands on a different club day on any
+ * machine far enough from Ecuador — under `TZ=Asia/Tokyo` it resolves to
+ * 2026-07-22 and every record falls outside the window. UTC-5 and UTC both
+ * happened to keep 09:00 inside the same calendar day, which is coincidence,
+ * not coverage.
+ */
+const NOW = new Date("2026-07-23T14:00:00Z");
 
 function buildRequest(overrides: Partial<PaymentValidationRequest> = {}): PaymentValidationRequest {
   return {

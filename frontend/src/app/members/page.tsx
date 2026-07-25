@@ -93,6 +93,7 @@ import {
 import type { Grupo, BackendTipoRol, FichaMedicaEditable, TipoSangre } from "@/types/domain";
 import { formatCurrency, formatDate } from "@/lib/format-utils";
 import MedicalRecordEditor from "./MedicalRecordEditor";
+import { calendarIsoDate, clubIsoDate, clubToday } from "@/lib/club-date";
 
 const FILTER_CHIPS: { flag: MemberFilterFlag; label: string }[] = [
   { flag: "all", label: "Todos" },
@@ -198,10 +199,7 @@ function StudentEditPanel({ student, grupos, onMembershipCreated }: StudentRowPr
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentMonto, setPaymentMonto] = useState<string>(student.membresia?.monto != null ? String(student.membresia.monto) : "");
   const [paymentTipoPago, setPaymentTipoPago] = useState<"EFECTIVO" | "TRANSFERENCIA">("TRANSFERENCIA");
-  const [paymentFechaInicio, setPaymentFechaInicio] = useState<string>(() => {
-    const hoy = new Date();
-    return hoy.toISOString().slice(0, 10);
-  });
+  const [paymentFechaInicio, setPaymentFechaInicio] = useState<string>(() => clubIsoDate());
   const [paymentFechaFin, setPaymentFechaFin] = useState<string>("");
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -275,7 +273,7 @@ function StudentEditPanel({ student, grupos, onMembershipCreated }: StudentRowPr
     const months = amount / paymentMonthlyPrice;
     const fin = new Date(baseDate);
     fin.setMonth(fin.getMonth() + months);
-    return fin.toISOString().slice(0, 10);
+    return calendarIsoDate(fin);
   }
 
   function handlePaymentMontoChange(value: string): void {
@@ -290,8 +288,10 @@ function StudentEditPanel({ student, grupos, onMembershipCreated }: StudentRowPr
     setPaymentError(null);
     setPaymentSuccess(false);
     setPaymentVoucherFile(null);
-    const hoy = new Date();
-    setPaymentFechaInicio(hoy.toISOString().slice(0, 10));
+    // A calendar date, so `calcPaymentEndDate` adds months to a day rather
+    // than to an instant.
+    const hoy = clubToday();
+    setPaymentFechaInicio(calendarIsoDate(hoy));
     const amount = parseFloat(String(paymentMonto).replace(/[^0-9.]/g, "")) || 0;
     setPaymentFechaFin(amount > 0 ? calcPaymentEndDate(hoy, amount) : "");
   }

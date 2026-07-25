@@ -14,7 +14,6 @@ import {
   parseHoraToMinutes,
   selectTodaySessions,
   summarizeLastSession,
-  toIsoDate,
 } from "@/app/trainer/trainer-day-utils";
 
 function schedule(
@@ -284,16 +283,15 @@ describe("buildAbsenceNotice", () => {
   });
 });
 
-describe("toIsoDate / monthToDateRange", () => {
-  it("formats from LOCAL components, not UTC", () => {
-    // 23:30 local on the 23rd is already the 24th in UTC for UTC+n — a
-    // `toISOString().slice(0,10)` here would report the wrong day.
-    expect(toIsoDate(new Date(2026, 6, 23, 23, 30))).toBe("2026-07-23");
-    expect(toIsoDate(new Date(2026, 0, 5))).toBe("2026-01-05");
-  });
-
+describe("monthToDateRange", () => {
+  // Date formatting itself is `@/lib/club-date`'s contract and is tested
+  // there, in club time. What matters here is only that this alias still
+  // spans first-of-month through the reference day.
   it("spans the first of the month through the reference day", () => {
-    expect(monthToDateRange(NOW)).toEqual({
+    // An explicit instant, not a local-components `Date`: the range resolves
+    // in club time, so a fixture built from the runner's zone would drift on
+    // any machine far enough from Ecuador.
+    expect(monthToDateRange(new Date("2026-07-23T17:00:00Z"))).toEqual({
       fechaInicio: "2026-07-01",
       fechaFin: "2026-07-23",
     });

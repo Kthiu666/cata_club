@@ -19,6 +19,7 @@
  */
 
 import type { EstadoAsistencia } from "@/types/domain";
+import { buildDateRange, type DateRange } from "@/lib/club-date";
 import type {
   AttendanceRecord,
   TrainingSchedule,
@@ -261,19 +262,20 @@ export function buildAbsenceNotice(alert: AbsenceAlert): string {
 // Date ranges
 // ---------------------------------------------------------------------------
 
-/** "YYYY-MM-DD" from LOCAL date components (never `toISOString`, which is UTC). */
-export function toIsoDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-/** First day of `reference`'s month through `reference` itself, inclusive. */
-export function monthToDateRange(reference: Date = new Date()): {
-  fechaInicio: string;
-  fechaFin: string;
-} {
-  const first = new Date(reference.getFullYear(), reference.getMonth(), 1);
-  return { fechaInicio: toIsoDate(first), fechaFin: toIsoDate(reference) };
+/**
+ * First day of the club month containing `instant`, through that same club day.
+ *
+ * A thin alias over the shared `this_month` preset — kept because the trainer
+ * dashboard reads better calling it by name, but deliberately NOT a second
+ * implementation of the rule.
+ *
+ * `instant` is an INSTANT (`new Date()`), not a calendar date: it is resolved
+ * through the club's time zone before the month is read off it. Passing a
+ * noon-anchored calendar `Date` — the shape `clubToday()` returns and that
+ * other callers in this codebase build — would silently shift the range for
+ * any device far enough from Ecuador. See `@/lib/club-date` for the
+ * instant-vs-calendar-date split this name is honouring.
+ */
+export function monthToDateRange(instant: Date = new Date()): DateRange {
+  return buildDateRange("this_month", instant);
 }

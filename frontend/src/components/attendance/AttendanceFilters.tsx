@@ -24,7 +24,7 @@ import { useCallback, useMemo, useState } from "react";
 import StudentSearch from "@/components/StudentSearch";
 import { Button, FilterPill } from "@/components/ui";
 import { formatDay, type TrainingSchedule } from "@/app/attendance/attendance-utils";
-import type { DateRangePreset } from "@/app/trainer/trainer-history-utils";
+import type { DateRangePreset } from "@/lib/club-date";
 import type { PersonaBusqueda } from "@/types/domain";
 import {
   buildAttendanceQuery,
