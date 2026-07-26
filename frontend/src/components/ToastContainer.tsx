@@ -93,6 +93,28 @@ export default function ToastContainer(): React.ReactElement | null {
               )}
             </div>
 
+            {/*
+             * The undo, when the caller offered one. It sits inside the toast
+             * rather than replacing the close button because the two are
+             * different decisions: "put it back" and "I have read this".
+             *
+             * Underlined, not just coloured — the fill behind it is already a
+             * solid variant colour, so a colour-only affordance would have no
+             * second channel to distinguish it from the text above it.
+             */}
+            {toast.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  toast.action?.onAction();
+                  removeToast(toast.id);
+                }}
+                className="shrink-0 self-center rounded px-2 py-1 text-[12.5px] font-bold uppercase tracking-[0.06em] text-current underline underline-offset-2 transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-current"
+              >
+                {toast.action.label}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => removeToast(toast.id)}

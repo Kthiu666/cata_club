@@ -12,6 +12,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import TrainerAttendancePage from "@/app/trainer/attendance/page";
 import { createAuthenticatedAuth } from "@/components/__tests__/test-utils";
 import { ToastProvider } from "@/contexts/ToastContext";
+import ToastContainer from "@/components/ToastContainer";
 import { resetTestHistory, useTestSearchParams } from "@/lib/__tests__/next-navigation-double";
 
 const mockReplace = vi.fn();
@@ -1380,5 +1381,139 @@ describe("TrainerAttendancePage — Back walks the steps instead of leaving", ()
 
     expect(await screen.findByText("Elija el horario")).toBeInTheDocument();
     await waitFor(() => expect(window.location.search).toBe("?paso=1"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Undo, on the screen with the most marks to lose.
+//
+// "No existe deshacer en ninguna parte" was the evaluation's third blocker,
+// and the roll call is where it costs most: forty rows, a tap target that
+// cycles state, and one bulk action that rewrites every untouched row at once —
+// including rows on pages the trainer never scrolled to. "Corregir" in the
+// history is a separate trip through the wizard, not an undo.
+// ---------------------------------------------------------------------------
+
+describe("TrainerAttendancePage — undo", () => {
+  beforeEach(() => {
+    mockReplace.mockReset();
+    mockFetchTrainingSchedules.mockReset().mockResolvedValue([SCHEDULE]);
+    mockFetchAlumnosPorHorario.mockReset().mockResolvedValue(buildAlumnoHorarios(3));
+    mockFetchAttendanceRecords.mockReset().mockResolvedValue([]);
+    mockRegisterAttendance.mockReset().mockResolvedValue({ createdCount: 3, failed: [] });
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    window.sessionStorage.clear();
+  });
+
+  function stateOf(name: string, label: string): string | null {
+    const group = screen.getByRole("radiogroup", { name: new RegExp(name) });
+    return within(group).getByRole("radio", { name: label }).getAttribute("aria-checked");
+  }
+
+  it("offers nothing to undo before the trainer has marked anything", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+    await screen.findByText("Student 01");
+
+    expect(screen.getByRole("button", { name: /deshacer/i })).toBeDisabled();
+  });
+
+  it("puts a single mark back", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+
+    const group = await screen.findByRole("radiogroup", { name: /Student 01/ });
+    fireEvent.click(within(group).getByRole("radio", { name: "Ausente" }));
+    expect(stateOf("Student 01", "Ausente")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: /deshacer/i }));
+
+    expect(stateOf("Student 01", "Presente")).toBe("true");
+  });
+
+  it("puts the row back to UNREVIEWED, not merely back to Presente", async () => {
+    // The value and the decision are different facts on this screen. An undo
+    // that restored "Presente" but left the row counted as reviewed would
+    // launder "nobody looked" into "confirmed" — the exact laundering the
+    // unreviewed counter exists to prevent.
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+
+    const group = await screen.findByRole("radiogroup", { name: /Student 01/ });
+    fireEvent.click(within(group).getByRole("radio", { name: "Ausente" }));
+    expect(screen.getByText("2 sin revisar")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /deshacer/i }));
+
+    expect(screen.getByText("3 sin revisar")).toBeInTheDocument();
+  });
+
+  it("says what it is about to undo", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+
+    const group = await screen.findByRole("radiogroup", { name: /Student 01/ });
+    fireEvent.click(within(group).getByRole("radio", { name: "Ausente" }));
+
+    expect(
+      screen.getByRole("button", { name: /deshacer: marcar a student 01/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("walks back more than one mark", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+
+    const first = await screen.findByRole("radiogroup", { name: /Student 01/ });
+    fireEvent.click(within(first).getByRole("radio", { name: "Ausente" }));
+    const second = screen.getByRole("radiogroup", { name: /Student 02/ });
+    fireEvent.click(within(second).getByRole("radio", { name: "Tardanza" }));
+
+    const undo = screen.getByRole("button", { name: /deshacer/i });
+    fireEvent.click(undo);
+    expect(stateOf("Student 02", "Presente")).toBe("true");
+    expect(stateOf("Student 01", "Ausente")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: /deshacer/i }));
+    expect(stateOf("Student 01", "Presente")).toBe("true");
+    expect(screen.getByRole("button", { name: /deshacer/i })).toBeDisabled();
+  });
+
+  it("undoes the bulk action as one step, not three", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+    await screen.findByText("Student 01");
+
+    fireEvent.click(screen.getByRole("button", { name: /marcar restantes presentes/i }));
+    expect(screen.queryByText(/sin revisar/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^deshacer/i }));
+
+    expect(screen.getByText("3 sin revisar")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^deshacer/i })).toBeDisabled();
+  });
+
+  it("offers the bulk undo in the toast too — it changes rows nobody can see", async () => {
+    // 25 students is three pages. "Marcar restantes presentes" rewrites rows on
+    // pages 2 and 3 that the trainer never scrolled to, so the confirmation of
+    // that action has to carry its own way back.
+    mockFetchAlumnosPorHorario.mockResolvedValue(buildAlumnoHorarios(25));
+    // The toast stack is mounted by the root layout in the real app; this is
+    // the one case that asserts on what the toast itself renders.
+    render(
+      <ToastProvider>
+        <TrainerAttendancePage />
+        <ToastContainer />
+      </ToastProvider>,
+    );
+    await openRoster();
+    await screen.findByText("Student 01");
+
+    fireEvent.click(screen.getByRole("button", { name: /marcar restantes presentes/i }));
+
+    const toast = await screen.findByRole("status");
+    fireEvent.click(within(toast).getByRole("button", { name: "Deshacer" }));
+
+    expect(screen.getByText("25 sin revisar")).toBeInTheDocument();
   });
 });

@@ -77,6 +77,7 @@ import {
   FileText,
   CheckCircle,
   ChevronLeft,
+  Undo2,
   ChevronRight,
   ChevronDown,
   AlertTriangle,
@@ -135,6 +136,19 @@ import { useWizardHistory } from "@/lib/wizard-history";
 
 type WizardStep = "select-session" | "mark-attendance" | "confirm";
 
+/** One reversible marking action: the roster before it, and what it was. */
+interface RosterUndoEntry {
+  students: SessionStudent[];
+  label: string;
+}
+
+/**
+ * How many marking actions stay reversible. Deep enough to cover "I tapped the
+ * wrong row three times in a row", shallow enough that a 40-student roster
+ * never pins forty copies of itself in memory.
+ */
+const UNDO_DEPTH = 20;
+
 const STEP_ORDER: WizardStep[] = ["select-session", "mark-attendance", "confirm"];
 
 /** The card heading per step. */
@@ -175,7 +189,7 @@ const TOTAL_ORDER: EstadoAsistencia[] = ["present", "late", "justified", "absent
 
 function TrainerAttendanceWizard(): React.ReactElement {
   const { session } = useAuth();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
 
   const [schedules, setSchedules] = useState<TrainingSchedule[]>([]);
   const [loading, setLoading] = useState(true);
@@ -203,6 +217,8 @@ function TrainerAttendanceWizard(): React.ReactElement {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [result, setResult] = useState<RegisterAttendanceResult | null>(null);
+  /** Roster snapshots, newest last. One entry per marking action. */
+  const [undoStack, setUndoStack] = useState<RosterUndoEntry[]>([]);
 
   const loadOptions = useCallback(async (): Promise<void> => {
     try {
@@ -348,6 +364,10 @@ function TrainerAttendanceWizard(): React.ReactElement {
         withDraft !== roster && countUnreviewed(withDraft) < countUnreviewed(roster),
       );
       setStudents(withDraft);
+      // A roster that just loaded has no marking actions behind it — an undo
+      // stack carried over from a previous horario would restore the wrong
+      // session's marks.
+      setUndoStack([]);
       setStudentPage(1);
       setOnlyUnreviewed(false);
       goToStep("mark-attendance");
@@ -387,15 +407,42 @@ function TrainerAttendanceWizard(): React.ReactElement {
     });
   }
 
-  /** Every path that changes a mark funnels through here, so does the draft. */
+  /**
+   * Every path that changes a mark funnels through here, so does the draft —
+   * and so does the undo stack.
+   *
+   * The stack holds the roster AS IT WAS, not a description of the edit, which
+   * is what lets one entry undo the bulk action's forty simultaneous changes
+   * exactly as easily as it undoes one tap. It also restores `reviewed`, and
+   * that is the part that matters: putting a row back to "Presente" while
+   * leaving it counted as reviewed would launder "nobody looked" into
+   * "confirmed", which is precisely what the unreviewed counter exists to stop.
+   */
   const commitStudents = useCallback(
-    (next: SessionStudent[]): void => {
+    (next: SessionStudent[], undoLabel: string): void => {
+      setUndoStack((stack) => {
+        const grown = [...stack, { students, label: undoLabel }];
+        return grown.length > UNDO_DEPTH ? grown.slice(grown.length - UNDO_DEPTH) : grown;
+      });
       setStudents(next);
       setRestoredFromDraft(false);
       if (draftKey) saveAttendanceDraft(draftKey, next);
     },
-    [draftKey],
+    [draftKey, students],
   );
+
+  const lastUndoable = undoStack[undoStack.length - 1] ?? null;
+
+  const handleUndo = useCallback((): void => {
+    setUndoStack((stack) => {
+      const previous = stack[stack.length - 1];
+      if (!previous) return stack;
+      setStudents(previous.students);
+      setRestoredFromDraft(false);
+      if (draftKey) saveAttendanceDraft(draftKey, previous.students);
+      return stack.slice(0, -1);
+    });
+  }, [draftKey]);
 
   /**
    * Every mark the trainer makes is also a REVIEW of that student — including
@@ -406,6 +453,7 @@ function TrainerAttendanceWizard(): React.ReactElement {
   function handleDirectAttendanceSet(studentIndex: number, state: EstadoAsistencia): void {
     commitStudents(
       students.map((s, i) => (i === studentIndex ? { ...s, attendance: state, reviewed: true } : s)),
+      `marcar a ${students[studentIndex]?.name ?? "un alumno"}`,
     );
   }
 
@@ -415,6 +463,7 @@ function TrainerAttendanceWizard(): React.ReactElement {
       students.map((s, i) =>
         i === studentIndex ? { ...s, attendance: tapWizardAttendance(s), reviewed: true } : s,
       ),
+      `marcar a ${students[studentIndex]?.name ?? "un alumno"}`,
     );
   }
 
@@ -423,9 +472,33 @@ function TrainerAttendanceWizard(): React.ReactElement {
    * in one tap that everyone they have not touched is present. Marks the
    * trainer already made are preserved. Applies to the whole roster, not just
    * the visible page or the current filter.
+   *
+   * It also carries its own undo in the confirmation toast. The commit bar's
+   * "Deshacer" would reverse it just as well, but this action rewrites rows on
+   * roster pages the trainer never scrolled to — the confirmation is the only
+   * place those changes are ever mentioned, so it is where the way back
+   * belongs.
    */
   function handleMarkRemainingPresent(): void {
-    commitStudents(markRemainingPresent(students));
+    const affected = countUnreviewed(students);
+    if (affected === 0) return;
+    const previous = students;
+    commitStudents(markRemainingPresent(students), "marcar restantes presentes");
+    showSuccess(
+      affected === 1 ? "1 alumno marcado presente" : `${affected} alumnos marcados presentes`,
+      {
+        description: "Quedaban sin revisar. Puede deshacerlo desde aquí.",
+        action: {
+          label: "Deshacer",
+          onAction: () => {
+            setStudents(previous);
+            setRestoredFromDraft(false);
+            if (draftKey) saveAttendanceDraft(draftKey, previous);
+            setUndoStack((stack) => stack.slice(0, -1));
+          },
+        },
+      },
+    );
   }
 
   async function handleConfirm(e: FormEvent<HTMLFormElement>): Promise<void> {
@@ -472,6 +545,7 @@ function TrainerAttendanceWizard(): React.ReactElement {
     setSessionDate(null);
     setRestoredFromDraft(false);
     setStudents([]);
+    setUndoStack([]);
     setSearchFilter("");
     setOnlyUnreviewed(false);
     setConfirmed(false);
@@ -1159,6 +1233,32 @@ function TrainerAttendanceWizard(): React.ReactElement {
                           <Button type="button" variant="ghost" onClick={handleBack} disabled={submitting}>
                             <ChevronLeft size={14} strokeWidth={2} aria-hidden="true" />
                             Atrás
+                          </Button>
+                        )}
+
+                        {/*
+                         * Undo lives in the commit bar, beside the step
+                         * navigation, because that bar is `sticky bottom-0`:
+                         * on a forty-row roster it is the only control that is
+                         * always within reach of the row you just mistyped.
+                         * Disabled rather than hidden — a control that appears
+                         * and disappears under the thumb is a control you
+                         * cannot aim at.
+                         */}
+                        {step === "mark-attendance" && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={handleUndo}
+                            disabled={lastUndoable === null || submitting}
+                            aria-label={
+                              lastUndoable
+                                ? `Deshacer: ${lastUndoable.label}`
+                                : "Deshacer — no hay nada que deshacer"
+                            }
+                          >
+                            <Undo2 size={14} strokeWidth={2} aria-hidden="true" />
+                            Deshacer
                           </Button>
                         )}
 
