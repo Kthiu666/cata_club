@@ -115,6 +115,7 @@ import {
   getTotalPages,
 } from "@/app/attendance/attendance-utils";
 import BackLink from "@/components/BackLink";
+import FirstRunHint from "@/components/FirstRunHint";
 import { Badge, Button, EmptyState, ErrorState, LoadingState, Pagination, Stepper, buttonClasses } from "@/components/ui";
 import { getUserInitials } from "@/lib/auth-utils";
 import { clubIsoDate, todayDiaSemana } from "@/lib/club-date";
@@ -1213,6 +1214,22 @@ function TrainerAttendanceWizard(): React.ReactElement {
               />
 
               <div className="mx-auto max-w-3xl">
+                {/*
+                 * The rule the roll call is built around and cannot say in
+                 * place: everybody starts on "Presente" so a full session is
+                 * zero taps, which means the big number reads 45/45 from the
+                 * first second whether anyone looked or not. The unreviewed
+                 * counter is what keeps that honest — and a trainer who does
+                 * not know why it is there reads it as a nag.
+                 */}
+                {step === "mark-attendance" && (
+                  <FirstRunHint id="roll-call-present-is-a-default" className="mb-4">
+                    Todos empiezan en <strong className="font-bold text-ink">Presente</strong> para
+                    que una sesión completa no cueste ni un toque. El contador de{" "}
+                    <strong className="font-bold text-ink">sin revisar</strong> le dice a cuántos
+                    todavía nadie miró.
+                  </FirstRunHint>
+                )}
                 <div className="rounded-card border border-line bg-paper p-5 sm:p-6">
                   <h2 className="mb-4 text-[13px] font-bold text-ink">{STEP_LABELS[step]}</h2>
 
