@@ -2,7 +2,7 @@
        lint lint-backend lint-frontend typecheck build build-frontend \
        install install-backend install-frontend \
        docker-up docker-down docker-build \
-       migrate migrate-create seed clean
+       migrate migrate-create db-reset seed clean
 
 # ─── Default ────────────────────────────────────────────────────────────────
 help: ## Show this help
@@ -78,6 +78,9 @@ migrate: ## Run Alembic migrations
 
 migrate-create: ## Create a new Alembic migration (usage: make migrate-create MSG="add foo")
 	cd backend && uv run alembic revision --autogenerate -m "$(MSG)"
+
+db-reset: ## DESTRUCTIVE (dev only): drop+recreate schema, migrate from empty, reseed. See backend/scripts/RUNBOOK_reset_db.md
+	cd backend && uv run python scripts/reset_dev_db.py
 
 # ─── Seed ───────────────────────────────────────────────────────────────────
 seed: ## Create dev admin user
