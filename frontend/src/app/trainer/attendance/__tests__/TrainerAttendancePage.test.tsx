@@ -8,16 +8,21 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import TrainerAttendancePage from "@/app/trainer/attendance/page";
 import { createAuthenticatedAuth } from "@/components/__tests__/test-utils";
 import { ToastProvider } from "@/contexts/ToastContext";
+import { resetTestHistory, useTestSearchParams } from "@/lib/__tests__/next-navigation-double";
 
 const mockReplace = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/trainer/attendance",
   useRouter: () => ({ push: vi.fn(), replace: mockReplace }),
+  // The wizard's step now lives in the query string. The double is backed by
+  // jsdom's real history so these tests exercise the same URL the browser
+  // would show, rather than a step frozen at mount.
+  useSearchParams: () => useTestSearchParams(),
 }));
 
 vi.mock("next/link", () => ({
@@ -80,9 +85,15 @@ const TUESDAY_IN_CLUB_TIME = new Date("2026-07-21T15:00:00Z");
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(TUESDAY_IN_CLUB_TIME);
+  // Each case starts on step 1 with a clean address bar; the wizard reads its
+  // step from there now, so a URL left behind by the previous case would
+  // decide where the next one opens.
+  resetTestHistory("/trainer/attendance");
 });
 
 afterEach(() => {
+  cleanup();
+  resetTestHistory("/");
   vi.useRealTimers();
 });
 
@@ -1283,5 +1294,91 @@ describe("TrainerAttendancePage — the picker opens on today", () => {
     expect(await screen.findByText("No hay horarios registrados")).toBeInTheDocument();
     expect(screen.queryByText(/No hay entrenamientos hoy/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ver todos los días" })).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The browser's Back button used to destroy the roll call.
+//
+// The three steps were `useState`, not history entries, so Back from step 2 or
+// 3 left the wizard entirely — a half-marked list of forty students gone in one
+// tap, with no warning. The usability evaluation named it as one of the four
+// things blocking the target. The step now lives in the URL, so Back walks the
+// steps, and the roster the trainer already marked is still there when they
+// come forward again.
+// ---------------------------------------------------------------------------
+
+describe("TrainerAttendancePage — Back walks the steps instead of leaving", () => {
+  beforeEach(() => {
+    mockReplace.mockReset();
+    mockFetchTrainingSchedules.mockReset().mockResolvedValue([SCHEDULE]);
+    mockFetchAlumnosPorHorario.mockReset().mockResolvedValue(buildAlumnoHorarios(3));
+    mockFetchAttendanceRecords.mockReset().mockResolvedValue([]);
+    mockRegisterAttendance.mockReset().mockResolvedValue({ createdCount: 3, failed: [] });
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("trainer", "Coach Torres"));
+    window.sessionStorage.clear();
+  });
+
+  it("puts each step in the address bar", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+
+    await screen.findByText("Student 01");
+    expect(window.location.search).toBe("?paso=2");
+
+    fireEvent.click(screen.getByRole("button", { name: /Siguiente/i }));
+    await screen.findByText("Confirmar y finalizar");
+    expect(window.location.search).toBe("?paso=3");
+  });
+
+  it("returns to the roll call — not out of the wizard — when the browser goes back", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+    await screen.findByText("Student 01");
+
+    fireEvent.click(screen.getByRole("button", { name: /Siguiente/i }));
+    await screen.findByText("Confirmar y finalizar");
+
+    window.history.back();
+
+    // Still inside the wizard, on the step before — with the roster intact.
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "Pasar lista" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Student 01")).toBeInTheDocument();
+  });
+
+  it("keeps the marks the trainer made when they step back and forward again", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+
+    const group = await screen.findByRole("radiogroup", { name: /Student 01/ });
+    fireEvent.click(within(group).getByRole("radio", { name: "Ausente" }));
+    expect(within(group).getByRole("radio", { name: "Ausente" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Siguiente/i }));
+    await screen.findByText("Confirmar y finalizar");
+
+    window.history.back();
+    await screen.findByRole("heading", { level: 2, name: "Pasar lista" });
+
+    const again = await screen.findByRole("radiogroup", { name: /Student 01/ });
+    expect(within(again).getByRole("radio", { name: "Ausente" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("opens on the horario picker when a reload asks for a step it cannot show", async () => {
+    // A refresh on step 3: the roster only ever lived in client state.
+    resetTestHistory("/trainer/attendance?paso=3");
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+
+    expect(await screen.findByText("Elija el horario")).toBeInTheDocument();
+    await waitFor(() => expect(window.location.search).toBe("?paso=1"));
   });
 });

@@ -60,7 +60,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
@@ -127,6 +127,7 @@ import {
   type RegisterAttendanceResult,
 } from "@/services/api";
 import type { EstadoAsistencia } from "@/types/domain";
+import { useWizardHistory } from "@/lib/wizard-history";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -172,11 +173,9 @@ const TOTAL_ORDER: EstadoAsistencia[] = ["present", "late", "justified", "absent
 // Component
 // ---------------------------------------------------------------------------
 
-export default function TrainerAttendancePage(): React.ReactElement {
+function TrainerAttendanceWizard(): React.ReactElement {
   const { session } = useAuth();
   const { showError } = useToast();
-
-  const [step, setStep] = useState<WizardStep>("select-session");
 
   const [schedules, setSchedules] = useState<TrainingSchedule[]>([]);
   const [loading, setLoading] = useState(true);
@@ -266,6 +265,20 @@ export default function TrainerAttendancePage(): React.ReactElement {
     setStudentPage(1);
   }, [searchFilter, onlyUnreviewed]);
 
+  /**
+   * How far this session has actually got, which is what the URL is allowed to
+   * ask for. `sessionDate` — not `students.length` — is the honest test: it is
+   * set exactly when a roster load succeeds, so a horario with zero assigned
+   * alumnos still advances and says so, while a reload carrying `?paso=3` with
+   * no roster behind it lands back on the horario picker instead of rendering
+   * a confirmation of nothing.
+   */
+  const maxReachableStep = sessionDate === null ? 0 : STEP_ORDER.length - 1;
+  const { step, goToStep, goBack, resetToFirstStep } = useWizardHistory(
+    STEP_ORDER,
+    maxReachableStep,
+  );
+
   const currentIndex = STEP_ORDER.indexOf(step);
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === STEP_ORDER.length - 1;
@@ -337,7 +350,7 @@ export default function TrainerAttendancePage(): React.ReactElement {
       setStudents(withDraft);
       setStudentPage(1);
       setOnlyUnreviewed(false);
-      setStep("mark-attendance");
+      goToStep("mark-attendance");
     } catch (err) {
       console.error("[trainer/attendance] fetchAlumnosPorHorario failed", err);
       setRosterError("No se pudo cargar el listado de estudiantes de este horario.");
@@ -346,17 +359,19 @@ export default function TrainerAttendancePage(): React.ReactElement {
     }
   }
 
+  /**
+   * "Atrás" IS the browser's Back. Two ways to go back that push different
+   * history is how the roll call got destroyed in the first place — the button
+   * stepped back one card while the browser's Back left the wizard entirely.
+   */
   function handleBack(): void {
-    const prevIdx = currentIndex - 1;
-    if (prevIdx >= 0) {
-      setStep(STEP_ORDER[prevIdx]);
-    }
+    if (currentIndex > 0) goBack();
   }
 
   function handleNext(): void {
     const nextIdx = currentIndex + 1;
     if (nextIdx < STEP_ORDER.length) {
-      setStep(STEP_ORDER[nextIdx]);
+      goToStep(STEP_ORDER[nextIdx]);
     }
   }
 
@@ -449,7 +464,10 @@ export default function TrainerAttendancePage(): React.ReactElement {
 
   function handleReset(): void {
     if (draftKey) clearAttendanceDraft(draftKey);
-    setStep("select-session");
+    // Replace rather than push: "Registrar otra asistencia" starts a new roll
+    // call, so leaving the finished one on the back stack would offer to
+    // return to a session that no longer exists in this component's state.
+    resetToFirstStep();
     setSelectedScheduleId(null);
     setSessionDate(null);
     setRestoredFromDraft(false);
@@ -978,7 +996,10 @@ export default function TrainerAttendancePage(): React.ReactElement {
                   setOnlyUnreviewed(true);
                   setSearchFilter("");
                   setStudentPage(1);
-                  setStep("mark-attendance");
+                  // The roll call is the entry immediately behind this one —
+                  // going BACK to it rather than pushing a second copy keeps
+                  // the back stack the three steps the stepper promises.
+                  goBack();
                 }}
               >
                 {unreviewedCount === 1 ? "Revisar a ese alumno" : `Revisar a esos ${unreviewedCount}`}
@@ -1223,5 +1244,16 @@ export default function TrainerAttendancePage(): React.ReactElement {
       )}
       </AppShell>
     </ProtectedRoute>
+  );
+}
+
+export default function TrainerAttendancePage(): React.ReactElement {
+  // The wizard reads its step from the query string, and `useSearchParams`
+  // needs a boundary to fall back to during prerender — the same wrapper
+  // `/student/payments` and `/reset-password` use for the same reason.
+  return (
+    <Suspense>
+      <TrainerAttendanceWizard />
+    </Suspense>
   );
 }
