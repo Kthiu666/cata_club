@@ -62,6 +62,8 @@ import type {
   ValidationStatus,
 } from "@/services/api";
 import { fetchPaymentValidations, updatePaymentValidation } from "@/services/api";
+import type { UpdatePaymentValidationDTO } from "@/services/api";
+import { useDeferredCommit } from "@/lib/deferred-commit";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format-utils";
 import { useToast } from "@/contexts/ToastContext";
 import { calendarIsoDate } from "@/lib/club-date";
@@ -310,7 +312,6 @@ export default function PaymentsPage(): React.ReactElement {
   /** Selection is by id, never by object: the object is replaced on every
    *  approve/reject, and holding the old one is how a detail view goes stale. */
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [rejectionReasonKey, setRejectionReasonKey] = useState("");
@@ -457,6 +458,9 @@ export default function PaymentsPage(): React.ReactElement {
   /** The pending queue as it stood before the in-flight decision resolves. */
   const pendingBeforeDecision = useRef<PaymentValidationRequest[]>([]);
 
+  /** Holds the admin's last decision for as long as it stays reversible. */
+  const deferredDecision = useDeferredCommit();
+
   /**
    * Opening a payment swaps the queue out for the detail IN PLACE — same URL,
    * same `<main>`, no dialog. Without help, that leaves focus on a button that
@@ -491,48 +495,96 @@ export default function PaymentsPage(): React.ReactElement {
     setSelectedId(getAutoAdvanceId(pendingBeforeDecision.current, updated.id));
   }
 
-  async function handleApprove(): Promise<void> {
-    if (!selectedRequest || !checklistComplete) return;
+  /**
+   * Decide now, send in a moment — the only honest undo for this screen.
+   *
+   * Approving flips the payment, activates the membership and hands a receipt
+   * to a worker that generates a PDF. Reverting that afterwards would not be
+   * an undo, it would be a compensating transaction with visible fallout: a
+   * membership that blinked active, a receipt already sent for a payment now
+   * pending again. So the decision is held for a few seconds instead, the
+   * queue moves immediately, and "Deshacer" cancels something that never
+   * happened. `useDeferredCommit` guarantees the hold is never silently
+   * dropped: another decision, leaving the page, or closing the tab all send
+   * it rather than discard it.
+   */
+  function decide(
+    request: PaymentValidationRequest,
+    optimistic: PaymentValidationRequest,
+    dto: UpdatePaymentValidationDTO,
+    confirmation: { message: string; description: string; failure: string },
+  ): void {
+    const previousRequests = requests;
+    const previousSelectedId = selectedId;
+
     pendingBeforeDecision.current = pending;
-    setActionLoading("approve");
     setActionError(null);
-    try {
-      const startDate = editStartDate || selectedRequest.startDate;
-      applyDecision(
-        await updatePaymentValidation(selectedRequest.id, {
-          action: "approved",
-          startDate,
-          endDate: calcEditEndDate(startDate, editMonths),
-        }),
-      );
-      showSuccess("Pago aprobado. La membresía ahora está activa.");
-    } catch (err) {
-      console.error("[payments] approve failed", err);
-      setActionError("Error al aprobar el pago");
-    } finally {
-      setActionLoading(null);
-    }
+    applyDecision(optimistic);
+
+    const putItBack = (): void => {
+      setRequests(previousRequests);
+      setSelectedId(previousSelectedId);
+    };
+
+    showSuccess(confirmation.message, {
+      description: confirmation.description,
+      action: { label: "Deshacer", onAction: deferredDecision.undo },
+    });
+
+    deferredDecision.schedule({
+      commit: async () => {
+        const saved = await updatePaymentValidation(request.id, dto);
+        // The server owns the canonical row — dates it normalised, the
+        // validation timestamp, the validator's name.
+        setRequests((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
+      },
+      onUndo: putItBack,
+      onError: (err: unknown) => {
+        console.error("[payments] decision failed", err);
+        putItBack();
+        // The window is gone and the admin has moved on, so there is no
+        // control left to attach this to: it has to travel to them.
+        showError(confirmation.failure, {
+          description: `${request.studentName} volvió a la cola de pendientes.`,
+        });
+      },
+    });
   }
 
-  async function handleRejectSubmit(): Promise<void> {
+  function handleApprove(): void {
+    if (!selectedRequest || !checklistComplete) return;
+    const request = selectedRequest;
+    const startDate = editStartDate || request.startDate;
+    const endDate = calcEditEndDate(startDate, editMonths);
+
+    decide(
+      request,
+      { ...request, validationStatus: "validado", startDate, endDate },
+      { action: "approved", startDate, endDate },
+      {
+        message: "Pago aprobado. La membresía ahora está activa.",
+        description: "Puede deshacerlo durante unos segundos.",
+        failure: "No se pudo aprobar el pago.",
+      },
+    );
+  }
+
+  function handleRejectSubmit(): void {
     if (!selectedRequest) return;
     const rejectionReason = composeRejectionReason(rejectionReasonKey, rejectionNote);
     if (!rejectionReason) return;
+    const request = selectedRequest;
 
-    pendingBeforeDecision.current = pending;
-    setActionLoading("reject");
-    setActionError(null);
-    try {
-      applyDecision(
-        await updatePaymentValidation(selectedRequest.id, { action: "rejected", rejectionReason }),
-      );
-      showSuccess("Pago rechazado. Se le avisó al responsable con el motivo elegido.");
-    } catch (err) {
-      console.error("[payments] reject failed", err);
-      setActionError("Error al rechazar el pago");
-    } finally {
-      setActionLoading(null);
-    }
+    decide(
+      request,
+      { ...request, validationStatus: "rechazado", rejectionReason },
+      { action: "rejected", rejectionReason },
+      {
+        message: "Pago rechazado. Se le avisó al responsable con el motivo elegido.",
+        description: "Puede deshacerlo durante unos segundos.",
+        failure: "No se pudo rechazar el pago.",
+      },
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -884,13 +936,12 @@ export default function PaymentsPage(): React.ReactElement {
                     <div className="flex flex-wrap gap-2">
                       <Button
                         variant="primary"
-                        disabled={!checklistComplete || actionLoading !== null}
+                        disabled={!checklistComplete}
                         onClick={() => setConfirmApproveOpen(true)}
                       >
-                        {actionLoading === "approve" ? "Procesando…" : "Aprobar pago"}
+                        {"Aprobar pago"}
                       </Button>
                       <Button
-                        disabled={actionLoading !== null}
                         onClick={() => setShowRejectForm(true)}
                       >
                         Rechazar pago…
@@ -958,20 +1009,18 @@ export default function PaymentsPage(): React.ReactElement {
                         onChange={(e) => setRejectionNote(e.target.value)}
                         placeholder="Ej.: El comprobante dice $20,00 y la mensualidad es de $25,00."
                         className="resize-y rounded-ctl border border-line-2 bg-paper px-3 py-2 text-[13px] text-ink outline-none placeholder:text-ink-3 focus:border-ink-3"
-                        disabled={actionLoading !== null}
                       />
                     </label>
 
                     <div className="flex flex-wrap gap-2">
                       <Button
                         variant="primary"
-                        disabled={!rejectionReasonKey || actionLoading !== null}
+                        disabled={!rejectionReasonKey}
                         onClick={() => void handleRejectSubmit()}
                       >
-                        {actionLoading === "reject" ? "Procesando…" : "Rechazar y avisar"}
+                        {"Rechazar y avisar"}
                       </Button>
                       <Button
-                        disabled={actionLoading !== null}
                         onClick={() => {
                           setShowRejectForm(false);
                           setRejectionReasonKey("");

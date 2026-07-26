@@ -14,11 +14,13 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { act, cleanup, render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { UNDO_WINDOW_MS } from "@/lib/deferred-commit";
 import PaymentsPage from "@/app/payments/page";
 import type { PaymentValidationRequest } from "@/services/api";
 import { ToastProvider } from "@/contexts/ToastContext";
+import ToastContainer from "@/components/ToastContainer";
 
 vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -148,10 +150,20 @@ async function openPendingWithChecklistDone(): Promise<void> {
 }
 
 beforeEach(() => {
+  // A decision is held for a few seconds before it is sent, so the undo window
+  // is something every case has to be able to step over deliberately.
+  vi.useFakeTimers({ shouldAdvanceTime: true });
   mockFetchPaymentValidations.mockReset().mockResolvedValue([PENDING_REQUEST]);
   mockUpdatePaymentValidation.mockReset().mockImplementation((id: string) =>
     Promise.resolve({ ...PENDING_REQUEST, id, validationStatus: "validado" }),
   );
+});
+
+afterEach(() => {
+  // Unmount first: leaving the screen FLUSHES a held decision, and that must
+  // happen while the fake timers are still installed.
+  cleanup();
+  vi.useRealTimers();
 });
 
 // ---------------------------------------------------------------------------
@@ -401,6 +413,11 @@ describe("PaymentsPage — rejection", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /rechazar y avisar/i }));
 
+    // The decision is HELD for a few seconds so it can still be undone; the
+    // request goes out when that window closes.
+    await act(async () => {
+      vi.advanceTimersByTime(UNDO_WINDOW_MS);
+    });
     await waitFor(() => expect(mockUpdatePaymentValidation).toHaveBeenCalledTimes(1));
     expect(mockUpdatePaymentValidation).toHaveBeenCalledWith("req-1", {
       action: "rejected",
@@ -439,6 +456,9 @@ describe("PaymentsPage — approve confirmation gating", () => {
     fireEvent.click(screen.getByRole("button", { name: /aprobar pago/i }));
     fireEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
 
+    await act(async () => {
+      vi.advanceTimersByTime(UNDO_WINDOW_MS);
+    });
     await waitFor(() => {
       expect(mockUpdatePaymentValidation).toHaveBeenCalledTimes(1);
     });
@@ -611,5 +631,93 @@ describe("PaymentsPage — the approval checklist follows the evidence", () => {
     expect(await screen.findByLabelText(/No se recibió el pago/i)).toBeInTheDocument();
     // "El comprobante no se lee" is unusable advice for someone who paid cash.
     expect(screen.queryByLabelText(/El comprobante no se lee/i)).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Undo on a decision that cannot be taken back afterwards.
+//
+// Approving flips the payment, activates the membership and hands a receipt to
+// a worker that generates a PDF. Reverting that on the server would not be an
+// undo — it would be a membership that blinked active and a receipt already
+// sent for a payment now pending again. So the decision is HELD for a few
+// seconds: the queue moves at once, and "Deshacer" cancels something that
+// never happened.
+// ---------------------------------------------------------------------------
+
+describe("PaymentsPage — a decision stays reversible for a few seconds", () => {
+  function renderWithToasts(): void {
+    render(
+      <ToastProvider>
+        <PaymentsPage />
+        <ToastContainer />
+      </ToastProvider>,
+    );
+  }
+
+  async function approveJuan(): Promise<void> {
+    renderWithToasts();
+    await openRequest("Juan Pérez");
+    await screen.findByRole("button", { name: /aprobar pago/i });
+    completeChecklist();
+    fireEvent.click(screen.getByRole("button", { name: /aprobar pago/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
+  }
+
+  it("offers the undo on the confirmation itself", async () => {
+    await approveJuan();
+
+    const toast = await screen.findByRole("status");
+    expect(within(toast).getByRole("button", { name: "Deshacer" })).toBeInTheDocument();
+  });
+
+  it("never sends the decision when the undo is taken", async () => {
+    await approveJuan();
+
+    const toast = await screen.findByRole("status");
+    fireEvent.click(within(toast).getByRole("button", { name: "Deshacer" }));
+
+    await act(async () => {
+      vi.advanceTimersByTime(UNDO_WINDOW_MS * 2);
+    });
+    expect(mockUpdatePaymentValidation).not.toHaveBeenCalled();
+  });
+
+  it("puts the admin back in front of the payment they had just decided", async () => {
+    await approveJuan();
+
+    const toast = await screen.findByRole("status");
+    fireEvent.click(within(toast).getByRole("button", { name: "Deshacer" }));
+
+    // Undo returns the whole situation, not just the row: the payment is
+    // pending again AND the admin is looking at it, which is where they were
+    // when they made the call they took back.
+    expect(await screen.findByRole("button", { name: /aprobar pago/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /rechazar pago/i })).toBeInTheDocument();
+  });
+
+  it("sends the decision once the window closes", async () => {
+    await approveJuan();
+
+    await act(async () => {
+      vi.advanceTimersByTime(UNDO_WINDOW_MS);
+    });
+
+    expect(mockUpdatePaymentValidation).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the payment to the queue and says so when a held decision fails", async () => {
+    mockUpdatePaymentValidation.mockRejectedValue(new Error("500"));
+    await approveJuan();
+
+    await act(async () => {
+      vi.advanceTimersByTime(UNDO_WINDOW_MS);
+    });
+
+    // No control is left to attach the failure to, so it has to travel to them.
+    expect(await screen.findByText("No se pudo aprobar el pago.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Juan Pérez volvió a la cola de pendientes."),
+    ).toBeInTheDocument();
   });
 });
