@@ -96,8 +96,14 @@ export function deriveContactHours(schedules: LandingSchedule[]): string {
     .map((schedule): RegExpExecArray | null => TIME_RANGE.exec(schedule.hours))
     .filter((match): match is RegExpExecArray => match !== null);
 
-  const starts = ranges.map((match): string => match[1]).sort();
-  const ends = ranges.map((match): string => match[2]).sort();
+  // Explicit comparator, not a bare `.sort()`. These are zero-padded "HH:MM"
+  // strings, so the default sort happens to order them correctly today — but
+  // the default compares UTF-16 code units after coercing to string, which is
+  // a property of the values rather than of the code, and it silently stops
+  // holding the moment the format changes.
+  const byTime = (a: string, b: string): number => a.localeCompare(b);
+  const starts = ranges.map((match): string => match[1]).sort(byTime);
+  const ends = ranges.map((match): string => match[2]).sort(byTime);
   const opensAt = starts[0] ?? "";
   const closesAt = ends[ends.length - 1] ?? "";
   const lastDay = lastDayOfWeek(schedules.map((schedule): string => schedule.days).join(" "));

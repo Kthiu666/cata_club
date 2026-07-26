@@ -277,7 +277,11 @@ function ProfileLayout(props: ProfileLayoutProps): React.ReactElement {
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [fotoError, setFotoError] = useState<string | null>(null);
 
-  const perfil = props.kind === "staff" ? props.perfil : props.perfil;
+  // `perfil` is on BOTH members of the union — `PerfilPropio` on staff,
+  // `PerfilPropio | null` on student — so it reads directly. This used to be a
+  // ternary whose two branches were the identical expression, written to
+  // satisfy narrowing that was never needed.
+  const perfil: PerfilPropio | null = props.perfil;
   const currentFotoUrl = perfil?.fotoUrl;
 
   async function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {

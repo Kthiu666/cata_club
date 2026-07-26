@@ -170,8 +170,13 @@ export function resolveActiveHref(navLinks: NavLinkDef[], pathname: string): str
     (link) => pathname === link.href || pathname.startsWith(`${link.href}/`),
   );
   if (matches.length === 0) return null;
-  return matches.reduce((longest, link) => (link.href.length > longest.href.length ? link : longest))
-    .href;
+  // Seeded with `matches[0]` rather than relying on `reduce`'s no-initial-value
+  // form: the guard above already makes an empty array impossible, but an
+  // unseeded reduce throws on one, and the guard and the reduce can drift apart.
+  return matches.reduce(
+    (longest, link) => (link.href.length > longest.href.length ? link : longest),
+    matches[0],
+  ).href;
 }
 
 /**
