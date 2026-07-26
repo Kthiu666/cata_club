@@ -8,15 +8,20 @@
  * (different label, different control height, different focus ring), which is
  * the drift a third screen would have tripled.
  *
- * The hook is the load-bearing half: `managedProfiles` is derived on every
- * render, so anchoring the selection to it needs the id-list comparison below
- * rather than a reference check.
+ * The hook is the load-bearing half, and the selection it returns does NOT
+ * live in it: three route segments mean three mounts, and a `useState` here
+ * resets on every navigation between them. `managed-selection-store` owns the
+ * value; this hook only resolves it against the profiles the account actually
+ * manages.
  */
 
 "use client";
 
-import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
+import {
+  setSelectedPersonaId,
+  useSelectedPersonaId,
+} from "./managed-selection-store";
 import type { StudentPortalSummary, StudentProfileSummary } from "@/services/api";
 
 export interface ManagedProfilesState {
@@ -42,25 +47,23 @@ export function useManagedProfiles(
   const managedProfiles: StudentProfileSummary[] =
     hasAlumnoRole && data.self ? [data.self, ...data.representados] : data.representados;
 
-  const [selectedId, setSelectedId] = useState<string>(managedProfiles[0]?.personaId ?? "");
+  const storedId = useSelectedPersonaId();
 
-  const profileIds = managedProfiles.map((profile) => profile.personaId).join(",");
-
-  useEffect(() => {
-    if (!managedProfiles.some((profile) => profile.personaId === selectedId)) {
-      setSelectedId(managedProfiles[0]?.personaId ?? "");
-    }
-    // Re-anchor only when the SET of managed ids changes — `managedProfiles`
-    // is a fresh array on every render, so it cannot be the dependency.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profileIds]);
-
+  // Resolving the stored id against the current list replaces the effect that
+  // used to re-anchor it. A stored id that is no longer managed — the account
+  // changed, or a dependent was removed — simply loses the `find` and falls
+  // back, with no render where the screen points at a profile it cannot show.
   const selectedProfile =
-    managedProfiles.find((profile) => profile.personaId === selectedId) ??
+    managedProfiles.find((profile) => profile.personaId === storedId) ??
     managedProfiles[0] ??
     null;
 
-  return { managedProfiles, selectedId, setSelectedId, selectedProfile };
+  return {
+    managedProfiles,
+    selectedId: selectedProfile?.personaId ?? "",
+    setSelectedId: setSelectedPersonaId,
+    selectedProfile,
+  };
 }
 
 export interface ManagedStudentPickerProps {
