@@ -39,6 +39,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export const UNDO_WINDOW_MS = 8000;
 
 export interface DeferredCommitRequest {
+  /**
+   * What is being held, in the user's words — "Aprobación de Juan Pérez".
+   *
+   * A held mutation is a state the user is IN, and a toast is a state that
+   * scrolls away: it dismisses itself, and it can be dismissed by hand or
+   * buried under the next one. Whatever surface shows the hold needs the label
+   * to say what it is about, so the hold is visible for as long as it lasts
+   * rather than for as long as a toast happens to survive.
+   */
+  label: string;
   /** Runs when the window closes, or when a flush is forced. */
   commit: () => Promise<void>;
   /** Runs instead of `commit` when the user takes the undo back. */
@@ -56,12 +66,14 @@ export interface DeferredCommitHandle {
   flush: () => void;
   /** Whether a mutation is currently held — for disabling conflicting UI. */
   isPending: boolean;
+  /** The held mutation's label, or `null` when nothing is held. */
+  pendingLabel: string | null;
 }
 
 export function useDeferredCommit(windowMs: number = UNDO_WINDOW_MS): DeferredCommitHandle {
   const pending = useRef<DeferredCommitRequest | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [isPending, setIsPending] = useState(false);
+  const [pendingLabel, setPendingLabel] = useState<string | null>(null);
 
   const clearTimer = useCallback((): void => {
     if (timer.current !== null) {
@@ -80,7 +92,7 @@ export function useDeferredCommit(windowMs: number = UNDO_WINDOW_MS): DeferredCo
     const request = pending.current;
     if (!request) return;
     pending.current = null;
-    setIsPending(false);
+    setPendingLabel(null);
     request.commit().catch(request.onError);
   }, [clearTimer]);
 
@@ -89,7 +101,7 @@ export function useDeferredCommit(windowMs: number = UNDO_WINDOW_MS): DeferredCo
     const request = pending.current;
     if (!request) return;
     pending.current = null;
-    setIsPending(false);
+    setPendingLabel(null);
     request.onUndo();
   }, [clearTimer]);
 
@@ -98,7 +110,7 @@ export function useDeferredCommit(windowMs: number = UNDO_WINDOW_MS): DeferredCo
       // Decisions reach the server in the order they were made.
       flush();
       pending.current = request;
-      setIsPending(true);
+      setPendingLabel(request.label);
       timer.current = setTimeout(flush, windowMs);
     },
     [flush, windowMs],
@@ -118,5 +130,5 @@ export function useDeferredCommit(windowMs: number = UNDO_WINDOW_MS): DeferredCo
     };
   }, [flush]);
 
-  return { schedule, undo, flush, isPending };
+  return { schedule, undo, flush, isPending: pendingLabel !== null, pendingLabel };
 }

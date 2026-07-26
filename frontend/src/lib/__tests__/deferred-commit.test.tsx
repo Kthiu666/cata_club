@@ -24,6 +24,7 @@ afterEach(() => {
 
 function request(overrides: Partial<Parameters<ReturnType<typeof useDeferredCommit>["schedule"]>[0]> = {}) {
   return {
+    label: "Aprobación de Juan Pérez",
     commit: vi.fn().mockResolvedValue(undefined),
     onUndo: vi.fn(),
     onError: vi.fn(),
@@ -41,6 +42,9 @@ describe("useDeferredCommit", () => {
 
     expect(first.commit).not.toHaveBeenCalled();
     expect(result.current.isPending).toBe(true);
+    // A toast dismisses itself; the hold has to be visible for as long as it
+    // actually lasts, so the label travels with it.
+    expect(result.current.pendingLabel).toBe("Aprobación de Juan Pérez");
   });
 
   it("sends it once the window closes", () => {
@@ -52,6 +56,7 @@ describe("useDeferredCommit", () => {
 
     expect(first.commit).toHaveBeenCalledTimes(1);
     expect(result.current.isPending).toBe(false);
+    expect(result.current.pendingLabel).toBeNull();
   });
 
   it("cancels the request entirely on undo — the server never hears about it", () => {

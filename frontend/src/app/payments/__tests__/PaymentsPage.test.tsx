@@ -121,6 +121,21 @@ function renderPage(): void {
  * evaluates no media query, so both are in the document. Every queue assertion
  * scopes itself to one of the two on purpose.
  */
+/**
+ * Both the toast and the queue's hold indicator are `role="status"`, which is
+ * right for both — they are each announcing an outcome. Tests have to say
+ * which one they mean.
+ */
+async function liveRegionSaying(text: RegExp): Promise<HTMLElement> {
+  return waitFor(() => {
+    const match = screen
+      .getAllByRole("status")
+      .find((region) => text.test(region.textContent ?? ""));
+    if (!match) throw new Error(`No live region matching ${text}`);
+    return match;
+  });
+}
+
 function queueTable(): HTMLElement {
   return screen.getByTestId("payments-table");
 }
@@ -149,7 +164,34 @@ async function openPendingWithChecklistDone(): Promise<void> {
   completeChecklist();
 }
 
+/**
+ * Node's jsdom here ships no `localStorage` (the experimental global needs
+ * `--localstorage-file`), and the queue now remembers its filter there.
+ */
+function createMemoryStorage(): Storage {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string): string | null => (key in store ? store[key] : null),
+    setItem: (key: string, value: string): void => {
+      store[key] = String(value);
+    },
+    removeItem: (key: string): void => {
+      delete store[key];
+    },
+    clear: (): void => {
+      store = {};
+    },
+    key: (index: number): string | null => Object.keys(store)[index] ?? null,
+    get length(): number {
+      return Object.keys(store).length;
+    },
+  } as Storage;
+}
+
 beforeEach(() => {
+  // Each case starts with no remembered filter, so one case's choice cannot
+  // decide where the next one opens.
+  vi.stubGlobal("localStorage", createMemoryStorage());
   // A decision is held for a few seconds before it is sent, so the undo window
   // is something every case has to be able to step over deliberately.
   vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -164,6 +206,7 @@ afterEach(() => {
   // happen while the fake timers are still installed.
   cleanup();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 // ---------------------------------------------------------------------------
@@ -667,14 +710,14 @@ describe("PaymentsPage — a decision stays reversible for a few seconds", () =>
   it("offers the undo on the confirmation itself", async () => {
     await approveJuan();
 
-    const toast = await screen.findByRole("status");
+    const toast = await liveRegionSaying(/Pago aprobado/);
     expect(within(toast).getByRole("button", { name: "Deshacer" })).toBeInTheDocument();
   });
 
   it("never sends the decision when the undo is taken", async () => {
     await approveJuan();
 
-    const toast = await screen.findByRole("status");
+    const toast = await liveRegionSaying(/Pago aprobado/);
     fireEvent.click(within(toast).getByRole("button", { name: "Deshacer" }));
 
     await act(async () => {
@@ -686,7 +729,7 @@ describe("PaymentsPage — a decision stays reversible for a few seconds", () =>
   it("puts the admin back in front of the payment they had just decided", async () => {
     await approveJuan();
 
-    const toast = await screen.findByRole("status");
+    const toast = await liveRegionSaying(/Pago aprobado/);
     fireEvent.click(within(toast).getByRole("button", { name: "Deshacer" }));
 
     // Undo returns the whole situation, not just the row: the payment is
@@ -719,5 +762,120 @@ describe("PaymentsPage — a decision stays reversible for a few seconds", () =>
     expect(
       screen.getByText("Juan Pérez volvió a la cola de pendientes."),
     ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The queue remembers where the admin works from.
+//
+// Whoever validates payments opens this screen on "Pendientes" every morning
+// because that is the job. Making them re-pick it on every visit is a tax on
+// the screen they use most, and it was the other half of the P7 backlog item
+// that had not moved since the prototype.
+// ---------------------------------------------------------------------------
+
+describe("PaymentsPage — the chosen filter outlives the visit", () => {
+  it("opens on Pendientes for an admin who has never chosen", async () => {
+    renderPage();
+    await screen.findByTestId("payments-table");
+
+    expect(screen.getByRole("button", { name: /Pendientes/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("remembers the filter for the next visit", async () => {
+    renderPage();
+    await screen.findByTestId("payments-table");
+    fireEvent.click(screen.getByRole("button", { name: /Todas/ }));
+
+    cleanup();
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Todas/ })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      ),
+    );
+  });
+
+  it("falls back to Pendientes when the stored filter no longer exists", async () => {
+    // A key renamed in a later release would otherwise leave the admin looking
+    // at an empty list with a pill highlighted that is not in the row.
+    window.localStorage.setItem("cata:pref:payments-queue-filter", "PENDIENTE_VALIDACION");
+
+    renderPage();
+    await screen.findByTestId("payments-table");
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Pendientes/ })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      ),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A held decision is a state you are IN.
+//
+// The toast that announces it dismisses itself, can be dismissed by hand, and
+// gets buried by the next one. So "did that actually go through?" needed an
+// answer that lasts exactly as long as the hold does.
+// ---------------------------------------------------------------------------
+
+describe("PaymentsPage — the hold is visible while it lasts", () => {
+  async function approveJuanBare(): Promise<void> {
+    renderPage();
+    await openRequest("Juan Pérez");
+    await screen.findByRole("button", { name: /aprobar pago/i });
+    completeChecklist();
+    fireEvent.click(screen.getByRole("button", { name: /aprobar pago/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
+  }
+
+  it("names what is being held, on the queue itself", async () => {
+    await approveJuanBare();
+
+    expect(
+      await screen.findByText(/Aprobación de Juan Pérez — se envía en unos segundos/),
+    ).toBeInTheDocument();
+  });
+
+  it("clears the indicator once the decision is actually sent", async () => {
+    await approveJuanBare();
+    await screen.findByText(/Aprobación de Juan Pérez/);
+
+    await act(async () => {
+      vi.advanceTimersByTime(UNDO_WINDOW_MS);
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByText(/se envía en unos segundos/)).not.toBeInTheDocument(),
+    );
+  });
+
+  it("offers a second way back that does not depend on the toast surviving", async () => {
+    await approveJuanBare();
+    const banner = await liveRegionSaying(/se envía en unos segundos/);
+
+    fireEvent.click(within(banner).getByRole("button", { name: "Deshacer" }));
+
+    await act(async () => {
+      vi.advanceTimersByTime(UNDO_WINDOW_MS * 2);
+    });
+    expect(mockUpdatePaymentValidation).not.toHaveBeenCalled();
+  });
+
+  it("says a rejection is a rejection, not an approval", async () => {
+    renderPage();
+    await openRequest("Juan Pérez");
+    fireEvent.click(await screen.findByRole("button", { name: /rechazar pago/i }));
+    fireEvent.click(screen.getByRole("radio", { name: /el monto no coincide/i }));
+    fireEvent.click(screen.getByRole("button", { name: /rechazar y avisar/i }));
+
+    expect(await screen.findByText(/Rechazo de Juan Pérez/)).toBeInTheDocument();
   });
 });

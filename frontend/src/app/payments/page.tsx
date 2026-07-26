@@ -56,6 +56,7 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  Clock,
 } from "lucide-react";
 import type {
   PaymentValidationRequest,
@@ -64,6 +65,7 @@ import type {
 import { fetchPaymentValidations, updatePaymentValidation } from "@/services/api";
 import type { UpdatePaymentValidationDTO } from "@/services/api";
 import { useDeferredCommit } from "@/lib/deferred-commit";
+import { usePersistentPreference } from "@/lib/persistent-preference";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format-utils";
 import { useToast } from "@/contexts/ToastContext";
 import { calendarIsoDate } from "@/lib/club-date";
@@ -109,6 +111,10 @@ type FilterKey = "all" | ValidationStatus;
  * Pendientes first, and it is the default — the prototype's whole point is
  * that the screen opens on the work of the day.
  */
+function isFilterKey(value: string): value is FilterKey {
+  return FILTERS.some((filter) => filter.key === value);
+}
+
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "pendiente", label: "Pendientes" },
   { key: "validado", label: "Validados" },
@@ -307,7 +313,18 @@ export default function PaymentsPage(): React.ReactElement {
   const [requests, setRequests] = useState<PaymentValidationRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<FilterKey>("pendiente");
+  /**
+   * The queue remembers where the admin works from. Whoever validates payments
+   * every morning opens on "Pendientes" because that is the job; making them
+   * re-pick it daily is a tax on the screen they use most. `isFilterKey`
+   * refuses a stored value the product no longer understands, so a renamed key
+   * cannot leave them staring at an empty list under a highlighted pill.
+   */
+  const [activeFilter, setActiveFilter] = usePersistentPreference<FilterKey>(
+    "payments-queue-filter",
+    "pendiente",
+    isFilterKey,
+  );
   const [query, setQuery] = useState("");
   /** Selection is by id, never by object: the object is replaced on every
    *  approve/reject, and holding the old one is how a detail view goes stale. */
@@ -512,7 +529,7 @@ export default function PaymentsPage(): React.ReactElement {
     request: PaymentValidationRequest,
     optimistic: PaymentValidationRequest,
     dto: UpdatePaymentValidationDTO,
-    confirmation: { message: string; description: string; failure: string },
+    confirmation: { label: string; message: string; description: string; failure: string },
   ): void {
     const previousRequests = requests;
     const previousSelectedId = selectedId;
@@ -532,6 +549,7 @@ export default function PaymentsPage(): React.ReactElement {
     });
 
     deferredDecision.schedule({
+      label: confirmation.label,
       commit: async () => {
         const saved = await updatePaymentValidation(request.id, dto);
         // The server owns the canonical row — dates it normalised, the
@@ -562,6 +580,7 @@ export default function PaymentsPage(): React.ReactElement {
       { ...request, validationStatus: "validado", startDate, endDate },
       { action: "approved", startDate, endDate },
       {
+        label: `Aprobación de ${request.studentName}`,
         message: "Pago aprobado. La membresía ahora está activa.",
         description: "Puede deshacerlo durante unos segundos.",
         failure: "No se pudo aprobar el pago.",
@@ -580,6 +599,7 @@ export default function PaymentsPage(): React.ReactElement {
       { ...request, validationStatus: "rechazado", rejectionReason },
       { action: "rejected", rejectionReason },
       {
+        label: `Rechazo de ${request.studentName}`,
         message: "Pago rechazado. Se le avisó al responsable con el motivo elegido.",
         description: "Puede deshacerlo durante unos segundos.",
         failure: "No se pudo rechazar el pago.",
@@ -594,6 +614,30 @@ export default function PaymentsPage(): React.ReactElement {
   function renderQueue(): React.ReactElement {
     return (
       <>
+        {/*
+         * A decision that is still reversible is a state the admin is IN, and
+         * a toast is a state that scrolls away — it dismisses itself, and the
+         * next one buries it. This row lasts exactly as long as the hold does,
+         * so "did that go through yet?" has an answer on the screen rather
+         * than only in a notification that may already be gone.
+         */}
+        {deferredDecision.pendingLabel && (
+          <div
+            role="status"
+            className="mb-4 flex flex-wrap items-center gap-3 rounded-ctl border border-line-2 bg-sunken px-4 py-2.5 text-[12.5px] font-semibold text-ink-2"
+          >
+            <Clock size={14} strokeWidth={2} aria-hidden="true" className="shrink-0 text-ink-3" />
+            <span>{deferredDecision.pendingLabel} — se envía en unos segundos.</span>
+            <button
+              type="button"
+              onClick={deferredDecision.undo}
+              className="focus-ring ml-auto rounded px-2 py-1 font-bold text-ink underline underline-offset-2"
+            >
+              Deshacer
+            </button>
+          </div>
+        )}
+
         <div className="mb-4 flex flex-wrap items-center gap-2">
           {FILTERS.map((f) => (
             <FilterPill
