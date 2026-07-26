@@ -16,6 +16,7 @@ import {
   findQueueNeighbours,
   getAutoAdvanceId,
   buildApprovalChecklist,
+  buildBatchChecklist,
   rejectionReasonsFor,
   composeRejectionReason,
 } from "../payments-utils";
@@ -299,5 +300,85 @@ describe("composeRejectionReason", () => {
   it("returns an empty string when no reason is selected, so the caller can block", () => {
     expect(composeRejectionReason("", "una nota")).toBe("");
     expect(composeRejectionReason("no-existe", "")).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Approving a selection.
+//
+// "Trece pagos idénticos son trece decisiones con checklist" is a real cost,
+// but the naive fix — a batch button that skips the checklist — throws away
+// the thing that made P5 move from 5 to 8. The checklist is not ceremony: it
+// is the admin stating what they verified.
+//
+// So a batch keeps the assertions and collapses them. What you may assert once
+// about thirteen payments depends on what evidence the thirteen actually
+// carry, and a selection can be mixed.
+// ---------------------------------------------------------------------------
+
+describe("buildBatchChecklist", () => {
+  const transfer = (id: string) => ({ id, paymentMethod: "Transferencia", hasProof: true });
+  const cash = (id: string) => ({ id, paymentMethod: "Efectivo", hasProof: false });
+
+  it("asks one assertion about the receipts when every payment has one", () => {
+    const checklist = buildBatchChecklist([transfer("a"), transfer("b"), transfer("c")]);
+
+    expect(checklist).toHaveLength(1);
+    expect(checklist[0].label).toBe(
+      "Revisé los 3 comprobantes: son legibles, los montos coinciden y las fechas caen en el período",
+    );
+  });
+
+  it("asks one assertion about the money when none of them has a receipt", () => {
+    const checklist = buildBatchChecklist([cash("a"), cash("b")]);
+
+    expect(checklist).toHaveLength(1);
+    expect(checklist[0].label).toBe("Recibí los 2 pagos en efectivo, en persona");
+  });
+
+  it("asks BOTH when the selection is mixed, each counting its own share", () => {
+    // Ticking a single box for a mixed batch would mean asserting something
+    // about receipts that four of the payments do not have.
+    const checklist = buildBatchChecklist([transfer("a"), transfer("b"), cash("c")]);
+
+    expect(checklist.map((c) => c.label)).toEqual([
+      "Revisé los 2 comprobantes: son legibles, los montos coinciden y las fechas caen en el período",
+      "Recibí 1 pago en efectivo, en persona",
+    ]);
+  });
+
+  it("counts a cash payment that DID come with a receipt as a receipt", () => {
+    const checklist = buildBatchChecklist([{ id: "a", paymentMethod: "Efectivo", hasProof: true }]);
+
+    expect(checklist[0].label).toMatch(/^Revisé 1 comprobante:/);
+  });
+
+  it("counts a transfer with no attachment as a receipt to look at, not as cash", () => {
+    // A transfer without a proof is a broken submission. Folding it into the
+    // cash assertion would let it through on "recibí el dinero en persona",
+    // which nobody did.
+    const checklist = buildBatchChecklist([{ id: "a", paymentMethod: "Transferencia", hasProof: false }]);
+
+    expect(checklist[0].key).toBe("comprobantes");
+  });
+
+  it("says it in the singular when there is one of a kind", () => {
+    expect(buildBatchChecklist([transfer("a")])[0].label).toBe(
+      "Revisé 1 comprobante: es legible, el monto coincide y la fecha cae en el período",
+    );
+    expect(buildBatchChecklist([cash("a")])[0].label).toBe(
+      "Recibí 1 pago en efectivo, en persona",
+    );
+  });
+
+  it("has nothing to ask about an empty selection", () => {
+    expect(buildBatchChecklist([])).toEqual([]);
+  });
+
+  it("gives every item a stable key so a ticked box survives a re-render", () => {
+    const keys = buildBatchChecklist([transfer("a"), cash("b")]).map((c) => c.key);
+
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys).toEqual(["comprobantes", "efectivo"]);
   });
 });

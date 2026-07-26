@@ -239,6 +239,62 @@ export function buildApprovalChecklist(input: ApprovalChecklistInput): ApprovalC
   ];
 }
 
+/** The evidence facts a batch decision needs about each payment in it. */
+export interface BatchCandidate {
+  id: string;
+  paymentMethod: string;
+  hasProof: boolean;
+}
+
+/**
+ * What an admin may truthfully assert about a whole selection, once.
+ *
+ * Thirteen identical payments really are thirteen checklists, and that cost is
+ * real. But the obvious fix — a batch button that skips the checklist — throws
+ * away the thing that moved P5 from 5 to 8. The checklist is not ceremony; it
+ * is the admin stating what they verified, and a batch has to keep that
+ * statement true rather than remove it.
+ *
+ * So a batch COLLAPSES the assertions instead of dropping them, and what it may
+ * collapse into depends on what the selection actually contains. A mixed batch
+ * gets both questions, each counting only its own share: one box covering
+ * thirteen payments where four have no receipt would be asking the admin to
+ * certify four documents that do not exist — the same defect this file already
+ * fixed for the single-payment checklist, reintroduced at scale.
+ *
+ * The split follows `buildApprovalChecklist` exactly, including its awkward
+ * case: a TRANSFER with no attachment counts as a receipt to look at, not as
+ * cash. It is a broken submission, and folding it into "recibí el dinero en
+ * persona" would let it through on a statement nobody made.
+ */
+export function buildBatchChecklist(candidates: BatchCandidate[]): ApprovalCheck[] {
+  const withProof = candidates.filter(
+    (candidate) => candidate.hasProof || candidate.paymentMethod.trim().toLowerCase() !== CASH_METHOD,
+  ).length;
+  const cashInHand = candidates.length - withProof;
+
+  const checklist: ApprovalCheck[] = [];
+  if (withProof > 0) {
+    checklist.push({
+      key: "comprobantes",
+      label:
+        withProof === 1
+          ? "Revisé 1 comprobante: es legible, el monto coincide y la fecha cae en el período"
+          : `Revisé los ${withProof} comprobantes: son legibles, los montos coinciden y las fechas caen en el período`,
+    });
+  }
+  if (cashInHand > 0) {
+    checklist.push({
+      key: "efectivo",
+      label:
+        cashInHand === 1
+          ? "Recibí 1 pago en efectivo, en persona"
+          : `Recibí los ${cashInHand} pagos en efectivo, en persona`,
+    });
+  }
+  return checklist;
+}
+
 export interface RejectionReasonOption {
   key: string;
   label: string;

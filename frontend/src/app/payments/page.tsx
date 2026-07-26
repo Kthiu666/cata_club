@@ -78,6 +78,7 @@ import {
   findQueueNeighbours,
   getAutoAdvanceId,
   buildApprovalChecklist,
+  buildBatchChecklist,
   composeRejectionReason,
   rejectionReasonsFor,
 } from "@/app/payments/payments-utils";
@@ -478,6 +479,10 @@ export default function PaymentsPage(): React.ReactElement {
   /** Holds the admin's last decision for as long as it stays reversible. */
   const deferredDecision = useDeferredCommit();
 
+  /** Payments ticked for a batch decision, by id. Only pending ones qualify. */
+  const [selectedForBatch, setSelectedForBatch] = useState<Set<string>>(new Set());
+  const [batchChecked, setBatchChecked] = useState<Record<string, boolean>>({});
+
   /**
    * Opening a payment swaps the queue out for the detail IN PLACE — same URL,
    * same `<main>`, no dialog. Without help, that leaves focus on a button that
@@ -608,6 +613,108 @@ export default function PaymentsPage(): React.ReactElement {
   }
 
   // -------------------------------------------------------------------------
+  // Batch decisions
+  //
+  // "Trece pagos idénticos son trece decisiones con checklist" is a real cost.
+  // The obvious fix — a batch button that skips the checklist — would throw
+  // away the thing that moved P5 from 5 to 8, so the assertions are COLLAPSED
+  // rather than dropped: `buildBatchChecklist` derives what may truthfully be
+  // said once about this particular selection, and a mixed batch is asked both
+  // questions with each counting only its own share.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Ticked rows that are still pending and still on screen. Recomputed rather
+   * than pruned on every change: a filter switch, a search, or a decision
+   * landing can all remove a row underneath the selection, and a batch that
+   * silently carried an off-screen payment would approve something the admin
+   * cannot see.
+   */
+  const batchSelection = useMemo(
+    () => filtered.filter((r) => r.validationStatus === "pendiente" && selectedForBatch.has(r.id)),
+    [filtered, selectedForBatch],
+  );
+
+  const batchChecklist = useMemo(
+    () =>
+      buildBatchChecklist(
+        batchSelection.map((r) => ({
+          id: r.id,
+          paymentMethod: r.paymentMethod,
+          hasProof: Boolean(r.proofPreviewUrl),
+        })),
+      ),
+    [batchSelection],
+  );
+  const batchReady =
+    batchSelection.length > 0 && batchChecklist.every((item) => batchChecked[item.key]);
+
+  function toggleBatchRow(id: string): void {
+    setSelectedForBatch((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    // Any change to WHAT is being approved invalidates what was asserted about
+    // it — the same rule the single-payment checklist already follows when the
+    // admin moves to another request.
+    setBatchChecked({});
+  }
+
+  function clearBatch(): void {
+    setSelectedForBatch(new Set());
+    setBatchChecked({});
+  }
+
+  function handleBatchApprove(): void {
+    if (!batchReady) return;
+    const approving = batchSelection;
+    const previousRequests = requests;
+    const ids = new Set(approving.map((r) => r.id));
+
+    pendingBeforeDecision.current = pending;
+    setActionError(null);
+    setRequests((prev) =>
+      prev.map((r) => (ids.has(r.id) ? { ...r, validationStatus: "validado" as const } : r)),
+    );
+    clearBatch();
+
+    const count = approving.length;
+    const noun = count === 1 ? "pago aprobado" : "pagos aprobados";
+
+    showSuccess(`${count} ${noun}.`, {
+      description: "Puede deshacerlo durante unos segundos.",
+      action: { label: "Deshacer", onAction: deferredDecision.undo },
+    });
+
+    deferredDecision.schedule({
+      label: count === 1 ? `Aprobación de 1 pago` : `Aprobación de ${count} pagos`,
+      commit: async () => {
+        // Sequential, not `Promise.all`: each approval activates a membership
+        // and queues a receipt, and firing thirteen of those at once is how a
+        // batch turns into a thundering herd against the same rows.
+        for (const request of approving) {
+          const saved = await updatePaymentValidation(request.id, {
+            action: "approved",
+            startDate: request.startDate,
+            endDate: request.endDate,
+          });
+          setRequests((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
+        }
+      },
+      onUndo: () => setRequests(previousRequests),
+      onError: (err: unknown) => {
+        console.error("[payments] batch approval failed", err);
+        setRequests(previousRequests);
+        showError("No se pudieron aprobar los pagos.", {
+          description: `Los ${count} volvieron a la cola de pendientes.`,
+        });
+      },
+    });
+  }
+
+  // -------------------------------------------------------------------------
   // Queue
   // -------------------------------------------------------------------------
 
@@ -696,6 +803,68 @@ export default function PaymentsPage(): React.ReactElement {
           </div>
         )}
 
+        {/*
+         * The batch panel. It appears only once something is ticked, and it
+         * carries the SAME kind of assertion the single-payment checklist
+         * does — collapsed, not removed. Approving thirteen payments by
+         * ticking nothing would undo the one change that moved P5.
+         */}
+        {batchSelection.length > 0 && (
+          <div className="mb-5 rounded-card border border-line-2 bg-sunken p-4">
+            <div className="mb-3 flex flex-wrap items-center gap-3">
+              <p className="text-[13px] font-bold text-ink">
+                {batchSelection.length === 1
+                  ? "1 pago seleccionado"
+                  : `${batchSelection.length} pagos seleccionados`}
+              </p>
+              <button
+                type="button"
+                onClick={clearBatch}
+                className="focus-ring rounded px-2 py-1 text-[12.5px] font-semibold text-ink-2 underline underline-offset-2 hover:text-ink"
+              >
+                Quitar la selección
+              </button>
+            </div>
+
+            <div
+              role="group"
+              aria-label="Antes de aprobar el lote"
+              className="flex flex-col gap-2"
+            >
+              {batchChecklist.map((item) => (
+                <label
+                  key={item.key}
+                  className="focus-ring-within flex cursor-pointer items-start gap-2.5 rounded-ctl p-1 text-[12.5px] leading-[1.45] text-ink-2"
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-[18px] w-[18px] shrink-0 cursor-pointer rounded-[4px] accent-cata-red"
+                    checked={Boolean(batchChecked[item.key])}
+                    onChange={() =>
+                      setBatchChecked((prev) => ({ ...prev, [item.key]: !prev[item.key] }))
+                    }
+                  />
+                  <span>{item.label}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="mt-3.5 flex flex-wrap items-center gap-3">
+              <Button variant="primary" onClick={handleBatchApprove} disabled={!batchReady}>
+                <ShieldCheck size={14} strokeWidth={2} aria-hidden="true" />
+                {batchSelection.length === 1
+                  ? "Aprobar 1 pago"
+                  : `Aprobar ${batchSelection.length} pagos`}
+              </Button>
+              {!batchReady && (
+                <p role="status" className="text-[12px] font-semibold text-ink-2">
+                  Confirme lo que revisó para habilitar la aprobación.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
         {!loading && !error && filtered.length > 0 && (
           <div className="overflow-hidden rounded-card border border-line bg-paper">
             {/* Desktop: the five columns that carry a decision. */}
@@ -703,6 +872,9 @@ export default function PaymentsPage(): React.ReactElement {
               <Table>
                 <TableHead>
                   <TableRow>
+                    <TableHeaderCell>
+                      <span className="sr-only">Seleccionar para aprobar en lote</span>
+                    </TableHeaderCell>
                     <TableHeaderCell>Estudiante</TableHeaderCell>
                     <TableHeaderCell>Período</TableHeaderCell>
                     <TableHeaderCell align="right">Monto</TableHeaderCell>
@@ -716,6 +888,22 @@ export default function PaymentsPage(): React.ReactElement {
                 <TableBody>
                   {paginatedRequests.map((req) => (
                     <TableRow key={req.id}>
+                      <TableCell>
+                        {/* Only a pending payment can be batched. A validated
+                            one has nothing left to decide, and offering a
+                            checkbox that does nothing is worse than none. */}
+                        {req.validationStatus === "pendiente" ? (
+                          <input
+                            type="checkbox"
+                            className="focus-ring h-[18px] w-[18px] cursor-pointer rounded-[4px] accent-cata-red"
+                            checked={selectedForBatch.has(req.id)}
+                            onChange={() => toggleBatchRow(req.id)}
+                            aria-label={`Seleccionar el pago de ${req.studentName} para aprobar en lote`}
+                          />
+                        ) : (
+                          <span className="sr-only">No se puede seleccionar</span>
+                        )}
+                      </TableCell>
                       <TableNameCell name={req.studentName} sub={payerLabel(req)} />
                       <TableCell>{humanizePaymentPeriod(req.membershipPeriod)}</TableCell>
                       <TableCell align="right" className="font-semibold tabular-nums text-ink">

@@ -879,3 +879,148 @@ describe("PaymentsPage — the hold is visible while it lasts", () => {
     expect(await screen.findByText(/Rechazo de Juan Pérez/)).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Approving a selection.
+//
+// "Trece pagos idénticos son trece decisiones con checklist" was the fifth
+// thing blocking the target. The trap is that the obvious fix — a batch button
+// that skips the checklist — throws away the change that moved P5 from 5 to 8.
+// So the assertions are collapsed, not dropped, and the batch is gated behind
+// them exactly as a single payment is.
+// ---------------------------------------------------------------------------
+
+describe("PaymentsPage — approving a selection", () => {
+  const CASH: PaymentValidationRequest = {
+    ...PENDING_REQUEST,
+    id: "req-cash",
+    studentName: "Sofia Vera",
+    paymentMethod: "Efectivo",
+    proofPreviewUrl: undefined,
+  };
+  const TRANSFER_A = { ...PENDING_REQUEST, id: "req-a", proofPreviewUrl: "https://f/x.png" };
+  const TRANSFER_B = {
+    ...PENDING_REQUEST,
+    id: "req-b",
+    studentName: "Ana López",
+    proofPreviewUrl: "https://f/y.png",
+  };
+
+  function tickRow(studentName: string): void {
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: new RegExp(`Seleccionar el pago de ${studentName}`),
+      }),
+    );
+  }
+
+  it("offers no batch panel until something is selected", async () => {
+    renderPage();
+    await screen.findByTestId("payments-table");
+
+    expect(screen.queryByRole("group", { name: /antes de aprobar el lote/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps the approval gated behind an assertion the admin must tick", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([TRANSFER_A, TRANSFER_B]);
+    renderPage();
+    await screen.findByTestId("payments-table");
+
+    tickRow("Juan Pérez");
+    tickRow("Ana López");
+
+    const approve = screen.getByRole("button", { name: "Aprobar 2 pagos" });
+    expect(approve).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByLabelText(/Revisé los 2 comprobantes/),
+    );
+    expect(approve).toBeEnabled();
+  });
+
+  it("asks a mixed selection about both kinds of evidence, separately", async () => {
+    // One box covering both would ask the admin to certify a receipt that the
+    // cash payment does not have — the single-payment defect, at scale.
+    mockFetchPaymentValidations.mockResolvedValue([TRANSFER_A, CASH]);
+    renderPage();
+    await screen.findByTestId("payments-table");
+
+    tickRow("Juan Pérez");
+    tickRow("Sofia Vera");
+
+    const group = screen.getByRole("group", { name: /antes de aprobar el lote/i });
+    expect(within(group).getAllByRole("checkbox")).toHaveLength(2);
+    expect(screen.getByLabelText(/Revisé 1 comprobante/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Recibí 1 pago en efectivo/)).toBeInTheDocument();
+  });
+
+  it("invalidates the assertion when the selection changes under it", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([TRANSFER_A, TRANSFER_B]);
+    renderPage();
+    await screen.findByTestId("payments-table");
+
+    tickRow("Juan Pérez");
+    fireEvent.click(screen.getByLabelText(/Revisé 1 comprobante/));
+    expect(screen.getByRole("button", { name: "Aprobar 1 pago" })).toBeEnabled();
+
+    // Adding a payment means the admin has now asserted something about a
+    // receipt they were never shown.
+    tickRow("Ana López");
+    expect(screen.getByRole("button", { name: "Aprobar 2 pagos" })).toBeDisabled();
+  });
+
+  it("sends one request per payment, in order, once the hold expires", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([TRANSFER_A, TRANSFER_B]);
+    renderPage();
+    await screen.findByTestId("payments-table");
+
+    tickRow("Juan Pérez");
+    tickRow("Ana López");
+    fireEvent.click(screen.getByLabelText(/Revisé los 2 comprobantes/));
+    fireEvent.click(screen.getByRole("button", { name: "Aprobar 2 pagos" }));
+
+    expect(mockUpdatePaymentValidation).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(UNDO_WINDOW_MS);
+    });
+
+    await waitFor(() => expect(mockUpdatePaymentValidation).toHaveBeenCalledTimes(2));
+    expect(mockUpdatePaymentValidation.mock.calls.map((c) => c[0])).toEqual(["req-a", "req-b"]);
+  });
+
+  it("takes the whole batch back with one undo", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([TRANSFER_A, TRANSFER_B]);
+    renderPage();
+    await screen.findByTestId("payments-table");
+
+    tickRow("Juan Pérez");
+    tickRow("Ana López");
+    fireEvent.click(screen.getByLabelText(/Revisé los 2 comprobantes/));
+    fireEvent.click(screen.getByRole("button", { name: "Aprobar 2 pagos" }));
+
+    // `renderPage` does not mount the toast stack, so the undo under test is
+    // the queue's own hold indicator — the one that outlives the toast anyway.
+    const banner = await liveRegionSaying(/Aprobación de 2 pagos/);
+    fireEvent.click(within(banner).getByRole("button", { name: "Deshacer" }));
+
+    await act(async () => {
+      vi.advanceTimersByTime(UNDO_WINDOW_MS * 2);
+    });
+    expect(mockUpdatePaymentValidation).not.toHaveBeenCalled();
+  });
+
+  it("does not offer a checkbox for a payment that is already decided", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([
+      { ...PENDING_REQUEST, validationStatus: "validado" as const },
+    ]);
+    renderPage();
+    // A validated payment is not in the default "Pendientes" view at all.
+    fireEvent.click(await screen.findByRole("button", { name: /Todas/ }));
+    await screen.findByTestId("payments-table");
+
+    expect(
+      screen.queryByRole("checkbox", { name: /Seleccionar el pago de Juan Pérez/ }),
+    ).not.toBeInTheDocument();
+  });
+});
