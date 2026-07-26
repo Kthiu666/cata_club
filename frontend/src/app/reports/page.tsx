@@ -387,7 +387,7 @@ function ReportsContent(): React.ReactElement {
               onClick={() => setPreset(item.key)}
               className={cn(
                 "flex h-full flex-col items-start gap-[7px] rounded-card border bg-paper p-[17px_18px] text-left",
-                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball",
+                "focus-ring",
                 selected ? "border-coal ring-1 ring-coal" : "border-line-2 hover:bg-canvas",
               )}
             >

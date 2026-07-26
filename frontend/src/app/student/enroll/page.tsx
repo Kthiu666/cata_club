@@ -351,7 +351,7 @@ function EnrollWizard(): React.ReactElement {
                 type="button"
                 aria-pressed={selected}
                 onClick={() => updateField("enrollmentType", choice.value)}
-                className={`flex h-full flex-col gap-[7px] rounded-card border p-[17px_18px] text-left transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball ${
+                className={`flex h-full flex-col gap-[7px] rounded-card border p-[17px_18px] text-left transition-colors duration-150 focus-ring ${
                   selected
                     ? "border-coal bg-paper ring-1 ring-coal"
                     : "border-line-2 bg-paper hover:bg-canvas"
@@ -903,11 +903,11 @@ function EnrollWizard(): React.ReactElement {
             <div className="mb-6 rounded-xl border border-dashed border-cata-border bg-cata-bg p-3">
               <div className="mb-2 flex items-center gap-2">
                 <AlertTriangle size={14} strokeWidth={1.5} className="text-amber-700" aria-hidden="true" />
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-cata-text/45">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-2">
                   Rellenar datos de prueba (solo desarrollo)
                 </p>
               </div>
-              <p className="mb-2 text-[10px] leading-relaxed text-cata-text/40">
+              <p className="mb-2 text-[10px] leading-relaxed text-ink-2">
                 Llena los campos automáticamente pero no salta la validación — los pasos deben completarse uno por uno.
               </p>
               <div className="flex flex-wrap gap-2">

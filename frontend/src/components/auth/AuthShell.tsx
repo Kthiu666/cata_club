@@ -294,7 +294,10 @@ export default function AuthShell({
           {/* The note — outside the card, on purpose. `margin:16px auto 0`. */}
           {note && (
             <p
-              className={`mx-auto mt-4 text-center text-[11.5px] leading-[1.5] text-ink-3 ${CARD_WIDTH}`}
+              // `ink-3-strong`, not `ink-3`: the note sits BELOW the card, on
+              // `canvas`, where `ink-3` measures 3.78:1. The strong step exists
+              // for this surface — see the token's own comment.
+              className={`mx-auto mt-4 text-center text-[11.5px] leading-[1.5] text-ink-3-strong ${CARD_WIDTH}`}
             >
               {note}
             </p>

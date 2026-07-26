@@ -72,7 +72,7 @@ const STATE_ORDER: EstadoAsistencia[] = ["present", "late", "justified", "absent
 const XL_CTA =
   "inline-flex h-[52px] items-center justify-center gap-2 rounded-xl bg-cata-red px-[22px] " +
   "text-[15px] font-semibold text-white transition-colors hover:bg-cata-red-dark " +
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball";
+  "focus-ring";
 
 /** First name only — "Hola, Carlos Mendoza" is a greeting nobody says out loud. */
 function firstNameOf(fullName: string | undefined): string {

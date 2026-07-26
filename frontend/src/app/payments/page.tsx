@@ -810,7 +810,7 @@ export default function PaymentsPage(): React.ReactElement {
               <h2
                 ref={detailHeadingRef}
                 tabIndex={-1}
-                className="border-b border-line px-[18px] py-4 text-[15px] font-bold text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ball"
+                className="border-b border-line px-[18px] py-4 text-[15px] font-bold text-ink focus-ring-inset"
               >
                 Detalle de la solicitud
               </h2>

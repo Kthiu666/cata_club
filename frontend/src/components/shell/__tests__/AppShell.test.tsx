@@ -780,3 +780,53 @@ describe("AppShell — command palette selection is announced", (): void => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Skip to content.
+//
+// The landing has one; every authenticated screen did not. The shell puts a
+// sidebar of a dozen links, a menu button, a search box and a notification
+// bell ahead of `<main>`, so a keyboard or switch user reached the actual
+// content of every page in the product only after tabbing past all of it —
+// on every single navigation.
+// ---------------------------------------------------------------------------
+
+describe("AppShell — skip to content", (): void => {
+  beforeEach((): void => {
+    mockUseAuth.mockReset();
+    mockUseAuth.mockReturnValue(createAuthenticatedAuth("admin", "Admin Cata Club"));
+    mockFetchNotificaciones.mockClear().mockResolvedValue([]);
+    vi.stubGlobal("localStorage", createMemoryStorage());
+  });
+
+  it("offers the skip link before anything else in the tab order", (): void => {
+    const { container } = render(<AppShell title="Panel">{null}</AppShell>);
+
+    const focusable = container.querySelectorAll("a[href], button, input, [tabindex]");
+    expect(focusable[0]).toHaveAccessibleName("Saltar al contenido");
+  });
+
+  it("points at the main region it claims to skip to", (): void => {
+    render(<AppShell title="Panel"><p>contenido</p></AppShell>);
+
+    const link = screen.getByRole("link", { name: "Saltar al contenido" });
+    const target = link.getAttribute("href")?.replace("#", "");
+    expect(target).toBeTruthy();
+
+    const main = screen.getByRole("main");
+    expect(main.id).toBe(target);
+    // A `<main>` is not focusable by default, so the browser would move the
+    // viewport and leave focus behind on the link.
+    expect(main).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("stays out of the way until it is focused", (): void => {
+    render(<AppShell title="Panel">{null}</AppShell>);
+
+    const link = screen.getByRole("link", { name: "Saltar al contenido" });
+    // Visually hidden, NOT `display: none` — hiding it would take it out of
+    // the tab order and there would be nothing to skip with.
+    expect(link.className).toContain("sr-only");
+    expect(link.className).toContain("focus:not-sr-only");
+  });
+});

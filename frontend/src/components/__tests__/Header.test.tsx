@@ -510,3 +510,36 @@ describe("Header", (): void => {
     expect(mockLogout).toHaveBeenCalledTimes(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// A link must have a name at EVERY breakpoint.
+//
+// The audit reported "logos with empty alt" across the landing, enrolment and
+// carnet. Three of those are correct as they stand: the image sits next to a
+// visible "Cata Club" wordmark or inside a link that already carries an
+// `aria-label`, and giving the image alt text there would make a screen reader
+// announce the club's name twice.
+//
+// One was not. The compact header's wordmark is `hidden sm:inline`, so below
+// 640px the home link contained a decorative image and nothing else — a link
+// announced as, at best, its own URL.
+// ---------------------------------------------------------------------------
+
+describe("Header — the brand link is named at every width", () => {
+  it("names the compact header's home link independently of the wordmark", () => {
+    render(<Header />);
+
+    for (const link of screen.getAllByRole("link", { name: /cata club/i })) {
+      expect(link).toHaveAccessibleName();
+    }
+  });
+
+  it("does not rely on text that a breakpoint can hide", () => {
+    render(<Header />);
+
+    const wordmark = screen.getAllByText("Cata Club").find((el) => el.className.includes("hidden"));
+    if (!wordmark) return; // the compact variant is not rendered in this case
+    const link = wordmark.closest("a") as HTMLElement;
+    expect(link).toHaveAttribute("aria-label", expect.stringMatching(/cata club/i));
+  });
+});

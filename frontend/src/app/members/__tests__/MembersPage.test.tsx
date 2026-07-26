@@ -985,8 +985,9 @@ describe("MembersPage — edit modal footer does not fake a save", () => {
     // focus landed somewhere invisible.
     const checkbox = within(dialog).getByRole("checkbox", { name: /admin/i });
     const label = checkbox.closest("label") as HTMLElement;
-    expect(label.className).toContain("focus-within:outline");
-    expect(label.className).toContain("focus-within:outline-ball");
+    // The ring itself moved to the shared `.focus-ring-within` class: the
+    // yellow outline it used to carry measured 1.42:1 on this white dialog.
+    expect(label.className).toContain("focus-ring-within");
   });
 
   it("marks a selected role with coal, never red", async () => {

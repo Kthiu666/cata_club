@@ -114,7 +114,7 @@ const NO_PAGOS: PagoPersona[] = [];
 const FIELD_CLASSES =
   "h-ctl w-full rounded-ctl border border-line-2 bg-paper px-3.5 text-[13px] text-ink " +
   "placeholder:text-ink-3 focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-ball disabled:cursor-not-allowed disabled:opacity-45";
+  "focus-ring disabled:cursor-not-allowed disabled:opacity-45";
 
 const FIELD_LABEL_CLASSES = "text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3";
 
@@ -586,7 +586,7 @@ function RenewPaymentForm({
                   type="button"
                   onClick={() => setVoucherFile(null)}
                   aria-label="Quitar el comprobante seleccionado"
-                  className="rounded text-ink-3 hover:text-state-bad focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball"
+                  className="rounded text-ink-3 hover:text-state-bad focus-ring"
                 >
                   <X size={14} strokeWidth={2} aria-hidden="true" />
                 </button>
@@ -660,7 +660,7 @@ function PagoRow({
             href={pago.voucherUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-1.5 inline-flex items-center gap-1.5 rounded text-[12.5px] font-semibold text-ink underline decoration-line-2 decoration-2 underline-offset-4 hover:decoration-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball"
+            className="mt-1.5 inline-flex items-center gap-1.5 rounded text-[12.5px] font-semibold text-ink underline decoration-line-2 decoration-2 underline-offset-4 hover:decoration-ink focus-ring"
           >
             <Paperclip size={13} strokeWidth={1.5} aria-hidden="true" />
             Ver el comprobante

@@ -59,7 +59,7 @@ const TRIGGER_CLASSES: Record<HelpChatLauncherProps["variant"], string> = {
     "inline-flex items-center gap-1.5 rounded-ctl px-1 py-0.5 text-[11.5px] font-semibold " +
     "text-ink-2 underline decoration-line-2 underline-offset-[3px] transition-colors " +
     "hover:text-cata-red hover:decoration-cata-red " +
-    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball",
+    "focus-ring",
 };
 
 export default function HelpChatLauncher({

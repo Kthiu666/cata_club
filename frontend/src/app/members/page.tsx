@@ -1127,7 +1127,7 @@ function MemberEditDialog({
                         <label
                           key={role}
                           className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors ${
-                            "focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ball "
+                            "focus-ring-within "
                           }${
                             selected
                               ? "border-coal bg-coal/[0.04] text-ink"

@@ -101,7 +101,7 @@ export default function ManagedStudentPicker({
           id={id}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="h-ctl appearance-none rounded-ctl border border-line-2 bg-paper pl-3.5 pr-10 text-[13px] font-semibold text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball"
+          className="h-ctl appearance-none rounded-ctl border border-line-2 bg-paper pl-3.5 pr-10 text-[13px] font-semibold text-ink focus-ring"
         >
           {profiles.map((profile) => (
             <option key={profile.personaId} value={profile.personaId}>

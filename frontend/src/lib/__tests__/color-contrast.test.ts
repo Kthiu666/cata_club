@@ -312,3 +312,71 @@ describe("/trainer — fuchsia quick-action cards", () => {
     expect(contrastRatio(cata["fuchsia-ink"], cata.black)).toBeLessThan(AA_NORMAL_TEXT);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The focus indicator, everywhere — not just in the assistant.
+//
+// The measured audit: `outline-ball` is #FFD600, which is 1.42:1 on `paper`
+// and 1.30:1 on `canvas`, against the 3:1 WCAG 1.4.11 asks of a focus
+// indicator. It was correct on the coal rail it was designed for and wrong on
+// every light surface the product actually renders, which is most of them. The
+// assistant solved it locally with a two-tone ring; this promotes that ring to
+// the system default, so these are the numbers the whole product now depends
+// on.
+//
+// The test that a focus indicator is PRESENT lives in the DOM tests. This one
+// only asks whether the colours can be seen.
+// ---------------------------------------------------------------------------
+
+describe("the focus ring — its bands against every surface it lands on", () => {
+  /** Non-text contrast floor for a focus indicator (WCAG 1.4.11). */
+  const UI_COMPONENT = 3;
+
+  const RING_INNER = "#FFFFFF";
+  const RING_OUTER = "#131316";
+  /** The sidebar rail, the darkest surface a control sits on. */
+  const RAIL = coal.DEFAULT as string;
+
+  it("keeps the two bands apart from each other", () => {
+    expect(contrastRatio(RING_INNER, RING_OUTER)).toBeGreaterThanOrEqual(UI_COMPONENT);
+  });
+
+  it("stays visible on the page field", () => {
+    expect(contrastRatio(RING_OUTER, CANVAS)).toBeGreaterThanOrEqual(UI_COMPONENT);
+  });
+
+  it("stays visible on a card", () => {
+    expect(contrastRatio(RING_OUTER, PAPER)).toBeGreaterThanOrEqual(UI_COMPONENT);
+  });
+
+  it("stays visible on an inset panel", () => {
+    expect(contrastRatio(RING_OUTER, SUNKEN)).toBeGreaterThanOrEqual(UI_COMPONENT);
+  });
+
+  it("stays visible on the coal rail, where the old yellow was fine", () => {
+    // The band nearest the control carries this one: coal-on-coal would vanish.
+    expect(contrastRatio(RING_INNER, RAIL)).toBeGreaterThanOrEqual(UI_COMPONENT);
+  });
+
+  it("records why the yellow could not stay: it fails on both light surfaces", () => {
+    const ball = (colors.ball as Record<string, string>).DEFAULT;
+    expect(contrastRatio(ball, PAPER)).toBeLessThan(UI_COMPONENT);
+    expect(contrastRatio(ball, CANVAS)).toBeLessThan(UI_COMPONENT);
+    // …and why it was never wrong on the rail it was designed for.
+    expect(contrastRatio(ball, RAIL)).toBeGreaterThanOrEqual(UI_COMPONENT);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The two measured contrast failures the audit named by number.
+// ---------------------------------------------------------------------------
+
+describe("the auth screens' small print", () => {
+  it("uses the canvas-safe ink, not the paper-safe one", () => {
+    // Measured at 3.78:1. The note sits BELOW the card, on `canvas`, and
+    // `ink-3` is only AA against `paper` — `ink-3-strong` exists for exactly
+    // this surface and the config says so.
+    expect(contrastRatio(ink["3"], CANVAS)).toBeLessThan(AA_NORMAL_TEXT);
+    expect(contrastRatio(ink["3-strong"], CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+  });
+});

@@ -26,7 +26,7 @@ const BASE =
   "inline-flex items-center justify-center gap-2 whitespace-nowrap border font-semibold " +
   "transition-colors duration-150 " +
   // `_sistema.css:80` — focus ring is the ball, 2px, offset 2px.
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball " +
+  "focus-ring " +
   // `.btn[disabled], .btn.off` (:176)
   "disabled:cursor-not-allowed disabled:opacity-45";
 

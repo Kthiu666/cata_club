@@ -222,7 +222,7 @@ function SituationLink({ href, children }: { href: string; children: React.React
   return (
     <Link
       href={href}
-      className="inline-flex items-center gap-1.5 rounded text-[13px] font-semibold text-ink underline decoration-line-2 decoration-2 underline-offset-4 transition-colors hover:decoration-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball"
+      className="inline-flex items-center gap-1.5 rounded text-[13px] font-semibold text-ink underline decoration-line-2 decoration-2 underline-offset-4 transition-colors hover:decoration-ink focus-ring"
     >
       {children}
       <ArrowRight size={14} strokeWidth={1.75} aria-hidden="true" />

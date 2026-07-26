@@ -188,6 +188,9 @@ const NAV_ITEM_IDLE_CLASSES = "text-white/[0.62] hover:bg-white/[0.07] hover:tex
 /** `.nav-i.on` — coal highlight, never a red fill: red is reserved for CTA and destructive. */
 const NAV_ITEM_ACTIVE_CLASSES = "bg-white/[0.08] font-semibold text-white";
 
+/** The anchor the skip link jumps to. One id, two places that must agree. */
+const MAIN_CONTENT_ID = "contenido-principal";
+
 export default function AppShell({
   eyebrow = "Panel de gestión",
   title,
@@ -340,6 +343,24 @@ export default function AppShell({
 
   return (
     <div className="app-shell flex min-h-screen bg-canvas">
+      {/*
+       * SKIP TO CONTENT — the first thing in the tab order, on every
+       * authenticated screen.
+       *
+       * The landing already had one; the shell did not, and the shell puts a
+       * dozen sidebar links, a menu button, a search box and a notification
+       * bell ahead of `<main>`. Without this, reaching the actual content of
+       * any page meant tabbing past all of it, on every navigation.
+       *
+       * `sr-only` rather than `hidden`: a hidden link is out of the tab order,
+       * which is the one place this link has to be.
+       */}
+      <a
+        href={`#${MAIN_CONTENT_ID}`}
+        className="focus-ring sr-only rounded-ctl bg-paper px-4 py-2 text-sm font-bold text-ink focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70]"
+      >
+        Saltar al contenido
+      </a>
       {/*
        * Sidebar. When closed on a mobile viewport it is hidden outright, not
        * merely translated offscreen: a `-translate-x-full` drawer keeps every
@@ -641,7 +662,15 @@ export default function AppShell({
           }`}
         >
           <PageHeader eyebrow={eyebrow} title={title} subtitle={subtitle} actions={actions} />
-          <main className="min-w-0 flex-1">{children}</main>
+          {/*
+           * `tabIndex={-1}`: a `<main>` is not focusable by default, so
+           * following the skip link would scroll the viewport and leave focus
+           * behind on the link — the next Tab would walk straight back into
+           * the sidebar the user just skipped.
+           */}
+          <main id={MAIN_CONTENT_ID} tabIndex={-1} className="min-w-0 flex-1 outline-none">
+            {children}
+          </main>
         </div>
 
         {/* `.phone .tabs2` — 62px, paper, hairline on top. Phone only. */}

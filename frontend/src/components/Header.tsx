@@ -269,8 +269,18 @@ export default function Header({ hideOnLanding = false }: HeaderProps): React.Re
     <header className="sticky top-0 z-50 border-b border-white/10 bg-cata-dark/95 backdrop-blur-md">
       <nav className="mx-auto flex max-w-8xl items-center justify-between px-4 py-3 sm:px-8 lg:px-12">
         {/* Brand — real logo as identity anchor */}
+        {/*
+         * The wordmark beside this logo is `hidden sm:inline`, so below 640px
+         * the link held a decorative image and nothing else — a link with no
+         * accessible name at exactly the width most visitors arrive on. The
+         * label is on the LINK rather than the image's `alt`, so the wider
+         * layout announces "Cata Club" once rather than twice — and it is the
+         * bare club name, not "… inicio", because the header already carries a
+         * separate "Inicio" nav link that a suffixed label would collide with.
+         */}
         <Link
           href="/"
+          aria-label="Cata Club"
           className="flex items-center gap-3 text-lg font-semibold tracking-tight text-white"
         >
           <div className="relative h-8 w-8 overflow-hidden rounded-lg">
