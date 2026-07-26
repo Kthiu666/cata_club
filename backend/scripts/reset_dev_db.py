@@ -50,8 +50,8 @@ class ResetNoPermitidoError(RuntimeError):
 _PARAMS_QUERY_STRING_PROHIBIDOS = {"host", "hostaddr", "dbname"}
 
 
-def _validar_sin_overrides_de_destino(database_url: str, url) -> None:
-    """Rechaza `database_url` si su query string trae `host`, `hostaddr` o
+def _validar_sin_overrides_de_destino(url) -> None:
+    """Rechaza la URL si su query string trae `host`, `hostaddr` o
     `dbname`: esa es la clase completa de overrides que el driver psycopg
     antepone al host/base del netloc al construir los connect args reales
     (`dialect.create_connect_args`), y por lo tanto puede hacer que la
@@ -97,7 +97,7 @@ def validar_reset_permitido(
     host = url.host or ""
     nombre_db = url.database or ""
 
-    _validar_sin_overrides_de_destino(database_url, url)
+    _validar_sin_overrides_de_destino(url)
 
     if host not in settings.reset_hosts_permitidos:
         raise ResetNoPermitidoError(
