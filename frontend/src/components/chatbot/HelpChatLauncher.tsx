@@ -23,15 +23,20 @@
  *   · the enrolment wizard's header, where the questions are about the form
  *     being filled in.
  *
- * `ChatWidget` stays host-controlled (see its own note): this component is one
- * more host, exactly like `AppShell` and `/unauthorized`.
+ * Since the floating launcher came back as `HelpChatDock`, this component no
+ * longer mounts a panel of its own — it is a TRIGGER. It calls
+ * `openHelpChat()` and the dock's single `ChatWidget` opens, which is what
+ * keeps "the assistant" one thing: the same conversation, the same role-scoped
+ * quick replies, and never two panels on one screen. The inline triggers stay
+ * because they are where the question is actually asked (beside the WhatsApp
+ * button, under the login form, in the wizard header) — the float is the
+ * answer to "I could not find it", not a replacement for them.
  */
 
 "use client";
 
-import { useState } from "react";
 import { MessageCircle } from "lucide-react";
-import ChatWidget from "./ChatWidget";
+import { openHelpChat, useHelpChatOpen } from "./help-chat-store";
 
 export interface HelpChatLauncherProps {
   /**
@@ -62,26 +67,19 @@ export default function HelpChatLauncher({
   label = DEFAULT_LABEL,
   className,
 }: HelpChatLauncherProps): React.ReactElement {
-  const [open, setOpen] = useState(false);
+  // Read, not owned: the panel belongs to `HelpChatDock`, but a trigger that
+  // declares `aria-expanded` still has to tell the truth about it.
+  const open = useHelpChatOpen();
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={(): void => setOpen(true)}
-        aria-expanded={open}
-        className={className ? `${TRIGGER_CLASSES[variant]} ${className}` : TRIGGER_CLASSES[variant]}
-      >
-        <MessageCircle
-          size={variant === "landing" ? 17 : 13}
-          strokeWidth={2}
-          aria-hidden="true"
-        />
-        {label}
-      </button>
-
-      {/* No role passed: a logged-out visitor gets the general quick replies. */}
-      <ChatWidget open={open} onClose={(): void => setOpen(false)} />
-    </>
+    <button
+      type="button"
+      onClick={(): void => openHelpChat()}
+      aria-expanded={open}
+      className={className ? `${TRIGGER_CLASSES[variant]} ${className}` : TRIGGER_CLASSES[variant]}
+    >
+      <MessageCircle size={variant === "landing" ? 17 : 13} strokeWidth={2} aria-hidden="true" />
+      {label}
+    </button>
   );
 }

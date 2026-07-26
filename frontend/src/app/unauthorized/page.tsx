@@ -28,22 +28,22 @@
  *
  * Because there is no sidebar, there is also no "Ayuda y soporte" entry to
  * open the assistant from. That is the one case the prototype keeps a local
- * trigger for: "Contactar al club" mounts `ChatWidget` right here.
+ * trigger for: "Contactar al club" opens the assistant that `HelpChatDock`
+ * mounts in the root layout — the same panel the floating launcher opens.
  */
 
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import { LogOut, MessageCircle } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import ChatWidget from "@/components/chatbot/ChatWidget";
+import { openHelpChat, useHelpChatOpen } from "@/components/chatbot/help-chat-store";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui";
 
 function UnauthorizedContent(): React.ReactElement {
   const { logout } = useAuth();
-  const [chatOpen, setChatOpen] = useState(false);
+  const chatOpen = useHelpChatOpen();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas p-6">
@@ -72,7 +72,7 @@ function UnauthorizedContent(): React.ReactElement {
         <div className="mt-1.5 flex flex-wrap justify-center gap-2.5">
           {/* Coal, not red: red is the primary CTA and the destructive colour,
               and "contactar al club" is neither. */}
-          <Button variant="dark" onClick={(): void => setChatOpen(true)} aria-expanded={chatOpen}>
+          <Button variant="dark" onClick={(): void => openHelpChat()} aria-expanded={chatOpen}>
             <MessageCircle size={15} strokeWidth={2} aria-hidden="true" />
             Contactar al club
           </Button>
@@ -82,8 +82,6 @@ function UnauthorizedContent(): React.ReactElement {
           </Button>
         </div>
       </div>
-
-      <ChatWidget open={chatOpen} onClose={(): void => setChatOpen(false)} />
     </div>
   );
 }

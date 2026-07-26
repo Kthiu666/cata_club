@@ -90,7 +90,11 @@ vi.mock("@/services/api", () => ({
 }));
 
 import { useAuth } from "@/contexts/AuthContext";
-import { createAuthenticatedAuth, createUnauthenticatedAuth } from "@/components/__tests__/test-utils";
+import { createAuthenticatedAuth } from "@/components/__tests__/test-utils";
+import {
+  OPEN_HELP_CHAT_EVENT,
+  resetHelpChatForTests,
+} from "@/components/chatbot/help-chat-store";
 
 /**
  * The control that opens the mobile drawer for the role these suites render
@@ -621,7 +625,8 @@ describe("resolveActiveHref", (): void => {
 });
 
 // ---------------------------------------------------------------------------
-// Help chat: opened from the sidebar, never from a floating action button.
+// Help chat: the sidebar row is a TRIGGER for the one panel `HelpChatDock`
+// mounts in the root layout — not a second, competing assistant.
 // ---------------------------------------------------------------------------
 
 describe("AppShell — Ayuda y soporte", (): void => {
@@ -632,33 +637,43 @@ describe("AppShell — Ayuda y soporte", (): void => {
     mockUseAuth.mockReset();
     mockUseAuth.mockReturnValue(createAuthenticatedAuth("admin", "Admin Cata Club"));
     vi.stubGlobal("localStorage", createMemoryStorage());
+    resetHelpChatForTests();
   });
 
-  it("offers a sidebar entry instead of a floating help button", (): void => {
+  it("keeps the sidebar entry, and mounts no assistant of its own", (): void => {
     render(<AppShell title="Panel de Control">{null}</AppShell>);
 
     expect(screen.getByRole("button", { name: "Ayuda y soporte" })).toBeInTheDocument();
+    // The launcher and the panel both belong to the dock. A shell that also
+    // rendered one would put two panels on the same screen.
     expect(screen.queryByRole("button", { name: /abrir cata-bot/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: /cata-bot/i })).not.toBeInTheDocument();
   });
 
-  it("opens the chat panel from that entry and closes it again", (): void => {
+  it("opens the shared assistant from that entry", (): void => {
+    const listener = vi.fn();
+    window.addEventListener(OPEN_HELP_CHAT_EVENT, listener);
     render(<AppShell title="Panel de Control">{null}</AppShell>);
 
-    fireEvent.click(screen.getByRole("button", { name: "Ayuda y soporte" }));
-    expect(screen.getByRole("dialog", { name: /cata-bot/i })).toBeInTheDocument();
+    const entry = screen.getByRole("button", { name: "Ayuda y soporte" });
+    expect(entry).toHaveAttribute("aria-expanded", "false");
 
-    fireEvent.click(screen.getByRole("button", { name: /cerrar cata-bot/i }));
-    expect(screen.queryByRole("dialog", { name: /cata-bot/i })).not.toBeInTheDocument();
+    fireEvent.click(entry);
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(entry).toHaveAttribute("aria-expanded", "true");
+    window.removeEventListener(OPEN_HELP_CHAT_EVENT, listener);
   });
 
-  it("does not mount the chat at all without a session", (): void => {
-    mockUseAuth.mockReturnValue(createUnauthenticatedAuth(false));
-
+  it("closes the drawer as it opens the assistant, so the panel is not behind it", (): void => {
     render(<AppShell title="Panel de Control">{null}</AppShell>);
 
+    // Admin's phone navigation is the tab bar, so "Más" is what opens the drawer.
+    fireEvent.click(screen.getByRole("button", { name: "Más secciones" }));
     fireEvent.click(screen.getByRole("button", { name: "Ayuda y soporte" }));
-    expect(screen.queryByRole("dialog", { name: /cata-bot/i })).not.toBeInTheDocument();
+
+    expect(screen.getByRole("navigation", { name: "Navegación principal" }).closest("aside"))
+      .toHaveClass("-translate-x-full");
   });
 });
 

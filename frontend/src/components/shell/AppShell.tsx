@@ -50,8 +50,21 @@ import { useDismissablePopup } from "@/lib/useDismissablePopup";
 import { NAV_ICON_MAP } from "@/components/Header";
 import NotificationBell from "@/components/NotificationBell";
 import UserMenuDropdown from "@/components/UserMenuDropdown";
-import ChatWidget from "@/components/chatbot/ChatWidget";
+import { openHelpChat, useHelpChatOpen } from "@/components/chatbot/help-chat-store";
 import { PageHeader } from "@/components/ui";
+
+/**
+ * The assistant's open-state contract moved to `components/chatbot`, where the
+ * single panel now lives (`HelpChatDock`, mounted once in the root layout).
+ * Re-exported here because screens inside the shell — the trainer's "Avisar al
+ * club" — have always imported it from the shell, and that is still the right
+ * place for a screen to reach for it.
+ */
+export {
+  OPEN_HELP_CHAT_EVENT,
+  openHelpChat,
+  type OpenHelpChatDetail,
+} from "@/components/chatbot/help-chat-store";
 
 export interface AppShellProps {
   /** Small uppercase label above the page title (defaults to "Panel de gestión"). */
@@ -73,30 +86,6 @@ const COUNT_BADGE_HREF = "/payments";
 
 /** Tailwind's `lg` breakpoint — where the sidebar stops being a mobile drawer. */
 const DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
-
-/**
- * Event any screen inside the shell can fire to open the help assistant, with
- * an optional `detail.draft` pre-filling the composer.
- *
- * The trainer's "Avisar al club" needs to reach the club about a specific
- * student, and there is NO backend endpoint for "notify the club" — the chat
- * is the only real channel. A custom event keeps that a one-line call from the
- * page instead of threading chat state through props or a context nobody else
- * needs.
- */
-export const OPEN_HELP_CHAT_EVENT = "cata:open-help-chat";
-
-export interface OpenHelpChatDetail {
-  draft?: string;
-}
-
-/** Ask the shell to open the help assistant, optionally with a message ready to send. */
-export function openHelpChat(draft?: string): void {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(
-    new CustomEvent<OpenHelpChatDetail>(OPEN_HELP_CHAT_EVENT, { detail: { draft } }),
-  );
-}
 
 /**
  * The bottom tab bar for admin on a phone (`docs/ux/prototipos/27-movil.html`).
@@ -227,7 +216,9 @@ export default function AppShell({
   const userMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const userMenuPanelRef = useRef<HTMLDivElement>(null);
   const userMenuId = useId();
-  const [chatOpen, setChatOpen] = useState(false);
+  // The panel itself is `HelpChatDock`'s, mounted once in the root layout —
+  // the shell only triggers it and reports its state.
+  const chatOpen = useHelpChatOpen();
 
   const role = session?.user.role ?? null;
   const navLinks = useMemo<NavLinkDef[]>(
@@ -239,7 +230,6 @@ export default function AppShell({
     [navLinks, pathname],
   );
   const pendingPayments = usePendingPaymentsCount(role === "admin");
-  const [chatDraft, setChatDraft] = useState<string | undefined>(undefined);
 
   /**
    * The tab bar is the admin's phone navigation. Other roles keep the
@@ -250,17 +240,6 @@ export default function AppShell({
   const activeTab = MOBILE_TABS.find(
     (tab) => pathname === tab.href || pathname.startsWith(`${tab.href}/`),
   );
-
-  // Any screen in the shell can ask for the assistant — see `openHelpChat`.
-  useEffect((): (() => void) => {
-    function handleOpenChat(event: Event): void {
-      const detail = (event as CustomEvent<OpenHelpChatDetail>).detail;
-      setChatDraft(detail?.draft);
-      setChatOpen(true);
-    }
-    window.addEventListener(OPEN_HELP_CHAT_EVENT, handleOpenChat);
-    return (): void => window.removeEventListener(OPEN_HELP_CHAT_EVENT, handleOpenChat);
-  }, []);
 
   const closeUserMenu = useCallback((): void => setUserMenuOpen(false), []);
   useDismissablePopup({
@@ -498,7 +477,7 @@ export default function AppShell({
           <button
             type="button"
             onClick={(): void => {
-              setChatOpen(true);
+              openHelpChat();
               setSidebarOpen(false);
             }}
             title="Ayuda y soporte"
@@ -815,20 +794,11 @@ export default function AppShell({
       )}
 
       {/*
-       * Help chat — opened from "Ayuda y soporte" above, never from a floating
-       * action button, and never mounted on a public route.
+       * No ChatWidget here. "Ayuda y soporte" above opens the ONE panel that
+       * `HelpChatDock` mounts in the root layout, which is also what the
+       * floating launcher opens — one assistant, one conversation, one set of
+       * role-scoped quick replies, whichever way the user reached it.
        */}
-      {session && (
-        <ChatWidget
-          open={chatOpen}
-          role={role}
-          initialDraft={chatDraft}
-          onClose={(): void => {
-            setChatOpen(false);
-            setChatDraft(undefined);
-          }}
-        />
-      )}
     </div>
   );
 }

@@ -17,13 +17,13 @@
  * proxy at POST /api/chatbot (see src/app/api/chatbot/route.ts), which itself
  * proxies the public, rate-limited `POST /chatbot/consultar` on FastAPI.
  *
- * Open/closed state is OWNED BY THE HOST, not by this component. There are
- * exactly two hosts: `AppShell`, which mounts it gated on `session` and opens
- * it from the sidebar's "Ayuda y soporte" entry, and `/unauthorized`, which
- * has no sidebar to open it from and therefore carries its own trigger
- * (`docs/ux/prototipos/26-sin-rol.html`). There is no floating action button
- * anywhere — it used to float over the login form, the landing's WhatsApp
- * block and the trainer's attendance controls.
+ * Open/closed state is OWNED BY THE HOST, not by this component. There is now
+ * exactly ONE host — `HelpChatDock`, mounted once in the root layout — and
+ * every trigger in the product opens that one panel through `help-chat-store`.
+ * The floating launcher lives on the dock, not here: this component still
+ * renders no trigger of its own, so nothing about the panel can park itself
+ * over the login form, the landing's WhatsApp block or the trainer's
+ * attendance controls the way the old FAB did.
  *
  * Visual contract from `docs/ux/prototipos/28-chat.html` + `_sistema.css`
  * (`.chat`, `.bub`, `.typing`, `.quicks`, `.sendb`): 340px panel, coal header
@@ -42,6 +42,7 @@ import { X, Send, AlertTriangle } from "lucide-react";
 import { consultarChatbot, type ChatbotTurno } from "@/services/api";
 import { landingConfig, toWhatsAppLink } from "@/app/landing/landing-config";
 import { getQuickReplies, TALK_TO_CLUB_LABEL } from "./chat-quick-replies";
+import { ASSISTANT_FOCUS_RING } from "./chat-focus-ring";
 import type { UserRole } from "@/types/domain";
 
 /** How many prior turns to send as `historial` on each request — mirrors the backend's own cap. */
@@ -71,7 +72,7 @@ const BUBBLE_BASE =
 const QUICK_REPLY =
   "inline-flex h-ctl-sm items-center rounded-full border border-line-2 bg-paper px-3 " +
   "text-xs font-semibold text-ink-2 transition-colors hover:border-ink-3 hover:text-ink " +
-  "disabled:cursor-not-allowed disabled:opacity-45";
+  `${ASSISTANT_FOCUS_RING} disabled:cursor-not-allowed disabled:opacity-45`;
 
 export interface ChatWidgetProps {
   /** Whether the panel is visible. Owned by the host (see `AppShell`). */
@@ -101,6 +102,17 @@ export default function ChatWidget({
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Opening moves focus into the panel. Without it the panel appears but the
+  // caret stays on whatever trigger was clicked — which, now that the trigger
+  // can be a launcher floating in a corner, leaves a keyboard user tabbing
+  // through the whole page to reach the composer they just asked for.
+  // `preventScroll` because the panel is `fixed`: scrolling to it would move
+  // the page underneath for no reason.
+  useEffect((): void => {
+    if (open) inputRef.current?.focus({ preventScroll: true });
+  }, [open]);
 
   useEffect((): void => {
     if (!open || !listRef.current) return;
@@ -191,7 +203,7 @@ export default function ChatWidget({
           type="button"
           onClick={onClose}
           aria-label={`Cerrar ${BOT_NAME}`}
-          className="shrink-0 rounded-lg p-1 text-white/55 transition-colors hover:bg-white/10 hover:text-white"
+          className={`shrink-0 rounded-lg p-1 text-white/55 transition-colors hover:bg-white/10 hover:text-white ${ASSISTANT_FOCUS_RING}`}
         >
           <X size={16} strokeWidth={2} aria-hidden="true" />
         </button>
@@ -230,6 +242,18 @@ export default function ChatWidget({
            * asks for less motion the dots hold still, exactly as
            * `_sistema.css:474-483` specifies. The label is what carries the
            * meaning either way.
+           *
+           * A design detector flags `animate-bounce` as bounce easing, and it
+           * is right about the keyframe — but it stays, for three reasons that
+           * are specific to this element. The dot is 6px, and the keyframe
+           * translates 25%, so the whole authored motion is 1.5px of travel:
+           * at that amplitude it reads as a wave, not as a bouncing ball. It
+           * is the only motion in the panel, which is what the craft floor
+           * asks for — one authored moment. And the alternative (a custom
+           * ease-out keyframe) would have to be declared in `globals.css` or
+           * `tailwind.config.ts`, i.e. a shared token file, to replace 1.5px
+           * of movement inside an `aria-hidden`, reduced-motion-gated
+           * indicator. Not worth a system-wide edit.
            */
           <span
             role="status"
@@ -284,6 +308,7 @@ export default function ChatWidget({
       {/* `.chat .inputrow` — 40px field, 40px red send button. */}
       <form onSubmit={handleSubmit} className="flex flex-none items-center gap-2 border-t border-line p-3">
         <input
+          ref={inputRef}
           type="text"
           value={borrador}
           onChange={(e): void => setBorrador(e.target.value)}
@@ -296,7 +321,10 @@ export default function ChatWidget({
           type="submit"
           disabled={enviando || borrador.trim().length === 0}
           aria-label="Enviar mensaje"
-          className="flex h-ctl w-10 flex-none items-center justify-center rounded-ctl bg-cata-red text-white transition-colors hover:bg-cata-red-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball disabled:cursor-not-allowed disabled:opacity-45"
+          /* `outline-ball` used to draw this ring. #FFD600 is 1.42:1 on the
+             panel's white footer — a focus indicator that fails 2.4.11 by a
+             factor of two. See `chat-focus-ring.ts`. */
+          className={`flex h-ctl w-10 flex-none items-center justify-center rounded-ctl bg-cata-red text-white transition-colors hover:bg-cata-red-dark ${ASSISTANT_FOCUS_RING} disabled:cursor-not-allowed disabled:opacity-45`}
         >
           <Send size={16} strokeWidth={2} aria-hidden="true" />
         </button>

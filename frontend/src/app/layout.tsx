@@ -7,6 +7,7 @@ import Header from "@/components/Header";
 import AuthProviderWrapper from "@/components/AuthProviderWrapper";
 import { ToastProvider } from "@/contexts/ToastContext";
 import ToastContainer from "@/components/ToastContainer";
+import HelpChatDock from "@/components/chatbot/HelpChatDock";
 import "./globals.css";
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Cata Club Admin";
@@ -41,19 +42,24 @@ export default function RootLayout({
               {children}
             </main>
             {/*
-             * No ChatWidget here on purpose. It used to be mounted globally
-             * and carried its own floating action button, so the FAB sat over
-             * the login form, over the landing's WhatsApp block and over the
-             * trainer's attendance controls.
+             * CATA-BOT, once, for every surface — public and authenticated.
+             * `/api/chatbot` is public, and the questions it answers are asked
+             * most often by people who have no account yet, so the assistant
+             * cannot live behind the sidebar.
              *
-             * It is now opened from whatever affordance each surface already
-             * has: the sidebar's "Ayuda y soporte" entry inside `AppShell`,
-             * "Contactar al club" on /unauthorized, and — since `/api/chatbot`
-             * is public and a prospective member needs it BEFORE any account
-             * exists — `HelpChatLauncher` in the landing's contact block, in
-             * `AuthShell`'s small print (login, forgot/reset password) and in
-             * the enrolment wizard's header.
+             * This is deliberately NOT the floating action button that was
+             * removed from here: `HelpChatDock` measures what is under its
+             * corner and yields to it — see its own note. It is mounted inside
+             * `AuthProviderWrapper` because the quick replies are role-scoped,
+             * and after `<main>` so a keyboard user reaches the page before
+             * the launcher.
+             *
+             * Every inline trigger still exists and opens THIS panel: the
+             * sidebar's "Ayuda y soporte", "Contactar al club" on
+             * /unauthorized, and `HelpChatLauncher` in the landing's contact
+             * block, in `AuthShell`'s small print and in the enrolment header.
              */}
+            <HelpChatDock />
           </AuthProviderWrapper>
         </ToastProvider>
       </body>
