@@ -39,6 +39,35 @@ class ResetNoPermitidoError(RuntimeError):
     """Se lanza cuando el reset de la base de datos no está permitido."""
 
 
+# Parámetros de query string que el dialecto psycopg/libpq usa para
+# sobrescribir el destino real de la conexión, tomando precedencia sobre el
+# host/base parseados del netloc de la URL. Si se permitiera cualquiera de
+# estos, un `DATABASE_URL` con un netloc en la allow-list (ej. `localhost`)
+# pero `?host=<host real>` (o `?hostaddr=` / `?dbname=`) conectaría de hecho
+# a un destino distinto del validado — bypass total del guard. No existe un
+# uso legítimo de estos parámetros en un reset de desarrollo, así que se
+# rechazan de plano en vez de intentar normalizarlos.
+_PARAMS_QUERY_STRING_PROHIBIDOS = {"host", "hostaddr", "dbname"}
+
+
+def _validar_sin_overrides_de_destino(database_url: str, url) -> None:
+    """Rechaza `database_url` si su query string trae `host`, `hostaddr` o
+    `dbname`: esa es la clase completa de overrides que el driver psycopg
+    antepone al host/base del netloc al construir los connect args reales
+    (`dialect.create_connect_args`), y por lo tanto puede hacer que la
+    conexión real no coincida con lo que valida este guard."""
+    presentes = _PARAMS_QUERY_STRING_PROHIBIDOS & set(url.query.keys())
+    if presentes:
+        raise ResetNoPermitidoError(
+            "DATABASE_URL trae parámetro(s) de query string "
+            f"{sorted(presentes)} que sobrescriben el destino real de la "
+            "conexión (host/base) por encima del netloc de la URL. Esta "
+            "protección es incondicional: --forzado no puede saltarla. "
+            "Un reset de desarrollo nunca necesita estos parámetros; "
+            "quitalos de DATABASE_URL."
+        )
+
+
 def validar_reset_permitido(
     ambiente: str,
     forzado: bool,
@@ -52,6 +81,12 @@ def validar_reset_permitido(
        rechaza sin importar `ambiente` ni `forzado`. Esta capa es la que
        impide que un `.env` con `AMBIENTE=development` pero `DATABASE_URL`
        apuntando a un Postgres compartido/staging destruya esa base.
+       Como parte de esta misma capa incondicional, también se rechaza
+       cualquier `database_url` cuyo query string incluya `host`,
+       `hostaddr` o `dbname`: son parámetros que el driver psycopg usa para
+       sobrescribir el destino real de la conexión por encima del netloc
+       (ver `_validar_sin_overrides_de_destino`), y permitirlos anularía la
+       allow-list de host validando un destino distinto del real.
     2. Si el host es válido y `ambiente == "development"`, se permite (flujo
        normal de desarrollo local). Si `ambiente` es distinto, `forzado` por
        sí solo NO alcanza: además se exige `confirmar_nombre` igual al
@@ -61,6 +96,8 @@ def validar_reset_permitido(
     url = make_url(database_url)
     host = url.host or ""
     nombre_db = url.database or ""
+
+    _validar_sin_overrides_de_destino(database_url, url)
 
     if host not in settings.reset_hosts_permitidos:
         raise ResetNoPermitidoError(

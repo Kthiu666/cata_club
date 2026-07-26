@@ -33,6 +33,53 @@ def test_host_permitido_en_development_pasa():
     validar_reset_permitido("development", False, URL_HOST_PERMITIDO, None)
 
 
+def test_query_string_host_override_rechaza_aunque_netloc_este_permitido():
+    """El dialecto psycopg honra `host=` en el query string y lo antepone
+    al host del netloc al armar los connect args reales. Un `DATABASE_URL`
+    con netloc `localhost` (permitido) pero `?host=<host real>` conectaría
+    a ese host real mientras el guard valida `localhost` — bypass total de
+    la allow-list. Debe rechazarse de forma incondicional."""
+    url_con_override = (
+        "postgresql+psycopg://usuario:password@localhost:5432/cataclub_db"
+        "?host=prod-db.internal.example.com"
+    )
+    with pytest.raises(ResetNoPermitidoError):
+        validar_reset_permitido("development", False, url_con_override, None)
+
+
+def test_query_string_hostaddr_override_rechaza_aunque_netloc_este_permitido():
+    """`hostaddr=` es la misma clase de override que `host=` (libpq la usa
+    para resolver la conexión sin pasar por DNS) y debe rechazarse igual."""
+    url_con_override = (
+        "postgresql+psycopg://usuario:password@localhost:5432/cataclub_db"
+        "?hostaddr=10.0.0.1"
+    )
+    with pytest.raises(ResetNoPermitidoError):
+        validar_reset_permitido("development", False, url_con_override, None)
+
+
+def test_query_string_dbname_override_rechaza_aunque_netloc_este_permitido():
+    """`dbname=` en el query string sobrescribe la base de datos real a la
+    que se conecta el driver, independientemente del path del netloc."""
+    url_con_override = (
+        "postgresql+psycopg://usuario:password@localhost:5432/cataclub_db"
+        "?dbname=produccion"
+    )
+    with pytest.raises(ResetNoPermitidoError):
+        validar_reset_permitido("development", False, url_con_override, None)
+
+
+def test_query_string_override_no_bypasseable_con_forzado():
+    """El rechazo de overrides de host/base vía query string es incondicional,
+    igual que la allow-list de host: `--forzado` no lo salta."""
+    url_con_override = (
+        "postgresql+psycopg://usuario:password@localhost:5432/cataclub_db"
+        "?host=prod-db.internal.example.com"
+    )
+    with pytest.raises(ResetNoPermitidoError):
+        validar_reset_permitido("production", True, url_con_override, "cataclub_db")
+
+
 def test_host_permitido_no_dev_sin_forzado_rechaza():
     with pytest.raises(ResetNoPermitidoError):
         validar_reset_permitido("staging", False, URL_HOST_PERMITIDO, None)

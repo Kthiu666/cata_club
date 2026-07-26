@@ -56,6 +56,16 @@ capas independientes:
    worktree), agregá su hostname explícitamente vía la variable de entorno
    `RESET_HOSTS_PERMITIDOS` — eso es un cambio de configuración auditable,
    no un flag de runtime.
+   Como parte de esta misma capa incondicional, el guard también rechaza
+   cualquier `DATABASE_URL` cuyo query string traiga `host`, `hostaddr` o
+   `dbname`: el driver psycopg usa esos parámetros para sobrescribir el
+   destino real de la conexión por encima del host/base del netloc, así
+   que un `DATABASE_URL` como
+   `postgresql+psycopg://user:pass@localhost:5432/db?host=prod.ejemplo.com`
+   validaría `localhost` (permitido) pero conectaría de hecho a
+   `prod.ejemplo.com`. No hay uso legítimo de esos parámetros en un reset
+   de desarrollo, así que se rechazan de plano, también sin importar
+   `--forzado`.
 2. **Segundo factor fuera de `development`.** Si el host es válido y
    `AMBIENTE == "development"`, el reset procede (flujo normal). Si
    `AMBIENTE` es distinto, `--forzado` solo no alcanza: además hay que
