@@ -69,7 +69,8 @@ Repetir este cuestionario con el grupo evaluador después de integrar el redise�
 | Prototipo v3.4 | 2026-07-23 | 73/100 | 7,3 | Cuestionario sobre el prototipo |
 | Post-integración | 2026-07-25 | **77/100** | **7,7** | Tres evaluadores aislados, implementación corriendo |
 | Interino (backlog a medias) | 2026-07-25 | *83/100* | *8,3* | **Autoevaluación contra el código — ver la advertencia** |
-| Post-backlog | — | — | — | — |
+| Post-backlog (autoevaluación) | 2026-07-25 | *89/100* | *8,9* | **Autoevaluación contra el código — no reemplaza al grupo** |
+| Post-backlog (grupo) | — | — | — | Pendiente: repetir con evaluadores aislados |
 
 ## Corte post-integración — 2026-07-25
 
@@ -191,3 +192,61 @@ Sigue sin evaluarse el comportamiento con la base mutando de verdad, y los
 flujos por teclado completos. Un evaluador leyendo código no ve una lista de
 cuarenta alumnos en una tablet a contraluz, ni descubre que el undo llega
 tarde porque el pulgar ya estaba en otro lado.
+
+## Corte post-backlog — 2026-07-25 (autoevaluación)
+
+> **Misma advertencia que el corte interino, y sigue valiendo entera.** Un solo
+> evaluador, leyendo código, que además escribió los cambios. El 77 lo pusieron
+> tres evaluadores aislados usando la aplicación, y de ahí venía su peso. Esto
+> anticipa esa medición; no la sustituye. La fila "Post-backlog (grupo)" queda
+> vacía a propósito.
+
+El backlog de mejora está cerrado salvo un ítem, y ese ítem resultó no existir
+(ver abajo).
+
+| Principio | Prototipo | Post-integr. | Interino | Ahora | Qué lo movió |
+|---|---:|---:|---:|---:|---|
+| P1 Visibilidad del estado | 7 | 7 | 8 | **9** | El paso vive en la URL; una decisión retenida se anuncia en la cola mientras dura, no solo en un toast que se va. Parte de esta subida es medición, no cambio: los estados "Guardando…" ya existían en nueve pantallas y el corte anterior no pudo verlos |
+| P2 Mundo real | 9 | 8 | 8 | **9** | Se fue "rol ALUMNO" de la UI, y un test impide que vuelva: prohíbe un término de backend dentro de una frase, que es donde nunca se defiende |
+| P3 Control y libertad | 6 | 6 | 9 | **9** | Sin cambios desde el corte interino |
+| P4 Consistencia | 9 | 9 | 9 | **9** | Un anillo de foco, un hook de historial, un hook de preferencias, un componente de pista. Ya estaba en 9 |
+| P5 Prevención de errores | 5 | 8 | 9 | **9** | El lote **conserva** las afirmaciones en vez de saltearlas, que era la forma fácil de perder lo ganado |
+| P6 Reconocimiento | 8 | 8 | 8 | **9** | Pistas de primera vez sobre las dos reglas arbitrarias de verdad; el deshacer dice qué va a deshacer |
+| P7 Flexibilidad | 7 | 7 | 7 | **9** | Los dos ítems entregados: aprobación por lote y filtros que se recuerdan |
+| P8 Estético y minimalista | 9 | 9 | 9 | **9** | Sin cambios |
+| P9 Recuperación de errores | 5 | 7–8 | 8 | **8** | Nada nuevo esta vuelta. Un lote que falla vuelve entero a la cola y lo dice, pero eso es un refuerzo, no un salto |
+| P10 Ayuda y documentación | 8 | 8 | 8 | **9** | `/ayuda`: las respuestas navegables, no solo preguntables. Enlazada desde el asistente y desde el menú |
+
+**Total: 89/100 · Promedio: 8,9/10.** Pasa la meta de 8,5. Queda un punto por
+debajo del 9,0 pedido.
+
+### Un ítem del backlog no se hizo porque ya no existe
+
+"Tooltips de primera vez en la escalera de niveles **y el marcador de mínimo**"
+solo se pudo cumplir a medias, y no por falta de trabajo: el marcador de mínimo
+fue **eliminado deliberadamente** de la escalera por una decisión posterior.
+`NivelLadder` lo dice como regla de producto — *"NO occupancy: no meters, no
+'N/M' fractions, no minimum-headcount warning"* — y `cuposDisponibles` /
+`necesitaRevision` existen en la API pero nunca llegan a la UI. No hay marcador
+que explicar.
+
+La pista se puso donde sí hay una regla arbitraria que la pantalla no puede
+enunciar: el contador de **sin revisar** de Pasar lista, que solo tiene sentido
+si uno sabe que todos arrancan en "Presente" por diseño.
+
+### Qué cuesta el punto que falta
+
+- **P9, 1 punto.** Es el único principio que no se movió en esta vuelta. Lo que
+  le falta es un patrón de error verificado extremo a extremo con la base
+  mutando: formularios, caídas de red y reintentos medidos, no leídos.
+- **Y sigue pendiente la decisión de `h-ctl`** (40 → 44 px). No se tocó: 40 px
+  cumple WCAG 2.5.8 (24 px, AA) y 44 px es 2.5.5, AAA; mover el token cambia
+  cada control en unas 60 pantallas y viene de un spec aprobado que este repo
+  pide cambiar primero. Es una decisión del dueño del diseño.
+
+### Lo que esta autoevaluación sigue sin poder mirar
+
+Lo mismo que el corte anterior: el comportamiento con la base mutando, y los
+flujos por teclado completos. Un evaluador leyendo código no ve una lista de
+cuarenta alumnos en una tablet a contraluz. **La medición que cuenta es la del
+grupo, y todavía no se hizo.**
