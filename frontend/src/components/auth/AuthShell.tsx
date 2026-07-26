@@ -97,11 +97,18 @@ import { yearsSinceFounding } from "@/app/landing/landing-config";
  * `.input` (prototype line 82) — 40px, 10px radius, hairline border on paper,
  * 13px text. Shared by all four auth screens so the field height is a token,
  * not a per-screen guess.
+ *
+ * No focus ring is declared here. `globals.css` paints the system indicator
+ * from a 0,3,0 selector, which outranks Tailwind's 0,2,0 `focus:*` utilities —
+ * so the `focus:ring-[3px] focus:ring-cata-red/10` these fields used to carry
+ * never rendered, and at 1.16:1 composited on paper it would have been
+ * decoration rather than an indicator if it had. `focus:border-cata-red`
+ * stays: that is the field reacting, a real 5.00:1 state change.
  */
 export const AUTH_INPUT_CLASSES =
   "h-ctl w-full rounded-ctl border border-line-2 bg-paper px-[13px] text-[13.5px] text-ink " +
   "transition-colors placeholder:text-ink-3 focus:border-cata-red focus:outline-none " +
-  "focus:ring-[3px] focus:ring-cata-red/10 disabled:cursor-not-allowed disabled:opacity-50";
+  "disabled:cursor-not-allowed disabled:opacity-50";
 
 /** `.field label` (line 239) — 12.5px/600, 6px below the control. */
 export const AUTH_LABEL_CLASSES = "mb-1.5 block text-[12.5px] font-semibold text-ink";
@@ -181,7 +188,11 @@ export default function AuthShell({
 
         <Link
           href="/"
-          className={`relative z-[1] inline-flex items-center gap-1.5 self-start justify-self-start text-[13px] transition-colors hover:text-white ${ON_COAL_MUTED}`}
+          /* `min-h-[24px]` is hit area, not type: WCAG 2.2 SC 2.5.8 asks for
+             24x24 CSS px and this link measured 101.8 x 19.5 on a 390px
+             viewport. The 13px text and the 14px arrow are unchanged; the
+             extra 4.5px is split around them by `items-center`. */
+          className={`relative z-[1] inline-flex min-h-[24px] items-center gap-1.5 self-start justify-self-start text-[13px] transition-colors hover:text-white ${ON_COAL_MUTED}`}
         >
           <ArrowLeft size={14} strokeWidth={2} aria-hidden="true" />
           Volver al sitio
@@ -293,8 +304,12 @@ export default function AuthShell({
         <div className="row-start-3 self-start">
           {/* The note — outside the card, on purpose. `margin:16px auto 0`. */}
           {note && (
+            /* `ink-3-strong`: the note sits OUTSIDE the card, directly on the
+               `canvas` field, where `ink-3` measures 3.78:1. The companion
+               token exists for exactly this case (see `tailwind.config.ts`)
+               and reads 4.86:1 without promoting the small print to body ink. */
             <p
-              className={`mx-auto mt-4 text-center text-[11.5px] leading-[1.5] text-ink-3 ${CARD_WIDTH}`}
+              className={`mx-auto mt-4 text-center text-[11.5px] leading-[1.5] text-ink-3-strong ${CARD_WIDTH}`}
             >
               {note}
             </p>

@@ -22,11 +22,14 @@ export type ButtonVariant = "primary" | "secondary" | "dark" | "ghost";
 export type ButtonSize = "md" | "sm";
 
 /** `.btn` base — shape, typography and focus ring, without any color. */
+// The focus ring is NOT declared here. `_sistema.css:80` specifies the ball at
+// 2px/offset 2px, and this file used to transcribe it literally — but #FFD600
+// measures 1.41:1 on `paper` and 1.16:1 on `canvas`, which is where buttons
+// actually live. The ball survives as the inner band of the system ring in
+// `globals.css`, which dresses every focusable element in the product.
 const BASE =
   "inline-flex items-center justify-center gap-2 whitespace-nowrap border font-semibold " +
   "transition-colors duration-150 " +
-  // `_sistema.css:80` — focus ring is the ball, 2px, offset 2px.
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball " +
   // `.btn[disabled], .btn.off` (:176)
   "disabled:cursor-not-allowed disabled:opacity-45";
 

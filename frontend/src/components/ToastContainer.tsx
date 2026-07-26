@@ -97,7 +97,13 @@ export default function ToastContainer(): React.ReactElement | null {
               type="button"
               onClick={() => removeToast(toast.id)}
               aria-label="Cerrar notificación"
-              className="-m-1 shrink-0 rounded p-1 text-current/80 transition-colors hover:text-current focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-current"
+              /* `-m-1 … p-1` is hit area, not spacing: it lifts the 16px glyph
+                 to a 24x24 target (WCAG 2.2 SC 2.5.8) without moving it.
+                 No focus ring is declared — the system indicator in
+                 `globals.css` outranks Tailwind's `focus-visible:*` utilities
+                 (0,3,0 vs 0,2,0), so the `outline-current` this button used to
+                 carry never rendered. */
+              className="-m-1 shrink-0 rounded p-1 text-current/80 transition-colors hover:text-current"
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>

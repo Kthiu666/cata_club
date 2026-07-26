@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import StudentPage from "@/app/student/page";
 import type { StudentPortalSummary } from "@/services/api";
 import type { PagoPersona } from "@/services/api";
@@ -19,9 +19,18 @@ vi.mock("@/components/ProtectedRoute", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+/**
+ * The dependent selection lives in `?alumno=` now (see `ManagedStudentPicker`),
+ * so the search params and `router.replace` are part of this screen's contract.
+ * Tests that care set `searchParams` before rendering and read `mockReplace`.
+ */
+let searchParams = new URLSearchParams();
+const mockReplace = vi.fn();
+
 vi.mock("next/navigation", () => ({
   usePathname: () => "/student",
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: mockReplace }),
+  useSearchParams: () => searchParams,
 }));
 
 vi.mock("next/link", () => ({
@@ -140,10 +149,88 @@ const PAGO_APROBADO: PagoPersona = {
 };
 
 beforeEach(() => {
+  searchParams = new URLSearchParams();
+  mockReplace.mockReset();
+  window.sessionStorage.clear();
   mockFetchStudentPortal.mockReset().mockResolvedValue(PORTAL);
   mockFetchPagosDePersona.mockReset().mockResolvedValue([]);
   mockFetchHorariosPorAlumno.mockReset().mockResolvedValue([]);
   mockIndependizarPersona.mockReset().mockResolvedValue(undefined);
+});
+
+/**
+ * The defect this pass exists for: a guardian picked her 16-year-old here,
+ * clicked "Pagos" in the sidebar, and the next screen silently reverted to the
+ * 10-year-old — same layout, different plan, different amount, different
+ * history, and no signal at all that the subject had changed.
+ *
+ * The selection is route state now: `?alumno=` in the address bar, backed by a
+ * per-account `sessionStorage` entry because the sidebar's plain
+ * `/student/...` links cannot carry a query string.
+ */
+describe("StudentPage — the dependent selection survives navigation", () => {
+  const GUARDIAN_PORTAL: StudentPortalSummary = {
+    self: null,
+    representados: [
+      { ...PORTAL.self!, personaId: "41", nombres: "Sofía", apellidos: "Vera" },
+      { ...PORTAL.self!, personaId: "42", nombres: "Martín", apellidos: "Vera" },
+    ],
+    membershipPlans: [],
+  };
+
+  beforeEach(() => {
+    mockFetchStudentPortal.mockReset().mockResolvedValue(GUARDIAN_PORTAL);
+  });
+
+  /** Whose carnet is on screen — the screen's own answer, not the select's. */
+  async function carnetName(): Promise<string> {
+    const carnet = await screen.findByTestId("student-carnet");
+    return carnet.getAttribute("aria-label") ?? "";
+  }
+
+  it("opens on the profile named by ?alumno=, not on the first dependent", async () => {
+    searchParams = new URLSearchParams("alumno=42");
+
+    render(<StudentPage />);
+
+    expect(await carnetName()).toBe("Carnet de socio de Martín Vera");
+  });
+
+  it("restores the stored selection when the sidebar drops it, and puts it back in the URL", async () => {
+    // Exactly what clicking "Pagos" and then "Mi cuenta" in the sidebar does:
+    // arrive at a bare `/student` with a selection already made.
+    window.sessionStorage.setItem("cata:student-portal:alumno:9", "42");
+
+    render(<StudentPage />);
+
+    expect(await carnetName()).toBe("Carnet de socio de Martín Vera");
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/student?alumno=42", { scroll: false });
+    });
+  });
+
+  it("writes an explicit switch to both the URL and the store", async () => {
+    render(<StudentPage />);
+
+    const select = await screen.findByLabelText("Estudiante");
+    expect(await carnetName()).toBe("Carnet de socio de Sofía Vera");
+
+    fireEvent.change(select, { target: { value: "42" } });
+
+    expect(await carnetName()).toBe("Carnet de socio de Martín Vera");
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/student?alumno=42", { scroll: false });
+    });
+    expect(window.sessionStorage.getItem("cata:student-portal:alumno:9")).toBe("42");
+  });
+
+  it("ignores a stored id the account no longer manages instead of rendering nothing", async () => {
+    window.sessionStorage.setItem("cata:student-portal:alumno:9", "999");
+
+    render(<StudentPage />);
+
+    expect(await carnetName()).toBe("Carnet de socio de Sofía Vera");
+  });
 });
 
 describe("StudentPage — contextual dependent CTA", () => {
@@ -435,9 +522,11 @@ describe("StudentPage — the payment band", () => {
 
     const band = await screen.findByTestId("student-payment-band");
     await waitFor(() => {
+      // The CTA carries the profile it is about — `?registrar=1` says "this
+      // reader came here to pay", `?alumno=` says whose payment it is.
       expect(within(band).getByText("Registrar un pago").closest("a")).toHaveAttribute(
         "href",
-        "/student/payments?registrar=1",
+        "/student/payments?registrar=1&alumno=9",
       );
     });
 
@@ -511,7 +600,7 @@ describe("StudentPage — the payment band", () => {
     const band = await screen.findByTestId("student-payment-band");
     expect(within(band).getByText("Ver los pagos").closest("a")).toHaveAttribute(
       "href",
-      "/student/payments",
+      "/student/payments?alumno=9",
     );
     expect(within(band).queryByText("Registrar un pago")).not.toBeInTheDocument();
   });
@@ -566,7 +655,7 @@ describe("StudentPage — the training panel", () => {
     const panel = await screen.findByTestId("student-situation");
     expect(within(panel).getByText("Ver mis asistencias").closest("a")).toHaveAttribute(
       "href",
-      "/student/attendance",
+      "/student/attendance?alumno=9",
     );
   });
 
@@ -582,7 +671,7 @@ describe("StudentPage — the training panel", () => {
     const panel = await screen.findByTestId("student-situation");
     expect(
       within(panel).getByText("Ver las asistencias de Sofía").closest("a"),
-    ).toHaveAttribute("href", "/student/attendance");
+    ).toHaveAttribute("href", "/student/attendance?alumno=42");
   });
 });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -21,7 +21,10 @@ import type {
 import { formatCurrency, formatDate } from "@/lib/format-utils";
 import { EmptyState, ErrorState, LoadingState, buttonClasses } from "@/components/ui";
 import AgeUpConfirmation from "@/components/AgeUpConfirmation";
-import ManagedStudentPicker, { useManagedProfiles } from "./ManagedStudentPicker";
+import ManagedStudentPicker, {
+  useManagedProfiles,
+  withSelectedStudent,
+} from "./ManagedStudentPicker";
 import PaymentBand from "./PaymentBand";
 import {
   derivePortalMode,
@@ -135,6 +138,11 @@ function Carnet({
       />
 
       <div className="relative z-10 flex items-center gap-[11px]">
+        {/* `alt=""` on purpose: the mark carries no information the card does
+            not already state in text — "Cata Club / Tenis de mesa" is right
+            beside it, and the section is labelled "Carnet de socio de …".
+            Naming the image would make a screen reader say the club's name
+            twice in a row (WCAG 1.1.1: a redundant image is decorative). */}
         <span className="flex h-[30px] w-[30px] flex-none items-center justify-center overflow-hidden rounded-full bg-white">
           <Image src="/brand/cata-club-logo.jpeg" alt="" width={30} height={30} className="h-[30px] w-[30px] object-cover" />
         </span>
@@ -217,12 +225,19 @@ function Carnet({
 // source would read as a confirmed appointment, which is not what it is.
 // ---------------------------------------------------------------------------
 
-/** A text action that reads as a destination, not as a button competing with the page's CTA. */
+/**
+ * A text action that reads as a destination, not as a button competing with the page's CTA.
+ *
+ * `min-h-[24px]` is the WCAG 2.2 AA target size (SC 2.5.8): the 13px label's
+ * own line box measures 20px tall, which is under the 24x24 floor. The extra
+ * height is hit area only — the box centres its content, so the type size and
+ * the underline's position are unchanged.
+ */
 function SituationLink({ href, children }: { href: string; children: React.ReactNode }): React.ReactElement {
   return (
     <Link
       href={href}
-      className="inline-flex items-center gap-1.5 rounded text-[13px] font-semibold text-ink underline decoration-line-2 decoration-2 underline-offset-4 transition-colors hover:decoration-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball"
+      className="inline-flex min-h-[24px] items-center gap-1.5 rounded text-[13px] font-semibold text-ink underline decoration-line-2 decoration-2 underline-offset-4 transition-colors hover:decoration-ink"
     >
       {children}
       <ArrowRight size={14} strokeWidth={1.75} aria-hidden="true" />
@@ -368,7 +383,9 @@ function TrainingPanel({
             `La asistencia de ${studentName} aparecerá aquí en cuanto el entrenador tome lista.`
           )}
         </p>
-        <SituationLink href="/student/attendance">
+        {/* The link carries the profile it is talking about, so the record it
+            opens is the one the sentence beside it just described. */}
+        <SituationLink href={withSelectedStudent("/student/attendance", profile.personaId)}>
           {viewingOwnProfile ? "Ver mis asistencias" : `Ver las asistencias de ${studentName}`}
         </SituationLink>
       </div>
@@ -463,6 +480,7 @@ function ActivePortalView({
   const { managedProfiles, selectedId, setSelectedId, selectedProfile } = useManagedProfiles(
     data,
     hasAlumnoRole,
+    accountPersonaId,
   );
 
   const representative = isRepresentative(data.representados.length);
@@ -615,8 +633,14 @@ function ActivePortalView({
                   // three clicks — link, page, "Registrar un pago" — and the
                   // last two were on a screen that never said whose payment it
                   // was about.
-                  { href: "/student/payments?registrar=1", label: "Registrar un pago" }
-                : { href: "/student/payments", label: "Ver los pagos" }
+                  {
+                    href: withSelectedStudent("/student/payments?registrar=1", selectedPersonaId),
+                    label: "Registrar un pago",
+                  }
+                : {
+                    href: withSelectedStudent("/student/payments", selectedPersonaId),
+                    label: "Ver los pagos",
+                  }
             }
           />
 
@@ -801,7 +825,12 @@ function StudentPortalContent(): React.ReactElement {
 export default function StudentPage(): React.ReactElement {
   return (
     <ProtectedRoute allowedRoles={["representante", "estudiante", "unsupported"]}>
-      <StudentPortalContent />
+      {/* `useManagedProfiles` reads `?alumno=` through `useSearchParams`, which
+          needs a boundary to fall back to during prerender — the same wrapper
+          `/student/payments` and `/reset-password` use for the same reason. */}
+      <Suspense>
+        <StudentPortalContent />
+      </Suspense>
     </ProtectedRoute>
   );
 }

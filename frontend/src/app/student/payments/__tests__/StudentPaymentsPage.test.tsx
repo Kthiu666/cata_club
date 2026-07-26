@@ -27,10 +27,24 @@ vi.mock("@/components/ProtectedRoute", () => ({
  */
 let searchParams = new URLSearchParams();
 
+const mockReplace = vi.fn();
+
 vi.mock("next/navigation", () => ({
   usePathname: () => "/student/payments",
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: mockReplace }),
   useSearchParams: () => searchParams,
+}));
+
+const mockShowSuccess = vi.fn();
+vi.mock("@/contexts/ToastContext", () => ({
+  ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useToast: () => ({
+    showToast: vi.fn(),
+    showError: vi.fn(),
+    showSuccess: mockShowSuccess,
+    showInfo: vi.fn(),
+    showWarning: vi.fn(),
+  }),
 }));
 
 vi.mock("next/link", () => ({
@@ -138,6 +152,9 @@ function makePago(overrides: Partial<PagoPersona> = {}): PagoPersona {
 
 beforeEach(() => {
   searchParams = new URLSearchParams();
+  mockReplace.mockReset();
+  mockShowSuccess.mockReset();
+  window.sessionStorage.clear();
   mockUseAuth.mockReset().mockReturnValue(authSession());
   mockFetchStudentPortal.mockReset().mockResolvedValue(PORTAL);
   mockFetchPagosDePersona.mockReset().mockResolvedValue([makePago()]);
@@ -402,5 +419,169 @@ describe("StudentPaymentsPage — registering a payment", () => {
 
     expect(await screen.findByText(/ya tiene un pago esperando validación/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /registrar un pago/i })).not.toBeInTheDocument();
+  });
+
+  // WCAG 2.2 SC 2.5.8 — the detach control was a bare 14px ✕ inside a button
+  // with no padding, i.e. a 14x14 target, and it is the only way back from
+  // attaching the wrong file. It gets 24x24 of hit area; the glyph stays 14px.
+  it("gives the detach control a 24x24 target around its 14px glyph", async () => {
+    render(<StudentPaymentsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /registrar un pago/i }));
+
+    // Transferencia is the default method, so the voucher row is already up.
+    const fileInput = screen.getByTestId("renew-voucher-input") as HTMLInputElement;
+    fireEvent.change(fileInput, {
+      target: { files: [new File(["x"], "comprobante.pdf", { type: "application/pdf" })] },
+    });
+
+    const detach = await screen.findByRole("button", { name: /quitar el comprobante/i });
+    expect(detach).toHaveClass("h-6", "w-6");
+    expect(detach).toHaveClass("items-center", "justify-center");
+  });
+});
+
+/**
+ * The backend exposes no way to delete or cancel a `Pago` — the whole surface
+ * is create, attach-voucher and an admin-only `PATCH .../validar` — so a
+ * "Deshacer" toast would have had nothing to call. The control the reader gets
+ * is the checkpoint before the commit, and an honest statement of the real
+ * recovery after it.
+ */
+describe("StudentPaymentsPage — the checkpoint before the money moves", () => {
+  async function openFormInCash(): Promise<void> {
+    fireEvent.click(await screen.findByRole("button", { name: /registrar un pago/i }));
+    fireEvent.change(await screen.findByLabelText(/forma de pago/i), {
+      target: { value: "EFECTIVO" },
+    });
+  }
+
+  it("does not register anything on the first click — it states what is about to happen", async () => {
+    render(<StudentPaymentsPage />);
+    await openFormInCash();
+
+    fireEvent.click(screen.getByRole("button", { name: /^registrar pago$/i }));
+
+    const confirm = await screen.findByTestId("renew-confirm");
+    expect(within(confirm).getByText("$25,00")).toBeInTheDocument();
+    expect(within(confirm).getByText("31/07/2026 – 31/08/2026")).toBeInTheDocument();
+    expect(mockRegistrarPago).not.toHaveBeenCalled();
+  });
+
+  it("names the dependent in the checkpoint, so a guardian sees whose money this is", async () => {
+    mockUseAuth.mockReturnValue(authSession("representante"));
+    mockFetchStudentPortal.mockReset().mockResolvedValue({
+      self: null,
+      representados: [{ ...SELF, personaId: "42", nombres: "Martín", apellidos: "Vera" }],
+      membershipPlans: [],
+    });
+
+    render(<StudentPaymentsPage />);
+    await openFormInCash();
+
+    fireEvent.click(screen.getByRole("button", { name: /^registrar pago$/i }));
+
+    const confirm = await screen.findByTestId("renew-confirm");
+    expect(within(confirm).getByText("Martín")).toBeInTheDocument();
+    expect(within(confirm).getByText(/no puede eliminarlo desde el portal/i)).toBeInTheDocument();
+  });
+
+  it("lets the reader back out of the checkpoint without registering", async () => {
+    render(<StudentPaymentsPage />);
+    await openFormInCash();
+    fireEvent.click(screen.getByRole("button", { name: /^registrar pago$/i }));
+    await screen.findByTestId("renew-confirm");
+
+    fireEvent.click(screen.getByRole("button", { name: /volver a corregir/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("renew-confirm")).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: /^registrar pago$/i })).toBeInTheDocument();
+    expect(mockRegistrarPago).not.toHaveBeenCalled();
+  });
+
+  it("commits only on the second, explicit click and then says where the recovery lives", async () => {
+    render(<StudentPaymentsPage />);
+    await openFormInCash();
+    fireEvent.click(screen.getByRole("button", { name: /^registrar pago$/i }));
+    await screen.findByTestId("renew-confirm");
+
+    fireEvent.click(screen.getByRole("button", { name: /confirmar y registrar/i }));
+
+    await waitFor(() => {
+      expect(mockRegistrarPago).toHaveBeenCalledTimes(1);
+    });
+    expect(mockRegistrarPago).toHaveBeenCalledWith(
+      expect.objectContaining({ monto: 25, tipoPago: "EFECTIVO", personaId: 9, membresiaId: 3 }),
+    );
+
+    // No "Deshacer": there is no endpoint behind one. The toast says what the
+    // club does instead, which is the only recovery that actually exists.
+    const [message, detail] = mockShowSuccess.mock.calls[0];
+    expect(message).toMatch(/en revisión/i);
+    expect(detail.description).toMatch(/lo rechaza indicando el motivo/i);
+    expect(document.body.textContent).not.toMatch(/deshacer/i);
+  });
+});
+
+describe("StudentPaymentsPage — the dependent selection survives navigation", () => {
+  const GUARDIAN_PORTAL = {
+    self: null,
+    representados: [
+      { ...SELF, personaId: "41", nombres: "Sofía", apellidos: "Vera" },
+      {
+        ...SELF,
+        personaId: "42",
+        nombres: "Martín",
+        apellidos: "Vera",
+        membership: { ...SELF.membership!, id: 7, montoAplicado: "40.00", categoria: "Mensual Adultos" },
+      },
+    ],
+    membershipPlans: [],
+  };
+
+  beforeEach(() => {
+    mockUseAuth.mockReturnValue(authSession("representante"));
+    mockFetchStudentPortal.mockReset().mockResolvedValue(GUARDIAN_PORTAL);
+  });
+
+  it("opens on the profile named by ?alumno=, with that child's plan and amount", async () => {
+    searchParams = new URLSearchParams("alumno=42");
+
+    render(<StudentPaymentsPage />);
+
+    const card = await screen.findByTestId("membership-status");
+    expect(within(card).getByText("Membresía de Martín")).toBeInTheDocument();
+    expect(within(card).getByText("$40,00")).toBeInTheDocument();
+    expect(mockFetchPagosDePersona).toHaveBeenCalledWith("42");
+  });
+
+  it("restores the stored selection when the sidebar arrives without a param", async () => {
+    // The evaluator's exact path: pick Martín on /student, click "Pagos" in the
+    // sidebar — a plain /student/payments link that cannot carry a query.
+    window.sessionStorage.setItem("cata:student-portal:alumno:9", "42");
+
+    render(<StudentPaymentsPage />);
+
+    const card = await screen.findByTestId("membership-status");
+    expect(within(card).getByText("Membresía de Martín")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/student/payments?alumno=42", { scroll: false });
+    });
+  });
+
+  it("keeps ?registrar=1 alive while it writes the selection into the URL", async () => {
+    searchParams = new URLSearchParams("registrar=1");
+    window.sessionStorage.setItem("cata:student-portal:alumno:9", "42");
+
+    render(<StudentPaymentsPage />);
+
+    await screen.findByTestId("membership-status");
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/student/payments?registrar=1&alumno=42", {
+        scroll: false,
+      });
+    });
   });
 });

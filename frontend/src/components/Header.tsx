@@ -269,8 +269,21 @@ export default function Header({ hideOnLanding = false }: HeaderProps): React.Re
     <header className="sticky top-0 z-50 border-b border-white/10 bg-cata-dark/95 backdrop-blur-md">
       <nav className="mx-auto flex max-w-8xl items-center justify-between px-4 py-3 sm:px-8 lg:px-12">
         {/* Brand — real logo as identity anchor */}
+        {/*
+         * The wordmark beside the logo is `hidden` below `sm`, i.e. removed
+         * from the accessibility tree — so on a phone this link had NO
+         * accessible name at all: a 32px image with `alt=""` inside an anchor,
+         * announced as "link" and nothing else. `aria-label` names the link on
+         * every viewport, which lets the image stay decorative (it repeats the
+         * wordmark on desktop and would otherwise double it).
+         *
+         * The label is the wordmark verbatim, not "Ir al inicio": the header
+         * already carries a separate "Inicio" nav row, and a second link
+         * announcing the same words is two identical destinations by name.
+         */}
         <Link
           href="/"
+          aria-label="Cata Club"
           className="flex items-center gap-3 text-lg font-semibold tracking-tight text-white"
         >
           <div className="relative h-8 w-8 overflow-hidden rounded-lg">

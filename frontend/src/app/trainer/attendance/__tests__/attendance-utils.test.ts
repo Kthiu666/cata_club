@@ -14,7 +14,11 @@ import {
   cycleWizardAttendance,
   resolveFailedStudentNames,
   attendanceDraftKey,
+  buildWizardQuery,
+  listAttendanceDrafts,
+  parseWizardQuery,
   toAttendanceDraft,
+  WIZARD_STEP_ORDER,
   parseAttendanceDraft,
   applyAttendanceDraft,
   saveAttendanceDraft,
@@ -698,5 +702,89 @@ describe("saveAttendanceDraft / loadAttendanceDraft / clearAttendanceDraft", () 
     expect(() => clearAttendanceDraft(KEY)).not.toThrow();
 
     Object.defineProperty(window, "sessionStorage", { configurable: true, value: real });
+  });
+});
+
+describe("listAttendanceDrafts", () => {
+  beforeEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("finds today's drafts and describes what is in them", () => {
+    saveAttendanceDraft("cata_attendance_draft:12:2026-07-20", [
+      { id: "1", name: "A", attendance: "late", reviewed: true },
+      { id: "2", name: "B", attendance: "absent", reviewed: true },
+      // Untouched: never in the draft, so never in the count either.
+      { id: "3", name: "C", attendance: "present" },
+    ]);
+
+    expect(listAttendanceDrafts("2026-07-20")).toEqual([
+      { key: "cata_attendance_draft:12:2026-07-20", horarioId: 12, fecha: "2026-07-20", markCount: 2 },
+    ]);
+  });
+
+  it("never offers a draft from another date", () => {
+    saveAttendanceDraft("cata_attendance_draft:12:2026-07-19", [
+      { id: "1", name: "A", attendance: "late", reviewed: true },
+    ]);
+
+    expect(listAttendanceDrafts("2026-07-20")).toEqual([]);
+  });
+
+  it("ignores a draft nobody actually decided anything in", () => {
+    // A roster where every row is still the default writes an empty draft —
+    // there is nothing to resume, and offering to "retomar" it would be
+    // offering the trainer their own untouched list back.
+    saveAttendanceDraft("cata_attendance_draft:12:2026-07-20", [
+      { id: "1", name: "A", attendance: "present" },
+    ]);
+
+    expect(listAttendanceDrafts("2026-07-20")).toEqual([]);
+  });
+
+  it("leaves unrelated storage keys alone", () => {
+    window.sessionStorage.setItem("cata_session", "{}");
+    window.sessionStorage.setItem("cata_attendance_draft:not-a-number:2026-07-20", '{"1":"late"}');
+
+    expect(listAttendanceDrafts("2026-07-20")).toEqual([]);
+  });
+});
+
+describe("parseWizardQuery / buildWizardQuery", () => {
+  it("round-trips each step", () => {
+    for (const step of WIZARD_STEP_ORDER) {
+      const query = buildWizardQuery(step === "select-session" ? null : 12, step);
+      expect(parseWizardQuery(query)).toEqual({
+        horarioId: step === "select-session" ? null : 12,
+        step,
+      });
+    }
+  });
+
+  it("keeps the start of the flow at the bare URL", () => {
+    expect(buildWizardQuery(null, "select-session")).toBe("");
+    expect(buildWizardQuery(12, "mark-attendance")).toBe("?horario=12&paso=lista");
+    expect(buildWizardQuery(12, "confirm")).toBe("?horario=12&paso=confirmar");
+  });
+
+  it("refuses a step that has no horario to belong to", () => {
+    // A roll call for nobody is not a page — send it back to the picker.
+    expect(parseWizardQuery("?paso=lista")).toEqual({ horarioId: null, step: "select-session" });
+    expect(parseWizardQuery("?horario=abc&paso=lista")).toEqual({
+      horarioId: null,
+      step: "select-session",
+    });
+    expect(parseWizardQuery("?horario=0&paso=lista")).toEqual({
+      horarioId: null,
+      step: "select-session",
+    });
+  });
+
+  it("treats an unknown step as the picker rather than guessing", () => {
+    expect(parseWizardQuery("?horario=12&paso=whatever")).toEqual({
+      horarioId: 12,
+      step: "select-session",
+    });
+    expect(parseWizardQuery("")).toEqual({ horarioId: null, step: "select-session" });
   });
 });

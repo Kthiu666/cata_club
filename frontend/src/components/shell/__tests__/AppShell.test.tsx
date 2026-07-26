@@ -10,7 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import AppShell, { resolveActiveHref } from "@/components/shell/AppShell";
+import AppShell, { MAIN_CONTENT_ID, resolveActiveHref } from "@/components/shell/AppShell";
 
 interface MockLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
   children: React.ReactNode;
@@ -128,6 +128,45 @@ describe("AppShell", (): void => {
     expect(screen.getByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
     expect(screen.getByText("Resumen diario")).toBeInTheDocument();
     expect(screen.getByText("Área administrativa")).toBeInTheDocument();
+  });
+
+  // --- Skip link ---
+  //
+  // Every authenticated page opened its tab order in the chrome: the brand
+  // link, then 10+ sidebar rows, then the topbar, before the screen's own
+  // content. The landing has had a working skip link since its first release;
+  // the app shell had none.
+
+  it("puts a skip link first in the DOM, ahead of all shell chrome", (): void => {
+    const { container } = render(
+      <AppShell title="Dashboard">
+        <p>contenido</p>
+      </AppShell>,
+    );
+
+    const skip = screen.getByRole("link", { name: "Saltar al contenido" });
+    // First in the DOM is what makes it first in the tab order — nothing in
+    // the shell sets a positive tabindex, so document order is the sequence.
+    const focusable = container.querySelectorAll("a[href], button");
+    expect(focusable[0]).toBe(skip);
+  });
+
+  it("points the skip link at the main landmark, which is focusable as a target", (): void => {
+    render(
+      <AppShell title="Dashboard">
+        <p>contenido</p>
+      </AppShell>,
+    );
+
+    const skip = screen.getByRole("link", { name: "Saltar al contenido" });
+    const main = screen.getByRole("main");
+
+    expect(skip).toHaveAttribute("href", `#${MAIN_CONTENT_ID}`);
+    expect(main).toHaveAttribute("id", MAIN_CONTENT_ID);
+    // Without this a fragment jump only scrolls: `<main>` is not focusable by
+    // default, so focus stays in the chrome and the next Tab undoes the skip.
+    expect(main).toHaveAttribute("tabindex", "-1");
+    expect(main).toContainElement(screen.getByText("contenido"));
   });
 
   it("renders page content as children", (): void => {

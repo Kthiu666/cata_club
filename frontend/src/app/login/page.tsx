@@ -225,10 +225,17 @@ export default function LoginPage(): React.ReactElement {
               disabled={submitting}
               className={`${AUTH_INPUT_CLASSES} pl-9 pr-10`}
             />
+            {/* The 16px icon used to BE the button: no padding, so the target
+                measured 16x16 — the smallest in the product, against the 24x24
+                WCAG 2.2 SC 2.5.8 asks for. `h-6 w-6` with the glyph centred
+                buys the hit area without touching the icon, and pulling the
+                offset from 10px to 6px keeps the glyph's centre exactly where
+                it was (6 + 12 = 10 + 8 = 18px from the field's right edge),
+                still clear of the input's own 40px right padding. */}
             <button
               type="button"
               onClick={(): void => setShowPassword(!showPassword)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-3 transition-colors hover:text-ink"
+              className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center text-ink-3 transition-colors hover:text-ink"
               aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
             >
               {showPassword ? (
@@ -252,7 +259,9 @@ export default function LoginPage(): React.ReactElement {
          */}
         <Link
           href="/forgot-password"
-          className="self-end text-[12.5px] font-semibold text-cata-red transition-colors hover:text-cata-red-dark"
+          /* `min-h-[24px]` is hit area only — SC 2.5.8 wants 24x24 and a bare
+             12.5px line measured 141.5 x 18.8. The type is untouched. */
+          className="inline-flex min-h-[24px] items-center self-end text-[12.5px] font-semibold text-cata-red transition-colors hover:text-cata-red-dark"
         >
           ¿Olvidó su contraseña?
         </Link>

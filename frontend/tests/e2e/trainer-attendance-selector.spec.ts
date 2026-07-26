@@ -1,7 +1,10 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+import { E2E_BASE_URL } from "./e2e-target";
+
 const MOCK_ACCESS_TOKEN = "mock-header.mock-payload.mock-signature";
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+/** Resolved in ONE place — see `e2e-target.ts` for why it is not port 3000. */
+const BASE_URL = E2E_BASE_URL;
 const MOCK_SESSION = {
   user: {
     id: "2",

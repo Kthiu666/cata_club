@@ -43,7 +43,9 @@
  *   - The draft in `sessionStorage` only ever persists REVIEWED rows in one of
  *     the four REAL states, keyed by horario + date, so a refresh can never
  *     launder "nobody looked" into "confirmed"; see the rules block in
- *     `attendance-utils.ts`.
+ *     `attendance-utils.ts`. Every way back INTO the flow — the browser's Back
+ *     button, a reload, the resume offer on step 1 — goes through that same
+ *     draft, so none of them can restore a row nobody decided.
  *   - The `UNMARKED` sentinel still never reaches the API: `toAttendanceMarks`
  *     strips it and the submit refuses while `countUnmarked` is non-zero.
  *
@@ -56,12 +58,18 @@
  *   - No draft persistence → a phone call no longer costs the session.
  *   - "N registro(s) no se pudieron guardar" without naming anyone → the
  *     failures are listed by name.
+ *   - Back threw the trainer out of the wizard (user control and freedom, the
+ *     principle that never moved off the prototype's 6/10) → the step lives in
+ *     the URL, so each one is a real history entry: Back walks step 3 → step 2
+ *     → step 1 → out, a reload lands back on the roll call, and leaving with
+ *     marks on screen asks first instead of discarding in silence.
  */
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 
@@ -85,15 +93,19 @@ import {
   ATTENDANCE_LABELS,
   ATTENDANCE_STATES,
   UNMARKED,
+  WIZARD_STEP_ORDER as STEP_ORDER,
   applyAttendanceDraft,
   attendanceDraftKey,
+  buildWizardQuery,
   clearAttendanceDraft,
   countByState,
   countUnmarked,
   countUnreviewed,
   isReviewed,
+  listAttendanceDrafts,
   loadAttendanceDraft,
   markRemainingPresent,
+  parseWizardQuery,
   resolveFailedStudentNames,
   tapWizardAttendance,
   saveAttendanceDraft,
@@ -103,6 +115,9 @@ import {
   resolveEntrenadorId,
   resolveDisplayTrainerName,
   type SessionStudent,
+  type StoredAttendanceDraft,
+  type WizardLocation,
+  type WizardStep,
 } from "./attendance-utils";
 import {
   getAttendanceBadgeTokens,
@@ -114,6 +129,7 @@ import {
   getTotalPages,
 } from "@/app/attendance/attendance-utils";
 import BackLink from "@/components/BackLink";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { Badge, Button, EmptyState, ErrorState, LoadingState, Pagination, Stepper, buttonClasses } from "@/components/ui";
 import { getUserInitials } from "@/lib/auth-utils";
 import { clubIsoDate, todayDiaSemana } from "@/lib/club-date";
@@ -132,9 +148,13 @@ import type { EstadoAsistencia } from "@/types/domain";
 // Types
 // ---------------------------------------------------------------------------
 
-type WizardStep = "select-session" | "mark-attendance" | "confirm";
-
-const STEP_ORDER: WizardStep[] = ["select-session", "mark-attendance", "confirm"];
+/**
+ * What the trainer is being asked to give up when they walk out of a roll call
+ * they have already started, or throw away a draft from the picker.
+ */
+type PendingConfirmation =
+  | { kind: "leave"; href: string }
+  | { kind: "discard-draft"; draftKey: string; label: string; markCount: number };
 
 /** The card heading per step. */
 const STEP_LABELS: Record<WizardStep, string> = {
@@ -175,6 +195,7 @@ const TOTAL_ORDER: EstadoAsistencia[] = ["present", "late", "justified", "absent
 export default function TrainerAttendancePage(): React.ReactElement {
   const { session } = useAuth();
   const { showError } = useToast();
+  const router = useRouter();
 
   const [step, setStep] = useState<WizardStep>("select-session");
 
@@ -204,6 +225,11 @@ export default function TrainerAttendancePage(): React.ReactElement {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [result, setResult] = useState<RegisterAttendanceResult | null>(null);
+  /** A position read off the URL that still needs its roster loaded. */
+  const [pendingRestore, setPendingRestore] = useState<WizardLocation | null>(null);
+  /** Unfinished roll calls for today, offered on step 1 — never auto-applied. */
+  const [resumableDrafts, setResumableDrafts] = useState<StoredAttendanceDraft[]>([]);
+  const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
 
   const loadOptions = useCallback(async (): Promise<void> => {
     try {
@@ -298,67 +324,175 @@ export default function TrainerAttendancePage(): React.ReactElement {
   // must bounce back to their own attendance overview, not the trainer panel.
   const backHref = session?.user?.role === "admin" ? "/attendance" : "/trainer";
 
+  // ---- The wizard's address ----
+  //
+  // The step is written into the query string with the History API directly
+  // (the shape Next documents for search-param-only updates): each forward
+  // move is a real history entry, so the browser's Back button walks the
+  // wizard instead of walking out of it. React state stays the source of
+  // truth for the render; the URL is what makes that state addressable,
+  // reloadable and reachable by Back.
+
+  /** History entries THIS wizard pushed — see `handleBack`. */
+  const ownedHistoryEntries = useRef(0);
+
+  const writeWizardUrl = useCallback(
+    (horarioId: number | null, target: WizardStep, mode: "push" | "replace"): void => {
+      if (typeof window === "undefined") return;
+      const url = `${window.location.pathname}${buildWizardQuery(horarioId, target)}`;
+      if (mode === "push") {
+        window.history.pushState(null, "", url);
+        ownedHistoryEntries.current += 1;
+        return;
+      }
+      window.history.replaceState(null, "", url);
+    },
+    [],
+  );
+
   // ---- Navigation ----
+
+  /**
+   * Load a horario's roster and land on `target`.
+   *
+   * Every entrance to the roll call goes through here — Continuar, the resume
+   * offer on step 1, a reload on `?paso=lista`, and a Back that outlived the
+   * roster in memory — so all of them get the same roster, the same draft
+   * overlay and the same "only reviewed rows come back" guarantee.
+   */
+  const openRoster = useCallback(
+    async (
+      horarioId: number,
+      target: Exclude<WizardStep, "select-session">,
+      mode: "push" | "replace",
+    ): Promise<void> => {
+      setRosterLoading(true);
+      setRosterError(null);
+      try {
+        // The wizard always registers attendance for "today" (the backend
+        // defaults fechaEntrenamiento to today's server date when omitted).
+        // Re-opening the wizard for a session that already has today's
+        // attendance recorded must show those existing marks, not silently
+        // default everyone back to unmarked.
+        const today = clubIsoDate();
+        // The prefill fetch is a convenience, not a requirement: if it fails,
+        // fall back to an empty list rather than failing the whole roster load.
+        const [alumnoHorarios, existingRecords] = await Promise.all([
+          fetchAlumnosPorHorario(horarioId),
+          fetchAttendanceRecords({ fechaInicio: today, fechaFin: today, horarioId }).catch(
+            (err: unknown) => {
+              console.error("[trainer/attendance] fetchAttendanceRecords prefill failed", err);
+              return [];
+            },
+          ),
+        ]);
+
+        // Order matters: server records first, then the trainer's own in-progress
+        // draft on top — the draft is the newer intent. Neither can produce
+        // `UNMARKED`, so a student nobody has decided on stays undecided.
+        const roster = buildRosterFromAlumnoHorarios(alumnoHorarios, existingRecords);
+        const draft = loadAttendanceDraft(attendanceDraftKey(horarioId, today));
+        const withDraft = applyAttendanceDraft(roster, draft);
+
+        setSessionDate(today);
+        setRestoredFromDraft(
+          withDraft !== roster && countUnreviewed(withDraft) < countUnreviewed(roster),
+        );
+        setStudents(withDraft);
+        setStudentPage(1);
+        setOnlyUnreviewed(false);
+        setStep(target);
+        writeWizardUrl(horarioId, target, mode);
+      } catch (err) {
+        console.error("[trainer/attendance] fetchAlumnosPorHorario failed", err);
+        setRosterError("No se pudo cargar el listado de estudiantes de este horario.");
+      } finally {
+        setRosterLoading(false);
+      }
+    },
+    [writeWizardUrl],
+  );
 
   async function handleContinueToRoster(): Promise<void> {
     if (selectedScheduleId === null) return;
-    setRosterLoading(true);
-    setRosterError(null);
-    try {
-      // The wizard always registers attendance for "today" (the backend
-      // defaults fechaEntrenamiento to today's server date when omitted).
-      // Re-opening the wizard for a session that already has today's
-      // attendance recorded must show those existing marks, not silently
-      // default everyone back to unmarked.
-      const today = clubIsoDate();
-      // The prefill fetch is a convenience, not a requirement: if it fails,
-      // fall back to an empty list rather than failing the whole roster load.
-      const [alumnoHorarios, existingRecords] = await Promise.all([
-        fetchAlumnosPorHorario(selectedScheduleId),
-        fetchAttendanceRecords({ fechaInicio: today, fechaFin: today, horarioId: selectedScheduleId }).catch(
-          (err: unknown) => {
-            console.error("[trainer/attendance] fetchAttendanceRecords prefill failed", err);
-            return [];
-          },
-        ),
-      ]);
-
-      // Order matters: server records first, then the trainer's own in-progress
-      // draft on top — the draft is the newer intent. Neither can produce
-      // `UNMARKED`, so a student nobody has decided on stays undecided.
-      const roster = buildRosterFromAlumnoHorarios(alumnoHorarios, existingRecords);
-      const draft = loadAttendanceDraft(attendanceDraftKey(selectedScheduleId, today));
-      const withDraft = applyAttendanceDraft(roster, draft);
-
-      setSessionDate(today);
-      setRestoredFromDraft(
-        withDraft !== roster && countUnreviewed(withDraft) < countUnreviewed(roster),
-      );
-      setStudents(withDraft);
-      setStudentPage(1);
-      setOnlyUnreviewed(false);
-      setStep("mark-attendance");
-    } catch (err) {
-      console.error("[trainer/attendance] fetchAlumnosPorHorario failed", err);
-      setRosterError("No se pudo cargar el listado de estudiantes de este horario.");
-    } finally {
-      setRosterLoading(false);
-    }
+    await openRoster(selectedScheduleId, "mark-attendance", "push");
   }
 
   function handleBack(): void {
-    const prevIdx = currentIndex - 1;
-    if (prevIdx >= 0) {
-      setStep(STEP_ORDER[prevIdx]);
+    const previous = STEP_ORDER[currentIndex - 1];
+    if (!previous) return;
+    // Walk the real history whenever the entry behind us is ours, so the
+    // in-page "Atrás" and the browser's own Back button leave the same stack
+    // behind. Without an entry of ours back there — a trainer who opened
+    // `?paso=confirmar` directly — `history.back()` would leave the app, so
+    // that case rewrites the current entry instead.
+    if (ownedHistoryEntries.current > 0) {
+      window.history.back();
+      return;
     }
+    writeWizardUrl(selectedScheduleId, previous, "replace");
+    setStep(previous);
   }
 
   function handleNext(): void {
-    const nextIdx = currentIndex + 1;
-    if (nextIdx < STEP_ORDER.length) {
-      setStep(STEP_ORDER[nextIdx]);
-    }
+    const next = STEP_ORDER[currentIndex + 1];
+    if (!next) return;
+    setStep(next);
+    writeWizardUrl(selectedScheduleId, next, "push");
   }
+
+  /**
+   * Restore the position the URL is asking for, once the schedules it refers
+   * to are actually loaded. A horario that no longer exists (or a hand-typed
+   * one that never did) falls back to the picker rather than to a roll call
+   * for nobody.
+   */
+  useEffect(() => {
+    if (!pendingRestore || loading || loadError) return;
+    const { horarioId, step: target } = pendingRestore;
+    setPendingRestore(null);
+    if (horarioId === null || target === "select-session") return;
+    if (!schedules.some((s) => s.id === horarioId)) {
+      writeWizardUrl(null, "select-session", "replace");
+      return;
+    }
+    setSelectedScheduleId(horarioId);
+    void openRoster(horarioId, target, "replace");
+  }, [pendingRestore, loading, loadError, schedules, openRoster, writeWizardUrl]);
+
+  /**
+   * The Back button, on arrival and on every press.
+   *
+   * Read after mount rather than during render: the first client render has
+   * to match the server's, and the URL is a client-only fact.
+   */
+  useEffect(() => {
+    const entry = parseWizardQuery(window.location.search);
+    if (entry.step !== "select-session") setPendingRestore(entry);
+  }, []);
+
+  useEffect(() => {
+    function handlePopState(): void {
+      // A filed session is not a step anyone can walk back into.
+      if (confirmed) return;
+      ownedHistoryEntries.current = Math.max(0, ownedHistoryEntries.current - 1);
+      const entry = parseWizardQuery(window.location.search);
+      if (entry.step === "select-session" || entry.horarioId === null) {
+        setStep("select-session");
+        return;
+      }
+      // The roster this step belongs to is still in memory: show it, marks and
+      // all. Otherwise rebuild it — which also re-applies the draft, so the
+      // trainer's decisions come back and nobody else's row does.
+      if (entry.horarioId === selectedScheduleId && students.length > 0) {
+        setStep(entry.step);
+        return;
+      }
+      setPendingRestore(entry);
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [confirmed, selectedScheduleId, students.length]);
 
   function toggleDay(day: DiaSemana): void {
     setExpandedDays((prev) => {
@@ -439,6 +573,9 @@ export default function TrainerAttendancePage(): React.ReactElement {
       // The session is filed; the draft has nothing left to protect. Kept when
       // some records failed, so a retry still starts from the trainer's marks.
       if (draftKey && registration.failed.length === 0) clearAttendanceDraft(draftKey);
+      // Drop the step from the URL: a filed session must not be reachable as
+      // an editable roll call by reloading the page that filed it.
+      writeWizardUrl(null, "select-session", "replace");
     } catch (err) {
       console.error("[trainer/attendance] registerAttendance failed", err);
       setSubmitError("No se pudo registrar la asistencia. Intente nuevamente.");
@@ -449,6 +586,8 @@ export default function TrainerAttendancePage(): React.ReactElement {
 
   function handleReset(): void {
     if (draftKey) clearAttendanceDraft(draftKey);
+    writeWizardUrl(null, "select-session", "replace");
+    ownedHistoryEntries.current = 0;
     setStep("select-session");
     setSelectedScheduleId(null);
     setSessionDate(null);
@@ -493,6 +632,80 @@ export default function TrainerAttendancePage(): React.ReactElement {
   const presentCount = useMemo(() => countByState(students, "present"), [students]);
   const unmarkedReasonId = "attendance-unmarked-reason";
 
+  /**
+   * Decisions the trainer has made and not yet filed. `reviewed` is what makes
+   * this answerable at all: the roster defaults everyone to "present", so
+   * counting marked rows would call an untouched roster "unsaved work" and ask
+   * about discarding something nobody wrote.
+   */
+  const reviewedCount = students.length - unreviewedCount;
+  const hasUnsavedMarks = !confirmed && reviewedCount > 0;
+
+  /**
+   * The one exit the app cannot re-enter: `sessionStorage` dies with the tab,
+   * so closing it is the single way to actually lose the roll call. The browser
+   * writes the copy for this one; all we can say is that there is something to
+   * lose.
+   */
+  useEffect(() => {
+    if (!hasUnsavedMarks) return;
+    function warnBeforeUnload(event: BeforeUnloadEvent): void {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [hasUnsavedMarks]);
+
+  /**
+   * Unfinished roll calls, read back from the drafts themselves and OFFERED on
+   * the picker rather than restored behind the trainer's back: coming to this
+   * screen to file a different session and landing inside yesterday's half-done
+   * one would be the same loss of control, pointing the other way.
+   */
+  const refreshResumableDrafts = useCallback((): void => {
+    setResumableDrafts(listAttendanceDrafts(clubIsoDate()));
+  }, []);
+
+  useEffect(() => {
+    if (confirmed || step !== "select-session") {
+      setResumableDrafts([]);
+      return;
+    }
+    refreshResumableDrafts();
+  }, [confirmed, step, refreshResumableDrafts]);
+
+  function describeSchedule(horarioId: number): string {
+    const found = schedules.find((s) => s.id === horarioId);
+    return found
+      ? `${formatDay(found.diaSemana)} ${found.horaInicio} — ${found.horaFin}`
+      : `Horario #${horarioId}`;
+  }
+
+  function handleResumeDraft(draft: StoredAttendanceDraft): void {
+    setSelectedScheduleId(draft.horarioId);
+    void openRoster(draft.horarioId, "mark-attendance", "push");
+  }
+
+  /** The in-app way out — guarded only while there is something to discard. */
+  function handleLeaveWizard(event: React.MouseEvent<HTMLAnchorElement>): void {
+    if (!hasUnsavedMarks) return;
+    event.preventDefault();
+    setPendingConfirmation({ kind: "leave", href: backHref });
+  }
+
+  function handleConfirmPending(): void {
+    const pending = pendingConfirmation;
+    setPendingConfirmation(null);
+    if (!pending) return;
+    if (pending.kind === "leave") {
+      router.push(pending.href);
+      return;
+    }
+    clearAttendanceDraft(pending.draftKey);
+    refreshResumableDrafts();
+  }
+
   /** The named steps — step 1 carries the decision already made. */
   const stepNames = useMemo(
     () => [
@@ -511,6 +724,58 @@ export default function TrainerAttendancePage(): React.ReactElement {
     const dayGroups = groupSchedulesByDay(visible.schedules);
     return (
       <div className="flex flex-col gap-5">
+        {/*
+         * The way back into an interrupted roll call. It says what is in the
+         * draft (which session, how many alumnos the trainer decided on)
+         * before asking them to act on it, and it offers both directions —
+         * resume it, or throw it away — because an offer you cannot decline
+         * is just a slower version of restoring it automatically.
+         */}
+        {resumableDrafts.length > 0 && (
+          <div className="flex flex-col gap-3 rounded-ctl border border-line bg-canvas p-4">
+            <p className="text-[13px] font-bold text-ink">
+              {resumableDrafts.length === 1
+                ? "Tiene una lista sin terminar"
+                : `Tiene ${resumableDrafts.length} listas sin terminar`}
+            </p>
+            <ul className="flex flex-col gap-3">
+              {resumableDrafts.map((draft) => (
+                <li key={draft.key} className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <span className="min-w-[180px] flex-1 text-[13px] text-ink-2">
+                    <b className="font-semibold text-ink">{describeSchedule(draft.horarioId)}</b>
+                    <span aria-hidden="true"> · </span>
+                    {draft.markCount === 1
+                      ? "1 alumno marcado"
+                      : `${draft.markCount} alumnos marcados`}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="dark"
+                    onClick={() => handleResumeDraft(draft)}
+                    disabled={rosterLoading}
+                  >
+                    Retomar la lista
+                    <ChevronRight size={14} strokeWidth={2} aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() =>
+                      setPendingConfirmation({
+                        kind: "discard-draft",
+                        draftKey: draft.key,
+                        label: describeSchedule(draft.horarioId),
+                        markCount: draft.markCount,
+                      })
+                    }
+                  >
+                    Descartar
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div>
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <p className="text-[13px] text-ink-3">
@@ -718,7 +983,11 @@ export default function TrainerAttendancePage(): React.ReactElement {
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
                 aria-label="Filtrar alumnos"
-                className="h-ctl min-w-[180px] flex-1 rounded-ctl border border-line-2 bg-paper px-[13px] text-[13.5px] text-ink placeholder:text-ink-3 focus:border-cata-red focus:outline-none focus:ring-[3px] focus:ring-cata-red/10"
+                /* No ring here: the system indicator in `globals.css` wins on
+                   specificity (0,3,0 vs Tailwind's 0,2,0), so the
+                   `focus:ring-[3px] focus:ring-cata-red/10` this field used to
+                   declare never rendered. The border still darkens on focus. */
+                className="h-ctl min-w-[180px] flex-1 rounded-ctl border border-line-2 bg-paper px-[13px] text-[13.5px] text-ink placeholder:text-ink-3 focus:border-cata-red focus:outline-none"
               />
               {/* Turns the count into something the trainer can act on: the
                   point of knowing 12 are unreviewed is being able to go
@@ -1032,8 +1301,33 @@ export default function TrainerAttendancePage(): React.ReactElement {
         <BackLink
           href={backHref}
           label={session?.user?.role === "admin" ? "Volver a Asistencias" : "Volver al Panel del Entrenador"}
+          // Walking out of a started roll call is the one navigation on this
+          // screen that costs something, so it is the one that asks.
+          onClick={handleLeaveWizard}
         />
       )}
+      <ConfirmDialog
+        open={pendingConfirmation !== null}
+        variant="danger"
+        title={
+          pendingConfirmation?.kind === "discard-draft"
+            ? "¿Descartar la lista sin terminar?"
+            : "¿Salir sin registrar la asistencia?"
+        }
+        message={
+          pendingConfirmation?.kind === "discard-draft"
+            ? `Se perderán las ${pendingConfirmation.markCount} marcas de ${pendingConfirmation.label}. Los alumnos volverán a quedar sin revisar.`
+            : `Marcó ${reviewedCount} de ${students.length} ${students.length === 1 ? "alumno" : "alumnos"} y todavía no registró la asistencia. Guardamos el borrador en esta pestaña para que pueda retomarlo, pero si la cierra se pierde.`
+        }
+        confirmLabel={
+          pendingConfirmation?.kind === "discard-draft" ? "Descartar" : "Salir sin registrar"
+        }
+        cancelLabel={
+          pendingConfirmation?.kind === "discard-draft" ? "Conservar" : "Seguir con la lista"
+        }
+        onConfirm={handleConfirmPending}
+        onCancel={() => setPendingConfirmation(null)}
+      />
       {confirmed ? (
         <div className="flex min-h-[50vh] items-center justify-center py-8">
           <div className="w-full max-w-lg text-center">

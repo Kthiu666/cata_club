@@ -26,7 +26,7 @@
 
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import AuthShell from "@/components/auth/AuthShell";
+import AuthShell, { AUTH_INPUT_CLASSES } from "@/components/auth/AuthShell";
 import { yearsSinceFounding } from "@/app/landing/landing-config";
 
 function renderShell(): void {
@@ -160,5 +160,27 @@ describe("AuthShell — the two halves share one vertical axis", () => {
     const cluster = screen.getByTestId("auth-brand-cluster");
     expect(cluster).toContainElement(screen.getByTestId("auth-figure"));
     expect(cluster).not.toContainElement(screen.getByText(/© 2026 Cata Club/));
+  });
+
+  // WCAG 2.2 SC 2.5.8 — measured at 390x844 this escape hatch was
+  // 101.8 x 19.5, i.e. a bare 13px line of type with no hit area of its own.
+  it("gives the escape back to the public site a 24px-tall target", () => {
+    renderShell();
+
+    const back = screen.getByRole("link", { name: /volver al sitio/i });
+    expect(back.className).toContain("min-h-[24px]");
+    // Hit area only: the type and the 14px arrow are untouched.
+    expect(back.className).toContain("text-[13px]");
+  });
+
+  it("does not restate a focus ring the system rule already outranks", () => {
+    // `globals.css` paints the focus indicator from a 0,3,0 selector, which
+    // beats Tailwind's 0,2,0 `focus:*` utilities. The `focus:ring-[3px]
+    // focus:ring-cata-red/10` these fields carried never rendered — and at
+    // 1.16:1 composited on paper it would have been decoration if it had.
+    expect(AUTH_INPUT_CLASSES).not.toContain("focus:ring");
+    // The border still darkens on focus: that is the field reacting, and it
+    // is a real 5.00:1 state change, not an indicator.
+    expect(AUTH_INPUT_CLASSES).toContain("focus:border-cata-red");
   });
 });

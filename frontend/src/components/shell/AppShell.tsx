@@ -81,6 +81,9 @@ export interface AppShellProps {
 
 const SIDEBAR_COLLAPSED_KEY = "cata_sidebar_collapsed";
 
+/** Target of the skip link — the `<main>` element every screen renders into. */
+export const MAIN_CONTENT_ID = "contenido-principal";
+
 /** The one nav entry that carries a count badge (prototype `_nav-admin.html`). */
 const COUNT_BADGE_HREF = "/payments";
 
@@ -340,6 +343,22 @@ export default function AppShell({
 
   return (
     <div className="app-shell flex min-h-screen bg-canvas">
+      {/*
+       * Skip link — the first thing in the tab order, because everything after
+       * it is chrome: an authenticated page opened Tab into the sidebar's
+       * brand link and then walked 10+ navigation rows before reaching the
+       * screen's own content, on every page, every time.
+       *
+       * Same behaviour as the landing's (`landing.css:63-64`): parked off the
+       * top edge, slid to 16px on `:focus-visible` only — a mouse user never
+       * sees it — at the 48px the landing uses.
+       */}
+      <a
+        href={`#${MAIN_CONTENT_ID}`}
+        className="fixed left-4 top-[-100px] z-50 inline-flex min-h-[48px] items-center rounded-ctl bg-cata-red px-5 text-sm font-bold text-white transition-[top] duration-150 focus-visible:top-4"
+      >
+        Saltar al contenido
+      </a>
       {/*
        * Sidebar. When closed on a mobile viewport it is hidden outright, not
        * merely translated offscreen: a `-translate-x-full` drawer keeps every
@@ -641,7 +660,15 @@ export default function AppShell({
           }`}
         >
           <PageHeader eyebrow={eyebrow} title={title} subtitle={subtitle} actions={actions} />
-          <main className="min-w-0 flex-1">{children}</main>
+          {/* `tabIndex={-1}` so the skip link actually MOVES focus here rather
+              than only scrolling: a `<main>` is not focusable by default, and
+              a fragment jump to a non-focusable target leaves the caret where
+              it was, so the next Tab returns to the chrome. -1 keeps it out of
+              the sequential tab order (and out of the system focus ring's
+              selector, so no box is drawn around the whole page). */}
+          <main id={MAIN_CONTENT_ID} tabIndex={-1} className="min-w-0 flex-1 outline-none">
+            {children}
+          </main>
         </div>
 
         {/* `.phone .tabs2` — 62px, paper, hairline on top. Phone only. */}

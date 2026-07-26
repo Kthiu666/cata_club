@@ -1124,10 +1124,22 @@ function MemberEditDialog({
                         // dialog moved an invisible cursor. `focus-within`
                         // puts the ring on the box the user can actually see,
                         // around the control that actually has focus.
+                        //
+                        // A <label> is not in the `:is(…)` list of the system
+                        // focus rule in globals.css, so this ring is drawn by
+                        // hand — and it drew a bare `outline-ball`, which is
+                        // 1.41:1 on the chip fill, the exact failure that rule
+                        // exists to correct. It now carries the same two-band
+                        // pair the rule paints: the ball hugging the chip at
+                        // offset 0, and a coal band around it (the shadow's
+                        // 4px spread, of which the outline covers the inner
+                        // 2px). Coal is 18.54:1 on paper, and the two bands
+                        // are 13.13:1 apart. Total footprint is still 4px, so
+                        // adjacent chips in the `gap-2` grid do not collide.
                         <label
                           key={role}
                           className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors ${
-                            "focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ball "
+                            "focus-within:outline focus-within:outline-2 focus-within:outline-offset-0 focus-within:outline-ball focus-within:shadow-[0_0_0_4px_#131316] "
                           }${
                             selected
                               ? "border-coal bg-coal/[0.04] text-ink"

@@ -60,6 +60,8 @@ export function lightness(hex: string): number {
 }
 
 const AA_NORMAL_TEXT = 4.5;
+/** WCAG 1.4.11 — a focus indicator must clear 3:1 against its adjacent colours. */
+const AA_NON_TEXT = 3;
 
 // ---------------------------------------------------------------------------
 // Token values under test
@@ -168,6 +170,129 @@ describe("every foreground that lands on the deepened canvas", () => {
   it("pins the canvas at the darkest value the palette can carry", () => {
     const oneStepDarker = "#E4E4EC";
     expect(contrastRatio(state.warn, oneStepDarker)).toBeLessThan(AA_NORMAL_TEXT);
+  });
+});
+
+describe("the system focus ring — globals.css", () => {
+  // The ring is two concentric 2px bands: `ball` hugging the control (the
+  // box-shadow spread) and `coal` around it (the outline at a matching 2px
+  // offset). The rule these numbers guard is at the bottom of `globals.css`.
+  const RING_INNER = colors.ball as Record<string, string>;
+  const BALL = RING_INNER.DEFAULT;
+  const RING_OUTER = coal.DEFAULT;
+  /** Every surface a focused control can sit on. */
+  const SURFACES = { paper: PAPER, sunken: SUNKEN, canvas: CANVAS };
+
+  it("confirms the bare ball fails on every light surface, which is why it was replaced", () => {
+    // `focus-visible:outline-ball` was transcribed from `_sistema.css:80` into
+    // 12 component files. This is the measurement that retired it.
+    for (const surface of Object.values(SURFACES)) {
+      expect(contrastRatio(BALL, surface)).toBeLessThan(AA_NON_TEXT);
+    }
+  });
+
+  it("confirms the translucent red rings globals.css used to draw also failed", () => {
+    // `focus:ring-cata-red/15`, `/30` and `focus:border-cata-red/40` — the
+    // only other focus vocabulary the product had.
+    expect(contrastRatio(compositeOver(cata.red, PAPER, 0.15), PAPER)).toBeLessThan(AA_NON_TEXT);
+    expect(contrastRatio(compositeOver(cata.red, PAPER, 0.3), PAPER)).toBeLessThan(AA_NON_TEXT);
+    expect(contrastRatio(compositeOver(cata.red, PAPER, 0.4), PAPER)).toBeLessThan(AA_NON_TEXT);
+  });
+
+  it.each(Object.entries(SURFACES))(
+    "clears 3:1 with the coal band against %s",
+    (_name, surface) => {
+      expect(contrastRatio(RING_OUTER, surface)).toBeGreaterThanOrEqual(AA_NON_TEXT);
+    },
+  );
+
+  it("clears 3:1 with the coal band against the CTA red, the darkest control fill", () => {
+    // A focused primary button: the ball band touches the red fill, the coal
+    // band touches the page. The pair that could fail is coal against red.
+    expect(contrastRatio(RING_OUTER, cata.red)).toBeGreaterThanOrEqual(AA_NON_TEXT);
+  });
+
+  it("keeps the two bands distinguishable from each other", () => {
+    expect(contrastRatio(BALL, RING_OUTER)).toBeGreaterThanOrEqual(AA_NON_TEXT);
+  });
+
+  it("keeps the ball band as the visible indicator on the coal sidebar", () => {
+    // On the rail the coal band merges into the surface, so the ball is what
+    // marks focus — which is exactly the value `_sistema.css` specified, at
+    // the contrast it was designed for.
+    expect(contrastRatio(BALL, coal.DEFAULT)).toBeGreaterThanOrEqual(AA_NON_TEXT);
+    expect(contrastRatio(BALL, coal["2"])).toBeGreaterThanOrEqual(AA_NON_TEXT);
+    expect(contrastRatio(BALL, coal["3"])).toBeGreaterThanOrEqual(AA_NON_TEXT);
+  });
+});
+
+describe("the two focus rings the system rule cannot reach", () => {
+  // Two indicators are drawn by hand instead of by the `globals.css` rule,
+  // and neither can be folded into it:
+  //
+  //   · `members/page.tsx` puts a `focus-within` ring on the <label> wrapping
+  //     an `sr-only` checkbox — a <label> is not in the rule's `:is(…)` list,
+  //     and the ring has to sit on the box the user can see, not on the 1x1
+  //     control that actually holds focus.
+  //   · `payments/page.tsx` puts a `focus-visible` ring on an
+  //     `h2[tabindex="-1"]` — the rule explicitly excludes `[tabindex="-1"]`,
+  //     because a programmatic focus target is not a Tab stop.
+  //
+  // Both shipped as a bare `outline-ball`, i.e. the exact 1.41:1 failure the
+  // system rule exists to correct. They now carry the same two-band pair.
+  const BALL = (colors.ball as Record<string, string>).DEFAULT;
+  const COMPANION = coal.DEFAULT;
+  const SURFACES = { paper: PAPER, sunken: SUNKEN, canvas: CANVAS };
+
+  it("confirms the bare ball ring both controls used to draw was 1.41:1 on paper", () => {
+    expect(contrastRatio(BALL, PAPER)).toBeLessThan(AA_NON_TEXT);
+    expect(contrastRatio(BALL, PAPER)).toBeCloseTo(1.41, 2);
+  });
+
+  it.each(Object.entries(SURFACES))(
+    "clears 3:1 with the coal companion band against %s",
+    (_name, surface) => {
+      expect(contrastRatio(COMPANION, surface)).toBeGreaterThanOrEqual(AA_NON_TEXT);
+    },
+  );
+
+  it("clears 3:1 between the ball band and its coal companion", () => {
+    expect(contrastRatio(BALL, COMPANION)).toBeGreaterThanOrEqual(AA_NON_TEXT);
+  });
+
+  it("clears 3:1 with the coal band against the two chip fills the members ring sits on", () => {
+    // A role chip is `bg-paper` when unselected and `bg-coal/[0.04]` when
+    // selected; the ring has to read on both.
+    expect(contrastRatio(COMPANION, PAPER)).toBeGreaterThanOrEqual(AA_NON_TEXT);
+    expect(
+      contrastRatio(COMPANION, compositeOver(coal.DEFAULT, PAPER, 0.04)),
+    ).toBeGreaterThanOrEqual(AA_NON_TEXT);
+  });
+});
+
+describe("muted small print that sits OUTSIDE a card", () => {
+  // Three measured failures, all the same mistake: `ink-3` (or a translucent
+  // `cata-text`) on a surface that is not `paper`.
+  //
+  //   · /login's security note ....... ink-3 on `canvas` .. 3.78:1
+  //   · /student/enroll's step line .. ink-3 on `sunken` .. 4.21:1
+  //     (the body fill is `bg-cata-bg`, i.e. `sunken`, not `paper`)
+  //   · the enrol dev panel .......... cata-text/45 ....... 2.61:1
+  //                                 .. cata-text/40 ....... 2.31:1
+  it("confirms ink-3 fails on the two non-paper surfaces small print lands on", () => {
+    expect(contrastRatio(ink["3"], CANVAS)).toBeLessThan(AA_NORMAL_TEXT);
+    expect(contrastRatio(ink["3"], SUNKEN)).toBeLessThan(AA_NORMAL_TEXT);
+  });
+
+  it("confirms translucent cata-text was the worst pair in the product", () => {
+    expect(contrastRatio(compositeOver(cata.text, SUNKEN, 0.4), SUNKEN)).toBeLessThan(3);
+    expect(contrastRatio(compositeOver(cata.text, SUNKEN, 0.45), SUNKEN)).toBeLessThan(3);
+  });
+
+  it("meets AA with ink-3-strong on every surface those lines land on", () => {
+    for (const surface of [PAPER, SUNKEN, CANVAS]) {
+      expect(contrastRatio(ink["3-strong"], surface)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+    }
   });
 });
 

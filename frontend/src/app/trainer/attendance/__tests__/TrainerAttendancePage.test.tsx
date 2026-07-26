@@ -8,16 +8,18 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import TrainerAttendancePage from "@/app/trainer/attendance/page";
 import { createAuthenticatedAuth } from "@/components/__tests__/test-utils";
 import { ToastProvider } from "@/contexts/ToastContext";
 
 const mockReplace = vi.fn();
+/** Stable, so the "asks before leaving" test can see where it was sent. */
+const mockPush = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/trainer/attendance",
-  useRouter: () => ({ push: vi.fn(), replace: mockReplace }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
 }));
 
 vi.mock("next/link", () => ({
@@ -61,6 +63,12 @@ function trainerAuthWithPersonaId(id = "17"): ReturnType<typeof createAuthentica
  */
 beforeEach(() => {
   window.sessionStorage.clear();
+  // The wizard's step now lives in the query string, and jsdom keeps ONE
+  // `window.location` for the whole file — a test that walked to step 2 would
+  // otherwise hand the next one a URL that restores straight into the roll
+  // call. Each test starts at the flow's front door, like a trainer opening
+  // the screen from the panel.
+  window.history.replaceState(null, "", "/trainer/attendance");
 });
 
 /**
@@ -435,6 +443,20 @@ function buildAlumnoHorarios(count: number): unknown[] {
     horarioHoraFin: "19:00",
     fechaAsignacion: "2026-01-01",
   }));
+}
+
+/**
+ * The browser's own Back button.
+ *
+ * jsdom queues `popstate` as a task, and the wizard answers it with React
+ * state — so the traversal has to be given a turn of the loop inside `act`
+ * or the assertion runs against the previous render.
+ */
+async function pressBrowserBack(): Promise<void> {
+  await act(async () => {
+    window.history.back();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
 }
 
 /** Walk the wizard from the schedule accordion to the mark-attendance step. */
@@ -999,6 +1021,12 @@ describe("TrainerAttendancePage — draft persistence", () => {
     // A phone call: the component goes away entirely.
     first.unmount();
 
+    // …and the trainer comes back in through the panel rather than through the
+    // URL they were on. The step now lives in the query string, so keeping it
+    // would restore the roll call directly — that path is worth testing, but it
+    // is not the one this test is about (see "resumes the roll call on a
+    // reload"). Walking the picker again must still find the marks.
+    window.history.replaceState(null, "", "/trainer/attendance");
     render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
     await openRoster();
     await screen.findByText("Student 01");
@@ -1022,6 +1050,9 @@ describe("TrainerAttendancePage — draft persistence", () => {
     );
     first.unmount();
 
+    // Re-entered through the picker, not through the step URL — same reason as
+    // the test above.
+    window.history.replaceState(null, "", "/trainer/attendance");
     render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
     await openRoster();
     await screen.findByText("Student 01");
@@ -1054,6 +1085,9 @@ describe("TrainerAttendancePage — draft persistence", () => {
     );
     first.unmount();
 
+    // Back at the picker to file a DIFFERENT session — the 18:00 draft must
+    // not follow the trainer into the 20:00 one.
+    window.history.replaceState(null, "", "/trainer/attendance");
     render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
     fireEvent.click(await screen.findByRole("button", { name: /^lunes/i }));
     fireEvent.click(await screen.findByRole("button", { name: /20:00/i }));
@@ -1283,5 +1317,353 @@ describe("TrainerAttendancePage — the picker opens on today", () => {
     expect(await screen.findByText("No hay horarios registrados")).toBeInTheDocument();
     expect(screen.queryByText(/No hay entrenamientos hoy/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ver todos los días" })).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// User control and freedom (the principle that never moved off the prototype).
+//
+// Reproduced by the evaluator: at step 3, with a student marked Tardanza, the
+// browser's Back button threw them out of the wizard to /trainer — no prompt,
+// marks gone — because the three steps were never history entries. Coming back
+// to /trainer/attendance always restarted at "Elija el horario".
+//
+// The step now lives in the query string, so each one is a real entry. These
+// tests walk that exact path, and they also hold the line the step-in-the-URL
+// could quietly cross: a restored roll call may only ever bring back rows a
+// HUMAN reviewed.
+// ---------------------------------------------------------------------------
+
+describe("TrainerAttendancePage — the steps are history entries", () => {
+  beforeEach(() => {
+    mockReplace.mockReset();
+    mockPush.mockReset();
+    mockFetchTrainingSchedules.mockReset().mockResolvedValue([SCHEDULE]);
+    mockFetchAlumnosPorHorario.mockReset().mockResolvedValue(buildAlumnoHorarios(3));
+    mockFetchAttendanceRecords.mockReset().mockResolvedValue([]);
+    mockRegisterAttendance.mockReset().mockResolvedValue({ createdCount: 3, failed: [] });
+    mockUseAuth.mockReturnValue(trainerAuthWithPersonaId());
+  });
+
+  /** Step 2, with Student 01 on Tardanza — the state the evaluator was in. */
+  async function reachConfirmWithOneMark(): Promise<void> {
+    await openRoster();
+    await screen.findByText("Student 01");
+    fireEvent.click(
+      within(screen.getByRole("radiogroup", { name: /Student 01/ })).getByRole("radio", {
+        name: "Tardanza",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Siguiente/ }));
+    await screen.findByRole("button", { name: /Confirmar Asistencia/ });
+  }
+
+  it("gives each step its own address", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    expect(window.location.search).toBe("");
+
+    await openRoster();
+    await screen.findByText("Student 01");
+    expect(window.location.search).toBe("?horario=12&paso=lista");
+
+    fireEvent.click(screen.getByRole("button", { name: /Siguiente/ }));
+    await screen.findByRole("button", { name: /Confirmar Asistencia/ });
+    expect(window.location.search).toBe("?horario=12&paso=confirmar");
+  });
+
+  it("returns Back from step 3 to the roll call, marks intact, instead of ejecting the trainer", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await reachConfirmWithOneMark();
+
+    await pressBrowserBack();
+
+    // Step 2, not /trainer and not "Elija el horario".
+    expect(screen.getByRole("button", { name: /Siguiente/ })).toBeInTheDocument();
+    expect(screen.queryByText("Elija el horario")).not.toBeInTheDocument();
+    expect(window.location.search).toBe("?horario=12&paso=lista");
+    expect(
+      within(screen.getByRole("radiogroup", { name: /Student 01/ })).getByRole("radio", {
+        name: "Tardanza",
+      }),
+    ).toHaveAttribute("aria-checked", "true");
+    // The roster was already in memory — going back must not refetch it.
+    expect(mockFetchAlumnosPorHorario).toHaveBeenCalledTimes(1);
+  });
+
+  it("only leaves the wizard once Back has walked every step", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await reachConfirmWithOneMark();
+
+    await pressBrowserBack();
+    expect(screen.getByRole("button", { name: /Siguiente/ })).toBeInTheDocument();
+
+    await pressBrowserBack();
+    expect(await screen.findByText("Elija el horario")).toBeInTheDocument();
+    expect(window.location.search).toBe("");
+  });
+
+  it("leaves the same stack behind whether the trainer used Atrás or the browser", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await reachConfirmWithOneMark();
+
+    // The in-page control walks the real history, so the browser's Back button
+    // does not then push the trainer FORWARD into the step they just left.
+    fireEvent.click(screen.getByRole("button", { name: /Atrás/ }));
+    await waitFor(() => expect(window.location.search).toBe("?horario=12&paso=lista"));
+    expect(screen.getByRole("button", { name: /Siguiente/ })).toBeInTheDocument();
+
+    await pressBrowserBack();
+    expect(await screen.findByText("Elija el horario")).toBeInTheDocument();
+  });
+
+  it("resumes the roll call on a reload instead of restarting at Elija el horario", async () => {
+    const first = render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+    await screen.findByText("Student 01");
+    fireEvent.click(
+      within(screen.getByRole("radiogroup", { name: /Student 01/ })).getByRole("radio", {
+        name: "Tardanza",
+      }),
+    );
+
+    // A reload: the component goes away, the URL does not.
+    first.unmount();
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+
+    // No click on the accordion, no Continuar — the roll call comes back.
+    expect(await screen.findByText("Student 01")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("radiogroup", { name: /Student 01/ })).getByRole("radio", {
+        name: "Tardanza",
+      }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText(/Recuperamos las marcas/)).toBeInTheDocument();
+  });
+
+  // The guarantee the URL must not launder around: `?paso=lista` restores the
+  // ROSTER, and only the draft — reviewed rows — restores DECISIONS.
+  it("restores only the rows a human reviewed, never the untouched ones", async () => {
+    const first = render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+    await screen.findByText("Student 01");
+    fireEvent.click(
+      within(screen.getByRole("radiogroup", { name: /Student 01/ })).getByRole("radio", {
+        name: "Tardanza",
+      }),
+    );
+    first.unmount();
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await screen.findByText("Student 01");
+
+    expect(screen.getByText("2 sin revisar")).toBeInTheDocument();
+    expect(
+      screen.getByRole("radiogroup", { name: /Student 02/ }).closest("[data-reviewed]"),
+    ).toHaveAttribute("data-reviewed", "false");
+    // …and the stored draft itself holds exactly the one decided row.
+    const stored = window.sessionStorage.getItem("cata_attendance_draft:12:2026-07-21");
+    expect(JSON.parse(stored ?? "{}")).toEqual({ "100": "late" });
+  });
+
+  it("brings a roster nobody touched back untouched", async () => {
+    const first = render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+    await screen.findByText("Student 01");
+    first.unmount();
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await screen.findByText("Student 01");
+
+    // A reload cannot promote "nobody looked" into "confirmed present".
+    expect(screen.getByText("3 sin revisar")).toBeInTheDocument();
+    expect(screen.queryByText(/Recuperamos las marcas/)).not.toBeInTheDocument();
+    expect(window.sessionStorage.getItem("cata_attendance_draft:12:2026-07-21")).toBeNull();
+  });
+
+  it("falls back to the picker for a horario that does not exist", async () => {
+    window.history.replaceState(null, "", "/trainer/attendance?horario=999&paso=lista");
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+
+    expect(await screen.findByText("Elija el horario")).toBeInTheDocument();
+    await waitFor(() => expect(window.location.search).toBe(""));
+    expect(mockFetchAlumnosPorHorario).not.toHaveBeenCalled();
+  });
+
+  it("does not re-open a filed session when the trainer presses Back on the receipt", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+    await screen.findByText("Student 01");
+    fireEvent.click(screen.getByRole("button", { name: "Marcar restantes presentes" }));
+    fireEvent.click(screen.getByRole("button", { name: /Siguiente/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Confirmar Asistencia/ }));
+    await screen.findByText("Asistencia Registrada");
+    // The receipt's own URL carries no step: reloading it must not resurrect
+    // the roll call that produced it.
+    expect(window.location.search).toBe("");
+
+    await pressBrowserBack();
+
+    expect(screen.getByText("Asistencia Registrada")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Confirmar Asistencia/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("TrainerAttendancePage — leaving asks first", () => {
+  beforeEach(() => {
+    mockReplace.mockReset();
+    mockPush.mockReset();
+    mockFetchTrainingSchedules.mockReset().mockResolvedValue([SCHEDULE]);
+    mockFetchAlumnosPorHorario.mockReset().mockResolvedValue(buildAlumnoHorarios(3));
+    mockFetchAttendanceRecords.mockReset().mockResolvedValue([]);
+    mockRegisterAttendance.mockReset().mockResolvedValue({ createdCount: 3, failed: [] });
+    mockUseAuth.mockReturnValue(trainerAuthWithPersonaId());
+  });
+
+  it("asks before walking out of a roll call with marks on screen", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+    await screen.findByText("Student 01");
+    fireEvent.click(
+      within(screen.getByRole("radiogroup", { name: /Student 01/ })).getByRole("radio", {
+        name: "Tardanza",
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: /Volver al Panel del Entrenador/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("¿Salir sin registrar la asistencia?")).toBeInTheDocument();
+    expect(within(dialog).getByText(/Marcó 1 de 3 alumnos/)).toBeInTheDocument();
+    // Nothing has navigated yet.
+    expect(mockPush).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Seguir con la lista" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(screen.getByText("Student 01")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("link", { name: /Volver al Panel del Entrenador/ }));
+    fireEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", { name: "Salir sin registrar" }),
+    );
+
+    expect(mockPush).toHaveBeenCalledWith("/trainer");
+  });
+
+  it("does not ask when the trainer has decided nothing", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+    await screen.findByText("Student 01");
+
+    // An untouched roster is not unsaved work — the roster defaults to
+    // "present", and asking about it would be asking about nothing.
+    fireEvent.click(screen.getByRole("link", { name: /Volver al Panel del Entrenador/ }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("warns the browser before the tab takes the draft with it", async () => {
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+    await screen.findByText("Student 01");
+
+    const untouched = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(untouched);
+    expect(untouched.defaultPrevented).toBe(false);
+
+    fireEvent.click(
+      within(screen.getByRole("radiogroup", { name: /Student 01/ })).getByRole("radio", {
+        name: "Tardanza",
+      }),
+    );
+
+    // `sessionStorage` dies with the tab, so this exit is the one that really
+    // discards the roll call.
+    const withMarks = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(withMarks);
+    expect(withMarks.defaultPrevented).toBe(true);
+  });
+});
+
+describe("TrainerAttendancePage — the picker offers an unfinished list back", () => {
+  beforeEach(() => {
+    mockReplace.mockReset();
+    mockPush.mockReset();
+    mockFetchTrainingSchedules.mockReset().mockResolvedValue([SCHEDULE]);
+    mockFetchAlumnosPorHorario.mockReset().mockResolvedValue(buildAlumnoHorarios(3));
+    mockFetchAttendanceRecords.mockReset().mockResolvedValue([]);
+    mockRegisterAttendance.mockReset().mockResolvedValue({ createdCount: 3, failed: [] });
+    mockUseAuth.mockReturnValue(trainerAuthWithPersonaId());
+  });
+
+  /** Leave one mark behind, then come back to the front door. */
+  async function leaveADraft(): Promise<void> {
+    const first = render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+    await screen.findByText("Student 01");
+    fireEvent.click(
+      within(screen.getByRole("radiogroup", { name: /Student 01/ })).getByRole("radio", {
+        name: "Tardanza",
+      }),
+    );
+    first.unmount();
+    window.history.replaceState(null, "", "/trainer/attendance");
+  }
+
+  it("offers the draft instead of restoring it behind the trainer", async () => {
+    await leaveADraft();
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+
+    // Still the picker — a trainer who came to file a DIFFERENT session must
+    // not land inside the old one.
+    expect(await screen.findByText("Elija el horario")).toBeInTheDocument();
+    expect(screen.getByText("Tiene una lista sin terminar")).toBeInTheDocument();
+    expect(screen.getByText(/1 alumno marcado/)).toBeInTheDocument();
+    expect(screen.getByText("Lunes 18:00 — 19:00")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Retomar la lista/ }));
+
+    expect(await screen.findByText("Student 01")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("radiogroup", { name: /Student 01/ })).getByRole("radio", {
+        name: "Tardanza",
+      }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(window.location.search).toBe("?horario=12&paso=lista");
+  });
+
+  it("asks before throwing the draft away, and then really does", async () => {
+    await leaveADraft();
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: "Descartar" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("¿Descartar la lista sin terminar?")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Conservar" }));
+    expect(screen.getByText("Tiene una lista sin terminar")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Descartar" }));
+    fireEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", { name: "Descartar" }),
+    );
+
+    expect(screen.queryByText("Tiene una lista sin terminar")).not.toBeInTheDocument();
+    expect(window.sessionStorage.getItem("cata_attendance_draft:12:2026-07-21")).toBeNull();
+  });
+
+  it("offers nothing when the roster was never touched", async () => {
+    const first = render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+    await openRoster();
+    await screen.findByText("Student 01");
+    first.unmount();
+    window.history.replaceState(null, "", "/trainer/attendance");
+
+    render(<ToastProvider><TrainerAttendancePage /></ToastProvider>);
+
+    expect(await screen.findByText("Elija el horario")).toBeInTheDocument();
+    expect(screen.queryByText(/lista sin terminar/)).not.toBeInTheDocument();
   });
 });

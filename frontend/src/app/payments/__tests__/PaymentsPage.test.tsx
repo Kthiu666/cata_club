@@ -88,9 +88,24 @@ const PENDING_REQUEST: PaymentValidationRequest = {
   currentMembershipStatus: "vencida",
   proofFileName: "comprobante.pdf",
   proofFileType: "pdf",
+  // The checklist keys off the attachment, so the fixture has to be honest
+  // about having one: `proofFileName` and `proofPreviewUrl` both come from the
+  // backend's `voucherUrl` (payments-adapter.ts) and cannot disagree.
+  proofPreviewUrl: "https://files.example/comprobante.pdf",
   validationStatus: "pendiente",
   startDate: "2026-07-01",
   endDate: "2026-07-31",
+};
+
+/** Efectivo, no voucher — the payment the old fixed checklist could not ask about. */
+const CASH_REQUEST: PaymentValidationRequest = {
+  ...PENDING_REQUEST,
+  id: "req-cash",
+  studentName: "Sofía Vera",
+  expectedAmount: 25,
+  paymentMethod: "Efectivo",
+  proofFileName: "Sin comprobante adjunto",
+  proofPreviewUrl: undefined,
 };
 
 const SECOND_PENDING: PaymentValidationRequest = {
@@ -243,6 +258,20 @@ describe("PaymentsPage — focus follows the queue ⇄ detail swap", () => {
     expect(detailHeading()).toHaveAttribute("tabindex", "-1");
   });
 
+  it("marks that landing with a ring that reads on the card, not a 1.41:1 ball", async () => {
+    renderPage();
+    await openRequest("Juan Pérez");
+    await waitFor(() => expect(document.activeElement).toBe(detailHeading()));
+
+    // `tabindex="-1"` is exactly what the globals.css rule excludes, so this
+    // heading paints its own ring — and a bare `outline-ball` on the paper
+    // card is 1.41:1, the failure that rule exists to correct. The coal band
+    // inside the outline is what clears 3:1; the ring is inset because the
+    // section clips overflow. Measurements: color-contrast.test.ts.
+    expect(detailHeading().className).toContain("focus-visible:outline-ball");
+    expect(detailHeading().className).toContain("focus-visible:shadow-[inset_0_0_0_4px_#131316]");
+  });
+
   it("returns focus to the row action it came from", async () => {
     renderPage();
     await openRequest("Juan Pérez");
@@ -368,6 +397,77 @@ describe("PaymentsPage — the checklist gates 'Aprobar'", () => {
     fireEvent.click(screen.getByRole("button", { name: /pendiente siguiente/i }));
 
     expect(await screen.findByRole("button", { name: /aprobar pago/i })).toBeDisabled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4b. The checklist asks what the payment method makes answerable
+// ---------------------------------------------------------------------------
+
+describe("PaymentsPage — the checklist adapts to the payment method", () => {
+  function checklistLabels(): string[] {
+    const group = screen.getByRole("group", { name: /antes de aprobar/i });
+    return within(group)
+      .getAllByRole("checkbox")
+      .map((box) => (box.closest("label")?.textContent ?? "").trim());
+  }
+
+  it("never asks a cash payment about a comprobante it does not have", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([CASH_REQUEST]);
+    renderPage();
+    await openRequest("Sofía Vera");
+    await screen.findByRole("button", { name: /aprobar pago/i });
+
+    const labels = checklistLabels();
+    // The two boxes an admin could only tick by lying, which is what taught
+    // them to tick blindly on the transfers where it matters.
+    expect(labels.some((l) => /comprobante/i.test(l))).toBe(false);
+    expect(labels).toContain("Se recibió $25,00 en efectivo");
+  });
+
+  it("still gates 'Aprobar pago' on the cash items, and still names what is missing", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([CASH_REQUEST]);
+    renderPage();
+    await openRequest("Sofía Vera");
+
+    const approve = await screen.findByRole("button", { name: /aprobar pago/i });
+    expect(approve).toBeDisabled();
+    expect(screen.getByText(/faltan 2 puntos de la lista/i)).toBeInTheDocument();
+
+    const [first, second] = within(
+      screen.getByRole("group", { name: /antes de aprobar/i }),
+    ).getAllByRole("checkbox");
+    fireEvent.click(first);
+    expect(screen.getByText(/falta confirmar 1 punto de la lista/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /aprobar pago/i })).toBeDisabled();
+
+    fireEvent.click(second);
+    expect(screen.getByRole("button", { name: /aprobar pago/i })).toBeEnabled();
+  });
+
+  it("keeps the voucher questions for a transfer that has a voucher", async () => {
+    renderPage();
+    await openRequest("Juan Pérez");
+    await screen.findByRole("button", { name: /aprobar pago/i });
+
+    expect(checklistLabels()).toEqual([
+      "El comprobante es legible y no está cortado",
+      "El monto del comprobante coincide con $50,00",
+      "La fecha de la transferencia cae dentro del período",
+    ]);
+  });
+
+  it("sends a proofless transfer to the club's account instead of to a missing file", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([{ ...PENDING_REQUEST, proofPreviewUrl: undefined }]);
+    renderPage();
+    await openRequest("Juan Pérez");
+    await screen.findByRole("button", { name: /aprobar pago/i });
+
+    expect(checklistLabels()).toEqual([
+      "La transferencia de $50,00 está acreditada en la cuenta del club",
+      "El período de vigencia que se va a activar es el correcto",
+    ]);
+    expect(screen.getByText(/verifíquela en la cuenta del club/i)).toBeInTheDocument();
   });
 });
 
@@ -511,6 +611,163 @@ describe("PaymentsPage — unrelated happy path", () => {
     await screen.findByRole("button", { name: /aprobar pago/i });
 
     expect(screen.queryByRole("button", { name: /ayuda sobre/i })).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Batch approval — multi-select that commits reviews, never replaces them
+// ---------------------------------------------------------------------------
+
+describe("PaymentsPage — batch approval", () => {
+  beforeEach(() => {
+    mockFetchPaymentValidations.mockResolvedValue([PENDING_REQUEST, SECOND_PENDING]);
+  });
+
+  /** Complete the open detail's checklist and park it for the batch. */
+  async function parkOpenDetail(): Promise<void> {
+    await screen.findByRole("button", { name: /aprobar pago/i });
+    completeChecklist();
+    fireEvent.click(screen.getByRole("button", { name: /revisado, aprobar después/i }));
+  }
+
+  /** Open a request from the queue, then park it. */
+  async function reviewForBatch(studentName: string): Promise<void> {
+    await openRequest(studentName);
+    await parkOpenDetail();
+  }
+
+  /** Park both pending requests: parking the first advances to the second. */
+  async function reviewBothForBatch(): Promise<void> {
+    await reviewForBatch("Juan Pérez");
+    await parkOpenDetail();
+  }
+
+  function batchCheckbox(studentName: string): HTMLElement {
+    return within(queueTable()).getByRole("checkbox", {
+      name: new RegExp(`(incluir el pago de|revise el pago de) ${studentName}`, "i"),
+    });
+  }
+
+  it("cannot select a payment that was never reviewed", async () => {
+    renderPage();
+    await screen.findByTestId("payments-table");
+
+    expect(batchCheckbox("Juan Pérez")).toBeDisabled();
+    // The disabled control says why, rather than leaving the admin guessing.
+    expect(batchCheckbox("Juan Pérez")).toHaveAccessibleName(
+      /revise el pago de Juan Pérez antes de incluirlo/i,
+    );
+    expect(screen.queryByRole("group", { name: /aprobación por lote/i })).not.toBeInTheDocument();
+  });
+
+  it("requires the payment's own checklist before it can be parked for a batch", async () => {
+    renderPage();
+    await openRequest("Juan Pérez");
+
+    // Same gate as "Aprobar pago": the batch is a commit path, not a shortcut.
+    expect(await screen.findByRole("button", { name: /revisado, aprobar después/i })).toBeDisabled();
+    completeChecklist();
+    expect(screen.getByRole("button", { name: /revisado, aprobar después/i })).toBeEnabled();
+  });
+
+  it("parks a reviewed payment without approving it, and moves to the next unreviewed one", async () => {
+    renderPage();
+    await reviewForBatch("Juan Pérez");
+
+    // Still pending: nothing was sent.
+    expect(mockUpdatePaymentValidation).not.toHaveBeenCalled();
+    expect(await screen.findByText("Pendiente 2 de 2")).toBeInTheDocument();
+  });
+
+  it("shows the parked payments as a batch with its count and total", async () => {
+    renderPage();
+    await reviewBothForBatch();
+
+    // Both reviewed → the queue comes back on its own.
+    const bar = await screen.findByRole("group", { name: /aprobación por lote/i });
+    expect(bar.textContent).toContain("2 de 2 pagos revisados seleccionados");
+    expect(bar.textContent).toContain("$75,00");
+    expect(batchCheckbox("Juan Pérez")).toBeEnabled();
+    expect(within(queueTable()).getAllByText("Revisado")).toHaveLength(2);
+  });
+
+  it("names the payments in the confirmation before approving any of them", async () => {
+    renderPage();
+    await reviewBothForBatch();
+
+    fireEvent.click(await screen.findByRole("button", { name: /^aprobar 2 pagos$/i }));
+
+    expect(
+      within(screen.getByRole("dialog")).getByText(
+        /Se van a aprobar 2 pagos ya revisados, por un total de \$75,00\. Se activan las membresías de Juan Pérez, Sofia Vera\./,
+      ),
+    ).toBeInTheDocument();
+    expect(mockUpdatePaymentValidation).not.toHaveBeenCalled();
+  });
+
+  it("sends one call per payment, with the period each was reviewed with", async () => {
+    renderPage();
+    await reviewBothForBatch();
+
+    fireEvent.click(await screen.findByRole("button", { name: /^aprobar 2 pagos$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^aprobar los 2$/i }));
+
+    // No batch endpoint exists (PATCH /membresias/pagos/{id}/validar is per
+    // payment), so N sequential calls is the honest implementation.
+    await waitFor(() => expect(mockUpdatePaymentValidation).toHaveBeenCalledTimes(2));
+    expect(mockUpdatePaymentValidation).toHaveBeenNthCalledWith(1, "req-1", {
+      action: "approved",
+      startDate: "2026-07-01",
+      endDate: "2026-08-01",
+    });
+    expect(mockUpdatePaymentValidation).toHaveBeenNthCalledWith(2, "req-2", {
+      action: "approved",
+      startDate: "2026-07-01",
+      endDate: "2026-08-01",
+    });
+  });
+
+  it("reports a half-done batch by name, and keeps the failures ready to retry", async () => {
+    mockUpdatePaymentValidation.mockImplementation((id: string) =>
+      id === "req-2"
+        ? Promise.reject(new Error("500"))
+        : Promise.resolve({ ...PENDING_REQUEST, id, validationStatus: "validado" }),
+    );
+    renderPage();
+    await reviewBothForBatch();
+
+    fireEvent.click(await screen.findByRole("button", { name: /^aprobar 2 pagos$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^aprobar los 2$/i }));
+
+    const report = await screen.findByRole("region", { name: /el lote quedó a medias/i });
+    expect(within(report).getByText(/Se aprobaron 1: Juan Pérez\./)).toBeInTheDocument();
+    expect(within(report).getByText(/No se pudo aprobar 1 pago: Sofia Vera\./)).toBeInTheDocument();
+    // The survivor is still pending, still reviewed, still selected — one click
+    // retries it and nothing has to be reviewed twice.
+    expect(within(report).getByRole("button", { name: /reintentar el pago/i })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: /^aprobar 1 pago$/i })).toBeEnabled();
+  });
+
+  it("drops the batch mark for a payment approved on its own", async () => {
+    // The default mock echoes back the id it was called with — approving Sofía
+    // must resolve Sofía, not whichever request the fixture was cloned from.
+    renderPage();
+    await reviewForBatch("Juan Pérez");
+
+    // Still on the queue-parked state for Juan; approve Sofia individually.
+    await screen.findByRole("button", { name: /aprobar pago/i });
+    completeChecklist();
+    fireEvent.click(screen.getByRole("button", { name: /aprobar pago/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
+
+    await waitFor(() => expect(mockUpdatePaymentValidation).toHaveBeenCalledTimes(1));
+    // The approval auto-advances back to Juan's detail; return to the queue.
+    fireEvent.click(await screen.findByRole("button", { name: /volver a la cola/i }));
+
+    // Juan is the only one left in the batch; the resolved payment left it.
+    const bar = await screen.findByRole("group", { name: /aprobación por lote/i });
+    expect(bar.textContent).toContain("1 de 1 pagos revisados seleccionados");
+    expect(within(bar).getByRole("button", { name: /^aprobar 1 pago$/i })).toBeInTheDocument();
   });
 });
 

@@ -51,6 +51,15 @@ export const DEFAULT_ATTENDANCE: EstadoAsistencia = "present";
 /** Attendance value a roster row can hold inside the wizard, before submission. */
 export type WizardAttendance = EstadoAsistencia | typeof UNMARKED;
 
+/** The three stops of the roll-call wizard, in order. */
+export type WizardStep = "select-session" | "mark-attendance" | "confirm";
+
+export const WIZARD_STEP_ORDER: WizardStep[] = [
+  "select-session",
+  "mark-attendance",
+  "confirm",
+];
+
 export interface SessionStudent {
   id: string;
   name: string;
@@ -317,13 +326,24 @@ export function buildRosterFromAlumnoHorarios(
 // trainer is standing there with, and must not outlive it on a shared device.
 // ---------------------------------------------------------------------------
 
+const DRAFT_KEY_PREFIX = "cata_attendance_draft:";
+
 /** Per-session key: a draft is only ever valid for its own horario + date. */
 export function attendanceDraftKey(horarioId: number, fecha: string): string {
-  return `cata_attendance_draft:${horarioId}:${fecha}`;
+  return `${DRAFT_KEY_PREFIX}${horarioId}:${fecha}`;
 }
 
 /** id → state, holding only the four real states. */
 export type AttendanceDraft = Record<string, EstadoAsistencia>;
+
+/** A draft found in storage, as the "resume" offer needs to describe it. */
+export interface StoredAttendanceDraft {
+  key: string;
+  horarioId: number;
+  fecha: string;
+  /** How many rows a human actually decided — never the whole roster. */
+  markCount: number;
+}
 
 function isEstadoAsistencia(value: unknown): value is EstadoAsistencia {
   return typeof value === "string" && (ATTENDANCE_STATES as string[]).includes(value);
@@ -415,6 +435,96 @@ export function clearAttendanceDraft(key: string): void {
   } catch {
     // Ignore.
   }
+}
+
+/**
+ * Every draft currently stored for `fecha`, newest-first by nothing in
+ * particular — there is normally exactly one.
+ *
+ * The draft IS the pointer: rather than writing a second "where was I" record
+ * that could disagree with it, the roll call reads back the drafts it already
+ * wrote. Entries for another date are skipped (rule 2 — a draft is only ever
+ * valid for its own session) and empty drafts are skipped too, because a draft
+ * with no reviewed row is nothing to offer to resume.
+ */
+export function listAttendanceDrafts(fecha: string): StoredAttendanceDraft[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const store = window.sessionStorage;
+    if (!store) return [];
+    const found: StoredAttendanceDraft[] = [];
+    for (let i = 0; i < store.length; i++) {
+      const key = store.key(i);
+      if (!key?.startsWith(DRAFT_KEY_PREFIX)) continue;
+      const [rawHorarioId, rawFecha] = key.slice(DRAFT_KEY_PREFIX.length).split(":");
+      if (rawFecha !== fecha) continue;
+      const horarioId = Number(rawHorarioId);
+      if (!Number.isInteger(horarioId)) continue;
+      const draft = parseAttendanceDraft(store.getItem(key));
+      const markCount = draft ? Object.keys(draft).length : 0;
+      if (markCount === 0) continue;
+      found.push({ key, horarioId, fecha: rawFecha, markCount });
+    }
+    return found;
+  } catch {
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The wizard's address
+//
+// The three steps used to live only in React state, so the browser's Back
+// button skipped the whole flow and threw the trainer out to /trainer with
+// their marks still on screen — the steps were never history entries to begin
+// with. Putting the step in the query string makes each one a real entry
+// (Back walks the wizard backwards), makes the flow linkable, and lets a
+// reload land back on the roll call instead of on "Elija el horario".
+//
+// A step past the picker is meaningless without the horario it belongs to, so
+// the two are parsed together: `?paso=lista` with no (or a junk) `horario`
+// resolves to the picker rather than to a roll call for nobody.
+// ---------------------------------------------------------------------------
+
+const HORARIO_QUERY_KEY = "horario";
+const STEP_QUERY_KEY = "paso";
+
+/** Query value per step — the picker is the bare URL, with no `paso` at all. */
+const STEP_QUERY_VALUE: Record<WizardStep, string | null> = {
+  "select-session": null,
+  "mark-attendance": "lista",
+  confirm: "confirmar",
+};
+
+const STEP_BY_QUERY_VALUE: Record<string, WizardStep> = {
+  lista: "mark-attendance",
+  confirmar: "confirm",
+};
+
+export interface WizardLocation {
+  horarioId: number | null;
+  step: WizardStep;
+}
+
+/** Read the wizard's position out of a query string (`window.location.search`). */
+export function parseWizardQuery(search: string): WizardLocation {
+  const params = new URLSearchParams(search);
+  const rawHorarioId = Number(params.get(HORARIO_QUERY_KEY));
+  const horarioId =
+    Number.isInteger(rawHorarioId) && rawHorarioId > 0 ? rawHorarioId : null;
+  const step = STEP_BY_QUERY_VALUE[params.get(STEP_QUERY_KEY) ?? ""] ?? "select-session";
+  if (horarioId === null) return { horarioId: null, step: "select-session" };
+  return { horarioId, step };
+}
+
+/** The query string for a position, `""` at the start of the flow. */
+export function buildWizardQuery(horarioId: number | null, step: WizardStep): string {
+  const params = new URLSearchParams();
+  if (horarioId !== null) params.set(HORARIO_QUERY_KEY, String(horarioId));
+  const paso = STEP_QUERY_VALUE[step];
+  if (paso) params.set(STEP_QUERY_KEY, paso);
+  const query = params.toString();
+  return query ? `?${query}` : "";
 }
 
 // ---------------------------------------------------------------------------

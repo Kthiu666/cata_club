@@ -13,12 +13,19 @@ interface BackLinkProps {
   href: string;
   label: string;
   className?: string;
+  /**
+   * Optional guard for screens where leaving costs something (the roll call's
+   * in-progress marks). Call `preventDefault()` to hold the navigation and ask
+   * first; doing nothing leaves the link behaving exactly as it always has.
+   */
+  onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
 }
 
-export default function BackLink({ href, label, className }: BackLinkProps): React.ReactElement {
+export default function BackLink({ href, label, className, onClick }: BackLinkProps): React.ReactElement {
   return (
     <Link
       href={href}
+      onClick={onClick}
       className={
         className ??
         // No colour of its own: `.btn-ghost` owns it. The `text-cata-text/65`

@@ -44,6 +44,7 @@ import { useSearchParams } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastContext";
 import {
   fetchStudentPortal,
   fetchPagosDePersona,
@@ -113,8 +114,7 @@ const NO_PAGOS: PagoPersona[] = [];
 /** `_sistema.css` `.fld` — the one input shape, 40px like every other control. */
 const FIELD_CLASSES =
   "h-ctl w-full rounded-ctl border border-line-2 bg-paper px-3.5 text-[13px] text-ink " +
-  "placeholder:text-ink-3 focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-ball disabled:cursor-not-allowed disabled:opacity-45";
+  "placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-45";
 
 const FIELD_LABEL_CLASSES = "text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3";
 
@@ -358,6 +358,25 @@ function HowToPayStep({
 
 // ---------------------------------------------------------------------------
 // Registering a payment
+//
+// ## Why this commits behind a confirm step and not behind an undo
+//
+// The usability review asked for a 5-second "Deshacer" after consequential
+// actions. Registering a payment is the consequential action in the family
+// portal, and it is the one place where a "Deshacer" button could not be
+// honest: the backend exposes no way to delete or cancel a `Pago`. The whole
+// surface is `POST /membresias/pagos` (create), `POST /pagos/{id}/voucher`
+// (attach the proof) and `PATCH /pagos/{id}/validar`, and that last one is
+// gated on `GestorPermisos(ROL_ADMIN)` — there is no DELETE anywhere in
+// `membresias_pagos_router.py`, `membresia_pago_servicio.py` or
+// `pago_repositorio.py`. A toast offering "Deshacer" would have had nothing to
+// call, and a button that quietly does nothing is worse than no button.
+//
+// So the control the reader gets is placed BEFORE the commit rather than
+// after it: one checkpoint naming the child, the amount, the method and the
+// period that is about to be charged — and, once it is registered, a plain
+// statement of the real recovery, which is that the club validates every
+// payment and a wrong one is resolved by the club rejecting it.
 // ---------------------------------------------------------------------------
 
 function RenewPaymentForm({
@@ -387,6 +406,8 @@ function RenewPaymentForm({
   onRegistered: () => void;
 }): React.ReactElement {
   const [showForm, setShowForm] = useState(false);
+  /** The checkpoint between "I filled this in" and "the club has my money". */
+  const [confirming, setConfirming] = useState(false);
   const [monto, setMonto] = useState<string>(membership.montoAplicado ?? "");
   const [tipoPago, setTipoPago] = useState<"EFECTIVO" | "TRANSFERENCIA">("TRANSFERENCIA");
   const [fechaInicio, setFechaInicio] = useState<string>("");
@@ -394,6 +415,9 @@ function RenewPaymentForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const submitButtonRef = useRef<HTMLButtonElement>(null);
+  const { showSuccess } = useToast();
 
   const monthlyPrice = Number(membership.montoAplicado ?? "") || 0;
   const amount = Number(monto) || 0;
@@ -412,6 +436,7 @@ function RenewPaymentForm({
 
   const openForm = useCallback((): void => {
     setShowForm(true);
+    setConfirming(false);
     setError(null);
     setVoucherFile(null);
     // Both sides must be CALENDAR dates before they are compared: mixing an
@@ -434,29 +459,62 @@ function RenewPaymentForm({
     openForm();
   }, [autoOpen, hasPendingPago, openForm]);
 
+  // The checkpoint's own primary button takes focus when it appears: the
+  // control that was focused a moment ago has just unmounted.
+  useEffect(() => {
+    if (confirming) confirmButtonRef.current?.focus();
+  }, [confirming]);
+
   function handleCancel(): void {
     setShowForm(false);
+    setConfirming(false);
     setVoucherFile(null);
     setError(null);
   }
 
-  async function handleSubmit(): Promise<void> {
-    if (amount <= 0) {
-      setError("Ingrese un monto mayor a 0.");
-      return;
-    }
+  /** The first thing wrong with the form as it stands, or `null`. */
+  function findProblem(): string | null {
+    if (amount <= 0) return "Ingrese un monto mayor a 0.";
     if (monthlyPrice > 0 && months === null) {
-      setError(
-        `El monto debe ser un múltiplo del valor mensual (${formatCurrency(monthlyPrice)}): pague uno o más meses completos.`,
-      );
-      return;
+      return `El monto debe ser un múltiplo del valor mensual (${formatCurrency(monthlyPrice)}): pague uno o más meses completos.`;
     }
-    if (!fechaInicio || !fechaFin) {
-      setError("No se pudo calcular el período que cubre este pago.");
-      return;
-    }
+    if (!fechaInicio || !fechaFin) return "No se pudo calcular el período que cubre este pago.";
     if (tipoPago === "TRANSFERENCIA" && !voucherFile) {
-      setError("Adjunte el comprobante de la transferencia para que el club pueda validarla.");
+      return "Adjunte el comprobante de la transferencia para que el club pueda validarla.";
+    }
+    return null;
+  }
+
+  /**
+   * "Registrar pago" no longer registers anything. It validates and opens the
+   * checkpoint — the reader still has to say yes to a sentence that names the
+   * child, the amount and the period, because nothing after this point can be
+   * taken back from the portal.
+   */
+  function handleRequestConfirm(): void {
+    const problem = findProblem();
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setError(null);
+    setConfirming(true);
+  }
+
+  function handleBackToForm(): void {
+    setConfirming(false);
+    // The button that opened the checkpoint is the one that gets focus back —
+    // otherwise dismissing it drops the keyboard reader on `document.body`.
+    window.requestAnimationFrame(() => submitButtonRef.current?.focus());
+  }
+
+  async function handleSubmit(): Promise<void> {
+    // Re-checked rather than trusted: the fields stay live behind the
+    // checkpoint, so the summary always describes what will actually be sent.
+    const problem = findProblem();
+    if (problem) {
+      setError(problem);
+      setConfirming(false);
       return;
     }
 
@@ -477,7 +535,19 @@ function RenewPaymentForm({
       }
 
       setShowForm(false);
+      setConfirming(false);
       setVoucherFile(null);
+      // What happened, and what to do if it was wrong. There is no "Deshacer"
+      // to offer (see the block comment above this component), so the toast
+      // says plainly where the recovery actually lives.
+      showSuccess(
+        studentName
+          ? `Pago de ${studentName} registrado y en revisión`
+          : "Pago registrado y en revisión",
+        {
+          description: `${formatCurrency(amount)} por el período ${formatDateRange(fechaInicio, fechaFin)}. El club lo valida; si algo está mal lo rechaza indicando el motivo y usted registra el pago correcto.`,
+        },
+      );
       onRegistered();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo registrar el pago.");
@@ -582,11 +652,16 @@ function RenewPaymentForm({
               <span className="inline-flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2">
                 <Paperclip size={14} strokeWidth={1.5} aria-hidden="true" />
                 <span className="truncate">{voucherFile.name}</span>
+                {/* The only way back from attaching the wrong file, and it
+                    shipped as a bare 14px glyph in an unpadded button — a
+                    14x14 target against the 24x24 of WCAG 2.2 SC 2.5.8.
+                    `h-6 w-6` with the glyph centred is hit area only; the ✕
+                    itself is still 14px. */}
                 <button
                   type="button"
                   onClick={() => setVoucherFile(null)}
                   aria-label="Quitar el comprobante seleccionado"
-                  className="rounded text-ink-3 hover:text-state-bad focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball"
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-ink-3 hover:text-state-bad"
                 >
                   <X size={14} strokeWidth={2} aria-hidden="true" />
                 </button>
@@ -603,23 +678,67 @@ function RenewPaymentForm({
         </p>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="primary"
-          onClick={() => void handleSubmit()}
-          disabled={loading || !monto || !fechaInicio || !fechaFin}
-        >
-          {loading ? (
-            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-          ) : (
+      {confirming ? (
+        /* The checkpoint sits where the submit button was, so it lands under
+           the eye that just clicked, with every field it describes still on
+           screen and still editable above it. A modal would have dimmed
+           exactly the numbers the reader is being asked to check. */
+        <div data-testid="renew-confirm" className="rounded-ctl border border-line-2 bg-sunken px-4 py-4">
+          <p className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3-strong">
+            Confirme antes de registrar
+          </p>
+          <p id="renew-confirm-summary" className="mt-1.5 max-w-[68ch] text-[13.5px] leading-relaxed text-ink">
+            Va a registrar <b className="font-bold tabular-nums">{formatCurrency(amount)}</b>{" "}
+            {studentName ? (
+              <>
+                a nombre de <b className="font-bold">{studentName}</b>
+              </>
+            ) : (
+              "a su nombre"
+            )}
+            , {tipoPago === "TRANSFERENCIA" ? "por transferencia" : "en efectivo"}, para el período{" "}
+            <b className="font-bold tabular-nums">{formatDateRange(fechaInicio, fechaFin)}</b>.
+          </p>
+          <p className="mt-2 max-w-[68ch] text-[12.5px] leading-relaxed text-ink-3-strong">
+            Una vez registrado no puede eliminarlo desde el portal. El club revisa cada pago: si
+            algo está mal lo rechaza indicando el motivo y usted registra el correcto.
+          </p>
+          <div className="mt-3.5 flex flex-wrap gap-2">
+            <Button
+              ref={confirmButtonRef}
+              variant="primary"
+              onClick={() => void handleSubmit()}
+              disabled={loading}
+              aria-describedby="renew-confirm-summary"
+            >
+              {loading ? (
+                <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+              ) : (
+                <CreditCard size={16} strokeWidth={1.5} aria-hidden="true" />
+              )}
+              {loading ? "Registrando…" : "Confirmar y registrar"}
+            </Button>
+            <Button variant="ghost" onClick={handleBackToForm} disabled={loading}>
+              Volver a corregir
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            ref={submitButtonRef}
+            variant="primary"
+            onClick={handleRequestConfirm}
+            disabled={!monto || !fechaInicio || !fechaFin}
+          >
             <CreditCard size={16} strokeWidth={1.5} aria-hidden="true" />
-          )}
-          {loading ? "Registrando…" : "Registrar pago"}
-        </Button>
-        <Button variant="ghost" onClick={handleCancel} disabled={loading}>
-          Cancelar
-        </Button>
-      </div>
+            Registrar pago
+          </Button>
+          <Button variant="ghost" onClick={handleCancel}>
+            Cancelar
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -660,7 +779,7 @@ function PagoRow({
             href={pago.voucherUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-1.5 inline-flex items-center gap-1.5 rounded text-[12.5px] font-semibold text-ink underline decoration-line-2 decoration-2 underline-offset-4 hover:decoration-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball"
+            className="mt-1.5 inline-flex min-h-[24px] items-center gap-1.5 rounded text-[12.5px] font-semibold text-ink underline decoration-line-2 decoration-2 underline-offset-4 hover:decoration-ink"
           >
             <Paperclip size={13} strokeWidth={1.5} aria-hidden="true" />
             Ver el comprobante
@@ -716,6 +835,7 @@ function PaymentsContent({
   const { managedProfiles, selectedId, setSelectedId, selectedProfile } = useManagedProfiles(
     data,
     hasAlumnoRole,
+    accountPersonaId,
   );
 
   const [reloadToken, setReloadToken] = useState(0);

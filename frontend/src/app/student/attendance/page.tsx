@@ -43,7 +43,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
@@ -186,14 +186,24 @@ function AttendanceRecap({
 // The record itself
 // ---------------------------------------------------------------------------
 
-function SessionList({ profile }: { profile: StudentProfileSummary }): React.ReactElement {
+function SessionList({
+  profile,
+  /** The dependent's given name, or `null` when the reader IS the student. */
+  studentName,
+}: {
+  profile: StudentProfileSummary;
+  studentName: string | null;
+}): React.ReactElement {
   const sessions = profile.recentSessions;
 
   return (
     <section className="card overflow-hidden" aria-labelledby="sessions-title">
       <div className="flex items-center gap-3 border-b border-line px-5 py-4">
+        {/* The record is the main column, and it names its subject: a guardian
+            reading two children's histories one click apart must never have to
+            infer which one is on screen from the dates. */}
         <h2 id="sessions-title" className="flex-1 text-[13px] font-bold text-ink">
-          Sesiones registradas
+          {studentName ? `Sesiones registradas de ${studentName}` : "Sesiones registradas"}
         </h2>
         {sessions.length > 0 && (
           <span className="text-[12.5px] font-semibold tabular-nums text-ink-3">
@@ -205,8 +215,12 @@ function SessionList({ profile }: { profile: StudentProfileSummary }): React.Rea
       {sessions.length === 0 ? (
         <EmptyState
           icon={<CalendarCheck size={21} strokeWidth={1.5} aria-hidden="true" />}
-          title="Aún no hay asistencias registradas"
-          description="Cada vez que su entrenador tome lista, la sesión aparecerá en esta pantalla con el estado que le haya asignado."
+          title={
+            studentName
+              ? `Aún no hay asistencias registradas de ${studentName}`
+              : "Aún no hay asistencias registradas"
+          }
+          description="Cada vez que el entrenador tome lista, la sesión aparecerá en esta pantalla con el estado que le haya asignado."
         />
       ) : (
         <ul className="flex flex-col">
@@ -303,6 +317,7 @@ function AttendanceView({
   const { managedProfiles, selectedId, setSelectedId, selectedProfile } = useManagedProfiles(
     data,
     hasAlumnoRole,
+    accountPersonaId,
   );
 
   const viewingOwnProfile =
@@ -338,7 +353,7 @@ function AttendanceView({
       ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
           <div className="flex min-w-0 flex-col gap-3">
-            <SessionList profile={selectedProfile} />
+            <SessionList profile={selectedProfile} studentName={studentName} />
 
             {/* The scope, stated. Rows presented without this line read as
                 "this is the whole record". */}
@@ -362,7 +377,11 @@ function AttendanceView({
 export default function StudentAttendancePage(): React.ReactElement {
   return (
     <ProtectedRoute allowedRoles={["representante", "estudiante", "unsupported"]}>
-      <StudentAttendanceContent />
+      {/* `useManagedProfiles` reads `?alumno=` through `useSearchParams` — see
+          the same boundary on `/student` and `/student/payments`. */}
+      <Suspense>
+        <StudentAttendanceContent />
+      </Suspense>
     </ProtectedRoute>
   );
 }

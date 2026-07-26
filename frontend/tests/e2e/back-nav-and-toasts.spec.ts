@@ -14,6 +14,8 @@
  */
 import { test, expect, type Page, type Route } from "@playwright/test";
 
+import { E2E_BASE_URL } from "./e2e-target";
+
 const MOCK_SESSION = {
   user: {
     id: "1",
@@ -188,7 +190,7 @@ test.describe("Back navigation + toasts", () => {
     // again here since that path is already covered by the admin login
     // above and by admin-smoke.spec.ts.
     await page.context().addCookies([
-      { name: "access_token", value: MOCK_ACCESS_TOKEN, url: baseURL ?? "http://localhost:3000" },
+      { name: "access_token", value: MOCK_ACCESS_TOKEN, url: baseURL ?? E2E_BASE_URL },
     ]);
     await page.route("**/api/**", (route) => {
       if (route.request().method() === "GET") return fulfillJson(route, []);

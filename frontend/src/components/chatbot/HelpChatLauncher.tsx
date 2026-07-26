@@ -55,11 +55,13 @@ const DEFAULT_LABEL = "Pregúntale al asistente";
 
 const TRIGGER_CLASSES: Record<HelpChatLauncherProps["variant"], string> = {
   landing: "landing-button landing-button-quiet landing-button-block",
+  // `min-h-[24px]`: the 11.5px label plus `py-0.5` measured 21px tall, under
+  // the 24x24 WCAG 2.2 AA target size (SC 2.5.8). The height is hit area only —
+  // `items-center` keeps the label and its underline exactly where they were.
   quiet:
-    "inline-flex items-center gap-1.5 rounded-ctl px-1 py-0.5 text-[11.5px] font-semibold " +
+    "inline-flex min-h-[24px] items-center gap-1.5 rounded-ctl px-1 py-0.5 text-[11.5px] font-semibold " +
     "text-ink-2 underline decoration-line-2 underline-offset-[3px] transition-colors " +
-    "hover:text-cata-red hover:decoration-cata-red " +
-    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball",
+    "hover:text-cata-red hover:decoration-cata-red",
 };
 
 export default function HelpChatLauncher({

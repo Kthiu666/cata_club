@@ -335,7 +335,7 @@ export default function EnrollPage(): React.ReactElement {
                 type="button"
                 aria-pressed={selected}
                 onClick={() => updateField("enrollmentType", choice.value)}
-                className={`flex h-full flex-col gap-[7px] rounded-card border p-[17px_18px] text-left transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball ${
+                className={`flex h-full flex-col gap-[7px] rounded-card border p-[17px_18px] text-left transition-colors duration-150 ${
                   selected
                     ? "border-coal bg-paper ring-1 ring-coal"
                     : "border-line-2 bg-paper hover:bg-canvas"
@@ -767,7 +767,11 @@ export default function EnrollPage(): React.ReactElement {
               setSummaryReviewed(e.target.checked);
               setFormErrors([]);
             }}
-            className="mt-0.5 h-4 w-4 rounded border-line-2 text-coal focus:ring-ball"
+            /* `focus:ring-ball` was inert twice over: it names a colour with
+               no ring width, and `@tailwindcss/forms` (which is what would
+               give a checkbox a ring at all) is not installed. Focus is marked
+               by the system indicator in `globals.css`. */
+            className="mt-0.5 h-4 w-4 rounded border-line-2 text-coal"
           />
           <span>
             Revisé el resumen y confirmo que la información está correcta.
@@ -855,7 +859,11 @@ export default function EnrollPage(): React.ReactElement {
           {/* Step header + the NAMED stepper. The five steps are named from
               step one: "Paso 2 de 5" anticipates nothing, "Contacto" does. */}
           <div className="mb-6">
-            <p className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3">
+            {/* `ink-3-strong`, not `ink-3`: this block sits on the PAGE
+                surface (#F4F4F7, the body fill), not inside a card, and
+                `ink-3` only clears AA on `paper` — it measures 4.21:1 here.
+                Same reason `PageHeader` uses the companion token. */}
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-ink-3-strong">
               Paso {currentIndex + 1} de {effectiveSteps.length}
             </p>
             <h1 className="mt-1 text-[26px] font-extrabold tracking-[-0.03em] text-ink">
@@ -865,7 +873,7 @@ export default function EnrollPage(): React.ReactElement {
                 copy said "Cinco pasos" while the line directly above it said
                 "Paso 1 de 4", because arriving from the landing with
                 `?type=self` already answers the first step and drops it. */}
-            <p className="mt-1.5 text-[13px] leading-relaxed text-ink-3">
+            <p className="mt-1.5 text-[13px] leading-relaxed text-ink-3-strong">
               {effectiveSteps.length} pasos y queda dentro del club.
               {formData.enrollmentType === "self" && " Se inscribe usted como jugador."}
               {formData.enrollmentType === "child" && " Usted actúa como representante."}
@@ -887,11 +895,17 @@ export default function EnrollPage(): React.ReactElement {
             <div className="mb-6 rounded-xl border border-dashed border-cata-border bg-cata-bg p-3">
               <div className="mb-2 flex items-center gap-2">
                 <AlertTriangle size={14} strokeWidth={1.5} className="text-amber-700" aria-hidden="true" />
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-cata-text/45">
+                {/* Both lines were translucent ink over the `sunken` panel:
+                    `/45` composited to #9499A1 (2.61:1) and `/40` to #9FA3AA
+                    (2.31:1), the two worst pairs in the product. The panel is
+                    dev-only (`isDemoQuickFillEnabled` gates it on NODE_ENV) so
+                    it never reaches a visitor — but a token swap costs nothing
+                    and the panel is unreadable to the developers who DO see it. */}
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-3-strong">
                   Rellenar datos de prueba (solo desarrollo)
                 </p>
               </div>
-              <p className="mb-2 text-[10px] leading-relaxed text-cata-text/40">
+              <p className="mb-2 text-[10px] leading-relaxed text-ink-3-strong">
                 Llena los campos automáticamente pero no salta la validación — los pasos deben completarse uno por uno.
               </p>
               <div className="flex flex-wrap gap-2">

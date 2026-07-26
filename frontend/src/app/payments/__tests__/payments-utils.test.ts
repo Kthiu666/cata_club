@@ -16,6 +16,9 @@ import {
   findQueueNeighbours,
   getAutoAdvanceId,
   buildApprovalChecklist,
+  classifyPaymentMethod,
+  describeBatchApproval,
+  getNextUnreviewedId,
   composeRejectionReason,
 } from "../payments-utils";
 
@@ -179,17 +182,123 @@ describe("getAutoAdvanceId", () => {
 // Approval checklist + typified rejection reasons
 // ---------------------------------------------------------------------------
 
+describe("classifyPaymentMethod", () => {
+  it("reads the kind back out of the label the adapter emits", () => {
+    expect(classifyPaymentMethod("Efectivo")).toBe("efectivo");
+    expect(classifyPaymentMethod("Transferencia")).toBe("transferencia");
+  });
+
+  it("survives casing and padding without inventing a kind", () => {
+    expect(classifyPaymentMethod("  EFECTIVO ")).toBe("efectivo");
+    expect(classifyPaymentMethod("Depósito bancario")).toBe("otro");
+    expect(classifyPaymentMethod("")).toBe("otro");
+  });
+});
+
 describe("buildApprovalChecklist", () => {
-  it("names the expected amount inside the item that checks it", () => {
-    const checklist = buildApprovalChecklist("$25,00");
-    expect(checklist).toHaveLength(3);
-    expect(checklist.map((c) => c.label)).toContain("El monto del comprobante coincide con $25,00");
+  const transfer = { paymentMethod: "Transferencia", expectedAmountLabel: "$25,00", hasProof: true };
+
+  it("asks about the voucher when there is a voucher to read", () => {
+    const { items } = buildApprovalChecklist(transfer);
+    expect(items.map((c) => c.label)).toEqual([
+      "El comprobante es legible y no está cortado",
+      "El monto del comprobante coincide con $25,00",
+      "La fecha de la transferencia cae dentro del período",
+    ]);
+  });
+
+  it("never asks a cash payment about a comprobante it does not have", () => {
+    const { items, note } = buildApprovalChecklist({
+      paymentMethod: "Efectivo",
+      expectedAmountLabel: "$25,00",
+      hasProof: false,
+    });
+
+    const labels = items.map((c) => c.label);
+    expect(labels).toEqual([
+      "Se recibió $25,00 en efectivo",
+      "El período de vigencia que se va a activar es el correcto",
+    ]);
+    // The two questions that were unanswerable — and therefore ticked blindly.
+    expect(labels.some((l) => l.includes("comprobante"))).toBe(false);
+    expect(note).toContain("efectivo");
+  });
+
+  it("keeps the legibility question for a cash payment that does carry a recibo", () => {
+    const { items } = buildApprovalChecklist({
+      paymentMethod: "Efectivo",
+      expectedAmountLabel: "$25,00",
+      hasProof: true,
+    });
+    expect(items.map((c) => c.key)).toEqual(["efectivo-recibido", "legible", "periodo"]);
+  });
+
+  it("points a proofless transfer at the club's account instead of at a missing file", () => {
+    const { items, note } = buildApprovalChecklist({ ...transfer, hasProof: false });
+    expect(items.map((c) => c.label)).toEqual([
+      "La transferencia de $25,00 está acreditada en la cuenta del club",
+      "El período de vigencia que se va a activar es el correcto",
+    ]);
+    expect(note).toContain("Transferencia sin comprobante adjunto");
+  });
+
+  it("treats an unrecognised method as strictly as a transfer", () => {
+    const withProof = buildApprovalChecklist({ ...transfer, paymentMethod: "Depósito" });
+    expect(withProof.kind).toBe("otro");
+    expect(withProof.items.map((c) => c.key)).toEqual(["legible", "monto", "fecha"]);
+    expect(
+      buildApprovalChecklist({ ...transfer, paymentMethod: "Depósito", hasProof: false }).note,
+    ).toContain("Depósito");
   });
 
   it("gives every item a stable key so a checked box survives a re-render", () => {
-    const keys = buildApprovalChecklist("$25,00").map((c) => c.key);
+    const keys = buildApprovalChecklist(transfer).items.map((c) => c.key);
     expect(new Set(keys).size).toBe(keys.length);
-    expect(keys).toEqual(buildApprovalChecklist("$40,00").map((c) => c.key));
+    expect(keys).toEqual(
+      buildApprovalChecklist({ ...transfer, expectedAmountLabel: "$40,00" }).items.map((c) => c.key),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Batch approval
+// ---------------------------------------------------------------------------
+
+describe("getNextUnreviewedId", () => {
+  const pending = buildRequests(4);
+
+  it("walks forward to the first request still waiting for a review", () => {
+    expect(getNextUnreviewedId(pending, "req-0", new Set(["req-0"]))).toBe("req-1");
+    expect(getNextUnreviewedId(pending, "req-0", new Set(["req-0", "req-1"]))).toBe("req-2");
+  });
+
+  it("wraps to the top for anything skipped on the way down", () => {
+    expect(getNextUnreviewedId(pending, "req-3", new Set(["req-0", "req-2", "req-3"]))).toBe("req-1");
+  });
+
+  it("returns null when everything is reviewed, so the admin lands back on the queue", () => {
+    const all = new Set(pending.map((r) => r.id));
+    expect(getNextUnreviewedId(pending, "req-2", all)).toBeNull();
+    expect(getNextUnreviewedId([], "req-0", new Set())).toBeNull();
+  });
+});
+
+describe("describeBatchApproval", () => {
+  it("states the count, the money and who it lands on", () => {
+    expect(describeBatchApproval(["Ana Ruiz", "Beto Lima"], "$50,00")).toBe(
+      "Se van a aprobar 2 pagos ya revisados, por un total de $50,00. Se activan las membresías de Ana Ruiz, Beto Lima.",
+    );
+  });
+
+  it("agrees in the singular rather than saying '1 pagos'", () => {
+    expect(describeBatchApproval(["Ana Ruiz"], "$25,00")).toBe(
+      "Se va a aprobar 1 pago ya revisado, por $25,00. Se activa la membresía de Ana Ruiz.",
+    );
+  });
+
+  it("truncates a long batch instead of printing an unreadable roll call", () => {
+    const names = ["A", "B", "C", "D", "E", "F"];
+    expect(describeBatchApproval(names, "$150,00")).toContain("A, B, C, D y 2 más");
   });
 });
 

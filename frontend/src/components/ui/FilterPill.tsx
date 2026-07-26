@@ -41,7 +41,9 @@ export default function FilterPill({
       className={cn(
         "h-ctl inline-flex items-center gap-2 rounded-full border px-[15px] text-[12.5px] font-semibold",
         "transition-colors duration-150",
-        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ball",
+        // No focus ring here — see `Button`: the shared system ring in
+        // `globals.css` carries it, because the bare ball fails on the light
+        // surfaces a filter row sits on.
         "disabled:cursor-not-allowed disabled:opacity-45",
         active
           ? "bg-coal border-coal text-white"

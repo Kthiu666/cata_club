@@ -315,7 +315,7 @@ export default function ChatWidget({
           placeholder="Escribe tu pregunta…"
           aria-label={`Mensaje para ${BOT_NAME}`}
           disabled={enviando}
-          className="h-ctl min-w-0 flex-1 rounded-ctl border border-line-2 bg-paper px-[13px] text-[13.5px] text-ink transition-colors placeholder:text-ink-3 focus:border-cata-red focus:outline-none focus:ring-[3px] focus:ring-cata-red/10 disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-ctl min-w-0 flex-1 rounded-ctl border border-line-2 bg-paper px-[13px] text-[13.5px] text-ink transition-colors placeholder:text-ink-3 focus:border-cata-red disabled:cursor-not-allowed disabled:opacity-50"
         />
         <button
           type="submit"

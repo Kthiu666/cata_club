@@ -177,19 +177,173 @@ export interface ApprovalCheck {
 }
 
 /**
- * The three things the admin must confirm before "Aprobar" unlocks.
+ * What kind of payment this is, for checklist purposes.
  *
- * The old list was static prose in an amber box: four sentences the admin had
- * to hold in memory while looking at the proof in the other column, with
- * nothing stopping an approval that skipped all of them. These are real
- * checkboxes and they gate the button (prototype 10).
+ * The DTO carries `paymentMethod` as an already-translated LABEL — the backend
+ * enum `TipoPago` (`EFECTIVO` | `TRANSFERENCIA`) is mapped to "Efectivo" /
+ * "Transferencia" server-side in `lib/server/payments-adapter.ts`
+ * (`PAYMENT_METHOD_BY_TIPO_PAGO`), and the label is the only form that reaches
+ * the client. So this normalises the label back into a kind rather than
+ * inventing a second field on the DTO, and anything it does not recognise
+ * falls into `otro`, which is treated as strictly as a transfer.
  */
-export function buildApprovalChecklist(expectedAmountLabel: string): ApprovalCheck[] {
-  return [
-    { key: "legible", label: "El comprobante es legible y no está cortado" },
-    { key: "monto", label: `El monto del comprobante coincide con ${expectedAmountLabel}` },
-    { key: "fecha", label: "La fecha de la transferencia cae dentro del período" },
-  ];
+export type PaymentMethodKind = "efectivo" | "transferencia" | "otro";
+
+export function classifyPaymentMethod(paymentMethod: string): PaymentMethodKind {
+  // No accent folding needed: neither word carries a diacritic in any casing
+  // the adapter can produce, so lowercasing is the whole normalisation.
+  const normalized = paymentMethod.trim().toLowerCase();
+  if (normalized.includes("efectivo")) return "efectivo";
+  if (normalized.includes("transferencia")) return "transferencia";
+  return "otro";
+}
+
+export interface ApprovalChecklistContext {
+  /** `PaymentValidationRequest.paymentMethod` — the label, verbatim. */
+  paymentMethod: string;
+  /** Already formatted for display, e.g. "$25,00". */
+  expectedAmountLabel: string;
+  /** Whether a proof file is actually attached (`proofPreviewUrl`). */
+  hasProof: boolean;
+}
+
+export interface ApprovalChecklist {
+  kind: PaymentMethodKind;
+  /** One line under the heading, only when the payment is not the usual case. */
+  note?: string;
+  items: ApprovalCheck[];
+}
+
+/**
+ * What the admin must confirm before "Aprobar pago" unlocks — derived from the
+ * payment, not fixed.
+ *
+ * The list used to be the same three transfer questions for every payment, so a
+ * cash payment with "Sin comprobante adjunto" still demanded «El comprobante es
+ * legible y no está cortado» and «El monto del comprobante coincide con …».
+ * Both are unanswerable there, and a safeguard you have to falsify in order to
+ * proceed teaches people to tick blindly — which is exactly what destroys the
+ * checklist on the transfers where reading the voucher is the whole job.
+ *
+ * So the questions come from what is actually verifiable: a voucher when there
+ * is one to read, the club's account when a transfer arrived without proof, the
+ * money in hand when it was cash. The gate itself does not move — every
+ * applicable item still has to be ticked.
+ */
+export function buildApprovalChecklist({
+  paymentMethod,
+  expectedAmountLabel,
+  hasProof,
+}: ApprovalChecklistContext): ApprovalChecklist {
+  const kind = classifyPaymentMethod(paymentMethod);
+  const periodCheck: ApprovalCheck = {
+    key: "periodo",
+    label: "El período de vigencia que se va a activar es el correcto",
+  };
+
+  if (kind === "efectivo") {
+    return {
+      kind,
+      note: hasProof
+        ? "Pago en efectivo con recibo adjunto: se confirma la entrega del dinero, no una transferencia."
+        : "Pago en efectivo, sin comprobante que revisar: se confirma la entrega del dinero.",
+      items: [
+        { key: "efectivo-recibido", label: `Se recibió ${expectedAmountLabel} en efectivo` },
+        ...(hasProof
+          ? [{ key: "legible", label: "El recibo adjunto es legible y no está cortado" }]
+          : []),
+        periodCheck,
+      ],
+    };
+  }
+
+  // A voucher exists: reading it against the numbers IS the review.
+  if (hasProof) {
+    return {
+      kind,
+      items: [
+        { key: "legible", label: "El comprobante es legible y no está cortado" },
+        { key: "monto", label: `El monto del comprobante coincide con ${expectedAmountLabel}` },
+        { key: "fecha", label: "La fecha de la transferencia cae dentro del período" },
+      ],
+    };
+  }
+
+  // A transfer with nothing attached: the club's account statement is the only
+  // evidence left, so the checklist says so instead of asking about a file.
+  return {
+    kind,
+    note:
+      kind === "transferencia"
+        ? "Transferencia sin comprobante adjunto: verifíquela en la cuenta del club antes de aprobar."
+        : `Pago registrado como “${paymentMethod}”, sin comprobante adjunto: verifíquelo antes de aprobar.`,
+    items: [
+      {
+        key: "acreditado",
+        label:
+          kind === "transferencia"
+            ? `La transferencia de ${expectedAmountLabel} está acreditada en la cuenta del club`
+            : `El pago de ${expectedAmountLabel} está verificado fuera del sistema`,
+      },
+      periodCheck,
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Batch approval (P7 — "selección múltiple + validación por lote")
+// ---------------------------------------------------------------------------
+
+/**
+ * The next pending request still waiting to be reviewed, after `currentId`.
+ *
+ * Used by "Marcar como revisado", which — unlike approving — leaves the request
+ * in the pending queue, so `getAutoAdvanceId` would walk straight back into an
+ * item the admin has already been through. Looks forward first, then wraps to
+ * the top for anything skipped, and returns null when nothing is left to
+ * review, which sends the admin back to the queue to commit the batch.
+ */
+export function getNextUnreviewedId(
+  pending: PaymentValidationRequest[],
+  currentId: string,
+  reviewedIds: ReadonlySet<string>,
+): string | null {
+  const index = pending.findIndex((r) => r.id === currentId);
+  const start = index === -1 ? 0 : index + 1;
+  const order = [...pending.slice(start), ...pending.slice(0, Math.max(start - 1, 0))];
+  return order.find((r) => r.id !== currentId && !reviewedIds.has(r.id))?.id ?? null;
+}
+
+/**
+ * The confirmation sentence for a batch approval: what is about to happen, to
+ * how many, and to whom.
+ *
+ * Names are the point — "¿Aprobar 7 pagos?" is not a decision anyone can make.
+ * Long batches are truncated because a dialog nobody reads is the same as no
+ * dialog at all.
+ */
+export function describeBatchApproval(
+  studentNames: string[],
+  totalLabel: string,
+  maxNames = 4,
+): string {
+  const count = studentNames.length;
+  const shown = studentNames.slice(0, maxNames).join(", ");
+  const rest = count - Math.min(count, maxNames);
+  const names = rest > 0 ? `${shown} y ${rest} más` : shown;
+  const head =
+    count === 1
+      ? `Se va a aprobar 1 pago ya revisado, por ${totalLabel}.`
+      : `Se van a aprobar ${count} pagos ya revisados, por un total de ${totalLabel}.`;
+  const tail =
+    count === 1 ? `Se activa la membresía de ${names}.` : `Se activan las membresías de ${names}.`;
+  return `${head} ${tail}`;
+}
+
+/** Outcome of a batch run — every item lands in exactly one of the two lists. */
+export interface BatchApprovalOutcome {
+  approved: string[];
+  failed: string[];
 }
 
 export interface RejectionReasonOption {

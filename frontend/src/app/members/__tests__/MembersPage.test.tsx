@@ -987,6 +987,15 @@ describe("MembersPage — edit modal footer does not fake a save", () => {
     const label = checkbox.closest("label") as HTMLElement;
     expect(label.className).toContain("focus-within:outline");
     expect(label.className).toContain("focus-within:outline-ball");
+
+    // A bare ball outline is 1.41:1 on the chip fill — the same failure the
+    // globals.css rule was written to correct, and this label sits outside
+    // that rule's reach. The coal band is what carries the 3:1: it wraps the
+    // ball, so the outline hugs the chip at offset 0 instead of floating 2px
+    // off it. See color-contrast.test.ts for the measurements.
+    expect(label.className).toContain("focus-within:shadow-[0_0_0_4px_#131316]");
+    expect(label.className).toContain("focus-within:outline-offset-0");
+    expect(label.className).not.toContain("focus-within:outline-offset-2");
   });
 
   it("marks a selected role with coal, never red", async () => {
