@@ -28,20 +28,27 @@ COMPOSE_FILE = Path(__file__).resolve().parent.parent.parent / "docker-compose.y
 FAKE_UV = """#!/bin/sh
 # Fake `uv` para tests de entrypoint.sh: no ejecuta nada real, solo deja un
 # sentinel file por paso invocado y sale con el código configurado por env.
-case "$2" in
-  alembic)
-    touch "$SENTINEL_DIR/alembic_ran"
-    exit "${ALEMBIC_EXIT:-0}"
-    ;;
-  python)
-    touch "$SENTINEL_DIR/seed_ran"
-    exit "${SEED_EXIT:-0}"
-    ;;
-  uvicorn)
-    touch "$SENTINEL_DIR/uvicorn_ran"
-    exit 0
-    ;;
-esac
+#
+# Detecta el subcomando RECORRIENDO los argumentos en vez de leer una posición
+# fija: `uv run` admite flags (`--frozen`, `--no-build`) entre `run` y el
+# comando real, así que asumir `$2` ataría estos tests al orden de los flags
+# y fallarían al agregar uno, sin que el comportamiento del entrypoint cambie.
+for arg in "$@"; do
+  case "$arg" in
+    alembic)
+      touch "$SENTINEL_DIR/alembic_ran"
+      exit "${ALEMBIC_EXIT:-0}"
+      ;;
+    python)
+      touch "$SENTINEL_DIR/seed_ran"
+      exit "${SEED_EXIT:-0}"
+      ;;
+    uvicorn)
+      touch "$SENTINEL_DIR/uvicorn_ran"
+      exit 0
+      ;;
+  esac
+done
 """
 
 
@@ -107,6 +114,27 @@ def test_seed_falla_uvicorn_nunca_se_invoca(fake_path):
     assert resultado.returncode != 0
     assert (sentinel_dir / "seed_ran").exists()
     assert not (sentinel_dir / "uvicorn_ran").exists()
+
+
+def test_cada_uv_run_del_entrypoint_fija_lock_y_prohibe_builds():
+    """Guardia estructural: toda invocación `uv run` del entrypoint debe
+    llevar `--frozen` y `--no-build`.
+
+    `--frozen` impide resolver versiones fuera del lock en el arranque del
+    contenedor, y `--no-build` impide ejecutar setup scripts de sdists. Sin
+    estos flags, el arranque podría instalar y ejecutar código no fijado por
+    `uv.lock`; SonarCloud lo marca como vulnerabilidad, y sin este test nada
+    impide que alguien los quite al editar el script."""
+    lineas_uv_run = [
+        linea.strip()
+        for linea in ENTRYPOINT.read_text().splitlines()
+        if "uv run" in linea and not linea.strip().startswith("#")
+    ]
+
+    assert lineas_uv_run, "el entrypoint debería invocar `uv run` al menos una vez"
+    for linea in lineas_uv_run:
+        assert "--frozen" in linea, f"falta --frozen en: {linea}"
+        assert "--no-build" in linea, f"falta --no-build en: {linea}"
 
 
 def test_compose_backend_command_invoca_entrypoint_sin_alembic_inline():

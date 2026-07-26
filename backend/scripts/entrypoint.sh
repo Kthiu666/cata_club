@@ -13,18 +13,22 @@
 # `pipefail` porque no es POSIX sh (este script corre con `sh`, no `bash`).
 set -eu
 
-uv run alembic upgrade head
+# `--frozen --no-build` en cada `uv run`: no resuelve versiones fuera del lock
+# y no ejecuta setup scripts de sdists (los 72 paquetes del lock resuelven a
+# wheels). Verificado dentro del contenedor antes de adoptarlo, porque este
+# script es el arranque: si los flags fallaran, el contenedor no levanta.
+uv run --frozen --no-build alembic upgrade head
 
 # `set -e` no aborta por una condición `if` falsa (exit 0 normal); pero SÍ
 # aborta si el seed dentro del cuerpo del `if` falla — el semantics
 # condicional se preserva exactamente igual que en el `command` inline
 # original.
 if [ "${AMBIENTE:-production}" = "development" ]; then
-  uv run python scripts/seed_dev_base.py
+  uv run --frozen --no-build python scripts/seed_dev_base.py
 fi
 
 # `exec` reemplaza este proceso `sh` por uvicorn en vez de encadenarlo como
 # hijo: uvicorn pasa a ser PID 1 dentro del contenedor, así que
 # `docker stop` (SIGTERM) llega directo a él y el shutdown es limpio, en vez
 # de perderse porque `sh` no lo reenvía a sus hijos.
-exec uv run uvicorn main:app --host 0.0.0.0 --port 8000
+exec uv run --frozen --no-build uvicorn main:app --host 0.0.0.0 --port 8000
