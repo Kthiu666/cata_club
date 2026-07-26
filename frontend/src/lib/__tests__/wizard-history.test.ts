@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { resolveStepFromParam, stepParamValue } from "../wizard-history";
+import { furthestReachableIndex, resolveStepFromParam, stepParamValue } from "../wizard-history";
 
 const ORDER = ["select-session", "mark-attendance", "confirm"] as const;
 type Step = (typeof ORDER)[number];
@@ -72,5 +72,44 @@ describe("stepParamValue", () => {
     for (const step of ORDER) {
       expect(resolve(stepParamValue<Step>(step, ORDER))).toBe(step);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The form wizards answer "how far did this session get?" differently from the
+// roll call: there is no single flag, only whether each step's fields are
+// filled. A URL may address any step the visitor could have walked to on their
+// own — no further, or a deep link would skip validation the wizard exists to
+// enforce.
+// ---------------------------------------------------------------------------
+
+describe("furthestReachableIndex", () => {
+  const STEPS = ["type", "personal", "health", "summary"] as const;
+  type FormStep = (typeof STEPS)[number];
+
+  function reachable(complete: FormStep[]): number {
+    return furthestReachableIndex(STEPS, (step) => complete.includes(step));
+  }
+
+  it("stops at the first step of an untouched form", () => {
+    expect(reachable([])).toBe(0);
+  });
+
+  it("advances one step past the last completed one", () => {
+    expect(reachable(["type"])).toBe(1);
+    expect(reachable(["type", "personal"])).toBe(2);
+  });
+
+  it("stops at the first gap, not at the last completed step", () => {
+    // "health" being filled cannot unlock the summary while "personal" is not.
+    expect(reachable(["type", "health"])).toBe(1);
+  });
+
+  it("never points past the last step, however complete the form is", () => {
+    expect(reachable(["type", "personal", "health", "summary"])).toBe(STEPS.length - 1);
+  });
+
+  it("returns 0 for an empty order rather than -1", () => {
+    expect(furthestReachableIndex([], () => true)).toBe(0);
   });
 });

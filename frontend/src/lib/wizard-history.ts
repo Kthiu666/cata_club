@@ -60,6 +60,26 @@ export function resolveStepFromParam<S extends string>(
   return order[index];
 }
 
+/**
+ * How far a form wizard can legitimately be addressed.
+ *
+ * The roll call has one flag for this — the roster either loaded or it did not.
+ * A form wizard does not: the only truth about "how far did they get" is
+ * whether each step's fields are filled. So the ceiling is the first step whose
+ * predecessor is still incomplete, which is exactly the step the visitor would
+ * be standing on if they had walked there themselves. Stopping at the first
+ * GAP, rather than at the last completed step, is what keeps a deep link from
+ * skipping validation: a filled step 3 unlocks nothing while step 2 is empty.
+ */
+export function furthestReachableIndex<S extends string>(
+  order: readonly S[],
+  isComplete: (step: S) => boolean,
+): number {
+  let index = 0;
+  while (index < order.length - 1 && isComplete(order[index])) index += 1;
+  return index;
+}
+
 /** The value to write for a step — the same number the stepper displays. */
 export function stepParamValue<S extends string>(step: S, order: readonly S[]): string {
   return String(Math.max(order.indexOf(step), 0) + 1);

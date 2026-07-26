@@ -16,8 +16,9 @@
 
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { Suspense, useCallback, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { furthestReachableIndex, useWizardHistory } from "@/lib/wizard-history";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/shell/AppShell";
 import BackLink from "@/components/BackLink";
@@ -59,7 +60,6 @@ function CrearCuentaContent(): React.ReactElement {
   const router = useRouter();
   const { showSuccess, showError } = useToast();
 
-  const [step, setStep] = useState<CrearCuentaStep>("type");
   const [formData, setFormData] = useState<CrearCuentaFormData>(initialCrearCuentaFormData);
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -73,6 +73,20 @@ function CrearCuentaContent(): React.ReactElement {
   const [representanteSelected, setRepresentanteSelected] = useState<{ id: number; nombre: string } | null>(null);
   const [instituciones, setInstituciones] = useState<Institucion[]>([]);
   const [tipoEscuelaFilter, setTipoEscuelaFilter] = useState<string>("");
+
+  /**
+   * A URL may address any step the admin could have walked to on their own,
+   * and no further — a reloaded link must not open the summary of an account
+   * nobody described.
+   */
+  const maxReachableStep = furthestReachableIndex(
+    CREAR_CUENTA_STEP_ORDER,
+    (s) => validateCrearCuentaStep(s, formData).length === 0,
+  );
+  const { step, goToStep, goBack, resetToFirstStep } = useWizardHistory(
+    CREAR_CUENTA_STEP_ORDER,
+    maxReachableStep,
+  );
 
   const currentIndex = CREAR_CUENTA_STEP_ORDER.indexOf(step);
   const isFirst = currentIndex === 0;
@@ -125,16 +139,14 @@ function CrearCuentaContent(): React.ReactElement {
     if (nextIdx < CREAR_CUENTA_STEP_ORDER.length) {
       const nextStep = CREAR_CUENTA_STEP_ORDER[nextIdx];
       if (nextStep === "summary") setSummaryReviewed(false);
-      setStep(nextStep);
+      goToStep(nextStep);
     }
   }
 
+  /** "Atrás" IS the browser's Back — one way back, not two that disagree. */
   function handleBack(): void {
     setFormErrors([]);
-    const prevIdx = currentIndex - 1;
-    if (prevIdx >= 0) {
-      setStep(CREAR_CUENTA_STEP_ORDER[prevIdx]);
-    }
+    if (currentIndex > 0) goBack();
   }
 
   async function handleConfirm(e: FormEvent<HTMLFormElement>): Promise<void> {
@@ -729,7 +741,7 @@ function CrearCuentaContent(): React.ReactElement {
                 type="button"
                 onClick={() => {
                   setFormData(initialCrearCuentaFormData);
-                  setStep("type");
+                  resetToFirstStep();
                   setConfirmed(false);
                   setSubmitting(false);
                   setSummaryReviewed(false);
@@ -819,7 +831,11 @@ function CrearCuentaContent(): React.ReactElement {
 export default function CrearCuentaPage(): React.ReactElement {
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
-      <CrearCuentaContent />
+      {/* The wizard reads its step from the query string; `useSearchParams`
+          needs a boundary to fall back to during prerender. */}
+      <Suspense>
+        <CrearCuentaContent />
+      </Suspense>
     </ProtectedRoute>
   );
 }
