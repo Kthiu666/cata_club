@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+  # Sin filtro de rama base a proposito: con `branches: [main]` los PRs
+  # apilados (los que apuntan a la rama padre en vez de a main) no
+  # disparaban CI y quedaban sin validar hasta que el padre mergeaba.
   pull_request:
-    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
