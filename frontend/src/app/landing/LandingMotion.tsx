@@ -30,17 +30,22 @@ function buildHorizontalLoop(items: HTMLElement[], speed: number, gap: number): 
   const pixelsPerSecond = speed * 100;
   const snap = gsap.utils.snap(1);
 
-  gsap.set(items, {
-    xPercent: (index: number, target: HTMLElement): number => {
-      widths[index] = parseFloat(gsap.getProperty(target, "width", "px") as string);
-      xPercents[index] = snap(
-        (parseFloat(gsap.getProperty(target, "x", "px") as string) / widths[index]) * 100 +
-          (gsap.getProperty(target, "xPercent") as number),
-      );
-      return xPercents[index];
-    },
+  /*
+   * Measure every item before writing to any of them. The upstream helper
+   * computes each `xPercent` inside the `gsap.set` that applies it and then
+   * zeroes `x` in a second pass, which reads a value it is about to overwrite
+   * while the same batch is already mutating its siblings. Splitting the read
+   * from the write keeps the two passes from depending on each other's order,
+   * and leaves one write instead of two.
+   */
+  items.forEach((item, index): void => {
+    widths[index] = parseFloat(gsap.getProperty(item, "width", "px") as string);
+    xPercents[index] = snap(
+      (parseFloat(gsap.getProperty(item, "x", "px") as string) / widths[index]) * 100 +
+        (gsap.getProperty(item, "xPercent") as number),
+    );
   });
-  gsap.set(items, { x: 0 });
+  gsap.set(items, { x: 0, xPercent: (index: number): number => xPercents[index] });
 
   const last = items[length - 1];
   const loopWidth =
