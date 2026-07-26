@@ -75,7 +75,7 @@ import {
   getAutoAdvanceId,
   buildApprovalChecklist,
   composeRejectionReason,
-  REJECTION_REASONS,
+  rejectionReasonsFor,
 } from "@/app/payments/payments-utils";
 import {
   Badge,
@@ -428,9 +428,28 @@ export default function PaymentsPage(): React.ReactElement {
 
   const queue = findQueueNeighbours(pending, selectedId ?? "");
 
+  /**
+   * A proof the admin can actually look at. `proofPreviewUrl` is what the
+   * viewer in the other column renders, so it is the same evidence the
+   * checklist is allowed to ask about — a cash payment taken at the desk has
+   * none, and must not be asked whether it is legible.
+   */
+  const hasProof = Boolean(selectedRequest?.proofPreviewUrl);
+  const paymentMethod = selectedRequest?.paymentMethod ?? "";
+
   const checklist = useMemo(
-    () => buildApprovalChecklist(formatCurrency(selectedRequest?.expectedAmount ?? 0)),
-    [selectedRequest?.expectedAmount],
+    () =>
+      buildApprovalChecklist({
+        expectedAmountLabel: formatCurrency(selectedRequest?.expectedAmount ?? 0),
+        paymentMethod,
+        hasProof,
+        periodLabel: humanizePaymentPeriod(selectedRequest?.membershipPeriod ?? ""),
+      }),
+    [selectedRequest?.expectedAmount, selectedRequest?.membershipPeriod, paymentMethod, hasProof],
+  );
+  const rejectionReasons = useMemo(
+    () => rejectionReasonsFor(paymentMethod, hasProof),
+    [paymentMethod, hasProof],
   );
   const remainingChecks = checklist.filter((item) => !checked[item.key]).length;
   const checklistComplete = remainingChecks === 0;
@@ -898,7 +917,7 @@ export default function PaymentsPage(): React.ReactElement {
                       <legend className="mb-1 text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3">
                         Motivo <span className="text-cata-red">*</span>
                       </legend>
-                      {REJECTION_REASONS.map((reason) => (
+                      {rejectionReasons.map((reason) => (
                         <label
                           key={reason.key}
                           className={`flex cursor-pointer gap-3 rounded-ctl border px-3.5 py-3 ${

@@ -176,19 +176,66 @@ export interface ApprovalCheck {
   label: string;
 }
 
+export interface ApprovalChecklistInput {
+  /** The amount already formatted for display, e.g. "$25,00". */
+  expectedAmountLabel: string;
+  /** "Efectivo" or "Transferencia", as the payments adapter renders it. */
+  paymentMethod: string;
+  /** Whether a proof file actually reached the admin's screen. */
+  hasProof: boolean;
+  /** The membership period in the club's own words, e.g. "1 jul → 12 ago". */
+  periodLabel: string;
+}
+
+const CASH_METHOD = "efectivo";
+
 /**
- * The three things the admin must confirm before "Aprobar" unlocks.
+ * What the admin must confirm before "Aprobar" unlocks — asked about the
+ * payment in front of them, not about a document the system assumed.
  *
  * The old list was static prose in an amber box: four sentences the admin had
  * to hold in memory while looking at the proof in the other column, with
- * nothing stopping an approval that skipped all of them. These are real
- * checkboxes and they gate the button (prototype 10).
+ * nothing stopping an approval that skipped all of them. Turning them into
+ * checkboxes that gate the button (prototype 10) fixed that and introduced a
+ * worse problem, which the usability evaluation caught: the three items were
+ * ALWAYS about a receipt. On a cash payment taken at the desk there is no
+ * receipt, so the only way to approve was to affirm that a document that does
+ * not exist is legible, that its amount matches and that its date is in range.
+ *
+ * A safeguard you have to falsify to get your work done does not protect
+ * anything — it teaches the admin that ticking boxes is a formality, and that
+ * lesson carries straight over to the transfers where the boxes DO matter.
+ * So the questions now follow the evidence:
+ *
+ *   - A proof was submitted → ask about the proof. Whether the money moved by
+ *     transfer or was a photographed cash receipt only changes the wording.
+ *   - Cash with no proof → ask the two things the admin can actually answer:
+ *     that they received the money, and that it belongs to this period.
+ *   - A TRANSFER with no proof is not a desk payment, it is a broken
+ *     submission. Dropping the receipt questions there would quietly approve
+ *     a transfer nobody can evidence, so the receipt questions stay and the
+ *     admin is expected to reject it.
  */
-export function buildApprovalChecklist(expectedAmountLabel: string): ApprovalCheck[] {
+export function buildApprovalChecklist(input: ApprovalChecklistInput): ApprovalCheck[] {
+  const { expectedAmountLabel, paymentMethod, hasProof, periodLabel } = input;
+  const isCash = paymentMethod.trim().toLowerCase() === CASH_METHOD;
+
+  if (isCash && !hasProof) {
+    return [
+      { key: "recibido", label: `Recibí ${expectedAmountLabel} en efectivo, en persona` },
+      { key: "periodo", label: `El pago corresponde al período ${periodLabel}` },
+    ];
+  }
+
   return [
     { key: "legible", label: "El comprobante es legible y no está cortado" },
     { key: "monto", label: `El monto del comprobante coincide con ${expectedAmountLabel}` },
-    { key: "fecha", label: "La fecha de la transferencia cae dentro del período" },
+    {
+      key: "fecha",
+      label: isCash
+        ? "La fecha del pago cae dentro del período"
+        : "La fecha de la transferencia cae dentro del período",
+    },
   ];
 }
 
@@ -216,6 +263,42 @@ export const REJECTION_REASONS: RejectionReasonOption[] = [
   { key: "duplicado", label: "El comprobante ya fue usado en otro pago" },
 ];
 
+/** The one reason a desk payment can fail on that a transfer cannot. */
+const CASH_NOT_RECEIVED: RejectionReasonOption = {
+  key: "no-recibido",
+  label: "No se recibió el pago",
+  description: "El club no tiene registro de haber recibido este dinero.",
+};
+
+/** Every reason the product can offer, whatever the payment method. */
+const ALL_REJECTION_REASONS: RejectionReasonOption[] = [
+  ...REJECTION_REASONS,
+  CASH_NOT_RECEIVED,
+];
+
+/**
+ * The reasons offered for THIS payment.
+ *
+ * Same rule as the approval checklist: two of the four typified reasons are
+ * statements about a receipt ("no se lee", "ya fue usado en otro pago"), and
+ * the payer reads the chosen one verbatim. Sending "El comprobante no se lee"
+ * to someone who handed over cash at the desk is a message they cannot act on,
+ * which is precisely what typifying the reasons was meant to end.
+ */
+export function rejectionReasonsFor(
+  paymentMethod: string,
+  hasProof: boolean,
+): RejectionReasonOption[] {
+  const isCash = paymentMethod.trim().toLowerCase() === CASH_METHOD;
+  if (!isCash || hasProof) return REJECTION_REASONS;
+
+  const aboutTheReceipt = new Set(["ilegible", "duplicado"]);
+  return [
+    ...REJECTION_REASONS.filter((reason) => !aboutTheReceipt.has(reason.key)),
+    CASH_NOT_RECEIVED,
+  ];
+}
+
 /**
  * Build the `rejectionReason` string the backend stores and the payer reads.
  *
@@ -223,7 +306,11 @@ export const REJECTION_REASONS: RejectionReasonOption[] = [
  * submit blocked — the backend contract still requires a non-empty reason.
  */
 export function composeRejectionReason(reasonKey: string, note: string): string {
-  const reason = REJECTION_REASONS.find((r) => r.key === reasonKey);
+  // Spans every reason the product can OFFER, not just the transfer list:
+  // `rejectionReasonsFor` adds "No se recibió el pago" for a desk payment, and
+  // a lookup that missed it would compose "" and leave the reject button
+  // blocked on the one reason that flow most needs.
+  const reason = ALL_REJECTION_REASONS.find((r) => r.key === reasonKey);
   if (!reason) return "";
   const trimmedNote = note.trim();
   return trimmedNote ? `${reason.label} — ${trimmedNote}` : reason.label;

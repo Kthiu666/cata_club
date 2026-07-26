@@ -16,6 +16,7 @@ import {
   findQueueNeighbours,
   getAutoAdvanceId,
   buildApprovalChecklist,
+  rejectionReasonsFor,
   composeRejectionReason,
 } from "../payments-utils";
 
@@ -180,20 +181,111 @@ describe("getAutoAdvanceId", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildApprovalChecklist", () => {
+  const TRANSFER = {
+    expectedAmountLabel: "$25,00",
+    paymentMethod: "Transferencia",
+    hasProof: true,
+    periodLabel: "1 jul → 12 ago",
+  };
+  const CASH = {
+    expectedAmountLabel: "$25,00",
+    paymentMethod: "Efectivo",
+    hasProof: false,
+    periodLabel: "1 jul → 12 ago",
+  };
+
   it("names the expected amount inside the item that checks it", () => {
-    const checklist = buildApprovalChecklist("$25,00");
+    const checklist = buildApprovalChecklist(TRANSFER);
     expect(checklist).toHaveLength(3);
     expect(checklist.map((c) => c.label)).toContain("El monto del comprobante coincide con $25,00");
   });
 
   it("gives every item a stable key so a checked box survives a re-render", () => {
-    const keys = buildApprovalChecklist("$25,00").map((c) => c.key);
+    const keys = buildApprovalChecklist(TRANSFER).map((c) => c.key);
     expect(new Set(keys).size).toBe(keys.length);
-    expect(keys).toEqual(buildApprovalChecklist("$40,00").map((c) => c.key));
+    expect(keys).toEqual(
+      buildApprovalChecklist({ ...TRANSFER, expectedAmountLabel: "$40,00" }).map((c) => c.key),
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // A safeguard the admin has to falsify teaches them to tick without looking.
+  //
+  // On a cash payment received at the desk there IS no receipt, and the list
+  // still demanded three assertions about one: that it is legible, that its
+  // amount matches, that its date is in range. The only way to approve was to
+  // affirm three things about a document that does not exist — which trains
+  // exactly the reflex the checklist was added to prevent.
+  // -------------------------------------------------------------------------
+
+  it("never asks about a receipt when no receipt was submitted", () => {
+    const labels = buildApprovalChecklist(CASH).map((c) => c.label).join(" ");
+    expect(labels).not.toMatch(/comprobante/i);
+  });
+
+  it("asks a cash payment what the admin can actually verify", () => {
+    const checklist = buildApprovalChecklist(CASH);
+    expect(checklist).toHaveLength(2);
+    expect(checklist.map((c) => c.label)).toEqual([
+      "Recibí $25,00 en efectivo, en persona",
+      "El pago corresponde al período 1 jul → 12 ago",
+    ]);
+  });
+
+  it("keeps the receipt questions for a cash payment that DID come with one", () => {
+    const checklist = buildApprovalChecklist({ ...CASH, hasProof: true });
+    expect(checklist.map((c) => c.key)).toEqual(["legible", "monto", "fecha"]);
+  });
+
+  it("says 'del pago' rather than 'de la transferencia' when the cash came with a receipt", () => {
+    const labels = buildApprovalChecklist({ ...CASH, hasProof: true }).map((c) => c.label);
+    expect(labels).toContain("La fecha del pago cae dentro del período");
+    expect(labels).not.toContain("La fecha de la transferencia cae dentro del período");
+  });
+
+  it("still asks about the receipt on a transfer that arrived without one", () => {
+    // A transfer with no attachment is a broken submission, not a desk payment:
+    // the admin has nothing to approve, and the list must not pretend otherwise.
+    const checklist = buildApprovalChecklist({ ...TRANSFER, hasProof: false });
+    expect(checklist.map((c) => c.key)).toEqual(["legible", "monto", "fecha"]);
+  });
+});
+
+describe("rejectionReasonsFor", () => {
+  it("offers every typified reason when there is a receipt to talk about", () => {
+    expect(rejectionReasonsFor("Transferencia", true).map((r) => r.key)).toEqual([
+      "monto",
+      "ilegible",
+      "fuera-periodo",
+      "duplicado",
+    ]);
+  });
+
+  it("drops the receipt-only reasons for a cash payment with no receipt", () => {
+    const keys = rejectionReasonsFor("Efectivo", false).map((r) => r.key);
+    expect(keys).not.toContain("ilegible");
+    expect(keys).not.toContain("duplicado");
+  });
+
+  it("keeps the reasons a desk payment can genuinely fail on", () => {
+    const keys = rejectionReasonsFor("Efectivo", false).map((r) => r.key);
+    expect(keys).toEqual(["monto", "fuera-periodo", "no-recibido"]);
+  });
+
+  it("gives the payer a reason they can act on when the money never arrived", () => {
+    const reason = rejectionReasonsFor("Efectivo", false).find((r) => r.key === "no-recibido");
+    expect(reason?.label).toBe("No se recibió el pago");
   });
 });
 
 describe("composeRejectionReason", () => {
+  it("resolves a reason that only the cash flow offers", () => {
+    // The lookup used to span the transfer list only, so selecting this reason
+    // composed "" and left the reject button blocked forever — an admin could
+    // never turn down a cash payment the club never received.
+    expect(composeRejectionReason("no-recibido", "")).toBe("No se recibió el pago");
+  });
+
   it("sends the typified reason verbatim — it is what the payer will read", () => {
     expect(composeRejectionReason("monto", "")).toBe("El monto no coincide");
   });

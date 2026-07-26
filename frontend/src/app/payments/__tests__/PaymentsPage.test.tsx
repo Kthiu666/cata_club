@@ -538,3 +538,78 @@ describe("PaymentsPage — 390px viewport", () => {
     expect(within(cards).getByRole("button", { name: /revisar el pago de Juan Pérez/i })).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// The checklist asks about the payment in front of the admin.
+//
+// It used to ask three questions about a receipt, always. On a cash payment
+// taken at the desk there is no receipt, so approving meant affirming that a
+// document that does not exist is legible, that its amount matches and that
+// its date is in range. A safeguard you have to falsify to do your job teaches
+// that ticking boxes is a formality — and that lesson carries straight over to
+// the transfers where the boxes are the only control there is.
+// ---------------------------------------------------------------------------
+
+describe("PaymentsPage — the approval checklist follows the evidence", () => {
+  const CASH_AT_THE_DESK: PaymentValidationRequest = {
+    ...PENDING_REQUEST,
+    paymentMethod: "Efectivo",
+    proofPreviewUrl: undefined,
+    proofFileName: "Sin comprobante adjunto",
+  };
+
+  it("never asks about a receipt for cash taken at the desk", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([CASH_AT_THE_DESK]);
+    renderPage();
+    await openRequest("Juan Pérez");
+
+    const group = await screen.findByRole("group", { name: /antes de aprobar/i });
+    expect(within(group).queryByText(/comprobante/i)).not.toBeInTheDocument();
+  });
+
+  it("asks a cash payment the two things the admin can actually answer", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([CASH_AT_THE_DESK]);
+    renderPage();
+    await openRequest("Juan Pérez");
+
+    const group = await screen.findByRole("group", { name: /antes de aprobar/i });
+    const boxes = within(group).getAllByRole("checkbox");
+    expect(boxes).toHaveLength(2);
+    expect(within(group).getByText(/Recibí \$50,00 en efectivo, en persona/)).toBeInTheDocument();
+  });
+
+  it("still gates the approval behind the shorter list", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([CASH_AT_THE_DESK]);
+    renderPage();
+    await openRequest("Juan Pérez");
+
+    const approve = await screen.findByRole("button", { name: /aprobar pago/i });
+    expect(approve).toBeDisabled();
+
+    completeChecklist();
+    expect(approve).toBeEnabled();
+  });
+
+  it("keeps the receipt questions for a transfer", async () => {
+    renderPage();
+    await openRequest("Juan Pérez");
+
+    const group = await screen.findByRole("group", { name: /antes de aprobar/i });
+    expect(within(group).getAllByRole("checkbox")).toHaveLength(3);
+    expect(
+      within(group).getByText("El comprobante es legible y no está cortado"),
+    ).toBeInTheDocument();
+  });
+
+  it("offers a cash payment a rejection reason the payer can act on", async () => {
+    mockFetchPaymentValidations.mockResolvedValue([CASH_AT_THE_DESK]);
+    renderPage();
+    await openRequest("Juan Pérez");
+
+    fireEvent.click(await screen.findByRole("button", { name: /rechazar/i }));
+
+    expect(await screen.findByLabelText(/No se recibió el pago/i)).toBeInTheDocument();
+    // "El comprobante no se lee" is unusable advice for someone who paid cash.
+    expect(screen.queryByLabelText(/El comprobante no se lee/i)).not.toBeInTheDocument();
+  });
+});
