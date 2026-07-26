@@ -245,7 +245,7 @@ function CrearCuentaContent(): React.ReactElement {
             </div>
             <h3 className="mb-1 font-semibold text-cata-text">Jugador</h3>
             <p className="text-xs leading-relaxed text-cata-text/65">
-              Cuenta de estudiante adulto (18+) con rol ALUMNO.
+              Mayor de 18 que entrena y paga su propia mensualidad.
             </p>
           </button>
 
@@ -263,7 +263,7 @@ function CrearCuentaContent(): React.ReactElement {
             </div>
             <h3 className="mb-1 font-semibold text-cata-text">Representante</h3>
             <p className="text-xs leading-relaxed text-cata-text/65">
-              Adulto (18+) que representa a un menor. Roles REPRESENTANTE + ALUMNO.
+              Adulto que paga por sus hijos y también entrena.
             </p>
           </button>
 
@@ -281,7 +281,7 @@ function CrearCuentaContent(): React.ReactElement {
             </div>
             <h3 className="mb-1 font-semibold text-cata-text">Menor / Dependiente</h3>
             <p className="text-xs leading-relaxed text-cata-text/65">
-              Menor de 18 años vinculado a un representante. Rol ALUMNO.
+              Menor de 18 a cargo de un representante que paga por él.
             </p>
           </button>
         </div>
@@ -572,9 +572,9 @@ function CrearCuentaContent(): React.ReactElement {
   function renderSummary(): React.ReactElement {
     const age = formData.fechaNacimiento ? calculateAge(formData.fechaNacimiento) : null;
     const typeLabels: Record<AccountType, string> = {
-      JUGADOR: "Jugador (rol ALUMNO)",
-      REPRESENTANTE: "Representante (roles REPRESENTANTE + ALUMNO)",
-      MENOR: "Menor / Dependiente (rol ALUMNO)",
+      JUGADOR: "Jugador",
+      REPRESENTANTE: "Representante que también entrena",
+      MENOR: "Menor a cargo de un representante",
     };
     return (
       <div className="space-y-4">
