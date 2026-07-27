@@ -101,6 +101,9 @@ def _clasificar_rutas():
 # instituciones educativas) sin dato de persona alguno.
 RUTAS_PUBLICAS = {
     ("GET", "/"),
+    ("GET", "/health"),  # liveness probe (PR-09, sdd/production-readiness): sin
+                         # dependencias a proposito, debe responder aunque la BD
+                         # este caida (lo usa el healthcheck de docker-compose.yml).
     ("GET", "/personas/instituciones"),
     ("POST", "/auth/login"),
     ("POST", "/auth/logout"),

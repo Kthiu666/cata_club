@@ -84,3 +84,14 @@ app.include_router(chatbot_router.router, prefix="/api/v1")
 @app.get("/", tags=["Salud"])
 async def raiz():
     return {"mensaje": "API Cata Club operativa", "version": settings.app_version}
+
+
+# --- Liveness probe -----------------------------------------------------
+# Sin dependencias (ni BD ni auth) a propósito: es la sonda que usa el
+# healthcheck de docker-compose.yml para decidir si reiniciar el contenedor.
+# Antes ese healthcheck apuntaba a /docs (ver decisión de diseño 2.4/4.1,
+# sdd/production-readiness); en producción /docs se deshabilita, así que
+# necesitaba un reemplazo que no dependa de nada que pueda estar caído.
+@app.get("/health", tags=["Salud"])
+async def salud():
+    return {"estado": "ok"}

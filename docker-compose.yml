@@ -102,7 +102,11 @@ services:
       # --- Chatbot de FAQ (gateway OpenCode) ---
       OPENCODE_API_KEY: ${OPENCODE_API_KEY:-}
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      # PR-09 (sdd/production-readiness): antes apuntaba a /docs. En
+      # producción /docs se deshabilita (PR-10), así que el healthcheck no
+      # puede depender de esa ruta -- /health no tiene dependencias (ni BD
+      # ni auth) y existe justo para esto.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
       timeout: 5s
       retries: 10
