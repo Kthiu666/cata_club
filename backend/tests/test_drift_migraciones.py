@@ -6,27 +6,13 @@ regresión registrada en Engram #3842: `Usuario.version_contrasenia` y la
 tabla `cierre_mensual_ranking` llegaron a vivir en los modelos sin ninguna
 migración que las creara.
 
-Solo tiene sentido contra Postgres real. En la rama SQLite transitoria
-(decisión 1.5) el esquema se crea directo desde `Base.metadata` vía
-`create_all`, así que la comparación siempre daría vacía por construcción y
-la prueba no probaría nada — de ahí el `skipif`.
+Requiere Postgres real (`conftest.py` ya lo exige de forma incondicional
+para toda la suite, ver `TEST_DATABASE_URL`).
 """
-import os
-
-import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.runtime.migration import MigrationContext
 
 from app.dominio.modelos import Base
-
-pytestmark = pytest.mark.skipif(
-    not os.environ.get("TEST_DATABASE_URL"),
-    reason=(
-        "Requiere TEST_DATABASE_URL (Postgres real, ver db-test en "
-        "docker-compose.yml). En SQLite el esquema se crea desde "
-        "Base.metadata y la comparación no tiene nada que decir."
-    ),
-)
 
 
 # Drift preexistente y ya documentado — no introducido por este cambio ni

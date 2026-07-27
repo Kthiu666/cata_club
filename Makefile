@@ -37,8 +37,13 @@ install-frontend: ## Install frontend dependencies (pnpm)
 # ─── Testing ────────────────────────────────────────────────────────────────
 test: test-backend test-frontend ## Run all tests
 
-test-backend: ## Run backend tests (pytest)
-	cd backend && uv run pytest tests/ -v
+# Requiere `db-test` corriendo (`docker compose --profile test up -d
+# db-test`, ver docker-compose.yml): la suite ya no tiene una rama SQLite de
+# respaldo (sdd/production-readiness, decisión 1.5 -- sunset en PR-06f).
+# El puerto 5436 es el publicado por `db-test` en docker-compose.yml;
+# TEST_DATABASE_URL en el entorno invocador tiene prioridad sobre este default.
+test-backend: ## Run backend tests (pytest, requires: docker compose --profile test up -d db-test)
+	cd backend && TEST_DATABASE_URL="$${TEST_DATABASE_URL:-postgresql+psycopg://usuario:password@localhost:5436/cataclub_test}" uv run pytest tests/ -v
 
 test-frontend: ## Run frontend unit tests (vitest)
 	cd frontend && pnpm test
