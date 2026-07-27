@@ -798,6 +798,7 @@ function CrearCuentaContent(): React.ReactElement {
 
               <WizardNavigation
                 formErrors={formErrors}
+                duplicateIdentityAudience="admin"
                 isFirst={isFirst}
                 isLast={isLast}
                 submitting={submitting}
