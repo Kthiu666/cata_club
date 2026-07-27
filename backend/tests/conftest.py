@@ -147,6 +147,35 @@ def esquema_migrado(motor_test):
     alembic_command.upgrade(alembic_cfg, "head")
 
 
+@pytest.fixture(scope="session")
+def motor_arnes_migraciones():
+    """Base de datos EFÍMERA y separada donde el arnés ejercita migraciones
+    sobre datos preexistentes (ver `tests/arnes_migraciones.py`).
+
+    No puede ser la base de la suite: el arnés hace `DROP SCHEMA public
+    CASCADE` por escenario, y eso destruiría el esquema que
+    `esquema_migrado` (scope=session) construye UNA vez para el resto de
+    las pruebas. Vive en el mismo servidor Postgres (`TEST_DATABASE_URL`),
+    respetando el contrato de un solo env var (decisión 1.1)."""
+    from tests.arnes_migraciones import crear_bd_del_arnes, destruir_bd_del_arnes
+
+    motor, nombre_bd = crear_bd_del_arnes(TEST_DATABASE_URL)
+    try:
+        yield motor
+    finally:
+        motor.dispose()
+        destruir_bd_del_arnes(TEST_DATABASE_URL, nombre_bd)
+
+
+@pytest.fixture()
+def arnes_migracion(motor_arnes_migraciones):
+    """Arnés por prueba. El aislamiento lo da `preparar()`, que reconstruye
+    el esquema desde cero en cada escenario."""
+    from tests.arnes_migraciones import ArnesMigracion
+
+    return ArnesMigracion(motor_arnes_migraciones)
+
+
 _secuencias_cache: list[str] = []
 
 
