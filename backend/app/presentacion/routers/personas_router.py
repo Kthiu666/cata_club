@@ -5,6 +5,7 @@ from typing import List, Optional
 from datetime import date, datetime, time, timezone
 
 from app.infraestructura.db import obtener_sesion
+from app.soporte_transversal.tiempo import hoy_club
 from app.infraestructura.generador_pdf import construir_respuesta_pdf, generar_reporte_pdf
 from app.presentacion.schemas.persona_schemas import (
     PersonaCreateDTO, PersonaResponseDTO, PersonaUpdateDTO,
@@ -140,7 +141,10 @@ async def reporte_nuevos_por_periodo_pdf(
         columnas=_COLUMNAS_PERSONAS_PDF,
         filas=_personas_a_filas(personas),
     )
-    fecha_iso = date.today().isoformat()
+    # Día del CLUB: la fecha del nombre de archivo es la que un humano lee
+    # para saber de cuándo es el reporte. Uno descargado a las 19:30 del lunes
+    # no puede llamarse con la fecha del martes.
+    fecha_iso = hoy_club().isoformat()
     return construir_respuesta_pdf(pdf_bytes, f"reporte-periodo_{fecha_iso}.pdf")
 
 

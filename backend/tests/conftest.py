@@ -78,22 +78,18 @@ def crear_entrenador(db_session, cedula: str = "1710034065") -> int:
 FECHA_CONGELADA_HOY = _date_cls(2029, 1, 1)
 
 
-class _FechaCongelada(_date_cls):
-    """Subclase de `date` cuyo `today()` devuelve una fecha fija. Sigue
-    permitiendo construir `date(...)` normalmente para los tests que
-    explicitan fechas (ej. fecha_entrenamiento)."""
-    @classmethod
-    def today(cls):
-        return FECHA_CONGELADA_HOY
-
-
 @pytest.fixture(autouse=True)
 def _congelar_hoy_en_persona_servicio(monkeypatch):
-    """Parchea el `date` importado en `persona_servicio` para que los
+    """Parchea el `hoy_club()` importado en `persona_servicio` para que los
     tests no dependan del reloj real (ver nota FECHA_CONGELADA_HOY).
-    Autouse: aplica a todos los tests sin necesidad de pedirlo explícito."""
+    Autouse: aplica a todos los tests sin necesidad de pedirlo explícito.
+
+    Antes se parcheaba `ps.date` con una subclase de `date`; el servicio ya
+    no llama a `date.today()` sino a `hoy_club()` (ver
+    `app/soporte_transversal/tiempo.py`), porque la edad de un alumno se
+    define por el día del club, no por el del contenedor (UTC)."""
     import app.servicios_negocio.persona_servicio as ps
-    monkeypatch.setattr(ps, "date", _FechaCongelada)
+    monkeypatch.setattr(ps, "hoy_club", lambda: FECHA_CONGELADA_HOY)
 
 
 @pytest.fixture(autouse=True)

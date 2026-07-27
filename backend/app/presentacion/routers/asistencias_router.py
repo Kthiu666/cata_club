@@ -6,6 +6,7 @@ from datetime import date
 
 from app.dominio.enums import Categoria
 from app.infraestructura.db import obtener_sesion
+from app.soporte_transversal.tiempo import hoy_club
 from app.infraestructura.generador_pdf import construir_respuesta_pdf, generar_reporte_pdf
 from app.presentacion.schemas.asistencia_schemas import (
     AsistenciaCreateDTO, AsistenciaResponseDTO, HorarioCreateDTO, HorarioUpdateDTO, HorarioResponseDTO,
@@ -145,7 +146,10 @@ async def reporte_asistencia_pdf(
         columnas=columnas,
         filas=filas,
     )
-    fecha_iso = date.today().isoformat()
+    # Día del CLUB: la fecha del nombre de archivo es la que un humano lee
+    # para saber de cuándo es el reporte. Uno descargado a las 19:30 del lunes
+    # no puede llamarse con la fecha del martes.
+    fecha_iso = hoy_club().isoformat()
     return construir_respuesta_pdf(pdf_bytes, f"reporte-asistencia_{fecha_iso}.pdf")
 
 
