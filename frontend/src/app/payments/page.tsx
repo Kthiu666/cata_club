@@ -344,7 +344,6 @@ export default function PaymentsPage(): React.ReactElement {
    *  approve/reject, and holding the old one is how a detail view goes stale. */
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [rejectionReasonKey, setRejectionReasonKey] = useState("");
   const [rejectionNote, setRejectionNote] = useState("");
@@ -395,15 +394,6 @@ export default function PaymentsPage(): React.ReactElement {
     void loadRequests();
   }, [loadRequests]);
 
-  /**
-   * One feedback channel: the toast. An outcome the user just caused is a
-   * toast; only state that must persist on the page (a field-level validation
-   * message, a load that failed and can be retried) is rendered inline.
-   */
-  useEffect(() => {
-    if (actionError) showError(actionError);
-  }, [actionError, showError]);
-
   const selectedRequest = useMemo(
     () => requests.find((r) => r.id === selectedId) ?? null,
     [requests, selectedId],
@@ -419,7 +409,6 @@ export default function PaymentsPage(): React.ReactElement {
     setShowRejectForm(false);
     setRejectionReasonKey("");
     setRejectionNote("");
-    setActionError(null);
     setPreviewUnavailable(false);
     setVoucherModalOpen(false);
   }, [selectedId]);
@@ -676,7 +665,6 @@ export default function PaymentsPage(): React.ReactElement {
     const previousSelectedId = selectedId;
 
     pendingBeforeDecision.current = pending;
-    setActionError(null);
     applyDecision(optimistic);
 
     const putItBack = (): void => {
