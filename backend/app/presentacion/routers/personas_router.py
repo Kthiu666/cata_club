@@ -420,8 +420,18 @@ async def asignar_rol(persona_id: int, datos: RolAsignarDTO, db: Session = Depen
     "/{persona_id}/roles/{tipo_rol}", response_model=RolesResponseDTO,
     dependencies=[Depends(GestorPermisos(["ADMINISTRADOR"]))],
 )
-async def quitar_rol(persona_id: int, tipo_rol: TipoRol, db: Session = Depends(obtener_sesion)):
-    usuario = RolServicio(db).quitar_rol(persona_id, tipo_rol)
+async def quitar_rol(
+    persona_id: int,
+    tipo_rol: TipoRol,
+    db: Session = Depends(obtener_sesion),
+    token_payload: dict = Depends(GestorAutenticacion.decodificar_token),
+):
+    """El `persona_id` del solicitante se toma del token, nunca del cliente:
+    es lo que permite bloquear que un administrador se quite a sí mismo el
+    rol ADMINISTRADOR y se deje fuera del sistema."""
+    usuario = RolServicio(db).quitar_rol(
+        persona_id, tipo_rol, persona_id_solicitante=token_payload.get("persona_id")
+    )
     return RolesResponseDTO(persona_id=persona_id, roles=[r.tipo_rol.value for r in usuario.roles], activo=usuario.activo)
 
 
