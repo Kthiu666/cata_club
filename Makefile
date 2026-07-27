@@ -1,4 +1,4 @@
-.PHONY: help dev dev-backend dev-frontend test test-backend test-frontend \
+.PHONY: help dev dev-backend dev-frontend test test-backend test-frontend test-compose \
        lint lint-backend lint-frontend typecheck build build-frontend \
        install install-backend install-frontend \
        docker-up docker-down docker-build \
@@ -47,6 +47,12 @@ test-backend: ## Run backend tests (pytest, requires: docker compose --profile t
 
 test-frontend: ## Run frontend unit tests (vitest)
 	cd frontend && pnpm test
+
+# No requiere Postgres ni TEST_DATABASE_URL: solo Docker Compose. Corre
+# fuera de la suite de backend/tests a propósito (sdd/production-readiness,
+# PR-14) -- reutiliza el pytest ya instalado en el venv del backend.
+test-compose: ## Validate production compose layering (no build/ports leak into prod)
+	cd backend && uv run pytest ../tests/test_docker_compose_config.py -v
 
 # ─── Linting ────────────────────────────────────────────────────────────────
 lint: lint-backend lint-frontend ## Lint both projects
