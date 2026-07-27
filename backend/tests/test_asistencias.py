@@ -77,6 +77,10 @@ def test_asistencia_permite_entrenador_sustituto_distinto_al_titular(client, db_
             "entrenador_id": titular["id"],
         },
     ).json()
+    client.post(
+        "/api/v1/asistencias/asignar-alumno",
+        json={"persona_id": alumno["id"], "horario_id": horario["id"]},
+    )
 
     resp = client.post(
         "/api/v1/asistencias/",
@@ -108,6 +112,10 @@ def test_registrar_asistencia_dos_veces_actualiza_en_vez_de_duplicar(client, db_
             "entrenador_id": entrenador["id"],
         },
     ).json()
+    client.post(
+        "/api/v1/asistencias/asignar-alumno",
+        json={"persona_id": alumno["id"], "horario_id": horario["id"]},
+    )
 
     payload = {
         "fecha_entrenamiento": str(date(2026, 7, 20)), "estado": "PRESENTE",
@@ -213,6 +221,88 @@ def test_listar_alumnos_por_horario_rechaza_alumno_sin_relacion(client_sin_permi
     _restaurar_token_alumno()
     resp = client_sin_permisos.get(f"/api/v1/asistencias/horarios/{horario['id']}/alumnos")
     assert resp.status_code == 403
+
+
+# --- LIFE-1: precondición de inscripción --------------------------------
+# `registrar_asistencia` validaba persona, horario y entrenador, pero nunca
+# la inscripción (`AlumnoHorario`): `POST /asistencias/` podía crear
+# asistencia para un alumno jamás asignado a ese horario. El único camino
+# real de alta es `POST /asistencias/asignar-alumno`.
+def test_registrar_asistencia_rechaza_sin_alumno_horario_insercion(client, db_session):
+    """Sin inscripción previa (ni asistencia previa): el alta debe
+    rechazarse y no debe quedar ninguna fila creada."""
+    entrenador = _crear_persona_api(client, "1710034065", "Carlos")
+    _convertir_en_entrenador(db_session, entrenador["id"])
+    alumno = _crear_persona_api(client, "1710034073", "Ana")
+
+    horario = client.post(
+        "/api/v1/asistencias/horarios",
+        json={
+            "categoria": "JUVENIL", "dia_semana": "LUNES",
+            "entrenador_id": entrenador["id"],
+        },
+    ).json()
+    # Deliberadamente NO se llama a /asistencias/asignar-alumno.
+
+    resp = client.post(
+        "/api/v1/asistencias/",
+        json={
+            "fecha_entrenamiento": str(date(2026, 7, 13)), "estado": "PRESENTE",
+            "persona_id": alumno["id"], "entrenador_id": entrenador["id"],
+            "horario_id": horario["id"],
+        },
+    )
+    assert resp.status_code == 400
+    assert str(alumno["id"]) in resp.json()["detail"]
+
+    historial = client.get(f"/api/v1/asistencias/persona/{alumno['id']}")
+    assert historial.json() == []
+
+
+def test_registrar_asistencia_rechaza_sin_alumno_horario_actualizacion(client, db_session):
+    """El upsert cubre altas Y actualizaciones: si la inscripción se retira
+    después de que ya existe una Asistencia (`desasignar_alumno_de_horario`),
+    reabrir el wizard y reenviar la misma combinación debe rechazarse igual
+    que el alta -- de lo contrario la rama de actualización sería un bypass
+    de la regla que la rama de creación sí aplica. La fila existente no debe
+    modificarse."""
+    entrenador = _crear_persona_api(client, "1710034065", "Carlos")
+    _convertir_en_entrenador(db_session, entrenador["id"])
+    alumno = _crear_persona_api(client, "1710034073", "Ana")
+
+    horario = client.post(
+        "/api/v1/asistencias/horarios",
+        json={
+            "categoria": "JUVENIL", "dia_semana": "LUNES",
+            "entrenador_id": entrenador["id"],
+        },
+    ).json()
+    client.post(
+        "/api/v1/asistencias/asignar-alumno",
+        json={"persona_id": alumno["id"], "horario_id": horario["id"]},
+    )
+
+    payload = {
+        "fecha_entrenamiento": str(date(2026, 7, 13)), "estado": "PRESENTE",
+        "persona_id": alumno["id"], "entrenador_id": entrenador["id"],
+        "horario_id": horario["id"],
+    }
+    primera = client.post("/api/v1/asistencias/", json=payload)
+    assert primera.status_code == 201
+
+    client.request(
+        "DELETE", "/api/v1/asistencias/desasignar-alumno",
+        params={"persona_id": alumno["id"], "horario_id": horario["id"]},
+    )
+
+    segunda = client.post("/api/v1/asistencias/", json={**payload, "estado": "AUSENTE"})
+    assert segunda.status_code == 400
+    assert str(alumno["id"]) in segunda.json()["detail"]
+
+    historial = client.get(f"/api/v1/asistencias/persona/{alumno['id']}")
+    registros = [r for r in historial.json() if r["horarioId"] == horario["id"]]
+    assert len(registros) == 1
+    assert registros[0]["estado"] == "PRESENTE"  # sin cambios
 
 
 def test_listar_alumnos_por_horario_rechaza_aunque_el_propio_este_inscrito(
