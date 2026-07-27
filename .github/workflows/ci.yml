@@ -19,6 +19,26 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # Postgres real (REQ-TEST-2, sdd/production-readiness): la suite ya no
+    # corre sobre SQLite en memoria, sino contra un servicio Postgres 16
+    # equivalente al `db-test` de docker-compose.yml (mismo contrato de un
+    # solo env var, `TEST_DATABASE_URL` — ver decisión de diseño 1.1). Esto
+    # ejercita migraciones Alembic reales, FKs, y tipos nativos de Postgres
+    # en cada PR, no solo en el job separado `migraciones-desde-cero`.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: usuario
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: cataclub_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U usuario -d cataclub_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +62,42 @@ jobs:
           AMBIENTE: test
           # Ponemos una clave larga simulada para que el validador de Pydantic pase sin problemas
           JWT_SECRET_KEY: "clave_super_secreta_y_segura_de_mas_de_32_caracteres_para_los_tests"
+          TEST_DATABASE_URL: postgresql+psycopg://usuario:password@localhost:5432/cataclub_test
         run: uv run --frozen --no-build pytest tests/ -v --cov=app --cov-report=term-missing
+
+  # Job temporario (decisión de diseño 1.5, sdd/production-readiness): corre
+  # SOLO los archivos listados en `tests/_pendientes_postgres.py` sobre
+  # SQLite, para que sus aserciones no dejen de ejecutarse mientras se
+  # reparan uno por uno (PR-06a..06e). Se elimina en el commit de sunset
+  # (PR-06f) junto con el allow-list y la rama SQLite de `conftest.py`.
+  backend-pendientes-postgres:
+    name: Backend — archivos pendientes de Postgres (SQLite temporal)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
+
+      - name: Install dependencies
+        run: uv sync --frozen --no-build
+
+      - name: Run pending-postgres files on SQLite
+        env:
+          AMBIENTE: test
+          JWT_SECRET_KEY: "clave_super_secreta_y_segura_de_mas_de_32_caracteres_para_los_tests"
+        run: |
+          ARCHIVOS=$(uv run --frozen --no-build python -c "from tests._pendientes_postgres import ARCHIVOS_PENDIENTES; print(' '.join(f'tests/{a}' for a in sorted(ARCHIVOS_PENDIENTES)))")
+          echo "Archivos pendientes: $ARCHIVOS"
+          uv run --frozen --no-build pytest $ARCHIVOS -v
 
   migraciones-desde-cero:
     name: Migraciones desde DB vacia (empty -> head)

@@ -16,6 +16,34 @@ services:
       timeout: 5s
       retries: 10
 
+  # Postgres efímero exclusivo para la suite de tests del backend (perfil
+  # "test": no se levanta con `docker compose up` normal, hay que pedirlo
+  # explícito con `--profile test up -d db-test`). Deliberadamente separado
+  # del `db` de desarrollo — un bug de rollback en los tests jamás debe
+  # poder tocar datos reales (ver decisión de diseño 1.1,
+  # sdd/production-readiness). `tmpfs` + fsync/synchronous_commit/
+  # full_page_writes desactivados: la durabilidad no importa para datos que
+  # se destruyen al bajar el contenedor, y esto acelera notablemente la
+  # migración de esquema + las ~780 pruebas que corren sobre esta BD.
+  db-test:
+    image: postgres:16-alpine
+    profiles: ["test"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-usuario}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: cataclub_test
+    ports:
+      - "5436:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    command: >
+      postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-usuario} -d cataclub_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped

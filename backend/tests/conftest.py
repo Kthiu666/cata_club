@@ -1,16 +1,22 @@
 """
 Fixtures compartidas para las pruebas del backend.
-Usa SQLite en memoria (no requiere PostgreSQL) para validar que el modelo de
-dominio, los repositorios, los servicios de negocio y los routers funcionan
-de punta a punta.
+
+Rama transitoria (decisión de diseño 1.5, sdd/production-readiness): sin
+`TEST_DATABASE_URL` en el entorno, la suite corre sobre SQLite en memoria
+(comportamiento histórico). Con `TEST_DATABASE_URL` definido, corre sobre
+Postgres real (`db-test` en docker-compose.yml, o el servicio Postgres de
+CI), con el esquema creado por Alembic real — no `Base.metadata.create_all`
+— y aislamiento por test vía transacción externa + savepoints. Esta rama
+SQLite se elimina en PR-06f una vez repare el fallout de correr sobre
+Postgres (ver `backend/tests/_pendientes_postgres.py`).
 """
 import sys
 import os
 from datetime import date as _date_cls
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import StaticPool, NullPool
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -18,10 +24,38 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Deshabilitar rate limiting en tests
 os.environ.setdefault("AMBIENTE", "test")
 
+# Contrato de un solo env var (decisión 1.1/1.5): si `TEST_DATABASE_URL` está
+# definido, tanto esta suite como Alembic (vía `settings.database_url`,
+# leído en `alembic/env.py`) deben apuntar al MISMO Postgres. Esto tiene que
+# pasar ANTES de importar cualquier módulo de `app.*` de más abajo: `settings`
+# es un singleton (`Settings()`) que lee las env vars una sola vez, al
+# importarse `app.soporte_transversal.configuracion`.
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "").strip()
+if TEST_DATABASE_URL:
+    os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+
 from app.dominio.modelos import Base, Persona, Usuario, Rol
 from app.dominio.enums import TipoRol
 from app.infraestructura.db import obtener_sesion
 from app.seguridad.gestor_auth import GestorAutenticacion
+
+
+def pytest_collection_modifyitems(config, items):
+    """Deselecciona (no `xfail`) los archivos listados en
+    `tests/_pendientes_postgres.py::ARCHIVOS_PENDIENTES` cuando la suite
+    corre contra Postgres real (decisión 1.5). Ver ese módulo para el
+    motivo de deselect en vez de `xfail(strict=False)`. No-op en la rama
+    SQLite transitoria: esos archivos siguen corriendo ahí sin cambios."""
+    if not TEST_DATABASE_URL:
+        return
+    from tests._pendientes_postgres import ARCHIVOS_PENDIENTES
+    seleccionados, deseleccionados = [], []
+    for item in items:
+        nombre_archivo = os.path.basename(str(item.fspath))
+        (deseleccionados if nombre_archivo in ARCHIVOS_PENDIENTES else seleccionados).append(item)
+    if deseleccionados:
+        config.hook.pytest_deselected(items=deseleccionados)
+        items[:] = seleccionados
 from main import app
 
 
@@ -96,22 +130,100 @@ def persona_sin_usuario(db_session):
     return p
 
 
+@pytest.fixture(scope="session")
+def motor_test():
+    """Motor de Postgres para toda la sesión de pytest (decisión 1.1/1.3).
+    Solo se conecta si `TEST_DATABASE_URL` está definido; si no, es un no-op
+    y `db_session` usa la rama SQLite transitoria más abajo. `NullPool`:
+    cada test abre su propia conexión/transacción explícita, poolear entre
+    tests que además corren secuencialmente no aporta nada."""
+    if not TEST_DATABASE_URL:
+        yield None
+        return
+    engine = create_engine(TEST_DATABASE_URL, poolclass=NullPool)
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def esquema_migrado(motor_test):
+    """Crea el esquema UNA vez por sesión aplicando las migraciones reales
+    de Alembic (decisión 1.2) — nunca `Base.metadata.create_all` en la rama
+    Postgres, así se ejercitan los ENUM nativos, las FKs y cualquier
+    `ALTER TYPE` real, cosas que `create_all` jamás corre. No-op en la rama
+    SQLite transitoria (esa sigue usando `create_all` dentro de
+    `db_session`, sin cambios respecto al comportamiento histórico)."""
+    if motor_test is None:
+        return
+    with motor_test.connect() as conexion:
+        conexion.execute(text("DROP SCHEMA public CASCADE"))
+        conexion.execute(text("CREATE SCHEMA public"))
+        conexion.commit()
+    from alembic.config import Config as AlembicConfig
+    from alembic import command as alembic_command
+    raiz_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    alembic_cfg = AlembicConfig(os.path.join(raiz_backend, "alembic.ini"))
+    alembic_command.upgrade(alembic_cfg, "head")
+
+
+_secuencias_cache: list[str] = []
+
+
+def _reiniciar_secuencias(conexion) -> None:
+    """Resetea cada secuencia a 1 dentro de la transacción externa del test.
+    `ALTER SEQUENCE ... RESTART WITH n` es transaccional en Postgres (a
+    diferencia de `nextval`/`setval`, que nunca se deshacen) y por lo tanto
+    se revierte con el `ROLLBACK` de teardown de `db_session` — verificado
+    empíricamente contra Postgres 16 real en
+    `backend/scripts/spike_secuencias_postgres.sql`. Esto preserva, sin
+    reescribirlos, a los tests existentes que hardcodean ids bajos (ej.
+    `"persona_id": 1` en los fixtures `client*` más abajo)."""
+    global _secuencias_cache
+    if not _secuencias_cache:
+        filas = conexion.execute(text(
+            "SELECT sequence_name FROM information_schema.sequences "
+            "WHERE sequence_schema = 'public'"
+        )).fetchall()
+        _secuencias_cache = [fila[0] for fila in filas]
+    for nombre in _secuencias_cache:
+        conexion.execute(text(f'ALTER SEQUENCE "{nombre}" RESTART WITH 1'))
+
+
 @pytest.fixture()
-def db_session():
-    """Motor SQLite en memoria, tablas frescas por cada test."""
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(bind=engine)
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    session = TestingSessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
-        Base.metadata.drop_all(bind=engine)
+def db_session(motor_test):
+    """Sesión de BD por test.
+    - Postgres (`TEST_DATABASE_URL` definido): aislamiento por transacción
+      externa + savepoints (decisión 1.3) — cada `commit()` de repositorio
+      libera un SAVEPOINT en vez de terminar la transacción externa, así
+      que el `rollback()` final descarta todo lo escrito por el test.
+    - SQLite (rama transitoria, decisión 1.5 — se elimina en PR-06f): motor
+      y tablas frescas por test, comportamiento histórico sin cambios."""
+    if motor_test is not None:
+        conexion = motor_test.connect()
+        transaccion = conexion.begin()
+        _reiniciar_secuencias(conexion)
+        sesion = Session(bind=conexion, join_transaction_mode="create_savepoint")
+        try:
+            yield sesion
+        finally:
+            sesion.close()
+            transaccion.rollback()
+            conexion.close()
+    else:
+        engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Base.metadata.create_all(bind=engine)
+        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        session = TestingSessionLocal()
+        try:
+            yield session
+        finally:
+            session.close()
+            Base.metadata.drop_all(bind=engine)
+            engine.dispose()
 
 
 @pytest.fixture()
