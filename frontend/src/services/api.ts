@@ -1249,7 +1249,7 @@ export interface AdminFichaMedicaPayload {
 
 /** Payload for admin creating a full account (Persona + Usuario + Rol) in one request. */
 export interface AdminCrearCuentaPayload {
-  tipoCuenta: "JUGADOR" | "REPRESENTANTE" | "MENOR";
+  tipoCuenta: "JUGADOR" | "REPRESENTANTE" | "MENOR" | "ENTRENADOR";
   nombres: string;
   apellidos: string;
   cedula: string;
