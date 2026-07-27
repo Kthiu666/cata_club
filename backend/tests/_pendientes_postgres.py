@@ -18,13 +18,7 @@ job de CI temporal se eliminan en el commit de sunset (PR-06f) una vez la
 lista quede vacía.
 """
 
-ARCHIVOS_PENDIENTES: set[str] = {
-    # test_ranking.py: `test_marcar_notificacion_ajena_como_leida_falla`
-    # crea una `Notificacion(persona_id=999, ...)` para simular "la
-    # notificación de otra persona", confiando en que SQLite no aplica FKs
-    # por defecto. Contra Postgres real, persona_id=999 no existe y el
-    # INSERT viola la FK -- exactamente el tipo de comportamiento que
-    # REQ-TEST-1 busca ejercitar. Se repara en PR-06a creando una Persona
-    # real distinta a la que llama al endpoint, en vez de un id inventado.
-    "test_ranking.py",
-}
+# Vacío: el único archivo detectado empíricamente (`test_ranking.py`) se
+# reparó en PR-06a. Este módulo, el hook en `conftest.py`, y el job de CI
+# temporal se eliminan en el commit de sunset (PR-06f).
+ARCHIVOS_PENDIENTES: set[str] = set()
