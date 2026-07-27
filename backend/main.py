@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.soporte_transversal.configuracion import settings
 from app.soporte_transversal.rate_limit import limiter
@@ -68,6 +69,29 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept"],
 )
+
+
+# --- Cabeceras de seguridad ---------------------------------------------
+# Esta API solo devuelve JSON, así que un CSP de `default-src 'none'` es
+# seguro (no hay HTML/JS propio que necesite cargar nada).
+class _CabecerasDeSeguridadMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        respuesta: Response = await call_next(request)
+        respuesta.headers["X-Content-Type-Options"] = "nosniff"
+        respuesta.headers["X-Frame-Options"] = "DENY"
+        respuesta.headers["Referrer-Policy"] = "no-referrer"
+        respuesta.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+        respuesta.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+        return respuesta
+
+
+# Registrado DESPUÉS (más abajo) del CORSMiddleware de arriba, a propósito:
+# `add_middleware` de Starlette antepone cada middleware nuevo a la pila, así
+# que el ÚLTIMO registrado queda MÁS AFUERA. Esta es la única posición que
+# post-procesa TODAS las respuestas -- incluidas las de CORS, las de los 5
+# manejadores de excepciones de dominio (arriba) y los 429 de rate limiting
+# (ver decisión de diseño 2.4, sdd/production-readiness).
+app.add_middleware(_CabecerasDeSeguridadMiddleware)
 
 app.include_router(auth_router.router, prefix="/api/v1")
 app.include_router(personas_router.router, prefix="/api/v1")
